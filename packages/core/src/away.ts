@@ -464,11 +464,32 @@ export const PASSKEY_BEFORE_ACTING =
   'passkey is made on the device in the minutes after it pairs: one that missed them, or paired ' +
   'before this asked, reads until it pairs again. A passkey that syncs is your keychain’s rather ' +
   'than the phone’s, so any device signed into it can make the proof, and still needs that ' +
-  'device’s own session. Reading never asks. Nought asks nothing, and then a session alone acts.'
+  'device’s own session. Reading never asks. It is an hour at least, so a session never acts ' +
+  'unasked: a nought written into the file reads as one hour.'
 
 /** The short clause, for the line under the row. */
-export const PASSKEY_BEFORE_ACTING_SHORT =
-  'a copied session reads and cannot act; nought asks nothing'
+export const PASSKEY_BEFORE_ACTING_SHORT = 'a copied session reads and cannot act; an hour at least'
+
+/**
+ * **The fewest hours a passkey's proof lets a device act from the public
+ * name**, whoever wrote the number.
+ *
+ * Nought used to mean never asking, and then any copy of a session acted — and
+ * the number is itself a setting a proved device could reach, so one proof was
+ * enough to turn the proof off for every copy of that cookie after it. A floor
+ * rather than taking the number away from the phone: Amir's phone is meant to
+ * reach everything, and an hour asked again is the least a stolen cookie must
+ * get past. Written values below it are refused at the write
+ * (`settings-away.ts`'s row takes no nought) and, where a hand or an older Tade
+ * put one in the file, read as the floor (`passkeyHoursOf`) rather than
+ * refusing the file, which would take away everything else written in it.
+ */
+export const PASSKEY_FLOOR_HOURS = 1
+
+/** The hours a proof lasts, as `passkey_hours` is read: never under the floor. */
+export function passkeyHoursOf(written: number): number {
+  return Math.max(PASSKEY_FLOOR_HOURS, written)
+}
 
 /**
  * The away view's own config block: `surfaces.web`.
@@ -552,15 +573,18 @@ export const WebSurface = z
       .refine((name) => refusedName(name) === null, { message: TADE_SH_IS_THE_INSTALLER })
       .default(''),
     /**
-     * How many hours a passkey's proof lets a device act from the public name;
-     * nought for never asking.
+     * How many hours a passkey's proof lets a device act from the public name,
+     * an hour at least (`PASSKEY_FLOOR_HOURS`).
      *
      * Only the public listener asks, because it is the one a copied session
      * reaches from anywhere: this machine, an SSH forward and a tailnet name
      * are each already behind something of yours. Only acting asks — reading
      * never does. Twelve hours is the person's decision.
      * `PASSKEY_BEFORE_ACTING` is what is said where it is set; a
-     * change builds the listener again, like every key here.
+     * change builds the listener again, like every key here. **Nought still
+     * loads**, because an older Tade wrote it for never asking and a file
+     * refused is every other setting in it lost; it reads as the floor
+     * (`passkeyHoursOf`), and the row refuses it at the write.
      */
     passkey_hours: z.int().min(0).max(720).default(12),
     /**

@@ -14,6 +14,7 @@ import {
   OFFLINE_NEEDS_HTTPS_SHORT,
   PASSKEY_BEFORE_ACTING,
   PASSKEY_BEFORE_ACTING_SHORT,
+  PASSKEY_FLOOR_HOURS,
   PUBLIC_IS_THE_INTERNET,
   PUBLIC_IS_THE_INTERNET_SHORT,
   PUSH_GOES_THROUGH_A_STRANGER,
@@ -24,6 +25,7 @@ import {
   PUSH_NEEDS_A_GESTURE_SHORT,
   PUSH_SAYS_NOTHING,
   PUSH_SAYS_NOTHING_SHORT,
+  passkeyHoursOf,
   SETTINGS_FROM_AWAY,
   SETTINGS_FROM_AWAY_SHORT,
 } from './away.ts'
@@ -172,13 +174,16 @@ export function awayGroup(config: Config, keptBy: string | null = null): Setting
         path: 'surfaces.web.passkey_hours',
         // Beside the public name because it is about nothing else: only that
         // listener asks. A number of hours rather than a switch, because the
-        // person's decision was *how long*, and nought is the switch's off.
+        // person's decision was *how long* — and never no time at all
+        // (`PASSKEY_FLOOR_HOURS`), so the arrows stop at one and nought is
+        // refused typed. Shown as it is read, so a nought in the file shows as
+        // the hour it means.
         title: 'Passkey before acting',
-        means: `how many hours a device may act from the public name after using its passkey; nought for never asking. ${PASSKEY_BEFORE_ACTING}`,
+        means: `how many hours a device may act from the public name after using its passkey. ${PASSKEY_BEFORE_ACTING}`,
         short: PASSKEY_BEFORE_ACTING_SHORT,
-        value: String(web.passkey_hours),
+        value: String(passkeyHoursOf(web.passkey_hours)),
         fallback: '12',
-        type: { kind: 'number', unit: 'hours, nought for never', from: 0 },
+        type: { kind: 'number', unit: 'hours', from: PASSKEY_FLOOR_HOURS },
         live: true,
         keywords: ['passkey', 'webauthn', 'face id', 'touch id', 'step up', 'second factor', '2fa'],
       },

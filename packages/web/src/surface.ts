@@ -12,6 +12,7 @@ import {
   PUSH_IS_WHILE_OPEN,
   PUSH_NEEDS_A_GESTURE,
   PUSH_SAYS_NOTHING,
+  passkeyHoursOf,
 } from '@tade/core'
 import { GRANTS, type Grant, type Reach } from './reach.ts'
 
@@ -84,7 +85,8 @@ export interface Surface {
   publicName: string | null
   /**
    * How long a passkey's proof lets a device act from the public listener, in
-   * milliseconds; nought for never asking (`surfaces.web.passkey_hours`).
+   * milliseconds (`surfaces.web.passkey_hours`): never under an hour while the
+   * away view is on (`passkeyHoursOf`), and nought only while it is off.
    *
    * **Asked of the public listener alone** (`proven`, `guard.ts`): it is the
    * one a copied session reaches from anywhere. This machine, an SSH forward
@@ -247,7 +249,7 @@ export function surfaceOf(web: WebConfig): Surface {
     port: web.port,
     trustedHosts: web.enabled ? [...new Set([...named, ...web.trusted_hosts])] : [],
     publicName: web.enabled ? (named[0] ?? null) : null,
-    passkeyMs: web.enabled ? web.passkey_hours * 3_600_000 : 0,
+    passkeyMs: web.enabled ? passkeyHoursOf(web.passkey_hours) * 3_600_000 : 0,
     acting: web.enabled && web.acting,
     talking: web.enabled && web.orchestrator,
     drafting: web.enabled && web.drafts,

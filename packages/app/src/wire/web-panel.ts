@@ -265,7 +265,7 @@ function deviceViews(facts: PanelFacts): AwayDevice[] {
       // the address it was minted from is a shell's, not a place to name.
       from: one.owner ? 'over SSH' : whereFrom(one.from, one.host, MACHINE),
       owner: one.owner,
-      ...(one.passkey === null ? {} : { passkey: one.passkey.proved }),
+      ...(one.passkey === null ? {} : { passkey: one.passkey.proved, passkeyMade: one.passkey.at }),
       ...(readsOnly(one, facts.surface) ? { readsOnly: true as const } : {}),
       pairedAt: one.pairedAt,
       reads: readsOf(reachOf(one)),

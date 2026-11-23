@@ -634,6 +634,21 @@ describe('what the panel never carries', () => {
     expect(text).toContain('passkey used 2026-09-12T08:00:00.000Z')
     expect(said({ devices: [phone] }, { height: 64 })).not.toContain('passkey')
   })
+
+  it('says when a device made its passkey, beside when it paired, so one made from a copied cookie shows', () => {
+    // For minutes after pairing the session alone may make one: whoever held
+    // the cookie then. When it was made is what tells the two apart.
+    const phone = view().devices[0]
+    if (phone === undefined) throw new Error('the fixture has a phone')
+    const made = Date.parse('2026-09-12T07:58:00.000Z')
+    const used = Date.parse('2026-09-12T08:00:00.000Z')
+    // Read across the rows it wraps over, as a person reads it.
+    const text = said({ devices: [{ ...phone, passkey: used, passkeyMade: made }] }, { height: 64 })
+      .replace(/[│╭╮╰╯─]/g, ' ')
+      .replace(/\s+/g, ' ')
+    expect(text).toContain('passkey made 2026-09-12T07:58:00.000Z, used 2026-09-12T08:00:00.000Z')
+    expect(text).toMatch(/paired \S+ · passkey made/)
+  })
 })
 
 describe('letting one device act', () => {

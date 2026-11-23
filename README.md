@@ -668,7 +668,7 @@ it — and each is still nothing to a device until you grant that device here:
 | **Serve the away view** | off | a listener while this window is open, and the code to pair with drawn under the switch |
 | **Who can reach it: lan** | this machine | plain HTTP on your wifi, and read-only whatever else is on — `tailscale serve localhost:7654` gives a phone HTTPS and leaves Tade listening here |
 | **Public name** | none | the internet, through Caddy on a server of yours: a second listener on a socket only Caddy can open, where nothing is ever this machine, and each phone's own pairing limit — `tade host domain` and `tade host caddy` say the rest |
-| **Passkey before acting** | 12 hours | from the public name, a device acts only within this many hours of using its passkey — a face, a fingerprint, a passcode — made on it in the minutes after it pairs, so a session copied off a phone reads and cannot act. Reading never asks; nought asks nothing |
+| **Passkey before acting** | 12 hours | from the public name, a device acts only within this many hours of using its passkey — a face, a fingerprint, a passcode — made on it in the minutes after it pairs, so a session copied off a phone reads and cannot act. Reading never asks; an hour at least |
 | **Act** | on | your own phone, with full access, does what you can at the machine; any other device, only what is ticked for it — and either only from this machine or an `https` name you trusted |
 | **Talk to Tade** | on | free text into the same conversation: from your own phone, your own words; from any other device, answered with its tools narrowed to its own view |
 | **Save draft workflows** | on | one field at a time, into a file no run reads until you publish it here |

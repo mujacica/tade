@@ -412,7 +412,7 @@ describe('an answer that does not hold', () => {
 })
 
 describe('what is said where the hours are set', () => {
-  it('says what it stops, then the two halves the comfortable version leaves out, then off', () => {
+  it('says what it stops, then the two halves the comfortable version leaves out, then its floor', () => {
     // A passkey is not *only that phone can act*: a synced one is the
     // keychain's, and the proof still rides on that device's session.
     // `separation.test.ts` holds it to never calling anything safe or secure.
@@ -422,12 +422,18 @@ describe('what is said where the hours are set', () => {
     expect(PASSKEY_BEFORE_ACTING).toContain('your keychain’s rather than the phone’s')
     expect(PASSKEY_BEFORE_ACTING).toContain('still needs that device’s own session')
     expect(PASSKEY_BEFORE_ACTING).toContain('Reading never asks')
-    expect(PASSKEY_BEFORE_ACTING).toContain('Nought asks nothing, and then a session alone acts')
-    expect(PASSKEY_BEFORE_ACTING_SHORT).toContain('nought asks nothing')
+    // An hour at least: nought was a session acting unasked (`PASSKEY_FLOOR_HOURS`).
+    expect(PASSKEY_BEFORE_ACTING).toContain(
+      'It is an hour at least, so a session never acts unasked',
+    )
+    expect(PASSKEY_BEFORE_ACTING).toContain('a nought written into the file reads as one hour')
+    expect(PASSKEY_BEFORE_ACTING_SHORT).toContain('an hour at least')
   })
 })
 
 describe('where nothing is asked', () => {
+  // A surface asking nothing is one whose away view is off (`surfaceOf`): no
+  // number of hours in the file makes one any more. The guard still answers it.
   it('asks nothing and offers nothing with the hours at nought', async () => {
     const p = await phone(0)
     expect(await standing(p)).toMatchObject({ asks: false, makeBy: null })

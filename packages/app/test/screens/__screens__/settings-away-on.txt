@@ -54,7 +54,7 @@
 ━   │                            ▕│                                                                               ▕│   ━
     │                            ▕│ Public name                none                                               ▕│    
     │                            ▕│                                                                               ▕│   ▕
-    │                            ▕│ Passkey before acting       ‹   12   ›                                        ▕│   ▕
+    │                            ▕│ Passkey before acting       ‹   12   ›    hours                               ▕│   ▕
     │                            ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

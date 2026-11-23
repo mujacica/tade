@@ -131,6 +131,13 @@ export interface AwayDevice {
    */
   passkey?: number
   /**
+   * When it made its passkey, where it made one. In the minutes after pairing
+   * its session alone may make one (`passkeys.ts`), so a cookie copied in
+   * those minutes becomes a phone with a passkey of its own: when it was made,
+   * beside when the device paired, is how somebody tells theirs from that.
+   */
+  passkeyMade?: number
+  /**
    * Paired on the public name, asked for a passkey there, and with none: from
    * there it reads and acts on nothing (`proven`), whatever its boxes say. Said
    * on its row, because a device that was never asked looks the same otherwise.

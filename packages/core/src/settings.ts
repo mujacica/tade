@@ -73,9 +73,9 @@ export type SettingKind =
       decimals?: boolean
       /**
        * The lowest the arrows go, which is 1 unless said: for most counts
-       * nought is not a value. Where it means "off" — `agents.give_way`,
-       * `surfaces.web.passkey_hours` — the arrows have to be able to get
-       * back to it, and the row takes it typed (`numberFrom`).
+       * nought is not a value. Where it means "off" — `agents.give_way` —
+       * the arrows have to be able to get back to it, and the row takes it
+       * typed (`numberFrom`).
        */
       from?: number
     }

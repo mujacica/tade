@@ -71,9 +71,34 @@ function drawn(over: PanelFacts): string {
 }
 
 describe('a device that may act and, from where it paired, cannot', () => {
+  it('carries when the passkey was made, not only when it was used', () => {
+    const passkey = {
+      id: 'k',
+      key: '',
+      alg: -7,
+      counter: 0,
+      synced: false,
+      transports: [],
+      at: 1_000,
+      proved: 2_000,
+    }
+    expect(awayView(facts([device({ passkey })])).devices[0]).toMatchObject({
+      passkey: 2_000,
+      passkeyMade: 1_000,
+    })
+  })
+
   it('says it reads only for want of a passkey', () => {
     expect(awayView(facts([device()])).devices[0]?.readsOnly).toBe(true)
     expect(drawn(facts([device()]))).toContain('reads only: no passkey')
+  })
+
+  it('says so on a machine whose file says nought hours, which is never asking no more', () => {
+    // An hour at least (`PASSKEY_FLOOR_HOURS`): nought was a session acting unasked.
+    const nought = {
+      surfaces: { web: { enabled: true, public: 'tade.example.com', passkey_hours: 0 } },
+    }
+    expect(awayView(facts([device()], nought)).devices[0]?.readsOnly).toBe(true)
   })
 
   it('says nothing of the kind where a passkey would add nothing or was never asked', () => {
@@ -87,15 +112,11 @@ describe('a device that may act and, from where it paired, cannot', () => {
       at: 1,
       proved: 2,
     }
-    const never = {
-      surfaces: { web: { enabled: true, public: 'tade.example.com', passkey_hours: 0 } },
-    }
     for (const [why, one] of [
       ['a tailnet name, never asked', facts([device({ host: 'studio.yak-bebop.ts.net' })])],
       ['this machine, never asked', facts([device({ host: 'localhost:7654' })])],
       ['one that may only read', facts([device({ scopes: ['read'] })])],
       ['one with a passkey', facts([device({ passkey: proved })])],
-      ['a machine that never asks for one', facts([device()], never)],
     ] as const) {
       expect(awayView(one).devices[0]?.readsOnly, why).toBeUndefined()
       expect(drawn(one), why).not.toContain('reads only')

@@ -15,7 +15,7 @@
   M │                            █│                                                                               █│    
   A │  Voice                     █│ Public name                none                                               █│    
   M │                            █│                                                                               █│    
-    │  Window                    █│ Passkey before acting       ‹   12   ›                                        █│    
+    │  Window                    █│ Passkey before acting       ‹   12   ›    hours                               █│    
  ▾ F│                            █│                                                                               █│    
    ▾│▌ Away view                 █│ Notification signing key   generated when it is first needed                  █│    
     │▌                           █│                                                                               ▕│    

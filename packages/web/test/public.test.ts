@@ -4,7 +4,13 @@ import { request } from 'node:http'
 import { connect, createServer, type Server as NetServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { PUBLIC_IS_THE_INTERNET, PUBLIC_IS_THE_INTERNET_SHORT } from '@tade/core'
+import {
+  ConfigSchema,
+  PASSKEY_BEFORE_ACTING,
+  PASSKEY_FLOOR_HOURS,
+  PUBLIC_IS_THE_INTERNET,
+  PUBLIC_IS_THE_INTERNET_SHORT,
+} from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { WebConnecting } from '../src/connected.ts'
 import { allowDevice, appendDevice, grantDevice } from '../src/devices.ts'
@@ -493,6 +499,18 @@ describe('what a public name is turned on as', () => {
     expect(listenOn(on)).toEqual(['127.0.0.1', '::1'])
     expect(surfaceOf({ ...web, enabled: false }).publicName).toBeNull()
     expect(surfaceOf({ ...web, public: '' }).publicName).toBeNull()
+  })
+
+  it('asks for a passkey within an hour at least, whatever hours the file says', () => {
+    const web = { ...ConfigSchema.parse({ projects: {} }).surfaces.web, enabled: true }
+    const hour = 3_600_000
+    // Nought was never asking, and then any copy of a session acted.
+    expect(surfaceOf({ ...web, passkey_hours: 0 }).passkeyMs).toBe(PASSKEY_FLOOR_HOURS * hour)
+    expect(PASSKEY_FLOOR_HOURS).toBeGreaterThanOrEqual(1)
+    expect(surfaceOf({ ...web, passkey_hours: 3 }).passkeyMs).toBe(3 * hour)
+    // Twelve by default, which is the person's call (`PASSKEY_BEFORE_ACTING`).
+    expect(surfaceOf(web).passkeyMs).toBe(12 * hour)
+    expect(PASSKEY_BEFORE_ACTING).not.toContain('Nought asks nothing')
   })
 
   it('is said by who it lets in before what still stands, and the way out', () => {

@@ -150,7 +150,9 @@ export function deviceLines(
     printable(device.owner ? device.from : `from ${device.from}`),
     `paired ${ctx.date(device.pairedAt)}`,
     device.passkey !== undefined
-      ? `passkey used ${ctx.date(device.passkey)}`
+      ? device.passkeyMade !== undefined
+        ? `passkey made ${ctx.date(device.passkeyMade)}, used ${ctx.date(device.passkey)}`
+        : `passkey used ${ctx.date(device.passkey)}`
       : device.readsOnly
         ? 'reads only: no passkey'
         : '',

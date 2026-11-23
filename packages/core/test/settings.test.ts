@@ -563,11 +563,18 @@ describe('reading what was typed', () => {
         : []
     })
     expect(wrong).toEqual([])
-    // Twelve hours by default, so nought is never asking — not the key taken away.
+    // An hour at least: nought was never asking, and then a copied session
+    // acted — so the arrows stop at one and nought typed is refused.
     const passkey = find('surfaces.web.passkey_hours')
-    expect(stepped({ ...passkey, value: '1' }, -1)).toBe('0')
-    expect(parseSetting(passkey, '0')).toBe(0)
+    expect(stepped({ ...passkey, value: '1' }, -1)).toBe('1')
+    expect(parseSetting(passkey, '1')).toBe(1)
+    expect(parseSetting(passkey, '0')).toBeUndefined()
     expect(parseSetting(passkey, '-1')).toBeUndefined()
+    // And a nought an older Tade wrote shows as the hour it is read as.
+    const written = find('surfaces.web.passkey_hours', {
+      surfaces: { web: { enabled: true, passkey_hours: 0 } },
+    })
+    expect(written.value).toBe('1')
   })
 
   it('keeps the cents a budget was written with when the arrows move it', () => {
