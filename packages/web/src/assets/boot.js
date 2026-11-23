@@ -34,6 +34,7 @@ import { forget, startInstall, takeUpdate } from './install.js'
 import { backoffAt, connectionOf, outsideOf, standingOf } from './live.js'
 import { countsOf, forgetView, lastSeenScreen, readView, saveView } from './offline.js'
 import { taskScreen } from './pages/agent.js'
+import { changesScreen } from './pages/agent-changes.js'
 import { checksScreen } from './pages/checks.js'
 import { devicesScreen } from './pages/devices.js'
 import { evaluationsScreen } from './pages/evaluations.js'
@@ -264,6 +265,7 @@ const SCREENS = {
   now: () => nowScreen(ctx),
   project: (at) => projectScreen(at, ctx),
   task: (at) => taskScreen(at, ctx),
+  changes: (at) => changesScreen(at, ctx),
   agents: () => agentsScreen(ctx),
   queue: () => queueScreen(),
   inbox: () => inboxScreen(),

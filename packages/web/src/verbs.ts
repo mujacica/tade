@@ -955,9 +955,10 @@ export const MOVE: Verb = {
  * - **a diff, a review's text, a lane's output.** Each ships source or an
  *   agent's bytes to a phone and to a browser cache; that is a *reading*
  *   grant with its own threat model (`fields.ts`'s `NEVER_A_FIELD`), not a
- *   verb. The third is now that grant (`lanes`, `screen.ts`) and is still
- *   no verb: nothing types into a lane from away, and what a person says to
- *   an agent goes through `steer` or through Tade.
+ *   verb. The first and the third are now that grant (`lanes`: `changes.ts`,
+ *   `screen.ts`) and are still no verb: nothing writes a file or types into a
+ *   lane from away, and what a person says to an agent goes through `steer`
+ *   or through Tade.
  *
  * **Stopping an agent used to be the third**, because it was not a hold and
  * not undoable by the same verb. It is here now as half of a pair: `reopen`

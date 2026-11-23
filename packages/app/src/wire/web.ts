@@ -52,6 +52,7 @@ import { evaluationsAnswer } from './evaluations.ts'
 import { armingFor, seenFrom } from './web-asking.ts'
 import { type AwayHeld, nothingYet, partsFrom, talkFor, upSinceOf } from './web-beat.ts'
 import { carryingFor } from './web-carry.ts'
+import { changesFrom } from './web-changes.ts'
 import { CheckRecords } from './web-checks.ts'
 import { connectingFor } from './web-connect.ts'
 import type { AwayDeps } from './web-deps.ts'
@@ -267,6 +268,12 @@ export class Away implements Subject {
         now: () => this.wire.now(),
       }),
       answers: this.answers(),
+      // An agent's changes and their diffs, read when a page opens them: the window's Show changes.
+      changes: changesFrom({
+        live: () => this.wire.live ?? null,
+        known: () => this.lanes.keys(() => knownHere(this.wire, this.config())),
+        note: (err) => this.wire.note(err),
+      }),
       earlier: this.earlierHalf(),
       present: (device, at) => this.presences.seen(device, at),
       ...(this.deps.machines && {

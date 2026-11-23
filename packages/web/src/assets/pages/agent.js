@@ -20,9 +20,10 @@
 // 5. **The rest of the controls**, a grid of what may be asked of it, and
 //    what may not with its reason, quiet, at the end (`actsIn`).
 //
-// **What is absent is still the point.** There is no diff and no transcript —
-// each ships source to a phone and to a browser cache. A control nothing could
-// carry out is absent with its reason beside it, never greyed out.
+// **What is absent is still the point.** Its diff is a screen of its own
+// (`agent-changes.js`, its menu's Show changes), asked for when opened on
+// `lanes` and never on a snapshot. A control nothing could carry out is absent
+// with its reason beside it, never greyed out.
 //
 // **Opening it is never a blank.** Before the first snapshot the shapes that
 // are coming (`skeleton`); before the agent's own answer its screen and its

@@ -97,9 +97,17 @@ describe('an agent’s menu, from away', () => {
     const editor = items.find((one) => one.id === 'editor')
     expect(editor?.act).toEqual({ kind: 'here' })
     expect(editor?.off).toContain('machine')
-    const changes = items.find((one) => one.id === 'changes')
-    expect(changes?.act).toEqual({ kind: 'here' })
-    expect(changes?.off).not.toBeNull()
+  })
+
+  it('opens an agent’s changes as its own screen, off with the window’s word while it has none', () => {
+    const changes = awayMenuOf(running(), EXTRAS).find((one) => one.id === 'changes')
+    expect(changes?.act).toEqual({ kind: 'page', does: 'changes' })
+    const some = menuItems({ lane: 'demo/fix/agent', state: 'working' }, 3, null, [])
+    const three = awayMenuOf(some, EXTRAS).find((one) => one.id === 'changes')
+    expect(three?.off).toBeNull()
+    expect(three?.note).toBe('3 files')
+    const none = menuItems({ lane: 'demo/fix/agent', state: 'working' }, 0, null, [])
+    expect(awayMenuOf(none, EXTRAS).find((one) => one.id === 'changes')?.off).toBe('none yet')
   })
 
   it('keeps the window’s own reasons on a stopped agent: no stop, no model, no thinking', () => {

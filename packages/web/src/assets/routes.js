@@ -47,6 +47,13 @@ export function viewOf(path) {
     if (project === null || task === null) return { view: 'nowhere' }
     return { view: 'task', project, task }
   }
+  // What one agent has changed: its own screen, under the agent's.
+  if (first === 't' && parts.length === 5 && parts[4] === 'changes') {
+    const project = segment(parts[2])
+    const task = segment(parts[3])
+    if (project === null || task === null) return { view: 'nowhere' }
+    return { view: 'changes', project, task }
+  }
   // One request, by the two halves of its item key. Two segments rather than
   // one `source:id`, because a colon in a path segment is percent-encoded by
   // some clients and not others, and a router that had to undo that would be
@@ -109,6 +116,8 @@ export function pathOf(where) {
       return `/p/${encodeURIComponent(where.project)}`
     case 'task':
       return `/t/${encodeURIComponent(where.project)}/${encodeURIComponent(where.task)}`
+    case 'changes':
+      return `/t/${encodeURIComponent(where.project)}/${encodeURIComponent(where.task)}/changes`
     case 'request':
       return `/i/${encodeURIComponent(where.source)}/${encodeURIComponent(where.id)}`
     case 'runs':
@@ -140,6 +149,13 @@ export function taskPath(id) {
   return pathOf({ view: 'task', project: id.slice(0, cut), task: id.slice(cut + 1) })
 }
 
+/** The path of what one task's agent has changed, from the `<project>/<task>` id. */
+export function changesPath(id) {
+  const cut = id.indexOf('/')
+  if (cut < 0) return '/'
+  return pathOf({ view: 'changes', project: id.slice(0, cut), task: id.slice(cut + 1) })
+}
+
 /**
  * What the heading and the document title say.
  *
@@ -150,6 +166,7 @@ export const TITLES = {
   now: 'Overview',
   project: 'Project',
   task: 'Task',
+  changes: 'Changes',
   agents: 'Agents',
   queue: 'Queue',
   inbox: 'Handed over',
@@ -191,6 +208,7 @@ export const PAGE_OF = {
   now: 'overview',
   project: 'project',
   task: 'agent',
+  changes: 'agent',
   inbox: 'inbox',
   request: 'inbox',
   runs: 'runs',

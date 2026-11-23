@@ -6,6 +6,7 @@ import type { WebAnswers } from './answered.ts'
 import type { WebAsking } from './asking.ts'
 import type { WebAttaching } from './attached.ts'
 import type { WebCarrying } from './carried.ts'
+import type { WebChanges } from './changes.ts'
 import type { WebConfiguring } from './configuring.ts'
 import type { WebConnecting } from './connected.ts'
 import type { WebDocument } from './document.ts'
@@ -315,6 +316,11 @@ export interface ServerOptions {
    * (`answered.ts`). Absent, both answer routes say the record could not be read.
    */
   answers?: WebAnswers
+  /**
+   * One agent's changes, file by file with each file's diff, read when a page
+   * opens them (`changes.ts`). Absent, the route says they could not be read.
+   */
+  changes?: WebChanges
   /**
    * A conversation's record read further back than a page holds
    * (`earlier.ts`). Absent, Tade's conversation is paged through what the

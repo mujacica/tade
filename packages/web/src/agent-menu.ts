@@ -53,7 +53,8 @@ export interface MenuChoiceIn {
  * - `type` — one act whose body carries what is typed (`rename`), starting
  *   from `value`;
  * - `choose` — a list, and the act carries the chosen `id`;
- * - `page` — the page's own: open the agent's screen, copy its branch;
+ * - `page` — the page's own: open the agent's screen or its changes, copy
+ *   its branch;
  * - `here` — only at the machine (an editor on its screen), so drawn off with
  *   the window's reason and never sent.
  */
@@ -61,7 +62,7 @@ export type MenuAct =
   | { kind: 'verb'; verb: string; with?: Readonly<Record<string, string>> }
   | { kind: 'type'; verb: string; value: string }
   | { kind: 'choose'; verb: string; choices: MenuChoiceIn[]; why: string | null }
-  | { kind: 'page'; does: 'open' | 'copy-branch' }
+  | { kind: 'page'; does: 'open' | 'copy-branch' | 'changes' }
   | { kind: 'here' }
 
 /** One item, as the window's menu has it, and what it does from away. */

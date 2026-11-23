@@ -171,7 +171,7 @@ export const NEVER_A_FIELD: Readonly<Record<string, string>> = {
   requester: 'who asked, as a source names them, is the intake’s record and not a task row',
   thread: 'review comments are attacker-controlled text: material, never a page',
   comment: 'one review comment is the same text as a thread of them, and the same answer',
-  diff: 'a diff ships source to a device and to a cache; that is its own act and its own setting',
+  diff: 'a diff ships source: it is its own answer on `lanes`, asked when opened (`changes.ts`), never a row’s field',
   patch: 'a patch is a diff with a different name on it, and ships the same source',
   output: 'a lane’s bytes can carry anything an agent printed by accident',
   // **Still forbidden, and the conversation collection is not an exception to

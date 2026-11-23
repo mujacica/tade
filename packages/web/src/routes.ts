@@ -219,6 +219,8 @@ export const ROUTES: readonly Route[] = [
   shellAt('/pair', 'pair page'),
   shellAt('/p/:project', 'project page'),
   shellAt('/t/:project/:task', 'task page'),
+  // What that agent has changed, every file and its diff: the window's Show changes.
+  shellAt('/t/:project/:task/changes', 'changes page'),
   // Every agent running, across every project this device may read: the
   // window's own side list, as a page of its own on a phone and a tablet.
   shellAt('/agents', 'agents page'),
@@ -331,6 +333,18 @@ export const ROUTES: readonly Route[] = [
     method: 'GET',
     path: '/api/agent/:project/:task/answer/:call',
     name: 'agent answer',
+    needs: 'read',
+    mutates: false,
+  },
+  // **What one agent has changed, every file and its whole diff, read when
+  // somebody opens it** (`changes.ts`): the window's Show changes, from away.
+  // Source leaving the machine, so it is on `lanes` — the grant an agent's
+  // screen and a call's answer, which carry source already, are on — checked
+  // in the answer, and it changes nothing.
+  {
+    method: 'GET',
+    path: '/api/agent/:project/:task/changes',
+    name: 'agent changes',
     needs: 'read',
     mutates: false,
   },

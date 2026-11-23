@@ -728,3 +728,99 @@ be asked now one quiet line each with its reason, at the end.
       ". said said";
   }
 }
+
+/*
+  Its changes (`agent-changes.js`): a card a file, its head the path and what
+  git calls it, and under it every line of its diff. A long line scrolls
+  sideways inside its own card (`.scrolls`), never the page; the path wraps
+  wherever it has to, however deep the folder.
+*/
+.page-agent .ag-files {
+  display: grid;
+  gap: var(--s3);
+}
+
+.page-agent .ag-file {
+  display: grid;
+  min-width: 0;
+}
+
+.page-agent .ag-file-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--s2);
+  align-items: baseline;
+  padding: var(--s3) var(--inset);
+  border-block-end: var(--border);
+}
+
+.page-agent .ag-file-mark {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.page-agent .ag-file-path {
+  color: var(--bright);
+  font-family: var(--font-mono);
+  font-size: var(--step-0);
+  overflow-wrap: anywhere;
+}
+
+.page-agent .ag-file-count {
+  color: var(--heading);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  white-space: nowrap;
+}
+
+.page-agent .ag-diff {
+  background: var(--ground);
+}
+
+.page-agent .ag-diff pre {
+  margin: 0;
+  padding: var(--s2) 0;
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  line-height: var(--lead-tight);
+  white-space: pre;
+}
+
+/* A line the width of the longest, so its colour runs the whole row when scrolled. */
+.page-agent .ag-line {
+  display: block;
+  min-width: max-content;
+  padding-inline: var(--inset);
+  color: var(--body);
+}
+
+.page-agent .ag-file-mark.is-A,
+.page-agent .ag-line.is-add {
+  color: var(--green);
+}
+
+.page-agent .ag-file-mark.is-D,
+.page-agent .ag-line.is-del {
+  color: var(--red);
+}
+
+.page-agent .ag-line.is-hunk {
+  margin-block-start: var(--s2);
+}
+
+.page-agent .ag-line.is-hunk,
+.page-agent .ag-line.is-meta {
+  color: var(--heading);
+}
+
+.page-agent .ag-file-none,
+.page-agent .ag-file-foot {
+  margin: 0;
+  padding: var(--s3) var(--inset);
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.page-agent .ag-file-foot {
+  border-block-start: var(--border);
+}

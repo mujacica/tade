@@ -37,7 +37,6 @@ export interface MenuExtras {
 /** Why an item that is the machine's own is never sent: its words, by the window's id. */
 const AT_THE_MACHINE: Readonly<Record<string, string>> = {
   editor: 'it opens an editor on the machine’s own screen',
-  changes: 'a diff is read at the machine: no route sends one to a device',
   'queue-after': 'what it waits on is changed at the machine',
   'queue-retell': 'what it is told is changed at the machine',
 }
@@ -115,6 +114,9 @@ function itemOf(item: MenuItem, extras: MenuExtras): MenuItemIn {
       return { ...base, note: null, act: { kind: 'page', does: 'open' } }
     case 'copy-branch':
       return { ...base, act: { kind: 'page', does: 'copy-branch' } }
+    case 'changes':
+      // Its own screen on a phone: every file and its diff, on `lanes`.
+      return { ...base, act: { kind: 'page', does: 'changes' } }
     case 'start':
     case 'stop':
     case 'park':

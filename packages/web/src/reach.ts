@@ -114,8 +114,9 @@ export const GRANT_MEANS: Readonly<Record<Grant, string>> = {
   // an agent printed — a customer's address in a fixture, a key in a shape
   // nobody listed — and a person deciding has to be told that half too.
   lanes:
-    'the last lines each agent’s own screen shows and its conversation, and what every tool ' +
-    'call was handed and answered, read only while you are looking at it — machine paths, ' +
+    'the last lines each agent’s own screen shows and its conversation, what every tool ' +
+    'call was handed and answered, and every file it changed with its diff, read only while ' +
+    'you are looking at it — machine paths, ' +
     'the keys Tade holds and anything shaped like a credential are taken out, and anything ' +
     'else an agent printed is not',
   settings:

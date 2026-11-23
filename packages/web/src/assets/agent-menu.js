@@ -20,7 +20,7 @@ import { afterAnswer, bodyFor, confirms, standingOf } from './acts.js'
 import { keyOf } from './controls.js'
 import { classOn, el, into, textIn } from './dom.js'
 import { icon, iconIn } from './icons.js'
-import { taskPath } from './routes.js'
+import { changesPath, taskPath } from './routes.js'
 import { fullAccessOf } from './trouble.js'
 import { answerIn } from './ui.js'
 
@@ -318,12 +318,17 @@ export function agentMenu(ctx) {
     classOn(li, 'is-rule', item.divider)
     const off = item.off !== null
     const askedHere = asked === item.id
-    const tag = item.act.kind === 'page' && item.act.does === 'open' && !off ? 'a' : 'button'
+    // Its screen and its changes are places, so a link: a press that goes there.
+    const goes =
+      item.act.kind === 'page' && !off
+        ? { open: taskPath(task), changes: changesPath(task) }[item.act.does]
+        : undefined
+    const tag = goes === undefined ? 'button' : 'a'
     const press = el(tag, {
       class: 'amenu-item',
       attrs:
         tag === 'a'
-          ? { href: taskPath(task), 'data-item': item.id }
+          ? { href: goes, 'data-item': item.id }
           : { type: 'button', 'data-item': item.id, ...(off ? { 'aria-disabled': 'true' } : {}) },
     })
     classOn(press, 'is-danger', item.danger)

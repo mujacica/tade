@@ -7,6 +7,7 @@ import { type MenuStanding, menuHere } from './agent-menu.ts'
 import { answerHere } from './answering.ts'
 import { carryAsk } from './asked.ts'
 import { assetsDir, readAssets } from './assets.ts'
+import { changesHere } from './changes.ts'
 import { carryChange } from './configured.ts'
 import { connectTicketHolds } from './connect-tickets.ts'
 import { ConnectStates, carryConnect, connectHere } from './connected.ts'
@@ -410,6 +411,8 @@ export function webServer(opts: ServerOptions): WebServer {
       }
       case 'agent menu':
         return json(res, await menuHere(found.params, reachOf(device), menuStanding(device), opts))
+      case 'agent changes':
+        return json(res, await changesHere(found.params, reachOf(device), opts))
       case 'agent answer':
       case 'talk answer':
         return json(res, await answerHere(found.route.name, found.params, reachOf(device), opts))

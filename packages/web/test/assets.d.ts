@@ -139,6 +139,7 @@ declare module '*/assets/routes.js' {
     name?: string
   }): string
   export function taskPath(id: string): string
+  export function changesPath(id: string): string
   /** Where an address from before a rename lives now: `/runs` is `/plans`. */
   export function movedFrom(path: string): string | null
   export function requestPath(item: string): string
