@@ -44,6 +44,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | a request's own words, as a device reads them | `IntakeIn.material` in `src/factory.ts`, `Bodies` in `wire/web-factory.ts`, `MATERIAL_LABEL` in `@tade/core` |
 | what may be asked of one task | `ableOn`/`steeringOf` in `packages/app/src/away.ts` |
 | stopping or reopening an agent, closing or reopening a project | `STOP`/`REOPEN`/`CLOSE`/`OPEN` in `src/verbs.ts`, the window's door in `packages/app/src/wire/web-lifecycle.ts`, the pure reading (`agentLaneOf`, `projectLines`, `projectAble`) in `packages/app/src/away-lifecycle.ts`, the chips in `wire/web-grants.ts` (`letOneRun`) |
+| **the rest of an agent's own menu** — start, remove, rename, model, thinking, account, harness, move — and **the menu itself**, on a side row's ⋯, a long-press or a right-click, and in an agent page's bar | `START`…`MOVE` in `src/verbs.ts` (`Verb.theirs` for the four that are the person's own device's alone, asked by `admit`), the window's verbs in `packages/app/src/wire/web-agent.ts` over its doors in `wire/agent-doors.ts` (the same calls the row's presses make, every name asked again of what the machine offers); the menu is the window's own `menuItems` mapped by `packages/app/src/away-menu.ts` (an item it cannot carry out is `here`, off with why), read at `GET /api/agent/:project/:task/menu` (`src/agent-menu.ts`, cut per device by `menuFor`), drawn by `src/assets/agent-menu.js` (the sheet, `holdOpens`, `sendAct`) from `side.js` and `pages/agent.js`; `MENU_SHOWN` and `THEIRS` in `acts.js` are the page's copies |
 | one agent looked into: the answer, its activity's words | `src/agent.ts` (`agentOf`, `activitySaid`), `AgentOutSchema` in `src/protocol.ts`, `GET /api/agent/:project/:task` in `src/routes.ts` |
 | what of an agent's screen may leave the machine | `src/screen.ts` — pure: the bounds, the wrap, the keys, the shapes, the paths |
 | what of an approval's **command** may leave the machine | `src/command.ts` — pure: `shortenPaths` is the one rule for paths (where the task works `.`, Tade's home `~/.tade`, the home `~`, any other absolute path its last name behind `…/`), `commandOut` takes credentials out first (`withoutCredentials`, the screen's own rule) and reads the rest `'whole'`, `commandShown` cuts it to `budget.material` with a count; the window builds it in `wire/web-beat.ts` (`commandsFrom`, the only reader of `PendingApproval.summary` here) and the page draws it with `command`/`commandIn` (`ui.js`) above a card's presses (`quick.js`) and in an agent's lead |
@@ -852,10 +853,11 @@ back with `close` and `open` is the other config write, a verb at its own scope)
 anything, **nothing publishes a workflow or a persona,
 nothing makes, renames or deletes a draft, and nothing touches a published version** — which never
 changes once it is out, so a run that points at `name@3` goes on pointing at it. Nothing turns a
-source on, nothing starts an agent (`steer` is a message into a conversation that is **already**
-running, refused where no agent is; `reopen` reattaches a lane the registry kept, saying nothing, and
-is refused where no agent ever ran; `open` puts back the root the journal kept and never a path a
-device named), nothing runs a command, nothing pushes, merges, answers a
+source on, nothing tells a new agent anything (`steer` is a message into a conversation that is
+**already** running, refused where no agent is; `reopen` reattaches a lane the registry kept and
+`start` is the window's Start agent, and both say **nothing** — there is no field for an opening
+instruction, so what an agent started from away works on is what its task said at the machine;
+`open` puts back the root the journal kept and never a path a device named), nothing runs a command, nothing pushes, merges, answers a
 review or overrules a check, nothing reaches a credential and nothing reaches the `ToolHost` — which is a Unix
 socket in `@tade/orchestrator` for the window's own children, and is **not this**
 (`test/separation.test.ts`). Each of those is a `never remote` line with an argument behind it; if a
@@ -922,11 +924,23 @@ own table (`ASKS`), its own interface (`WebAsking`), its own event type
   `transcript`, `args`, `payload` and `output` are all still names that fail
   `NEVER_A_FIELD`.
 
-**There are twelve verbs and they are the whole of what a device may ever do**: `park`, `answer`,
-`steer`, `queue`, `done`, `note`, `context` and `intake` — and the lifecycle, `stop`, `reopen`,
-`close` and `open`. Park went first because it is the smallest act that proves the whole path; the
-next seven are the scope matrix filled in, each a line in `VERBS`, a method on `WebActing`, and a
-control in `acts.js`.
+**There are twenty verbs and they are the whole of what a device may ever do**: `park`, `answer`,
+`steer`, `queue`, `done`, `note`, `context` and `intake` — the lifecycle, `stop`, `reopen`,
+`close` and `open` — and the rest of an agent's own menu, `start`, `remove`, `rename`, `model`,
+`thinking`, `account`, `harness` and `move`. Park went first because it is the smallest act that
+proves the whole path; the next seven are the scope matrix filled in, each a line in `VERBS`, a
+method on `WebActing`, and a control in `acts.js`.
+
+**The agent menu's eight are at `agents`, and four are the person's own device's alone.** What a
+phone may do to an agent is what a press on the window's row may (the person asked for it), and the
+list a phone draws is that row's own `menuItems`, so a new item in the window arrives on the phone
+off with *only at the machine* until somebody maps it in `away-menu.ts`. A model, an account, a
+harness or a machine is a **name**, asked again of what the machine offers at the act
+(`agent-doors.ts`), never a credential or a path. `remove` (it deletes a worktree and branch),
+`account` and `harness` (whose sign-in and which program runs the work) and `move` (the work
+leaves this machine) are `Verb.theirs`: a box ticked for *stop and reopen* was never read as those,
+so they ask full access at the gate, off the record at the request. `remove` and `move` take two
+presses and a literal.
 
 **The lifecycle is two pairs at two scopes nothing implies** — `agents` and `projects`, a chip each
 in the panel, off for every device, refused while acting is off. What each pair adds to the shape:

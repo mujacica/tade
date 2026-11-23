@@ -337,6 +337,18 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     spendSince: null,
     talk: null,
     worktreeOf: () => repo.root,
+    // What an agent's menu reads, as `Live` answers it for a task in the
+    // project's own checkout: its branch, no changes counted, and nothing it
+    // said it runs on.
+    factsOf: (task: string) => ({
+      project: task.split('/')[0] ?? '',
+      branch: `tade/${task.split('/')[1] ?? task}`,
+      ahead: null,
+      workspace: 'checkout' as const,
+      links: [],
+    }),
+    changes: () => [],
+    vitals: () => null,
     useConfig: () => {},
     refresh: async () => {
       events = await client.events({})

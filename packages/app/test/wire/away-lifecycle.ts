@@ -1,5 +1,6 @@
 import type { Config } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
+import { agentMenuDoors } from '../../src/wire/agent-doors.ts'
 import { Agents, type AgentsDeps } from '../../src/wire/agents.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 import { Projects, type ProjectsDeps } from '../../src/wire/projects.ts'
@@ -78,5 +79,11 @@ export function lifecycleFor(
   const projects = new Projects(wire, {
     useConfig: (config) => held.set({ ...config, surfaces: held.get().surfaces }),
   } as ProjectsDeps)
-  return { agents: () => agents, projects: () => projects }
+  // The rest of an agent's menu through the window's own doors, over the same
+  // `Agents`: no machine is linked here, so nothing can be handed over.
+  const menus = agentMenuDoors(wire, {
+    removeExactly: (task, by) => agents.removeExactly(task, by),
+    handsOver: () => null,
+  })
+  return { agents: () => agents, projects: () => projects, menus: () => menus }
 }
