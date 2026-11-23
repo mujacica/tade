@@ -680,6 +680,7 @@ declare module '*/assets/tree.js' {
   export function queueTree<R extends Piece>(rows: readonly R[]): Node<R>[]
   export function queueAt(state: unknown, clock: (at: string) => string): string
   export function queueLine(state: unknown, project: string): string
+  export function queueName(row: { task: string; state: unknown }): string
   export function queuePaused(rows: readonly { state: unknown }[]): boolean
   export function sideAgents<
     T extends { state: string; name: string; createdAt?: string; agents?: number; lanes?: number },

@@ -296,8 +296,10 @@ export class Live {
   private readonly looker: StatusCollector
   /** The copies of the other machines' journals, as a wait on one of their tasks reads them. */
   private readonly fleetWaits: FleetWaits
-  /** What the last look read of them, where queued work needed it (`fleetNeeded`). */
+  /** What the last look read of them. */
   private fleet: Fleet | undefined = undefined
+  /** Why the last look could not read them, as it was said; null where it could. */
+  private fleetTrouble: string | null = null
 
   private constructor(opts: LiveOptions) {
     this.opts = opts
@@ -1125,17 +1127,24 @@ export class Live {
           if (ruleMet(rule, facts)) this.met.push({ task: task.id, rule })
         }
       }
-      // Read only where queued work waits on another machine: a hub keeps
-      // every machine's journal, and nothing reads it for a queue that is not.
-      // One that cannot be read leaves those waits holding, and is said.
-      if (this.fleetNeeded()) {
-        await this.readFleet().catch((err: unknown) => {
+      // Read on every look: a wait on another machine is settled by it, and
+      // another machine's queued work is drawn from it — on a hub, the work
+      // tied to a laptop whose lid is shut, which waits for that laptop. A
+      // `stat` per copy, and a copy read again only when it moved. One that
+      // cannot be read leaves those waits holding and that work undrawn, and
+      // is said once until it reads again.
+      const trouble = await this.readFleet().then(
+        () => null,
+        (err: unknown) => {
           this.fleet = undefined
-          this.opts.onWarning?.(
-            `Other machines' journals could not be read here, so every wait on their work holds: ${err instanceof Error ? err.message : String(err)}`,
-          )
-        })
-      }
+          const why = err instanceof Error ? err.message : String(err)
+          return this.fleetNeeded()
+            ? `Other machines' journals could not be read here, so every wait on their work holds: ${why}`
+            : `Other machines' journals could not be read here, so their queued work is not drawn: ${why}`
+        },
+      )
+      if (trouble !== null && trouble !== this.fleetTrouble) this.opts.onWarning?.(trouble)
+      this.fleetTrouble = trouble
       const facts = this.queueFacts()
       const queued = new Map<string, QueuedView>()
       const placed = placedFrom(this.queueEvents)

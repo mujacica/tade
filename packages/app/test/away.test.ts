@@ -275,6 +275,61 @@ describe('the queue', () => {
       { task: 'shop/first', why: 'the contracts come first' },
     ])
   })
+
+  it('draws work tied to another machine as waiting for it, out of the copy of its journal', () => {
+    // A hub with the Mac's lid shut: the Mac's journal kept here says it made
+    // shop/tied with a start and never started it, so only the Mac can.
+    const now = facts().now
+    const line = (type: TadeEvent['type'], task: string, detail = {}): TadeEvent => ({
+      seq: 1,
+      ts: new Date(now).toISOString(),
+      type,
+      urgency: 'notable',
+      task,
+      lane: null,
+      run: null,
+      detail,
+    })
+    const elsewhere = {
+      self: 'vps',
+      machines: [
+        {
+          name: 'mac',
+          heardAt: now - 3_600_000,
+          lines: [
+            line('task_created', 'shop/tied', { after: [] }),
+            line('task_created', 'shop/begun', { after: [] }),
+            line('queue_started', 'shop/begun', { after: [] }),
+          ],
+        },
+      ],
+    }
+    const rows = queueIn([queued()], { ...facts(), elsewhere })
+    expect(rows.map((row) => row.task)).toEqual(['shop/refunds', 'mac:shop/tied'])
+    expect(rows[1]).toEqual({
+      task: 'mac:shop/tied',
+      project: 'shop',
+      state: { kind: 'there', machine: 'mac', heardAt: now - 3_600_000, silentDays: null },
+      order: null,
+      waitsOn: [],
+    })
+    const built = snapshotOf(
+      {
+        ...collections({ queued: [queued()], queueFacts: { ...facts(), elsewhere } }),
+        reach: { device: 'dev_1', projects: { kind: 'every' }, granted: [] },
+        lifetime: { epoch: 'e', rev: 1, openedAt: 0 },
+        talk: null,
+      },
+      now,
+    )
+    expect(() => SnapshotSchema.parse(built)).not.toThrow()
+    expect(built.queue.find((row) => row.task === 'mac:shop/tied')?.state).toEqual({
+      kind: 'there',
+      machine: 'mac',
+      heardAt: new Date(now - 3_600_000).toISOString(),
+      silentDays: null,
+    })
+  })
 })
 
 describe('the conversation’s lines', () => {

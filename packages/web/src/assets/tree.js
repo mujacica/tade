@@ -126,9 +126,17 @@ export function queueLine(state, project) {
       return state.parked ? 'parked' : state.all ? 'paused with the queue' : 'paused'
     case 'scheduled':
       return 'waits for its time'
+    case 'there':
+      return `waits for ${state.machine}`
     default:
       return ''
   }
+}
+
+/** A queued row's name: the task without its project, and another machine's with that machine's name. */
+export function queueName(row) {
+  const name = row.task.slice(row.task.indexOf('/') + 1)
+  return row.state.kind === 'there' ? `${row.state.machine}:${name}` : name
 }
 
 /** Whether every piece of a project's queue is paused because the whole queue is: one fact, said once at its heading. */

@@ -6,6 +6,7 @@ import {
   foldsTo,
   queueAt,
   queueLine,
+  queueName,
   queuePaused,
   queueTree,
   sideAgents,
@@ -137,6 +138,14 @@ describe('what a piece says', () => {
       'held: both change src/a.ts',
     )
     expect(queueLine({ kind: 'ready' }, 'p')).toBe('')
+  })
+
+  it('says another machine’s work waits for that machine, and names it with that machine', () => {
+    const there = { kind: 'there', machine: 'mac', heardAt: null, silentDays: null }
+    expect(queueLine(there, 'p')).toBe('waits for mac')
+    expect(queueAt(there, clock)).toBe('')
+    expect(queueName({ task: 'mac:p/tied', state: there })).toBe('mac:tied')
+    expect(queueName({ task: 'p/here', state: { kind: 'ready' } })).toBe('here')
   })
 
   it('says a whole queue paused once, and not for one piece paused on its own', () => {

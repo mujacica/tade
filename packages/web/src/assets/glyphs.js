@@ -177,6 +177,8 @@ export function queueMark(state) {
       return mark('⚠', 'held', 't-failed')
     case 'scheduled':
       return mark('◴', 'scheduled', 't-quiet')
+    case 'there':
+      return mark('◌', 'elsewhere', 't-quiet')
     default:
       return state.parked
         ? mark('◻', 'parked', 't-quiet')
@@ -210,9 +212,26 @@ export function queueSaid(state, clock) {
     case 'paused':
       if (state.parked) return 'parked'
       return state.all ? 'paused with the queue' : 'paused'
+    case 'there':
+      return thereQueuedSaid(state, clock)
     default:
       return 'next'
   }
+}
+
+/**
+ * Another machine's queued work, which waits for that machine:
+ * `waits for mac (mac last heard 14:02)`. `@tade/core`'s `queuedThereSays`,
+ * over the wire's shape, held to it by `test/glyphs.test.ts`.
+ */
+function thereQueuedSaid(state, clock) {
+  const heard =
+    state.silentDays !== null
+      ? `${state.machine} not heard from in ${state.silentDays} days`
+      : state.heardAt === null
+        ? `${state.machine} not heard from here yet`
+        : `${state.machine} last heard ${clock(state.heardAt)}`
+  return `waits for ${state.machine} (${heard})`
 }
 
 /**

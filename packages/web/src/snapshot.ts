@@ -140,6 +140,13 @@ function queueStateOf(state: QueueStateIn): QueueStateOut {
       return { kind: 'scheduled', at: ISO(state.at) }
     case 'paused':
       return { kind: 'paused', all: state.all, parked: state.parked }
+    case 'there':
+      return {
+        kind: 'there',
+        machine: state.machine,
+        heardAt: ISO_OR(state.heardAt),
+        silentDays: state.silentDays,
+      }
     default:
       return { kind: 'ready' }
   }

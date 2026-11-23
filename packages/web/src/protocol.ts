@@ -377,6 +377,13 @@ export const QueueStateOutSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('scheduled'), at: z.string() }),
   z.strictObject({ kind: z.literal('paused'), all: z.boolean(), parked: z.boolean() }),
   z.strictObject({ kind: z.literal('ready') }),
+  /** Another machine's queued work: only that machine starts it, so it waits for that machine. */
+  z.strictObject({
+    kind: z.literal('there'),
+    machine: z.string(),
+    heardAt: z.string().nullable(),
+    silentDays: z.int().nonnegative().nullable(),
+  }),
 ])
 export type QueueStateOut = z.infer<typeof QueueStateOutSchema>
 

@@ -413,6 +413,12 @@ export type QueueStateIn =
   | { kind: 'scheduled'; at: number }
   | { kind: 'paused'; all: boolean; parked: boolean }
   | { kind: 'ready' }
+  /**
+   * Another machine's queued work, which only that machine starts
+   * (`@tade/core`'s `QueuedThere`): when it was last heard, or that it has
+   * been silent for days. Machine names and moments; nothing an agent wrote.
+   */
+  | { kind: 'there'; machine: string; heardAt: number | null; silentDays: number | null }
 
 /** A wait on another machine, as the away view is told it (`@tade/core`'s `WaitThere`). */
 export interface ThereIn {

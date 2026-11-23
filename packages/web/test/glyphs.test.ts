@@ -3,6 +3,7 @@ import {
   INBOX_STATES,
   joined as joinedHere,
   type QueueState,
+  queuedThereSays,
   SOURCE_NEEDS_YOU,
   SOURCE_STATES,
   saidBy,
@@ -156,6 +157,26 @@ describe('where queued work stands', () => {
     )
     expect(queueSaid({ kind: 'scheduled', at: new Date(at).toISOString() }, shortClockOf)).toBe(
       here,
+    )
+  })
+
+  it('says the same words for another machine’s queued work, through each copy’s own clock', () => {
+    const at = Date.parse('2026-10-08T14:30:00.000Z')
+    const clock = (ms: number) => shortClockOf(new Date(ms).toISOString())
+    for (const one of [
+      { machine: 'mac', heardAt: at, silentDays: null },
+      { machine: 'mac', heardAt: null, silentDays: null },
+      { machine: 'mac', heardAt: at, silentDays: 3 },
+    ]) {
+      const wire = {
+        kind: 'there',
+        ...one,
+        heardAt: one.heardAt === null ? null : new Date(one.heardAt).toISOString(),
+      }
+      expect(queueSaid(wire, shortClockOf)).toBe(queuedThereSays(one, clock))
+    }
+    expect(queueMark({ kind: 'there', machine: 'mac', heardAt: null, silentDays: null }).word).toBe(
+      'elsewhere',
     )
   })
 

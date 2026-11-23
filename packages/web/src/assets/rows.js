@@ -26,6 +26,7 @@ import {
 } from './glyphs.js'
 import { taskPath } from './routes.js'
 import { taskAt } from './store.js'
+import { queueName } from './tree.js'
 import { panel } from './ui.js'
 
 /**
@@ -171,8 +172,11 @@ export function fillQueueRow(node, row, view) {
   const [order, glyph, link, aside, waits] = node.children
   textIn(order, row.order === null || row.order === undefined ? '' : String(row.order))
   markIn(glyph, queueMark(row.state))
-  link.setAttribute('href', taskPath(row.task))
-  textIn(link, row.task.slice(row.task.indexOf('/') + 1))
+  // Another machine's work has no page here — only that machine holds it — so
+  // its name is said and not offered as a link.
+  if (row.state.kind === 'there') link.removeAttribute('href')
+  else link.setAttribute('href', taskPath(row.task))
+  textIn(link, queueName(row))
   textIn(aside, view.project === null ? row.project : '')
   waitsIn(waits, row)
 }

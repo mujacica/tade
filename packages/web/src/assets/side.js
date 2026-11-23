@@ -28,7 +28,15 @@ import { checkMark, queueMark, rowMark, taskMark } from './glyphs.js'
 import { icon } from './icons.js'
 import { pathOf, taskPath } from './routes.js'
 import { projectsOf, queueIn, runAt, tasksIn } from './store.js'
-import { agentGroups, queueAt, queueLine, queuePaused, queueTree, sideAgents } from './tree.js'
+import {
+  agentGroups,
+  queueAt,
+  queueLine,
+  queueName,
+  queuePaused,
+  queueTree,
+  sideAgents,
+} from './tree.js'
 
 /** The side, built once: a heading, a list of projects, and the press that folds it. */
 export function sideOf() {
@@ -333,9 +341,10 @@ function fillPiece(node, one, project, view) {
   const [link, under] = node.children
   const [glyph, name, at, why] = link.children
   const row = one.row
-  link.setAttribute('href', taskPath(row.task))
+  if (row.state.kind === 'there') link.removeAttribute('href')
+  else link.setAttribute('href', taskPath(row.task))
   markIn(glyph, queueMark(row.state))
-  textIn(name, row.task.slice(row.task.indexOf('/') + 1))
+  textIn(name, queueName(row))
   textIn(at, queueAt(row.state, shortClockOf))
   textIn(why, queueLine(row.state, project))
   classOn(node, 'is-held', row.state.kind === 'held')

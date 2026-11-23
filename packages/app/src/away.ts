@@ -9,6 +9,7 @@ import {
   type Queued,
   type QueueFacts,
   type QueueState,
+  queuedThere,
   queueStateOf,
   type Reality,
   runFactsOf,
@@ -409,11 +410,39 @@ export function originIn(origin: TaskOrigin): TaskIn['origin'] {
  * touched. Nobody taps one of those on a phone, so what crosses the boundary
  * is **how many**, and the names stay at the machine. `because` is `holdSaid`'s
  * own sentence, which is Tade's words.
+ *
+ * **Then every other machine's queued work**, out of the copies of their
+ * journals the look read (`queuedThere`): with the lid of the laptop it is tied
+ * to shut, the hub's page is the one place it can be seen, and it says it waits
+ * for that laptop. A row of its own, `mac:tade/schema` as a wait would name it,
+ * with nothing to press: only that machine starts it.
  */
 export function queueIn(
   items: readonly Queued[],
   facts: QueueFacts,
   order: readonly string[] = [],
+): QueueIn[] {
+  const there = queuedThere(facts.elsewhere, facts.now).map(
+    (one): QueueIn => ({
+      task: `${one.machine}:${one.task}`,
+      project: one.project,
+      state: {
+        kind: 'there',
+        machine: one.machine,
+        heardAt: one.heardAt,
+        silentDays: one.silentDays,
+      },
+      order: null,
+      waitsOn: [],
+    }),
+  )
+  return [...queueHere(items, facts, order), ...there]
+}
+
+function queueHere(
+  items: readonly Queued[],
+  facts: QueueFacts,
+  order: readonly string[],
 ): QueueIn[] {
   return items.map((item) => {
     const at = order.indexOf(item.task)

@@ -443,3 +443,75 @@ export function waitsAcross(
     return waitsThere(machine, followed.task).map((dep) => spelledHere(fleet, machine, dep))
   }
 }
+
+/**
+ * A piece of another machine's queued work, as the copy of its journal kept
+ * here says it: work only that machine starts, because a queue is started by
+ * the window of the machine whose home holds its task file — tied to a laptop,
+ * it waits for that laptop to be opened again, and a phone reading the hub
+ * while the lid is shut is the one place that can say so.
+ */
+export interface QueuedThere {
+  /** The machine it waits for, as named here. */
+  machine: string
+  /** The task there. */
+  task: string
+  /** Its project there: the first part of its id. */
+  project: string
+  /** When that machine was last heard here; null for never. */
+  heardAt: number | null
+  /** Whole days unheard, where that is `SILENT_DAYS` or more. */
+  silentDays: number | null
+}
+
+/**
+ * Every other machine's queued work: made with a `start` (`task_created`
+ * carries its `after`, empty or not, only then — a take writes one too), and
+ * not yet started, finished, removed or moved away. Work moved here from there
+ * is this machine's own queue, and work moved on to a third machine is that
+ * one's. Oldest first, machine by machine.
+ */
+export function queuedThere(fleet: Fleet | undefined, now: number): QueuedThere[] {
+  const out: QueuedThere[] = []
+  for (const machine of fleet?.machines ?? []) {
+    const queued = new Set<string>()
+    for (const line of machine.lines) {
+      const task = line.task
+      if (typeof task !== 'string') continue
+      if (line.type === 'task_created' && Array.isArray(line.detail.after)) queued.add(task)
+      else if (
+        line.type === 'queue_started' ||
+        line.type === 'task_done' ||
+        line.type === 'task_removed' ||
+        line.type === 'task_moved'
+      ) {
+        queued.delete(task)
+      }
+    }
+    const days = machine.heardAt === null ? null : Math.floor((now - machine.heardAt) / DAY_MS)
+    for (const task of queued) {
+      out.push({
+        machine: calledHere(machine),
+        task,
+        project: task.split('/')[0] ?? task,
+        heardAt: machine.heardAt,
+        silentDays: days !== null && days >= SILENT_DAYS ? days : null,
+      })
+    }
+  }
+  return out
+}
+
+/** Another machine's queued work, in the words its card gets: `waits for mac (mac last heard 14:02)`. */
+export function queuedThereSays(
+  one: Pick<QueuedThere, 'machine' | 'heardAt' | 'silentDays'>,
+  clock: (at: number) => string,
+): string {
+  const heard =
+    one.silentDays !== null
+      ? `${one.machine} not heard from in ${one.silentDays} days`
+      : one.heardAt === null
+        ? `${one.machine} not heard from here yet`
+        : `${one.machine} last heard ${clock(one.heardAt)}`
+  return `waits for ${one.machine} (${heard})`
+}

@@ -6,6 +6,8 @@ import {
   type FleetMachine,
   followWait,
   parseWait,
+  queuedThere,
+  queuedThereSays,
   SILENT_DAYS,
   thereSays,
   waitThereProblem,
@@ -519,6 +521,89 @@ describe('where queued work waits', () => {
     )
     expect(placeQueued({ ...facts, hubUp: false }).why).toBe(
       'stays on mac: vps is not linked now, so it was not sent there',
+    )
+  })
+})
+
+describe("another machine's queued work, as the hub draws it", () => {
+  const clock = (at: number) => new Date(at).toISOString().slice(11, 16)
+
+  it('is work made with a start there and not yet started, finished, removed or moved', () => {
+    const mac = machine(
+      'mac',
+      [
+        line('task_created', 'tade/tied', { after: [] }),
+        line('task_created', 'tade/later', { after: ['tade/tied'], at: '2026-11-23T02:00:00Z' }),
+        line('task_created', 'tade/now', {}),
+        line('task_created', 'tade/started', { after: [] }),
+        line('queue_started', 'tade/started', { after: [] }),
+        line('task_created', 'tade/done', { after: [] }),
+        line('task_done', 'tade/done'),
+        line('task_created', 'tade/gone', { after: [] }),
+        line('task_removed', 'tade/gone'),
+        line('task_created', 'tade/placed', { after: [] }),
+        line('task_moved', 'tade/placed', { to: 'vps', as: 'tade/placed' }),
+      ],
+      { called: 'laptop', heardAt: NOW - 3_600_000 },
+    )
+    expect(queuedThere({ self: 'vps', machines: [mac] }, NOW)).toEqual([
+      {
+        machine: 'laptop',
+        task: 'tade/tied',
+        project: 'tade',
+        heardAt: NOW - 3_600_000,
+        silentDays: null,
+      },
+      {
+        machine: 'laptop',
+        task: 'tade/later',
+        project: 'tade',
+        heardAt: NOW - 3_600_000,
+        silentDays: null,
+      },
+    ])
+  })
+
+  it('comes back when work moved away is taken back there', () => {
+    const mac = machine('mac', [
+      line('task_created', 'tade/back', { after: [] }),
+      line('task_moved', 'tade/back', { to: 'vps', as: 'tade/back' }),
+      line('task_created', 'tade/back', { after: [] }),
+      line('task_taken', 'tade/back', { from: 'vps', was: 'tade/back' }),
+    ])
+    expect(queuedThere({ self: 'vps', machines: [mac] }, NOW).map((one) => one.task)).toEqual([
+      'tade/back',
+    ])
+  })
+
+  it('is nothing with no other machine kept here', () => {
+    expect(queuedThere(undefined, NOW)).toEqual([])
+    expect(queuedThere({ self: 'vps', machines: [] }, NOW)).toEqual([])
+  })
+
+  it('says it waits for that machine, and when it was last heard', () => {
+    const [heard] = queuedThere(
+      { self: 'vps', machines: [machine('mac', [line('task_created', 'tade/a', { after: [] })])] },
+      NOW,
+    )
+    expect(heard && queuedThereSays(heard, clock)).toBe('waits for mac (mac last heard 13:59)')
+    expect(queuedThereSays({ machine: 'mac', heardAt: null, silentDays: null }, clock)).toBe(
+      'waits for mac (mac not heard from here yet)',
+    )
+    const [silent] = queuedThere(
+      {
+        self: 'vps',
+        machines: [
+          machine('mac', [line('task_created', 'tade/a', { after: [] })], {
+            heardAt: NOW - (SILENT_DAYS + 1) * DAY,
+          }),
+        ],
+      },
+      NOW,
+    )
+    expect(silent?.silentDays).toBe(SILENT_DAYS + 1)
+    expect(silent && queuedThereSays(silent, clock)).toBe(
+      `waits for mac (mac not heard from in ${SILENT_DAYS + 1} days)`,
     )
   })
 })

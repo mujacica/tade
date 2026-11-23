@@ -78,7 +78,7 @@ export function queueScreen() {
 }
 
 /** The standings a filter chip is offered for, in the order they are drawn. */
-const QUEUE_KINDS = ['ready', 'waiting', 'scheduled', 'held', 'paused']
+const QUEUE_KINDS = ['ready', 'waiting', 'scheduled', 'held', 'paused', 'there']
 
 /** Each standing's word on its chip: `queueMark`'s own, made a heading. */
 const QUEUE_WORDS = {
@@ -87,6 +87,7 @@ const QUEUE_WORDS = {
   scheduled: 'Scheduled',
   held: 'Held',
   paused: 'Paused',
+  there: 'Elsewhere',
 }
 
 function createQueueGroup() {
