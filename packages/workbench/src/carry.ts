@@ -18,8 +18,6 @@ import {
   handEdits,
   keyDigest,
   leavesOf,
-  notThePersonSays,
-  peerMayWrite,
   pinnedHere,
   pinnedIn,
   printable,
@@ -33,6 +31,7 @@ import {
   stampAhead,
   stampOf,
   stampText,
+  takenOnAPress,
   textOf,
 } from '@tade/core'
 import { signInLasts } from '@tade/harnesses-core'
@@ -153,6 +152,11 @@ export interface CarryPress {
   keys: boolean
   /** Paths whose value here goes over that machine's, newer or not. */
   force?: readonly string[]
+  /**
+   * Paths whose newer value there is taken here although it widens agents
+   * (`takenOnAPress`): the person's press on this machine, never sent.
+   */
+  take?: readonly string[]
   /** Turn talking to Tade from another screen on there (`TALK_THERE`). */
   talk?: boolean
 }
@@ -355,8 +359,11 @@ export interface Checklist {
   theirs: { what: string; theirs: string | null; ours: string | null }[]
   /** Settings changed there later than here, written here now. */
   taken: string[]
-  /** Settings changed there later, not written here, and why: refused here, or a shell that does not take back. */
-  newer: { what: string; why: string }[]
+  /**
+   * Settings changed there later, not written here, and why: refused here, or
+   * a shell that does not take back. `press` where a press here takes it.
+   */
+  newer: { what: string; why: string; press?: true }[]
   /** Settings both machines changed without seeing the other's, and whose stood. */
   conflicts: SettingConflict[]
   /** What either machine keeps to itself (`machine.pinned`), and which. */
@@ -412,10 +419,10 @@ export interface TakenWrite {
 export interface TakenBack {
   writes: TakenWrite[]
   conflicts: SettingConflict[]
-  /** Newer there and not taken here: not the person's, where it widens agents. */
-  refused: { what: string; why: string }[]
-  /** A change to what widens agents here, the person's, about to land: said whenever one does. */
-  landed: { path: string; now: string; by: string }[]
+  /** Newer there and not taken here: what widens agents, waiting on a press here (`press`), or too far ahead. */
+  refused: { what: string; why: string; press?: true }[]
+  /** A change to what widens agents here, taken on the person's press: said whenever one lands. */
+  landed: { path: string; now: string }[]
 }
 
 /**
@@ -424,8 +431,10 @@ export interface TakenBack {
  * is later than this machine's — or that this machine has nothing for — is
  * written here with the register it came with, so it is not carried back as
  * news. A key, this machine's own and what it pinned are never taken, and a
- * change to what widens agents here only where the person made it. Pure: what
- * the window writes is its own.
+ * change to what widens agents here only on the person's press here (`take`,
+ * `takenOnAPress`) — whoever that machine says made it, since nothing here can
+ * check that — and then written as the press's here. Pure: what the window
+ * writes is its own.
  *
  * And the conflicts of the whole carry, as this machine says them: the ones
  * that machine settled in this one's favour, and the ones settled here.
@@ -435,6 +444,7 @@ export function takeBack(
   answer: CarryAnswer,
   me: string,
   now: number = Date.now(),
+  take: ReadonlySet<string> = new Set(),
 ): TakenBack {
   const back: TakenBack = { writes: [], conflicts: [], refused: [], landed: [] }
   const there = answer.machine || 'that machine'
@@ -465,17 +475,22 @@ export function takeBack(
     }
     const settled = settle(ours, theirs)
     if (settled.keep !== 'incoming') continue
-    if (!peerMayWrite(one.path, theirs.by)) {
-      back.refused.push({ what: one.path, why: notThePersonSays(theirs.by, there) })
+    const widens = settingReach(one.path).reach === 'never'
+    if (widens && !take.has(one.path)) {
+      const why = takenOnAPress(shownValue(theirs.value), theirs.by, there)
+      back.refused.push({ what: one.path, why, press: true })
       continue
     }
+    // Taken on a press, it is the person's here — never what that machine
+    // said, which would go on to a third machine as if it were checked.
+    const origin = widens ? 'window' : one.by
     back.writes.push({
       path: one.path,
       value: theirs.value,
       stamp: {
         ...(one.hlc === undefined ? {} : { hlc: one.hlc }),
         ...(one.over === undefined ? {} : { over: one.over }),
-        ...(one.by === undefined ? {} : { origin: one.by }),
+        ...(origin === undefined ? {} : { origin }),
       },
     })
     if (settled.conflict) {
@@ -485,8 +500,8 @@ export function takeBack(
         lost: { value: shownValue(ours.value), machine: me, at: ours.stamp },
       })
     }
-    if (settingReach(one.path).reach === 'never' && theirs.by !== null) {
-      back.landed.push({ path: one.path, now: shownValue(theirs.value), by: theirs.by })
+    if (widens) {
+      back.landed.push({ path: one.path, now: shownValue(theirs.value) })
     }
   }
   return back

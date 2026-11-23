@@ -10,7 +10,8 @@ import { Carries } from '../../src/wire/carry.ts'
 // What the window does with what another machine's carry answer says is
 // newer there (`Carries`, `takeBack`): written here through its own door with
 // the stamp it came with, a conflict written down and said once, and a
-// change to what widens agents that the person did not make said, not taken.
+// change to what widens agents said and taken only on a press here, whoever
+// that machine says made it (`takenOnAPress`).
 
 const at = (wall: number, machine: string) => stampText({ wall, count: 0, machine })
 
@@ -21,6 +22,7 @@ function carrying(answer: CarryAnswer, conflicted: (c: SettingConflict) => Promi
   writeFileSync(configPath, 'queue:\n  holds: ask\n')
   const taken: TakenWrite[] = []
   const said: string[] = []
+  const pressed: { text: string | null; error: string | null }[] = []
   const conflicts: SettingConflict[] = []
   const link = { call: async () => ({ status: 200, body: answer }) }
   const carries = new Carries({
@@ -51,14 +53,16 @@ function carrying(answer: CarryAnswer, conflicted: (c: SettingConflict) => Promi
       await conflicted(one)
     },
     onScreenWith: async () => {},
-    said: () => {},
+    said: (text, error) => {
+      pressed.push({ text, error })
+    },
     say: (text) => {
       said.push(text)
     },
     draw: () => {},
     now: () => 0,
   })
-  return { carries, taken, said, conflicts }
+  return { carries, taken, said, pressed, conflicts }
 }
 
 const answer: CarryAnswer = {
@@ -69,13 +73,13 @@ const answer: CarryAnswer = {
     { path: 'queue.holds', outcome: 'newer', value: 'orchestrator', hlc: at(5_000, 'vps') },
     // Only there: taken.
     { path: 'notes.keep_days', outcome: 'newer', value: 9, hlc: at(1_000, 'vps') },
-    // What widens agents, changed there by its orchestrator: not taken, and said why.
+    // What widens agents, which that machine says you changed: not taken, and said why.
     {
       path: 'approvals.mode',
       outcome: 'newer',
       value: 'auto',
       hlc: at(6_000, 'vps'),
-      by: 'orchestrator',
+      by: 'window',
     },
   ],
   files: [],
@@ -92,8 +96,32 @@ describe('what comes back newer from another machine', () => {
     ])
     expect(list?.taken).toEqual(['queue.holds', 'notes.keep_days'])
     expect(list?.newer).toEqual([
-      { what: 'approvals.mode', why: expect.stringMatching(/its orchestrator changed it/) },
+      {
+        what: 'approvals.mode',
+        why: expect.stringMatching(/only on your press here.*\(it says window\)/),
+        press: true,
+      },
     ])
+  })
+
+  it('takes what widens agents on the Remotes page’s press, written as the press’s here', async () => {
+    const { carries, taken, said, pressed } = carrying(answer, async () => {})
+    await carries.carry('vps', { keys: false })
+    expect(taken.map((one) => one.path)).not.toContain('approvals.mode')
+    await carries.action('remote:take:vps:approvals.mode')
+    expect(taken.find((one) => one.path === 'approvals.mode')).toEqual({
+      path: 'approvals.mode',
+      value: 'auto',
+      stamp: { hlc: at(6_000, 'vps'), origin: 'window' },
+    })
+    expect(said).toContain('Taken from vps on your press: approvals.mode is auto here now.')
+    expect(pressed.at(-1)).toEqual({ text: 'Took vps’s approvals.mode here.', error: null })
+    // A press for what is not newer there takes nothing, and says so.
+    await carries.action('remote:take:vps:extensions.sentry.enabled')
+    expect(pressed.at(-1)).toEqual({
+      text: null,
+      error: 'vps no longer has a newer extensions.sentry.enabled, so nothing was taken.',
+    })
   })
 
   it('writes a conflict down and says it once, and says what it would not take once', async () => {

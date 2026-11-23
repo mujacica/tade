@@ -218,6 +218,24 @@ describe('Settings › Remotes', () => {
     ])
   })
 
+  it('offers a press for what widens agents here, newer there, and draws it beside its row', () => {
+    const list = VPS.list
+    if (list === null) throw new Error('VPS has a checklist')
+    const newer = [
+      ...list.newer,
+      {
+        what: 'approvals.mode',
+        why: 'there it is auto; only on your press here',
+        press: true as const,
+      },
+    ]
+    const taking: RemoteShown = { ...VPS, list: { ...list, newer } }
+    expect(remoteActions([taking]).map((one) => one.id)).toContain('remote:take:vps:approvals.mode')
+    const drawn = page([taking]).replace(/ +/g, ' ')
+    expect(drawn).toMatch(/Newer there approvals\.mode/)
+    expect(drawn).toContain('Take it here')
+  })
+
   it('walks moving a project there one press at a time, and asks twice before closing it here', () => {
     const drawn = page([MOVING], { opened: OPEN }).replace(/ +/g, ' ')
     expect(drawn).toContain('Move app on vps as tade · 1 running here')

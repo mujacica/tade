@@ -23,7 +23,9 @@ import { heldSays, IN_CONFIG, SEEN_BY_AGENTS } from './secrets.ts'
 //               without seeing the other's. A machine may keep one as its
 //               own (`machine.pinned`), and a peer's change to what widens
 //               agents (`never` to the orchestrator) lands only where the
-//               person made it (`peerMayWrite`).
+//               person made it (`peerMayWrite`) — and, coming back from a
+//               machine this one links to, only on a press here
+//               (`takenOnAPress`).
 // - `pressed` — carried on one press, never by itself: a key, an MCP server
 //               (somebody else's code, with what it is handed), the
 //               telemetry DSN, intake's grants. Each is `never` to the
@@ -495,12 +497,13 @@ export function personBy(by: string | null): boolean {
 }
 
 /**
- * Whether another machine's change at this path may land here. A `never`
+ * Whether a carry another machine sent here may land at this path. A `never`
  * path widens what agents may do on the machine it lands on — approvals,
  * accounts, which extensions are on, a route's provider — so a peer's change
- * to one lands only where the person made it, and is said where it does
- * (3.4 of the shared-brain plan, Q3: applied and said, never waiting on a
- * press, which would take the phone's "do everything" away).
+ * to one lands only where the person made it, and is said where it does.
+ * This is the receiving route's rule for the machine that links to it — the
+ * owner's carry, as it always was. What comes back newer to the machine that
+ * links is never taken on the word of the one it links to (`takenOnAPress`).
  */
 export function peerMayWrite(path: string, by: string | null): boolean {
   return settingReach(path).reach !== 'never' || personBy(by)
@@ -510,6 +513,21 @@ export function peerMayWrite(path: string, by: string | null): boolean {
 export function notThePersonSays(by: string | null, from: string): string {
   const who = by === null ? 'nothing says who' : by === 'orchestrator' ? 'its orchestrator' : by
   return `what agents may do here changes only on your word, and on ${from} ${who} changed it`
+}
+
+/**
+ * Why a change to what widens agents here, come back newer from a machine
+ * this one links to, waits for a press here rather than landing: who made it
+ * is that machine's own word, and nothing here can check it. Its agents run
+ * as you there, so one of them can edit its config or run `tade config` and
+ * be `file` or `cli` — and a box that is not yours any more can say `window`.
+ * The carry this machine sends is the owner's, as it always was
+ * (`peerMayWrite`); what comes back to widen this one is the person's press
+ * on Settings › Remotes (`remote:take`), never a claim.
+ */
+export function takenOnAPress(value: string, by: string | null, from: string): string {
+  const who = by === null ? 'it does not say' : `it says ${by}`
+  return `there it is ${value === '' ? 'nothing' : value}; what agents may do here changes only on your press here, since whose change it was is ${from}’s word alone (${who}) — Settings › Remotes takes it`
 }
 
 /** Whether `machine.pinned` keeps this path to this machine: names it, a section it is in, or a part of it. */

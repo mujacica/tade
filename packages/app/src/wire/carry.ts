@@ -223,7 +223,7 @@ export class Carries {
     try {
       const me = this.deps.from()
       const answer = await carryTo(held.link, held.remote, setup, { from: me, ...opts })
-      const took = await this.takeBack(name, setup, answer, me)
+      const took = await this.takeBack(name, setup, answer, me, new Set(opts.take ?? []))
       return { list: checklistOf({ ...base, answer, unreached: null, me, took }), refused: false }
     } catch (err) {
       const said = err instanceof Error ? err.message : String(err)
@@ -246,8 +246,9 @@ export class Carries {
     setup: Setup,
     answer: Parameters<typeof takeBack>[1],
     me: string,
+    take: ReadonlySet<string>,
   ): Promise<{ taken: string[]; failed: { what: string; why: string }[] }> {
-    const back = takeBack(setup, answer, me, this.deps.now())
+    const back = takeBack(setup, answer, me, this.deps.now(), take)
     const taken: string[] = []
     const failed: { what: string; why: string }[] = []
     for (const one of back.writes) {
@@ -275,7 +276,7 @@ export class Carries {
     for (const one of back.landed) {
       if (!taken.includes(one.path)) continue
       this.deps.say(
-        `${name} changed ${one.path} to ${one.now || 'nothing'} (${one.by} there): applied here.`,
+        `Taken from ${name} on your press: ${one.path} is ${one.now || 'nothing'} here now.`,
       )
     }
     for (const one of back.refused) {
@@ -319,6 +320,18 @@ export class Carries {
         list === null ? null : `Sent this machine’s ${what} to ${name}.`,
         list?.unreached ?? null,
       )
+    } else if (verb === 'take') {
+      const list = await this.carry(name, { keys: false, take: [what] })
+      if (list === null) this.deps.said(null, null)
+      else if (list.taken.includes(what)) this.deps.said(`Took ${name}’s ${what} here.`, null)
+      else {
+        // Not written, and why: the write here failed, its clock is ahead, or it is newer no more.
+        const why = list.newer.find((one) => one.what === what)?.why
+        this.deps.said(
+          null,
+          list.unreached ?? why ?? `${name} no longer has a newer ${what}, so nothing was taken.`,
+        )
+      }
     } else if (verb === 'sign-in') {
       await this.signIn(name, rest[0] ?? '', rest[1] ?? '')
     } else if (verb === 'upgrade') {

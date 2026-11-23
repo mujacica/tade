@@ -262,8 +262,11 @@ The rules the table stands on:
 - **A peer's change to a `never` path lands only where the person made it** (`peerMayWrite`):
   who changed it first travels with it (`by`, and `origin` on the carried line — `whoChanged`), and
   only `window`, `cli`, `file`, `you` or a device (which reaches past `open` only with full access)
-  count. Landing is said in the strip; a refusal is said with why. Never a press: the phone does
-  everything.
+  count. That holds for what the linking machine sends — the owner's carry. **What comes back newer
+  to widen the linking machine waits for a press there** (`takenOnAPress`, `remote:take`, Settings ›
+  Remotes): `by` is the box's word, and its agents run as you, so `tade config` or an edit to its
+  file makes them `cli` or `file`. A take is written as `window` here, never as the box's claim, so
+  it does not relay on as checked. Landing is said in the strip; a refusal is said with why.
 - **Two Tades that carry differently refuse rather than guess.** Every body says `schema`
   (`CARRY_SCHEMA`); one that is not the receiver's own is refused `426` before anything is written,
   an older receiver refuses the stamped body as malformed, and the sender says which machine to

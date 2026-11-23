@@ -162,6 +162,11 @@ export function remoteActions(remotes: readonly RemoteShown[]): RemoteAction[] {
     if (remote.live && about !== null && (remote.versus?.behind === true || about.newer !== null)) {
       actions.push({ id: `remote:upgrade:${at}`, label: 'Upgrade Tade there', remote: at })
     }
+    // What widens agents here, newer there: taken only on a press here (`takenOnAPress`).
+    for (const one of list?.newer ?? []) {
+      if (one.press !== true) continue
+      actions.push({ id: `remote:take:${at}:${one.what}`, label: 'Take it here', remote: at })
+    }
     for (const one of list?.theirs ?? []) {
       actions.push({
         id: `remote:ours:${at}:${one.what}`,
@@ -440,8 +445,9 @@ export function drawRemotes(
     }
     if (list !== null && list.taken.length > 0) line('Taken here', list.taken.join(', '), skin.done)
     for (const one of list?.newer ?? []) {
-      line('Newer there', one.what, skin.hint)
+      line('Newer there', one.what, one.press === true ? skin.waiting : skin.hint)
       say(one.why, skin.hint, deep, 3)
+      if (one.press === true) buttons([`remote:take:${at}:${one.what}`])
     }
     const pinnedThere = (list?.pinned ?? []).filter((one) => one.where === 'there')
     if (pinnedThere.length > 0) {

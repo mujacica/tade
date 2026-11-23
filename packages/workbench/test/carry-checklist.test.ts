@@ -207,7 +207,7 @@ describe('what comes back newer', () => {
     ])
   })
 
-  it('never takes a key, this machine’s own, a pinned one, or what widens agents unless the person did', () => {
+  it('never takes a key, this machine’s own, a pinned one, or what widens agents by itself', () => {
     const back = takeBack(
       mine,
       answer([
@@ -236,13 +236,82 @@ describe('what comes back newer', () => {
       ]),
       'mac',
     )
-    expect(back.writes.map((one) => one.path)).toEqual(['extensions.sentry.enabled'])
-    expect(back.landed).toEqual([
-      { path: 'extensions.sentry.enabled', now: 'true', by: 'device 7f3a' },
-    ])
+    expect(back.writes).toEqual([])
+    expect(back.landed).toEqual([])
+    // Whoever that machine says made it — its orchestrator, or a device it names.
     expect(back.refused).toEqual([
-      { what: 'approvals.mode', why: expect.stringMatching(/on vps its orchestrator changed it/) },
+      {
+        what: 'approvals.mode',
+        why: expect.stringMatching(
+          /^there it is auto; .*only on your press here.*says orchestrator/,
+        ),
+        press: true,
+      },
+      {
+        what: 'extensions.sentry.enabled',
+        why: expect.stringMatching(/^there it is true; .*vps’s word alone \(it says device 7f3a\)/),
+        press: true,
+      },
     ])
+  })
+
+  it('takes what widens agents on a press here, as the press’s and never as that machine’s word', () => {
+    // A box whose agent ran `tade config` says `cli`, and one that is not yours says `window`.
+    const came = answer([
+      {
+        path: 'approvals.mode',
+        outcome: 'newer',
+        value: 'auto',
+        hlc: stampText(at(9, 'v')),
+        by: 'window',
+      },
+      {
+        path: 'workers.routes.cheap.provider',
+        outcome: 'newer',
+        value: 'elsewhere',
+        hlc: stampText(at(9, 'v')),
+        by: 'cli',
+      },
+      {
+        path: 'notes.keep_days',
+        outcome: 'newer',
+        value: 9,
+        hlc: stampText(at(9, 'v')),
+        by: 'cli',
+      },
+    ])
+    const unpressed = takeBack(mine, came, 'mac')
+    expect(unpressed.writes.map((one) => one.path)).toEqual(['notes.keep_days'])
+    expect(unpressed.writes[0]?.stamp.origin).toBe('cli')
+    expect(unpressed.refused.map((one) => one.what)).toEqual([
+      'approvals.mode',
+      'workers.routes.cheap.provider',
+    ])
+    const pressed = takeBack(mine, came, 'mac', Date.now(), new Set(['approvals.mode']))
+    expect(pressed.writes).toEqual([
+      {
+        path: 'approvals.mode',
+        value: 'auto',
+        stamp: { hlc: stampText(at(9, 'v')), origin: 'window' },
+      },
+      { path: 'notes.keep_days', value: 9, stamp: { hlc: stampText(at(9, 'v')), origin: 'cli' } },
+    ])
+    expect(pressed.landed).toEqual([{ path: 'approvals.mode', now: 'auto' }])
+    expect(pressed.refused.map((one) => one.what)).toEqual(['workers.routes.cheap.provider'])
+    // The checklist offers the press for each, and a shell says the same.
+    const list = checklistOf({
+      remote: 'vps',
+      setup: mine,
+      answer: came,
+      unreached: null,
+      inUse: new Set<string>(),
+      now: 0,
+    })
+    expect(list.newer.filter((one) => one.press === true).map((one) => one.what)).toEqual([
+      'approvals.mode',
+      'workers.routes.cheap.provider',
+    ])
+    expect(leftToDo(list)).toBe(true)
   })
 
   it('is listed as waiting for the window where a shell carried, and as taken where the window did', () => {
