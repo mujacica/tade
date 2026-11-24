@@ -2,6 +2,7 @@ import { ConfigSchema } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { type AppState, initialState } from '../../src/model.ts'
 import { promptPanel } from '../../src/panels/small/state.ts'
+import { talkTab } from '../../src/talk-tab.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 import { Machine } from '../../src/wire/machine.ts'
 
@@ -119,6 +120,10 @@ const deps = (did: Did[]) => ({
     if (value === 'work') throw new Error('"work" is already a claude-code account')
     return 'Saved. It applies now.'
   },
+  signInThere: async (machine: string) => {
+    did.push({ what: 'signInThere', with: [machine] })
+  },
+  restartOrchestrator: () => did.push({ what: 'restartOrchestrator', with: [] }),
 })
 
 const machine = (world: ReturnType<typeof wiring>) => new Machine(world.wire, deps(world.did))
@@ -461,5 +466,84 @@ describe('doing something to an account', () => {
       }
     await machine(world).accountAction('account:sign-out:claude-code:work')
     expect((world.at().panel as { error?: string })?.error).toBe('claude is not installed')
+  })
+})
+
+describe('/login on the orchestrator’s line', () => {
+  /** A window whose orchestrator runs on Claude Code as `work`, and the sign-in its harness offers. */
+  function signingIn(over: { exit?: number; throws?: string } = {}) {
+    const world = wiring({ project: 'shop' })
+    const opts = world.wire.opts as unknown as { config: unknown; client: Record<string, unknown> }
+    opts.config = ConfigSchema.parse({
+      projects: { shop: { root: '/tmp/shop' } },
+      accounts: { work: { harness: 'claude-code' } },
+      orchestrator: { harness: 'claude-code', account: 'work' },
+    })
+    opts.client.signInFor = (harness: string, name: string | null) => {
+      world.did.push({ what: 'signInFor', with: [harness, name] })
+      if (over.throws) throw new Error(over.throws)
+      return { how: 'Follow Claude Code.', launch: { command: 'claude', args: ['auth'], env: {} } }
+    }
+    const said: string[] = []
+    const ran: unknown[][] = []
+    const subject = new Machine(world.wire, {
+      ...deps(world.did),
+      onScreenWith: async (flow: (ui: never) => Promise<void>) => {
+        world.did.push({ what: 'onScreenWith', with: [] })
+        await flow({
+          say: (line: string) => said.push(line),
+          run: async (...args: unknown[]) => {
+            ran.push(args)
+            return over.exit ?? 0
+          },
+        } as never)
+      },
+    })
+    return { world, subject, said, ran }
+  }
+
+  it('is a command the window answers, never a sentence for the model', () => {
+    const { subject } = signingIn()
+    expect(subject.actions()['/login']).toBeTypeOf('function')
+  })
+
+  it('signs in the account the orchestrator runs as, in a terminal here, then starts it again on it', async () => {
+    const { world, subject, said, ran } = signingIn()
+    await subject.logIn()
+    // Its harness and `orchestrator.account`, through the harness's own sign-in.
+    expect(world.did[0]).toEqual({ what: 'signInFor', with: ['claude-code', 'work'] })
+    expect(ran).toEqual([['work', 'claude', ['auth'], {}]])
+    expect(said).toEqual(['  The orchestrator runs as work. Follow Claude Code.'])
+    expect(world.did.map((one) => one.what)).toEqual([
+      'signInFor',
+      'onScreenWith',
+      'refreshModels',
+      'restartOrchestrator',
+    ])
+  })
+
+  it('leaves the orchestrator as it was where the sign-in did not finish, and says so', async () => {
+    const { world, subject } = signingIn({ exit: 130 })
+    await subject.logIn()
+    expect(world.did.map((one) => one.what)).not.toContain('restartOrchestrator')
+    expect(world.at().notice).toBe(
+      "work's sign-in ended before it finished: the orchestrator is as it was",
+    )
+  })
+
+  it('says why where its harness has nothing to sign in to, opening nothing', async () => {
+    const { world, subject } = signingIn({ throws: 'work has nothing to sign in to' })
+    await subject.logIn()
+    expect(world.did.map((one) => one.what)).toEqual(['signInFor'])
+    expect(world.at().notice).toBe(
+      'the orchestrator cannot be signed in here: work has nothing to sign in to',
+    )
+  })
+
+  it('on another machine’s tab, signs that machine’s orchestrator in there and nothing here', async () => {
+    const { world, subject } = signingIn()
+    world.wire.put({ ...world.at(), bottom: talkTab('ipax') } as AppState)
+    await subject.logIn()
+    expect(world.did).toEqual([{ what: 'signInThere', with: ['ipax'] }])
   })
 })

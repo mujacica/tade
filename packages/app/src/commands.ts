@@ -1,4 +1,5 @@
 import type { AppState } from './model.ts'
+import { talkingTo } from './talk-tab.ts'
 
 // The commands you can type, and what a typed line is.
 //
@@ -28,6 +29,7 @@ export interface Action {
 export function actions(state: AppState): Action[] {
   const focused = state.panes.find((pane) => pane.task === state.focused)
   const running = state.panes.filter((pane) => pane.lane !== null)
+  const there = talkingTo(state)
   return [
     {
       name: '/new',
@@ -48,6 +50,16 @@ export function actions(state: AppState): Action[] {
     },
     { name: '/project', about: 'add a git repository Tade can work in', ready: true },
     { name: '/settings', about: 'see and change what Tade has been told', ready: true },
+    {
+      // The orchestrator's harness runs headless, where its own commands never
+      // arrive: this is its sign-in, on the machine whose line it is (`Machine.logIn`).
+      name: '/login',
+      about:
+        there === null
+          ? "sign the orchestrator in: its harness's own sign-in, in a terminal here"
+          : `sign ${there}'s orchestrator in, on ${there}, through its link`,
+      ready: true,
+    },
     { name: '/away', about: 'pair a phone, and see which devices are let in', ready: true },
     {
       name: '/workflows',

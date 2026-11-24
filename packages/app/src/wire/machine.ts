@@ -1,10 +1,11 @@
-import { HARNESS_CHOICES } from '@tade/core'
+import { HARNESS_CHOICES, orchestratorAccount, ownSignInName } from '@tade/core'
 import type { AccountView } from '@tade/workbench'
 import type { Frame } from '../frame.ts'
 import { accountActions } from '../panels/settings/accounts.ts'
 import { ACCOUNTS, settingsPanel } from '../panels/settings/state.ts'
 import { promptPanel } from '../panels/small/state.ts'
 import type { Ui } from '../screen.ts'
+import { talkingTo } from '../talk-tab.ts'
 import { type Actions, notify, type Prompts, type Subject, type Wiring, why } from './context.ts'
 
 // Who Tade runs as — each harness's own accounts, and how each provider is paid
@@ -32,6 +33,10 @@ export interface MachineDeps {
    * it went; a value the config refuses is put back and thrown.
    */
   writeSetting(path: string, value: string): Promise<string>
+  /** Another machine's orchestrator signed in there, through its link (`Carries.signInOrchestrator`). */
+  signInThere(machine: string): Promise<void>
+  /** Start this machine's orchestrator again, on what it is signed in as now. */
+  restartOrchestrator(): void
 }
 
 /** How a provider is paid for, the way a page that asked says it. */
@@ -73,7 +78,56 @@ export class Machine implements Subject {
   }
 
   actions(): Actions {
-    return { reload: () => this.deps.reload() }
+    return { reload: () => this.deps.reload(), '/login': () => this.logIn() }
+  }
+
+  /**
+   * `/login` on the orchestrator's line: that orchestrator's harness signed in
+   * with its own sign-in, as the account it runs as (`orchestrator.account`),
+   * on the machine whose line it was typed on — this one's here, in a terminal
+   * over the window, and another machine's on its tab, through its link.
+   *
+   * The orchestrator's harness runs headless, so its own TUI commands never
+   * reach it, and a `/login` handed to it as a sentence is a model asked to
+   * sign itself in. Signed in, it starts again so what it runs on is the new
+   * sign-in, its conversation carried as on any restart. A harness with
+   * nothing to sign in to says why where the line is.
+   */
+  async logIn(): Promise<void> {
+    const there = talkingTo(this.wire.state)
+    if (there !== null) {
+      await this.deps.signInThere(there)
+      return
+    }
+    const config = this.wire.opts.config
+    const harness = config.orchestrator.harness
+    const account = orchestratorAccount(config)
+    const title = HARNESS_CHOICES.find((one) => one.id === harness)?.title ?? harness
+    const who = account ?? ownSignInName(config, harness) ?? `${title}'s own sign-in`
+    let code = null as number | null
+    try {
+      const signing = this.wire.opts.client.signInFor(harness, account)
+      await this.deps.onScreenWith(async (ui) => {
+        ui.say(`  The orchestrator runs as ${who}. ${signing.how}`)
+        code = await ui.run(
+          account ?? harness,
+          signing.launch.command,
+          signing.launch.args,
+          signing.launch.env,
+        )
+      })
+    } catch (err) {
+      notify(this.wire, `the orchestrator cannot be signed in here: ${why(err)}`)
+      this.wire.draw()
+      return
+    }
+    await this.readKeys()
+    if (code !== 0) {
+      notify(this.wire, `${who}'s sign-in ended before it finished: the orchestrator is as it was`)
+      this.wire.draw()
+      return
+    }
+    this.deps.restartOrchestrator()
   }
 
   /**

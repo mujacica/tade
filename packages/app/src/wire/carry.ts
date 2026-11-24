@@ -374,21 +374,58 @@ export class Carries {
    * carried again, so the page says how it stands now.
    */
   private async signIn(name: string, harness: string, account: string): Promise<void> {
-    const held = this.deps.reach(name)
     const words = ['accounts', 'sign-in', harness, ...(account === '' ? [] : [account])]
-    const terminal = held?.link.terminal(held.remote, words) ?? null
-    if (held === null || terminal === null) {
-      this.deps.said(
-        null,
-        `${name} cannot be signed in from here: run \`tade ${words.join(' ')}\` there`,
-      )
+    const ran = await this.signInThere(name, words, `${harness}'s own sign-in`, harness)
+    if (ran === null) {
+      this.deps.said(null, cannotSignIn(name, words))
       return
     }
-    await this.deps.onScreenWith(async (ui) => {
-      ui.say(`  ${harness}'s own sign-in, on ${name}: what you type goes there and nowhere else.`)
-      await ui.run(`${harness} on ${name}`, terminal.command, terminal.args, {})
-    })
     await this.carry(name, { keys: false })
+  }
+
+  /**
+   * `/login` typed on that machine's orchestrator's tab: its orchestrator's
+   * own sign-in, there — the harness and account read out of *its* config
+   * (`tade accounts sign-in --orchestrator`), because which account it runs as
+   * is that machine's to say and nothing here holds it. Said in the strip,
+   * where the line it was typed on is, whatever came of it.
+   */
+  async signInOrchestrator(name: string): Promise<void> {
+    const words = ['accounts', 'sign-in', '--orchestrator']
+    const ran = await this.signInThere(
+      name,
+      words,
+      "the orchestrator's own sign-in",
+      'orchestrator',
+    )
+    if (ran === null) {
+      this.deps.say(cannotSignIn(name, words))
+      return
+    }
+    this.deps.say(orchestratorSignedIn(name, ran))
+    await this.carry(name, { keys: false })
+  }
+
+  /**
+   * A sign-in on that machine, in a terminal over this window: the token goes
+   * where that harness keeps it there, never through Tade. Its exit code, or
+   * null where no link holds that machine or its link opens no terminal.
+   */
+  private async signInThere(
+    name: string,
+    words: readonly string[],
+    what: string,
+    title: string,
+  ): Promise<number | null> {
+    const held = this.deps.reach(name)
+    const terminal = held?.link.terminal(held.remote, [...words]) ?? null
+    if (held === null || terminal === null) return null
+    let code = 0
+    await this.deps.onScreenWith(async (ui) => {
+      ui.say(`  ${what}, on ${name}: what you type goes there and nowhere else.`)
+      code = await ui.run(`${title} on ${name}`, terminal.command, terminal.args, {})
+    })
+    return code
   }
 
   /** Each remote as the page draws it. */
@@ -403,6 +440,22 @@ export class Carries {
       }
     })
   }
+}
+
+/** Said where a sign-in there could not be opened from here: the command to run there instead. */
+function cannotSignIn(name: string, words: readonly string[]): string {
+  return `${name} cannot be signed in from here: run \`tade ${words.join(' ')}\` there`
+}
+
+/**
+ * What `/login` on a machine's tab came to, by how its terminal ended. A
+ * Tade there older than `--orchestrator` refuses it, so a failure names the
+ * command that works on any of them as well as the upgrade.
+ */
+export function orchestratorSignedIn(name: string, code: number): string {
+  if (code === 0)
+    return `The sign-in on ${name} finished: its orchestrator runs on it once it starts again there.`
+  return `The sign-in on ${name} ended before it finished (exit ${code}): left, or refused there. A Tade there older than this one has no \`tade accounts sign-in --orchestrator\`: upgrade it from Settings › Remotes, or run \`tade accounts sign-in <harness>\` there.`
 }
 
 /** What a press to turn talking on there came to, as the page says it: done, or why not. */
