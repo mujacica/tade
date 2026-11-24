@@ -5,6 +5,7 @@ import { deskParts } from '../src/assets/desk.js'
 import { linesKept, NEAR_TOP, nearTop } from '../src/assets/earlier.js'
 import { atFoot } from '../src/assets/follow.js'
 import { toolNamed } from '../src/assets/glyphs.js'
+import { SIGN_IN_PATH } from '../src/assets/sign-in.js'
 import { applySnapshot, chatOf, emptyStore } from '../src/assets/store.js'
 import {
   callDoing,
@@ -15,7 +16,9 @@ import {
   talkScreen,
 } from '../src/assets/talk.js'
 import type { ChatIn } from '../src/input.ts'
+import { GRANTS } from '../src/reach.ts'
 import { projector } from '../src/reading.ts'
+import { SCOPES } from '../src/surface.ts'
 import { input, NOW, reach, talk } from './fixtures.ts'
 
 // The conversation with Tade drawn as the window's strip draws it — on the
@@ -287,6 +290,32 @@ describe('a line of the conversation', () => {
     expect((screen.node.querySelector('textarea') as StillElement & { value: string }).value).toBe(
       'what now?',
     )
+  })
+
+  it('carries `/login` out on the person’s own phone, and sends it to the window from any other', async () => {
+    for (const [who, session, path] of [
+      ['theirs', { scopes: [...SCOPES], reads: [...GRANTS] }, SIGN_IN_PATH],
+      ['an ordinary device', { scopes: ['read'], reads: [] }, '/api/ask/ask'],
+    ] as const) {
+      const asked: string[] = []
+      const screen = talkScreen({
+        ...ctx,
+        session: () => session,
+        ask: (_method: string, to: string) => {
+          asked.push(to)
+          return Promise.resolve({ ok: true, status: 200, body: { did: false, said: '' } })
+        },
+      })
+      screen.update(view(storeOf(FOUR, { mine: true })))
+      doc.body.append(screen.node)
+      const box = screen.node.querySelector('textarea') as StillElement & { value: string }
+      box.value = '/login'
+      ;(screen.node.querySelector('.ask-send') as StillElement).click()
+      await Promise.resolve()
+      expect(asked, who).toEqual([path])
+      // Carried out here, the line is not left in the box to be sent again.
+      if (path === SIGN_IN_PATH) expect(box.value).toBe('')
+    }
   })
 })
 
