@@ -6,7 +6,7 @@ import {
   type SettingConflict,
   stampText,
 } from '@tade/core'
-import type { Remote, RemoteLink } from '@tade/remotes-core'
+import type { Answer, Remote, RemoteLink } from '@tade/remotes-core'
 import {
   type CarryPress,
   CarryRefused,
@@ -389,6 +389,10 @@ export class Carries {
    * (`tade accounts sign-in --orchestrator`), because which account it runs as
    * is that machine's to say and nothing here holds it. Said in the strip,
    * where the line it was typed on is, whatever came of it.
+   *
+   * Signed in, that machine is asked to start its orchestrator again
+   * (`ORCHESTRATOR_RESTART_DOOR`), as `/login` here starts this one's: its
+   * harness runs headless and keeps the sign-in it started with.
    */
   async signInOrchestrator(name: string): Promise<void> {
     const words = ['accounts', 'sign-in', '--orchestrator']
@@ -402,8 +406,22 @@ export class Carries {
       this.deps.say(cannotSignIn(name, words))
       return
     }
-    this.deps.say(orchestratorSignedIn(name, ran))
+    this.deps.say(ran === 0 ? await this.restartThere(name) : orchestratorSignedIn(name, ran))
     await this.carry(name, { keys: false })
+  }
+
+  /** That machine's orchestrator asked to start again on its sign-in now, and what it came to. */
+  private async restartThere(name: string): Promise<string> {
+    const held = this.deps.reach(name)
+    if (held === null) return orchestratorRestarted(name, new Error('no link holds it now'))
+    try {
+      return orchestratorRestarted(
+        name,
+        await held.link.call(held.remote, ORCHESTRATOR_RESTART_DOOR, {}),
+      )
+    } catch (err) {
+      return orchestratorRestarted(name, err instanceof Error ? err : new Error(String(err)))
+    }
   }
 
   /**
@@ -447,14 +465,41 @@ function cannotSignIn(name: string, words: readonly string[]): string {
   return `${name} cannot be signed in from here: run \`tade ${words.join(' ')}\` there`
 }
 
+/** The far side's door that starts its orchestrator alone again (`@tade/web`'s `restarted.ts`). */
+const ORCHESTRATOR_RESTART_DOOR = '/api/orchestrator/restart'
+
 /**
- * What `/login` on a machine's tab came to, by how its terminal ended. A
+ * What asking a machine to start its orchestrator again came to, once its
+ * sign-in finished: starting, why not in its own words, or — a Tade there
+ * older than this one, a link that failed — that it applies once it starts
+ * again there, which is all that is true then.
+ */
+export function orchestratorRestarted(name: string, came: Answer | Error): string {
+  const signed = `The sign-in on ${name} finished`
+  const later = 'its orchestrator runs on it once it starts again there'
+  if (came instanceof Error) {
+    return `${signed}, and ${name} could not be asked to start its orchestrator again (${came.message}): ${later}.`
+  }
+  if (came.status === 404) {
+    return `${signed}: ${later}. A Tade there older than this one cannot be asked to from here: upgrade it from Settings › Remotes.`
+  }
+  const body = came.body as { restarting?: unknown; said?: unknown } | null
+  if (came.status !== 200 || typeof body?.restarting !== 'boolean') {
+    return `${signed}, and ${name} answered ${came.status} when asked to start its orchestrator again: ${later}.`
+  }
+  if (!body.restarting) {
+    const said = typeof body.said === 'string' ? body.said.slice(0, 600) : later
+    return `${signed}: ${said}`
+  }
+  return `${signed}: its orchestrator starts again on it there, once any turn it is in is over.`
+}
+
+/**
+ * What `/login` on a machine's tab came to where its terminal did not end well. A
  * Tade there older than `--orchestrator` refuses it, so a failure names the
  * command that works on any of them as well as the upgrade.
  */
 export function orchestratorSignedIn(name: string, code: number): string {
-  if (code === 0)
-    return `The sign-in on ${name} finished: its orchestrator runs on it once it starts again there.`
   return `The sign-in on ${name} ended before it finished (exit ${code}): left, or refused there. A Tade there older than this one has no \`tade accounts sign-in --orchestrator\`: upgrade it from Settings › Remotes, or run \`tade accounts sign-in <harness>\` there.`
 }
 

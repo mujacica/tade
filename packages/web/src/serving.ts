@@ -23,7 +23,7 @@ import type { Grant, Reach } from './reach.ts'
 import type { WebReading } from './reading.ts'
 import type { WebRecords } from './records.ts'
 import type { WebRepositories } from './repositories.ts'
-import type { WebRestarting } from './restarted.ts'
+import type { WebOrchestratorRestart, WebRestarting } from './restarted.ts'
 import type { WebSeen } from './seen.ts'
 import type { WebActs } from './shared-acts.ts'
 import type { WebConversation } from './shared-conversation.ts'
@@ -309,6 +309,11 @@ export interface ServerOptions {
    * the route is the `404` of a path nobody wired.
    */
   restarting?: WebRestarting
+  /**
+   * The orchestrator alone started again on its sign-in now (`restarted.ts`).
+   * Absent, the route is the `404` of a path nobody wired.
+   */
+  orchestratorRestart?: WebOrchestratorRestart
   document?: WebDocument
   tool?: WebToolRead
   /**

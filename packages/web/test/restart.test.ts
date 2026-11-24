@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { allowDevice, grantDevice } from '../src/devices.ts'
 import { GRANTS } from '../src/reach.ts'
 import { CSRF_HEADER } from '../src/request.ts'
-import type { WebRestarting } from '../src/restarted.ts'
+import type { WebOrchestratorRestart, WebRestarting } from '../src/restarted.ts'
 import { OWNED } from '../src/routes.ts'
 import { SCOPES } from '../src/surface.ts'
 import { ask, closeAll, pair, type Running, start } from './harness.ts'
@@ -113,6 +113,72 @@ describe('restarting Tade from the person’s own phone', () => {
     expect(OWNED.find((route) => route.name === 'restart')).toMatchObject({
       method: 'POST',
       path: '/api/restart',
+      here: true,
+      theirs: true,
+    })
+  })
+})
+
+/** A window half that starts its orchestrator again, or says `cannot`; recording each press. */
+function orchestrator(
+  cannot: string | null = null,
+): WebOrchestratorRestart & { pressed: string[] } {
+  const pressed: string[] = []
+  return {
+    pressed,
+    restart: (device) => {
+      pressed.push(device)
+      return cannot === null ? { restarting: true } : { cannot }
+    },
+  }
+}
+
+function again(one: Running, device: Awaited<ReturnType<typeof pair>>, body: unknown) {
+  return ask(one, '/api/orchestrator/restart', {
+    method: 'POST',
+    headers: {
+      origin: one.origin,
+      cookie: device.cookie,
+      'content-type': 'application/json',
+      [CSRF_HEADER]: device.csrf,
+    },
+    body: JSON.stringify(body),
+  })
+}
+
+describe('starting the orchestrator alone again, from another of the person’s machines', () => {
+  it('starts it again as the device’s, or says why it cannot', async () => {
+    const orchestratorRestart = orchestrator()
+    const one = await start({}, { owned: { orchestratorRestart } })
+    const phone = await theirs(one)
+    const said = await again(one, phone, {})
+    expect(said.status, said.text).toBe(200)
+    expect(JSON.parse(said.text)).toEqual({ restarting: true, said: null })
+    expect(orchestratorRestart.pressed).toEqual([phone.device])
+    const none = await start({}, { owned: { orchestratorRestart: orchestrator('nothing here') } })
+    const mine = await theirs(none)
+    expect(JSON.parse((await again(none, mine, {})).text)).toEqual({
+      restarting: false,
+      said: 'nothing here',
+    })
+  })
+
+  it('takes nothing, refuses an ordinary phone, and is the 404 of a path nobody wired', async () => {
+    const orchestratorRestart = orchestrator()
+    const one = await start({}, { owned: { orchestratorRestart } })
+    const mine = await theirs(one)
+    expect((await again(one, mine, { account: 'work' })).status).toBe(400)
+    const phone = await pair(one)
+    await grantDevice(one.home, phone.device, GRANTS, new Date())
+    const refused = await again(one, phone, {})
+    expect(refused.status).toBe(403)
+    expect(JSON.parse(refused.text).error).toBe('out_of_scope')
+    expect(orchestratorRestart.pressed).toEqual([])
+    const none = await start()
+    expect((await again(none, await theirs(none), {})).status).toBe(404)
+    expect(OWNED.find((route) => route.name === 'orchestrator restart')).toMatchObject({
+      method: 'POST',
+      path: '/api/orchestrator/restart',
       here: true,
       theirs: true,
     })

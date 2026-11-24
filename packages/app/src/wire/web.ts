@@ -66,7 +66,7 @@ import { awayView, codeShownOn, keepCode, mintPairing, type PanelFacts } from '.
 import { Presences } from './web-presence.ts'
 import { PublicHealth } from './web-public.ts'
 import { pushFor, type WebPush } from './web-push.ts'
-import { restartingFrom } from './web-restart.ts'
+import { orchestratorRestartFrom, restartingFrom } from './web-restart.ts'
 import { letGoOfRevoked, revokeEvery, revokeOne, type Sessions } from './web-sessions.ts'
 import { heard, toldTo } from './web-told.ts'
 
@@ -295,6 +295,8 @@ export class Away implements Subject {
       ),
       // Tade started again from the person's own phone, through the window's own reload.
       restarting: restartingFrom(this.wire, this.deps.reloadStops),
+      // Its orchestrator alone, on a sign-in made here from another machine's `/login`.
+      orchestratorRestart: orchestratorRestartFrom(this.wire, this.deps.restartOrchestrator),
       ...(this.deps.feeds && { feeds: this.deps.feeds.web() }),
       ...(this.deps.conversation && { conversation: this.deps.conversation.web() }),
       ...(this.deps.acts && {

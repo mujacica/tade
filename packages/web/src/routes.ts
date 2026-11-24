@@ -801,6 +801,18 @@ export const OWNED: readonly Route[] = [
     here: true,
     theirs: true,
   },
+  // The orchestrator alone started again on what it is signed in as now
+  // (`restarted.ts`): what `/login` on this machine's tab elsewhere ends in.
+  // Smaller than a restart, which the same key may ask for; no lane stops.
+  {
+    method: 'POST',
+    path: '/api/orchestrator/restart',
+    name: 'orchestrator restart',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
   // What another machine of the person's has, told here (`inventory-told.ts`):
   // its sign-ins and keys by name and digest, kept as a copy in this home so
   // a guided setup run here can walk it. A file written in this home, which

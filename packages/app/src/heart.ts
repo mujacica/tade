@@ -552,6 +552,8 @@ export class Heart {
       },
       doorbell: { wake: (id, item) => this.schedules.wake(id, item) },
       linear: this.linear,
+      // A sign-in made here from another machine's `/login`, once any turn is over.
+      restartOrchestrator: () => this.orchestrator.moveAccount(true),
     })
   }
 

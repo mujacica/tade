@@ -1,4 +1,4 @@
-import type { WebRestarting } from '@tade/web'
+import type { WebOrchestratorRestart, WebRestarting } from '@tade/web'
 import { type Wiring, why } from './context.ts'
 import { reloadStopsOf } from './window.ts'
 
@@ -53,6 +53,41 @@ export function restartingFrom(
             })
           }, ANSWERED_MS)
         })
+    },
+  }
+}
+
+/** Said where this Tade has no orchestrator it could start again. */
+export const NO_ORCHESTRATOR =
+  'Tade here has no orchestrator it can start again: it starts on its sign-in now the next time Tade does.'
+
+/**
+ * The orchestrator alone started again from another of the person's machines
+ * (`@tade/web`'s `orchestratorRestartHere`), once its sign-in there finished:
+ * its harness runs headless and keeps the sign-in it started with. Once any
+ * turn it is in is over, because somebody at this machine may be in one —
+ * one that could not answer ends at once — and written down as the device's
+ * (`web_did`, `verb: orchestrator restart`).
+ */
+export function orchestratorRestartFrom(
+  wire: Wiring,
+  move: (() => void) | undefined,
+): WebOrchestratorRestart {
+  return {
+    restart: (device) => {
+      if (move === undefined || wire.opts.restartThinker === undefined) {
+        return { cannot: NO_ORCHESTRATOR }
+      }
+      void wire.opts.client.log
+        .append({
+          type: 'web_did',
+          detail: { device, verb: 'orchestrator restart', state: 'done' },
+        })
+        .catch((err: unknown) =>
+          wire.note(new Error(`An orchestrator restart from away: ${why(err)}`)),
+        )
+      move()
+      return { restarting: true }
     },
   }
 }

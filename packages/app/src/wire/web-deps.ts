@@ -133,6 +133,13 @@ export interface AwayDeps {
    */
   reloadStops?: () => number
   /**
+   * Start the orchestrator again once any turn it is in is over, on what it is
+   * signed in as now (`Orchestrator.moveAccount`), for `/login` on this
+   * machine's tab on another machine (`web-restart.ts`). Absent, it is said
+   * that there is no orchestrator here to start again.
+   */
+  restartOrchestrator?: () => void
+  /**
    * The schedules subject, for a webhook delivery to make a watch look now
    * (`wire/doorbell.ts`): its one method that does, never the subject, for
    * `talk`'s reason — a route is one property access from whatever it holds.

@@ -68,3 +68,46 @@ export async function restartHere(
   restarting.restart(device.id)
   return { body: { restarting: true, stops: now.stops, said: null } }
 }
+
+// The orchestrator alone started again, on what it is signed in as now: what
+// `/login` on this machine's tab on another of the person's machines ends in
+// (`Carries.signInOrchestrator` there). Its harness runs headless and keeps
+// the sign-in it started with, so a sign-in made over the link reaches it only
+// once it starts again — its conversation carried, as on any restart. Theirs
+// and an owner's, as `/api/restart` is: a smaller act than that one, which
+// the same SSH key may already do. Nothing it asks for stops a lane.
+
+/** What a press to start the orchestrator again is answered. */
+export interface OrchestratorRestartAnswer {
+  /** It is starting again, once any turn it is in is over. */
+  restarting: boolean
+  /** Why it is not, in the window's words, where it is not; null otherwise. */
+  said: string | null
+}
+
+/** The window's half. */
+export interface WebOrchestratorRestart {
+  /** Start the orchestrator again, written down as this device's; why not, where it cannot be. */
+  restart(device: string): { restarting: true } | { cannot: string }
+}
+
+/** Nothing is asked for: which account it runs as is this machine's to say. */
+const OrchestratorRestartBody = z.strictObject({})
+
+/** `POST /api/orchestrator/restart`: start the orchestrator again on its sign-in now. */
+export async function orchestratorRestartHere(
+  req: IncomingMessage,
+  device: Device,
+  restarting: WebOrchestratorRestart | undefined,
+): Promise<{ body: OrchestratorRestartAnswer } | { refusal: Refusal }> {
+  if (restarting === undefined) return { refusal: refuse('no_such') }
+  if (!ownsOrTheirs(device)) {
+    return { refusal: refuse('out_of_scope', { needs: fullAccessLacks(device) }) }
+  }
+  const got = await readBody(req)
+  if (!got.read) return { refusal: got.refusal }
+  if (!OrchestratorRestartBody.safeParse(got.body).success) return { refusal: refuse('malformed') }
+  const did = restarting.restart(device.id)
+  if ('cannot' in did) return { body: { restarting: false, said: did.cannot } }
+  return { body: { restarting: true, said: null } }
+}

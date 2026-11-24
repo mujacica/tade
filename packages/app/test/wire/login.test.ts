@@ -7,7 +7,7 @@ import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { actions, matchActions } from '../../src/commands.ts'
 import { type AppState, initialState } from '../../src/model.ts'
 import { talkTab } from '../../src/talk-tab.ts'
-import { Carries, orchestratorSignedIn } from '../../src/wire/carry.ts'
+import { Carries, orchestratorRestarted, orchestratorSignedIn } from '../../src/wire/carry.ts'
 
 // `/login` on the orchestrator's line. The orchestrator's harness runs
 // headless, so its own TUI commands never reach it, and a `/login` handed to
@@ -33,11 +33,18 @@ describe('/login, in the commands', () => {
 })
 
 /** A `Carries` over one remote called ipax, and everything it asked of the link and the screen. */
-function carries(over: { link?: boolean; exit?: number } = {}) {
+function carries(
+  over: {
+    link?: boolean
+    exit?: number
+    restart?: () => Promise<{ status: number; body: unknown }>
+  } = {},
+) {
   const home = tmp('tade-login-')
   const configPath = join(home, 'config.yaml')
   writeFileSync(configPath, '')
   const opened: string[][] = []
+  const called: string[] = []
   const ran: unknown[][] = []
   const said: string[] = []
   const answer: CarryAnswer = {
@@ -48,7 +55,11 @@ function carries(over: { link?: boolean; exit?: number } = {}) {
     signIns: [],
   }
   const link = {
-    call: async () => ({ status: 200, body: answer }),
+    call: async (_remote: unknown, path: string) => {
+      called.push(path)
+      if (path !== '/api/orchestrator/restart') return { status: 200, body: answer }
+      return over.restart ? over.restart() : { status: 200, body: { restarting: true, said: null } }
+    },
     terminal: (_remote: unknown, words: string[]) => {
       opened.push(words)
       return { command: 'ssh', args: ['ipax', 'tade', ...words] }
@@ -86,12 +97,12 @@ function carries(over: { link?: boolean; exit?: number } = {}) {
     draw: () => {},
     now: () => Date.now(),
   })
-  return { subject, opened, ran, said }
+  return { subject, opened, called, ran, said }
 }
 
 describe('/login on another machine’s tab', () => {
-  it('runs that machine’s own orchestrator sign-in there, read out of its own config', async () => {
-    const { subject, opened, ran, said } = carries()
+  it('runs that machine’s own orchestrator sign-in there, read out of its own config, then starts it again there', async () => {
+    const { subject, opened, called, ran, said } = carries()
     await subject.signInOrchestrator('ipax')
     // Which harness and account is that machine's to say: nothing here names them.
     expect(opened).toEqual([['accounts', 'sign-in', '--orchestrator']])
@@ -103,7 +114,39 @@ describe('/login on another machine’s tab', () => {
         {},
       ],
     ])
-    expect(said).toEqual([orchestratorSignedIn('ipax', 0)])
+    // Its harness runs headless and keeps the sign-in it started with.
+    expect(called[0]).toBe('/api/orchestrator/restart')
+    expect(said).toEqual([
+      'The sign-in on ipax finished: its orchestrator starts again on it there, once any turn it is in is over.',
+    ])
+  })
+
+  it('says what applies where that machine cannot be asked to start its orchestrator again', async () => {
+    const older = carries({ restart: async () => ({ status: 404, body: { error: 'no_such' } }) })
+    await older.subject.signInOrchestrator('ipax')
+    expect(older.said).toEqual([
+      'The sign-in on ipax finished: its orchestrator runs on it once it starts again there. A Tade there older than this one cannot be asked to from here: upgrade it from Settings › Remotes.',
+    ])
+    const none = carries({
+      restart: async () => ({
+        status: 200,
+        body: { restarting: false, said: 'no orchestrator here' },
+      }),
+    })
+    await none.subject.signInOrchestrator('ipax')
+    expect(none.said).toEqual(['The sign-in on ipax finished: no orchestrator here'])
+    const dropped = carries({
+      restart: async () => {
+        throw new Error('the link went down')
+      },
+    })
+    await dropped.subject.signInOrchestrator('ipax')
+    expect(dropped.said).toEqual([
+      'The sign-in on ipax finished, and ipax could not be asked to start its orchestrator again (the link went down): its orchestrator runs on it once it starts again there.',
+    ])
+    expect(orchestratorRestarted('ipax', { status: 500, body: null })).toBe(
+      'The sign-in on ipax finished, and ipax answered 500 when asked to start its orchestrator again: its orchestrator runs on it once it starts again there.',
+    )
   })
 
   it('says the command to run there where no link opens a terminal to it', async () => {
@@ -116,12 +159,11 @@ describe('/login on another machine’s tab', () => {
   })
 
   it('says a sign-in that did not finish, and what works on a Tade there older than this one', async () => {
-    const { subject, said } = carries({ exit: 1 })
+    const { subject, called, said } = carries({ exit: 1 })
     await subject.signInOrchestrator('ipax')
     expect(said).toEqual([orchestratorSignedIn('ipax', 1)])
     expect(orchestratorSignedIn('ipax', 1)).toContain('run `tade accounts sign-in <harness>` there')
-    expect(orchestratorSignedIn('ipax', 0)).toBe(
-      'The sign-in on ipax finished: its orchestrator runs on it once it starts again there.',
-    )
+    // Nothing new to start it again on.
+    expect(called).not.toContain('/api/orchestrator/restart')
   })
 })
