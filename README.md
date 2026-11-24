@@ -207,6 +207,7 @@ bun add -g tade-sh   && bun pm -g trust --all
 **Don't skip the second command on the pnpm and bun lines**: node-pty is native, and unbuilt it is a
 Tade that cannot open a terminal. `tade setup --check` looks at the machine again whenever you like.
 Optional: tmux 3.2+ (agents that outlive the window), whisper.cpp and ffmpeg (speech), `gh`.
+Any modern terminal runs it; it works best in [Ghostty](https://ghostty.org).
 
 ### On a VPS
 
