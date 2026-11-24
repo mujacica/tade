@@ -218,6 +218,7 @@ sudo apt-get install -y git tmux build-essential python3   # plus Node 22
 curl -fsSL https://tade.sh/install.sh | sh
 tade setup                                                 # over SSH: signs each harness in
 tade host service                                          # runs `tade serve` under systemd
+tade web on                                                # on this machine alone: your Mac pairs through it
 ```
 
 For a phone and webhooks it needs a name of yours (Caddy 2.7+):
