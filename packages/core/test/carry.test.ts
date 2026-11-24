@@ -17,8 +17,10 @@ import {
   keyDigest,
   leavesOf,
   lineStamp,
+  PICKED_BY_HARNESS,
   peerMayWrite,
   personBy,
+  pickedByHarness,
   pinnedHere,
   type Register,
   registerAt,
@@ -388,6 +390,22 @@ describe('the latest change stands', () => {
   it('takes a value away as a change like any other', () => {
     expect(settle(reg('x', at(1, 'vps')), reg(undefined, at(4, 'mac'))).keep).toBe('incoming')
     expect(settle(reg('x', at(6, 'vps')), reg(undefined, at(4, 'mac'))).keep).toBe('here')
+  })
+
+  it('never lets what a harness picked, because nothing was chosen, beat a value somebody chose', () => {
+    // The Mac's person chose opus long ago; a new box kept its harness's own pick just now.
+    const chosen = reg('opus', at(1, 'mac'))
+    const picked: Register = { ...reg('sonnet', at(9, 'ipax')), by: PICKED_BY_HARNESS }
+    expect(settle(chosen, picked)).toEqual({ keep: 'here', conflict: false })
+    expect(settle(picked, chosen)).toEqual({ keep: 'incoming', conflict: false })
+    // Passed on through another machine, it is still the harness's pick.
+    const relayed: Register = { ...picked, by: `${PICKED_BY_HARNESS} on ipax` }
+    expect(pickedByHarness(relayed.by)).toBe(true)
+    expect(settle(chosen, relayed).keep).toBe('here')
+    // Two harnesses' picks, or a pick against a value taken away, are the latest that stands.
+    const older: Register = { ...reg('haiku', at(2, 'mac')), by: PICKED_BY_HARNESS }
+    expect(settle(older, picked).keep).toBe('incoming')
+    expect(settle(picked, reg(undefined, at(4, 'mac'))).keep).toBe('here')
   })
 
   it('reads a register’s stamp from a line at it, around it or inside it, whichever is latest', () => {

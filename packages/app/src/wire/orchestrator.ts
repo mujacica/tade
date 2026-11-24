@@ -7,6 +7,7 @@ import {
   needsReflection,
   orchestratorAccount,
   ownSignInName,
+  PICKED_BY_HARNESS,
   reflectionPrompt,
   THINKING_LEVELS,
   type ThinkingLevel,
@@ -275,10 +276,15 @@ export class Orchestrator implements Subject {
    * Write down the model the orchestrator ended up on when none was chosen,
    * so it stays on it. Otherwise the harness's default decides every start,
    * and that default is whatever an agent last switched to.
+   *
+   * Written down as the harness's pick, never the person's, so a choice made
+   * on another machine still wins the carry (`settle`) — and never a model the
+   * harness could not name, which is a placeholder rather than a model.
    */
   keepModel(model: { provider?: string; id: string }): void {
     if (this.wire.opts.config.orchestrator.model) return
-    this.saveModel(model)
+    if (!namesAModel(model)) return
+    this.saveModel(model, PICKED_BY_HARNESS)
   }
 
   /**
@@ -761,4 +767,15 @@ export class Orchestrator implements Subject {
   describe(scope: string | null): string {
     return describeLive(this.wire, scope)
   }
+}
+
+/**
+ * Whether what a harness says it started on is a model: not empty, and not
+ * the `unknown` a harness with no sign-in reports for its provider and model.
+ * Kept, a placeholder reads as chosen and is carried to every linked machine.
+ */
+export function namesAModel(model: { provider?: string; id: string }): boolean {
+  const said = (text: string | undefined) => text?.trim().toLowerCase() ?? ''
+  if (said(model.id) === '' || said(model.id) === 'unknown') return false
+  return said(model.provider) !== 'unknown'
 }

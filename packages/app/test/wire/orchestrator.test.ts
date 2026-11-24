@@ -370,8 +370,8 @@ describe('the window, talking to the orchestrator', () => {
     app.thinkerMovedTo({ provider: 'anthropic', id: 'claude-sonnet-5' }, said)
     await until('the lines', async () => (await changes()).length === 3)
     expect(await changes()).toEqual([
-      { path: 'orchestrator.provider', was: '', now: 'anthropic', by: 'window' },
-      { path: 'orchestrator.model', was: '', now: 'claude-opus-5', by: 'window' },
+      { path: 'orchestrator.provider', was: '', now: 'anthropic', by: 'harness' },
+      { path: 'orchestrator.model', was: '', now: 'claude-opus-5', by: 'harness' },
       {
         path: 'orchestrator.model',
         was: 'claude-opus-5',
@@ -379,6 +379,20 @@ describe('the window, talking to the orchestrator', () => {
         by: 'orchestrator',
         said,
       },
+    ])
+  })
+
+  it('never keeps the placeholder a harness with no sign-in reports as its model', async () => {
+    const app = await start()
+    app.keepThinkerModel({ provider: 'unknown', id: 'unknown' })
+    app.keepThinkerModel({ id: 'unknown' })
+    app.keepThinkerModel({ provider: 'unknown', id: 'claude-opus-5' })
+    // Then a real one, so the wait is on a line rather than on a sleep.
+    app.keepThinkerModel({ provider: 'anthropic', id: 'claude-opus-5' })
+    await until('the lines', async () => (await changes()).length === 2)
+    expect(await changes()).toEqual([
+      { path: 'orchestrator.provider', was: '', now: 'anthropic', by: 'harness' },
+      { path: 'orchestrator.model', was: '', now: 'claude-opus-5', by: 'harness' },
     ])
   })
 

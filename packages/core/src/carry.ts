@@ -422,6 +422,16 @@ export interface Settled {
  */
 export function settle(here: Register, incoming: Register): Settled {
   if (textOf(here.value) === textOf(incoming.value)) return { keep: 'same', conflict: false }
+  // What Tade kept because nobody chose (`PICKED_BY_HARNESS`) yields to any
+  // value somebody did choose, however much later it was kept: a new machine
+  // writing down its harness's default is not a change of mind. Read off the
+  // registers alone, so both machines settle it the same way.
+  const pickedHere = pickedByHarness(here.by)
+  if (pickedHere !== pickedByHarness(incoming.by)) {
+    const chosen = pickedHere ? incoming : here
+    if (textOf(chosen.value) !== '')
+      return { keep: pickedHere ? 'incoming' : 'here', conflict: false }
+  }
   let order = compareStamps(incoming.stamp, here.stamp)
   if (order === 0) order = textOf(incoming.value) > textOf(here.value) ? 1 : -1
   const [won, lost] = order > 0 ? [incoming, here] : [here, incoming]
@@ -431,6 +441,18 @@ export function settle(here: Register, incoming: Register): Settled {
     keep: order > 0 ? 'incoming' : 'here',
     conflict: !nothing && compareStamps(won.over, lost.stamp) < 0,
   }
+}
+
+/**
+ * Who a line says changed a setting when it was Tade writing down what a
+ * harness started on because nothing was chosen (the orchestrator's model,
+ * `keepModel`): never the person, and never a choice (`settle`).
+ */
+export const PICKED_BY_HARNESS = 'harness'
+
+/** Whether a `by` is `PICKED_BY_HARNESS`, here or as another machine's word for it (`relayedBy`). */
+export function pickedByHarness(by: string | null): boolean {
+  return by === PICKED_BY_HARNESS || (by?.startsWith(`${PICKED_BY_HARNESS} on `) ?? false)
 }
 
 /** Whether a line at one path is about a setting at the other: the same, inside it, or around it. */
