@@ -489,6 +489,20 @@ declare module '*/assets/restart.js' {
   }
 }
 
+declare module '*/assets/sign-in.js' {
+  export const SIGN_IN_PATH: string
+  export const EVERY_MS: number
+  export const SIGN_IN_KEYS: readonly (readonly [string, string, string])[]
+  export function isLogin(said: unknown): boolean
+  export function signInSaid(standing: unknown): string
+  export function linkOf(standing: unknown): string | null
+  export function signInSheet(
+    ctx: unknown,
+    later?: (run: () => void, ms: number) => unknown,
+    unlater?: (timer: unknown) => void,
+  ): { node: unknown; open(from?: unknown): Promise<unknown>; close(): void }
+}
+
 declare module '*/assets/agent-menu.js' {
   export const HOLD_MS: number
   export function menuPath(task: string): string

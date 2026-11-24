@@ -1,0 +1,97 @@
+/* ── the orchestrator's sign-in (`sign-in.js`) ─────────────────────────────── */
+
+/*
+  The agent menu's sheet, holding a sign-in: the harness's words, the link as
+  one whole press, its screen, the code's field and a sign-in menu's keys. Kept
+  above the keyboard while the code is typed (`room.js`), and a dialog in the
+  middle at a desk rather than a menu beside a press.
+*/
+.signin-box {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  max-height: min(88vh, 40rem);
+}
+
+.keyboard-up .signin {
+  inset-block-end: var(--keys);
+}
+
+.keyboard-up .signin-box {
+  max-height: calc(var(--room) - env(safe-area-inset-top) - var(--s3));
+}
+
+.signin-body {
+  display: grid;
+  align-content: start;
+  gap: var(--s3);
+  min-height: 0;
+  padding-block: var(--s3);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.signin-how {
+  margin: 0;
+  padding-inline: var(--inset);
+  color: var(--bright);
+  overflow-wrap: anywhere;
+}
+
+.signin-link,
+.signin-end {
+  justify-content: center;
+  margin-inline: var(--inset);
+  min-height: var(--tap);
+  text-align: center;
+  text-decoration: none;
+}
+
+.signin-end {
+  color: var(--red);
+}
+
+/* What the sign-in shows, as its rows are: scrolled sideways, never wrapped into another shape. */
+.signin-screen {
+  max-height: 11rem;
+  margin: 0 var(--inset);
+  padding: var(--s2) var(--s3);
+  overflow: auto;
+  border-radius: var(--r1);
+  background: var(--surface);
+  color: var(--heading);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  white-space: pre;
+}
+
+.signin-form {
+  padding-block: 0;
+}
+
+.signin-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  padding-inline: var(--inset);
+}
+
+.signin-key {
+  flex: 1 1 0;
+  min-width: var(--tap);
+  border: 1px solid var(--chrome);
+  border-radius: var(--r1);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+}
+
+@media (min-width: 768px) {
+  .signin {
+    display: grid;
+    place-items: center;
+  }
+
+  .signin-box {
+    position: relative;
+    inset: auto;
+    width: min(34rem, calc(100vw - 2 * var(--s5)));
+  }
+}

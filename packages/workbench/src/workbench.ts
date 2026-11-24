@@ -80,6 +80,7 @@ import {
   type RunId,
   resumeOffer,
   type SignIn,
+  type SignInHere,
   type Support,
   type ToolAnswer,
   type WorkerAdapter,
@@ -2224,10 +2225,12 @@ export class Workbench {
 
   /**
    * What to run, in a terminal you can see, to sign an account in: the
-   * harness's own sign-in, so what you give it goes where it keeps it.
+   * harness's own sign-in, so what you give it goes where it keeps it. `here`
+   * says whether a browser opened here is one the person can see — not one
+   * driven from their phone — and is this process's own answer by default.
    */
-  signInFor(harness: string, name: string | null): SignIn {
-    const spec = this.adapterFor(harness, name ?? undefined).signIn()
+  signInFor(harness: string, name: string | null, here?: SignInHere): SignIn {
+    const spec = this.adapterFor(harness, name ?? undefined).signIn(here)
     if (!spec)
       throw new Error(`${name ?? harness} has nothing to sign in to: it is paid for with a key`)
     return spec

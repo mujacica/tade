@@ -68,6 +68,7 @@ import { PublicHealth } from './web-public.ts'
 import { pushFor, type WebPush } from './web-push.ts'
 import { orchestratorRestartFrom, restartingFrom } from './web-restart.ts'
 import { letGoOfRevoked, revokeEvery, revokeOne, type Sessions } from './web-sessions.ts'
+import { OrchestratorSignIn } from './web-sign-in.ts'
 import { heard, toldTo } from './web-told.ts'
 
 /**
@@ -135,6 +136,8 @@ export class Away implements Subject {
   private held: AwayHeld | null = null
   /** Agents' screens, read only while a device granted them is looking. */
   private readonly lanes: Lanes
+  /** The orchestrator's own sign-in, driven from the person's own phone. */
+  private readonly signIn: OrchestratorSignIn
   /** What ran in each tree, read only while a beat is built for somebody (`web-checks.ts`). */
   private readonly records = new CheckRecords({ now: () => this.wire.now() })
   /** One line in the journal, said in the strip if it would not go in (`web-told.ts`). */
@@ -160,6 +163,10 @@ export class Away implements Subject {
       news: (said) => deps.news(said),
       draw: () => wire.draw(),
       now: () => wire.now(),
+    })
+    this.signIn = new OrchestratorSignIn(wire, {
+      ...(deps.restartOrchestrator && { restart: deps.restartOrchestrator }),
+      known: () => this.lanes.keys(() => knownHere(this.wire, this.config())),
     })
     this.lanes = new Lanes({
       capture: (lane, lines) => wire.opts.client.capture(lane as never, lines, false),
@@ -297,6 +304,8 @@ export class Away implements Subject {
       restarting: restartingFrom(this.wire, this.deps.reloadStops),
       // Its orchestrator alone, on a sign-in made here from another machine's `/login`.
       orchestratorRestart: orchestratorRestartFrom(this.wire, this.deps.restartOrchestrator),
+      // `/login` from the person's own phone: its sign-in, run here and typed into from there.
+      orchestratorSignIn: this.signIn,
       ...(this.deps.feeds && { feeds: this.deps.feeds.web() }),
       ...(this.deps.conversation && { conversation: this.deps.conversation.web() }),
       ...(this.deps.acts && {
@@ -446,6 +455,8 @@ export class Away implements Subject {
     // Agents' screens, for whoever is still looking: a comparison and a return
     // when nobody is (`web-lanes.ts`), and never a wait on the driver.
     this.lanes.beat(now)
+    // A sign-in from away: whether it ended, and its screen while somebody looks.
+    this.signIn.beat(now)
     // And the one thing `streams.beat` cannot know: a device revoked somewhere
     // other than this window — `tade web revoke`, `tade web off`. Fired and
     // not awaited, because the beat is synchronous and the window draws on

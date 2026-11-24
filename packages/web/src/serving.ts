@@ -29,6 +29,7 @@ import type { WebActs } from './shared-acts.ts'
 import type { WebConversation } from './shared-conversation.ts'
 import type { WebFeeds } from './shared-feeds.ts'
 import type { WebNotes } from './shared-notes.ts'
+import type { WebSigningIn } from './signing-in.ts'
 import type { WebSince } from './since.ts'
 import type { Listener, Scope, Surface } from './surface.ts'
 import type { WebTaking } from './taken.ts'
@@ -314,6 +315,11 @@ export interface ServerOptions {
    * Absent, the route is the `404` of a path nobody wired.
    */
   orchestratorRestart?: WebOrchestratorRestart
+  /**
+   * The orchestrator's own sign-in, driven from the person's own phone
+   * (`signing-in.ts`). Absent, the route is the `404` of a path nobody wired.
+   */
+  orchestratorSignIn?: WebSigningIn
   document?: WebDocument
   tool?: WebToolRead
   /**

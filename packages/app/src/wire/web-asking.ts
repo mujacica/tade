@@ -233,15 +233,17 @@ function narrower(
 }
 
 /**
- * What `/login` typed on the away view's line is answered with.
+ * What `/login` typed on the away view's line is answered with, where the
+ * page did not carry it out itself.
  *
- * The window's `/login` (`Machine.logIn`) is the orchestrator's harness's own
- * sign-in in a terminal over the window, and nothing types into a terminal
- * from away — so from a device it is the two places that sign-in can be done,
- * rather than a turn of the model's.
+ * On the person's own phone the page opens the orchestrator's sign-in there
+ * (`POST /api/orchestrator/sign-in`, `@tade/web`'s `signing-in.ts`, run by
+ * `web-sign-in.ts`) and never sends the line. Any other device reaches this:
+ * typing into a sign-in on this machine is the SSH key's, so it is told who
+ * may and where else it is done, rather than a turn of the model's.
  */
 export const LOG_IN_IS_HERE =
-  "The orchestrator's sign-in is a terminal on this machine: type /login on Tade's own line there, or run `tade accounts sign-in --orchestrator` in a shell on it."
+  "Signing the orchestrator in from away is the person's own phone's, with full access: /login there opens its sign-in. At the machine, type /login on Tade's own line, or run `tade accounts sign-in --orchestrator` in a shell on it."
 
 /**
  * What each of the window's slash commands (`actions`) is answered with when

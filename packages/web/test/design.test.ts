@@ -37,6 +37,7 @@ const SHEETS = [
   'pages.css',
   'dash.css',
   'palette.css',
+  'sign-in.css',
   'dock.css',
   'page.css',
   'pair.css',

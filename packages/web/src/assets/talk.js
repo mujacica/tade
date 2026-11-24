@@ -43,8 +43,13 @@ import { CHAT_KINDS, toolNamed } from './glyphs.js'
 import { icon } from './icons.js'
 import { plainOf } from './markdown.js'
 import { nothingSaid, section } from './rows.js'
+import { isLogin, signInSheet } from './sign-in.js'
 import { chatOf, omitted, talkOf } from './store.js'
+import { fullAccessOf } from './trouble.js'
 import { answerIn } from './ui.js'
+
+/** The orchestrator's sign-in sheet: one a page, made the first time `/login` is typed. */
+let signing = null
 
 /** How long a message may be, which is `ASK_BOUND` said on this side. */
 const BOUND = 4000
@@ -362,6 +367,17 @@ export function composerOf(ctx, words) {
 
   press.addEventListener('click', () => {
     if (talk === null || box.value.trim() === '') return
+    // `/login` on the person's own phone is carried out here, never sent as a
+    // sentence: the orchestrator's sign-in, in a sheet (`sign-in.js`). Any
+    // other device is answered by the window with who may.
+    if (isLogin(box.value) && fullAccessOf(ctx.session?.() ?? null)) {
+      box.value = ''
+      draft.set('')
+      grow()
+      signing ??= signInSheet(ctx)
+      void signing.open(press)
+      return
+    }
     void send('ask', askBody(talk, keyOf(), ctx.revOf(), box.value))
   })
   stop.addEventListener('click', () => {

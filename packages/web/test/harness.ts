@@ -237,6 +237,7 @@ export async function start(
       | 'machines'
       | 'restarting'
       | 'orchestratorRestart'
+      | 'orchestratorSignIn'
       | 'inventoryTold'
       | 'seen'
       | 'watchSeen'

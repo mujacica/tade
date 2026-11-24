@@ -313,7 +313,11 @@ describe('the real folder', () => {
     // 463 until an agent's changes were a screen of their own (about 3.9 KB:
     // `agent-changes.js`, its pure words and rows, and a card per file with
     // every line of its diff) took it from 462.49 at 500ff657 to 466.34.
-    expect(wire).toBeLessThan(467 * 1024)
+    // 467 until the orchestrator could be signed in from the phone (about
+    // 3.2 KB: `sign-in.js`, the sheet `/login` opens with the sign-in's link,
+    // screen, code field and keys, and its rules in `sign-in.css`) took it
+    // from 466.68 at a07fdd95 to 469.82.
+    expect(wire).toBeLessThan(471 * 1024)
     // And the files as they sit, which is what a browser holds once it has
     // them: about a megabyte, with the comments every module carries. 768
     // until the pages were redrawn one at a time, each 40–90 KB as it sits.
@@ -368,7 +372,10 @@ describe('the real folder', () => {
     // `signInLabel`, `defaultsSaid` and why a name is wrapped and never cut)
     // took it to 1474. 1477, already 1477.78 at 500ff657, until an agent's
     // changes were a screen of their own (12 KB as it sits: two modules and a
-    // card's rules) took it to 1489.59.
-    expect(raw).toBeLessThan(1491 * 1024)
+    // card's rules) took it to 1489.59. 1491 until the orchestrator could be
+    // signed in from the phone (10 KB as it sits: `sign-in.js` and its
+    // reasons, and the sheet's rules in `sign-in.css`) took it from 1489.66 at
+    // a07fdd95 to 1499.38.
+    expect(raw).toBeLessThan(1501 * 1024)
   })
 })

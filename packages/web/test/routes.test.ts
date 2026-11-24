@@ -403,6 +403,7 @@ describe('the owner’s table', () => {
       'POST /api/machines/press',
       'POST /api/restart',
       'POST /api/orchestrator/restart',
+      'POST /api/orchestrator/sign-in',
       'POST /api/inventory',
       'POST /api/watch/seen',
       'POST /api/document',

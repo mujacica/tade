@@ -813,6 +813,18 @@ export const OWNED: readonly Route[] = [
     here: true,
     theirs: true,
   },
+  // The orchestrator's own sign-in, driven from the person's own phone
+  // (`signing-in.ts`): `/login` typed on the away view's line, carried out on
+  // this machine in a lane of the window's, the phone typing the code back.
+  {
+    method: 'POST',
+    path: '/api/orchestrator/sign-in',
+    name: 'orchestrator sign-in',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
   // What another machine of the person's has, told here (`inventory-told.ts`):
   // its sign-ins and keys by name and digest, kept as a copy in this home so
   // a guided setup run here can walk it. A file written in this home, which

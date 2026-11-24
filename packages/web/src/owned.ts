@@ -24,6 +24,7 @@ import { type ActBody, type ActDone, actHere, outboxHere } from './shared-acts.t
 import { type ConversationShareAnswer, conversationHere } from './shared-conversation.ts'
 import { type FeedsShareAnswer, feedsHere } from './shared-feeds.ts'
 import { type NotesShareAnswer, shareHere } from './shared-notes.ts'
+import { type SignInStanding, signInHere } from './signing-in.ts'
 import { type SinceAnswer, sinceHereFor } from './since.ts'
 import { type TakeAnswer, takeHere } from './taken.ts'
 import { type ToolReadAnswer, toolHere } from './tool-read.ts'
@@ -40,7 +41,8 @@ import { type WatchSeenAnswer, watchSeenHere } from './watch-seen.ts'
 // documents and one of its tools that only reads (`machine.ts`, `document.ts`,
 // `tool-read.ts`), every machine's inventory and the press that moves the keys
 // into one file (`machines.ts`), Tade started again on the code on disk now
-// (`restarted.ts`) or its orchestrator alone, what another machine of theirs has (`inventory-told.ts`), what one of its watches has already found (`watch-seen.ts`), its public name's records looked at now (`records.ts`),
+// (`restarted.ts`) or its orchestrator alone, its orchestrator's sign-in driven
+// from the phone (`signing-in.ts`), what another machine of theirs has (`inventory-told.ts`), what one of its watches has already found (`watch-seen.ts`), its public name's records looked at now (`records.ts`),
 // work it hands this machine to start here (`taken.ts`), and
 // a project it is moving here, opened (`opened.ts`). One door in `server.ts` for all of them (`OWNED_DOOR`),
 // because each is the SSH key's word and nothing an ordinary phone's session
@@ -72,6 +74,7 @@ export const OWNED_DOOR: ReadonlySet<string> = new Set([
   'machines press',
   'restart',
   'orchestrator restart',
+  'orchestrator sign-in',
   'inventory',
   'watch seen',
   'document',
@@ -104,6 +107,7 @@ export async function carryOwned(
     | 'machines'
     | 'restarting'
     | 'orchestratorRestart'
+    | 'orchestratorSignIn'
     | 'inventoryTold'
     | 'document'
     | 'tool'
@@ -129,6 +133,7 @@ export async function carryOwned(
         | MachinesAnswer
         | RestartAnswer
         | OrchestratorRestartAnswer
+        | SignInStanding
         | InventoryToldAnswer
         | WatchSeenAnswer
         | DocumentAnswer
@@ -155,6 +160,7 @@ export async function carryOwned(
   if (route === 'orchestrator restart') {
     return orchestratorRestartHere(req, device, opts.orchestratorRestart)
   }
+  if (route === 'orchestrator sign-in') return signInHere(req, device, opts.orchestratorSignIn)
   if (route === 'inventory') return inventoryToldHere(req, device, opts.inventoryTold, now)
   if (route === 'watch seen') return watchSeenHere(req, device, opts.watchSeen)
   if (route === 'seen') return seenHere(req, device, now, opts.seen)
