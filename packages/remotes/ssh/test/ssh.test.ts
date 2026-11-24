@@ -1,10 +1,12 @@
-import { chmod, mkdtemp, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { runProgram } from '@tade/core'
 import { LinkError, type Remote } from '@tade/remotes-core'
 import { describe, expect, it } from 'vitest'
 import {
   commandOk,
+  commandThere,
   destinationOk,
   MOSH_PROGRAM,
   makeSshLink,
@@ -205,5 +207,56 @@ describe('what ssh said, as something to do', () => {
     await new Promise((done) => setTimeout(done, 50))
     expect(link.held('vps')?.link).toMatchObject({ kind: 'down', problem: 'failed' })
     await link.shutdown()
+  })
+})
+
+describe('the command a remote shell runs for Tade', () => {
+  /** A `tade` in `dir` that says which one it is and what it was given. */
+  async function tadeIn(dir: string, which: string): Promise<void> {
+    await mkdir(dir, { recursive: true })
+    await writeFile(join(dir, 'tade'), `#!/bin/sh\necho "${which}: $*"\n`)
+    await chmod(join(dir, 'tade'), 0o755)
+  }
+
+  /** The line run as a remote shell runs it, with this HOME and PATH and nothing else. */
+  async function runThere(line: string, home: string, path: string) {
+    return runProgram('/bin/sh', ['-c', line], {
+      timeoutMs: 10_000,
+      env: { HOME: home, PATH: path },
+    })
+  }
+
+  it('finds the `tade` our installer put in ~/.local/bin, which a command over SSH has no PATH to', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'tade-there-'))
+    await tadeIn(join(home, '.local/bin'), 'local')
+    const ran = await runThere(
+      commandThere('tade', `web pair --owner --json --label ${quoted("somebody's Mac")}`),
+      home,
+      '/usr/bin:/bin',
+    )
+    expect(ran.code).toBe(0)
+    expect(ran.stdout.trim()).toBe("local: web pair --owner --json --label somebody's Mac")
+  })
+
+  it('takes the `tade` on that PATH first', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'tade-there-'))
+    await tadeIn(join(home, '.local/bin'), 'local')
+    await tadeIn(join(home, 'bin'), 'path')
+    const ran = await runThere(
+      commandThere('tade', 'web revoke ab12cd34'),
+      home,
+      `${join(home, 'bin')}:/usr/bin:/bin`,
+    )
+    expect(ran.stdout.trim()).toBe('path: web revoke ab12cd34')
+  })
+
+  it('exits 127 where there is none in either, which is read as not found', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'tade-there-'))
+    const ran = await runThere(commandThere('tade', 'app'), home, '/usr/bin:/bin')
+    expect(ran.code).toBe(127)
+  })
+
+  it('runs a command somebody named as they named it', () => {
+    expect(commandThere('/opt/tade/bin/tade', 'app')).toBe('/opt/tade/bin/tade app')
   })
 })

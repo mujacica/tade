@@ -138,7 +138,9 @@ describe('tade remote, in process', () => {
     expect(said.out).toBe(
       `vps: forgotten here\nand signed out there: far no longer knows device ${DEVICE}`,
     )
-    expect(where.asked()).toContain(`-- far tade web revoke ${DEVICE}`)
+    // `tade` as nobody named it: from PATH there, or where our installer puts it.
+    expect(where.asked()).toContain(`-- far sh -c `)
+    expect(where.asked()).toContain(`exec tade "$@"' tade web revoke ${DEVICE}`)
     expect(where.config()).not.toContain('vps:')
     expect(where.config()).toContain('box:')
   })

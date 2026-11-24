@@ -372,7 +372,7 @@ class Ssh {
         controlOf(this.options.home, remote.name),
         '--',
         remote.address,
-        [remote.tade, ...words].join(' '),
+        commandThere(remote.tade, words.join(' ')),
       ],
     }
   }
@@ -503,7 +503,7 @@ class Ssh {
         ...QUIET,
         '--',
         at.address,
-        `${at.tade} web pair --owner --json --label ${quoted(at.label.slice(0, 120))}`,
+        commandThere(at.tade, `web pair --owner --json --label ${quoted(at.label.slice(0, 120))}`),
       ],
       ASK_MS,
     )
@@ -585,7 +585,7 @@ class Ssh {
         ...signIn,
         '--',
         remote.address,
-        `${remote.tade} web revoke ${remote.session.device}`,
+        commandThere(remote.tade, `web revoke ${remote.session.device}`),
       ],
       ASK_MS,
     )
@@ -745,10 +745,34 @@ function trouble(
   if (ran.code === 127) {
     throw new LinkError(
       'missing',
-      `there, \`${tade}\` or the node it runs on is not on the PATH a command over SSH gets — name its whole path with --tade, or put both on the PATH in that machine’s ~/.zshenv or ~/.bashrc`,
+      `there, \`${tade}\` or the node it runs on is not on the PATH a command over SSH gets${tade === TADE ? ' nor in ~/.local/bin' : ''} — name its whole path with --tade, or put both on the PATH in that machine’s ~/.zshenv or ~/.bashrc`,
     )
   }
   throw new LinkError('failed', said === '' ? `${tade} there exited ${ran.code}` : `there: ${said}`)
+}
+
+/** The command a remote is linked with where nobody named one (`remotes.<name>.tade`). */
+const TADE = 'tade'
+
+/**
+ * Where `tade` is when PATH over SSH does not have it: the folder our own
+ * installer puts it in when npm's global one is root's (`npm_place` in
+ * `scripts/install.sh`), which only a login profile puts on PATH — and a
+ * command over SSH is not a login.
+ */
+const LOOKED_IN = '$HOME/.local/bin'
+
+/**
+ * The line a remote's shell runs for `tade <words>`: the command as named, or,
+ * where nobody named one, `tade` from that PATH and then from `LOOKED_IN` —
+ * by `sh`, because the person's shell may be fish. `words` is already what a
+ * shell reads as arguments. Found in neither, `sh` exits 127, as a command
+ * not found always has.
+ */
+export function commandThere(tade: string, words: string): string {
+  if (tade !== TADE) return `${tade} ${words}`
+  const script = `command -v ${TADE} >/dev/null 2>&1 || PATH="$PATH:${LOOKED_IN}"; exec ${TADE} "$@"`
+  return `sh -c ${quoted(script)} ${TADE} ${words}`
 }
 
 /** One script run there by `sh`, its arguments each one quoted word: the person's shell may be fish. */
