@@ -334,4 +334,32 @@ describe('the guided walk', () => {
     expect(text).toContain('`tade remote connect vps`')
     expect(text).toContain('checklist: 1 of 5')
   })
+
+  it('signs gh in on the other machine with no question gh would ask over ssh -t', () => {
+    const gh: Inventory['items'][number] = {
+      id: 'git:github',
+      kind: 'git',
+      label: 'gh',
+      state: 'set',
+      said: '',
+      where: [],
+      variables: [],
+      digest: null,
+      until: null,
+      service: null,
+    }
+    const source: Inventory = { machine: 'mac', at: '', shell: 'zsh', service: false, items: [gh] }
+    const target: Inventory = { ...source, machine: 'vps', items: [{ ...gh, state: 'missing' }] }
+    const how = {
+      target: 'vps',
+      source: 'mac',
+      there: (command: string) => `\`ssh -t vps ${command}\``,
+      sendKeys: '`tade remote carry vps --keys`',
+      connect: '`tade remote connect vps`',
+    }
+    const text = walkLines(setupWalk(source, target, how), how).join('\n')
+    expect(text).toContain(
+      '`ssh -t vps GH_PROMPT_DISABLED=1 gh auth login --hostname github.com --git-protocol https --web && gh auth setup-git`',
+    )
+  })
 })

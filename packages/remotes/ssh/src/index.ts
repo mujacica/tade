@@ -768,11 +768,16 @@ const LOOKED_IN = '$HOME/.local/bin'
  * by `sh`, because the person's shell may be fish. `words` is already what a
  * shell reads as arguments. Found in neither, `sh` exits 127, as a command
  * not found always has.
+ *
+ * `LOOKED_IN` goes on the end of PATH **whichever `tade` runs**, named or not,
+ * because what Tade starts there is found by that PATH too: a harness put in
+ * `~/.local/bin` beside it (`npm install --global --prefix ~/.local`) was
+ * otherwise `claude` not found, and a remote's sign-in failed with it, for a
+ * `tade` named whole or one found elsewhere on PATH.
  */
 export function commandThere(tade: string, words: string): string {
-  if (tade !== TADE) return `${tade} ${words}`
-  const script = `command -v ${TADE} >/dev/null 2>&1 || PATH="$PATH:${LOOKED_IN}"; exec ${TADE} "$@"`
-  return `sh -c ${quoted(script)} ${TADE} ${words}`
+  const onPath = `case ":$PATH:" in *":${LOOKED_IN}:"*) ;; *) PATH="$PATH:${LOOKED_IN}" ;; esac`
+  return `sh -c ${quoted(`${onPath}; exec ${tade} "$@"`)} ${TADE} ${words}`
 }
 
 /** One script run there by `sh`, its arguments each one quoted word: the person's shell may be fish. */

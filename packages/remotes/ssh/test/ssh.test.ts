@@ -256,7 +256,38 @@ describe('the command a remote shell runs for Tade', () => {
     expect(ran.code).toBe(127)
   })
 
-  it('runs a command somebody named as they named it', () => {
-    expect(commandThere('/opt/tade/bin/tade', 'app')).toBe('/opt/tade/bin/tade app')
+  it('runs a command somebody named as they named it, over the `tade` on PATH', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'tade-there-'))
+    await tadeIn(join(home, 'opt'), 'named')
+    await tadeIn(join(home, 'bin'), 'path')
+    const ran = await runThere(
+      commandThere(join(home, 'opt', 'tade'), 'app'),
+      home,
+      `${join(home, 'bin')}:/usr/bin:/bin`,
+    )
+    expect(ran.stdout.trim()).toBe('named: app')
+  })
+
+  it('gives what Tade starts there ~/.local/bin, named or not, so a harness installed beside it is found', async () => {
+    // A remote's sign-in ran `claude` by name, and with Claude Code in
+    // ~/.local/bin and `tade` named whole it was not found.
+    const home = await mkdtemp(join(tmpdir(), 'tade-there-'))
+    const local = join(home, '.local/bin')
+    await mkdir(local, { recursive: true })
+    await writeFile(join(local, 'claude'), '#!/bin/sh\necho claude\n')
+    await chmod(join(local, 'claude'), 0o755)
+    await mkdir(join(home, 'opt'), { recursive: true })
+    await writeFile(join(home, 'opt', 'tade'), '#!/bin/sh\nexec claude\n')
+    await chmod(join(home, 'opt', 'tade'), 0o755)
+    await tadeIn(join(home, 'bin'), 'path')
+    for (const tade of [join(home, 'opt', 'tade'), 'tade']) {
+      if (tade === 'tade') await writeFile(join(home, 'bin', 'tade'), '#!/bin/sh\nexec claude\n')
+      const ran = await runThere(
+        commandThere(tade, 'accounts sign-in claude-code'),
+        home,
+        `${join(home, 'bin')}:/usr/bin:/bin`,
+      )
+      expect(ran.stdout.trim(), tade).toBe('claude')
+    }
   })
 })

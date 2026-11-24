@@ -135,7 +135,7 @@ function linesFor(one: Versus, how: WalkHow): string[] {
       ]
     case 'git':
       return item.id === 'git:github'
-        ? [head, `  sign gh in there: ${how.there('gh auth login')}`]
+        ? [head, `  sign gh in there: ${how.there(GH_SIGN_IN_THERE)}`]
         : [
             head,
             `  name who commits there: ${how.there('git config --global user.email <you@example.com>')}`,
@@ -186,6 +186,17 @@ export function walkLines(walk: Walk, how: WalkHow): string[] {
   )
   return lines
 }
+
+/**
+ * How gh is signed in on another machine, from this one's terminal: with no
+ * question asked. Plain `gh auth login` over `ssh -t` stopped at "Authenticate
+ * Git with your GitHub credentials? (Y/n)" and took no answer (gh 2.46, the
+ * Ubuntu 26.04 package, from Ghostty); with prompts off it prints a one-time
+ * code and github.com/login/device and waits, and `gh auth setup-git` does what
+ * that question would have.
+ */
+export const GH_SIGN_IN_THERE =
+  'GH_PROMPT_DISABLED=1 gh auth login --hostname github.com --git-protocol https --web && gh auth setup-git'
 
 const KIND_SAID: Readonly<Record<ItemKind, string>> = {
   'sign-in': 'sign-in(s)',
