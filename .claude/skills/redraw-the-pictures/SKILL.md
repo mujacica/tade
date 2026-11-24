@@ -139,6 +139,11 @@ each to a route the page knows), and whatever it reads added to the world.
    are not what the renderer draws today.
 4. `pnpm screens --assets`.
 
+**The README is short on purpose**: a picture and two or three sentences per feature, for the
+features that matter most — the detail lives in the skills and beside the code. A new picture
+usually replaces one rather than adding a section. Dropping one is its `PICTURES` entry, its file
+in `images/` and its line in the README, in one commit; the scenario stays, as a golden.
+
 ## Gotchas
 
 - **A fixture must not be kinder than reality, or harsher.** A lane is resized to the pane it is

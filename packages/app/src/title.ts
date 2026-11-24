@@ -12,6 +12,12 @@ import { spinner } from './model.ts'
 // process group, so no terminal ever names itself after one) and this is the
 // only thing that writes a title.
 //
+// macOS Terminal still puts its own parts around it — the folder, the process
+// and its arguments (`node …/pnpm.cjs run tade` under `pnpm tade`), the size.
+// For a title that is only Tade's, untick *Working directory or document*,
+// *Active process name*, *Arguments* and *Dimensions* under Settings ›
+// Profiles › Window › Title; nothing a program writes can take them off.
+//
 // Pure: facts in, one line out, so what it says is tested without a terminal.
 
 /** What the title is composed from: the agents, the orchestrator, and where you are. */
