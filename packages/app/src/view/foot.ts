@@ -212,9 +212,20 @@ export function bottomTabs(
   // of thing now — a shell, and an agent with no task to talk to — and one
   // button cannot mean both. ctrl+t still opens a terminal without asking,
   // which is why the menu says so beside it.
+  // With another machine linked, it asks where first: this one's own items,
+  // then a terminal in each project there (`new-where.ts`).
+  // A tab is drawn for every other machine's orchestrator, so its tabs are the machines.
+  const another = talks.length > 0
   row
     .space()
-    .button('+', { kind: 'menu', subject: { kind: 'bottom-new' } }, 'add')
+    .button(
+      '+',
+      {
+        kind: 'menu',
+        subject: another ? { kind: 'new-where', what: 'below' } : { kind: 'bottom-new' },
+      },
+      'add',
+    )
     .space()
 
   const controls = (r: Row) => {

@@ -218,6 +218,24 @@ describe('a remote’s projection, read for the window', () => {
     expect(watching({})).toBeNull()
   })
 
+  it('reads what may be asked of a project there as verbs, and why not as text', () => {
+    const project = (row: Record<string, unknown>) =>
+      machineOf(held({}, projection({ projects: [{ name: 'tade', open: true, ...row }] })), 0)
+        .projects[0]
+    const there = project({
+      rev: 'p-3',
+      can: [{ verb: 'close', how: 'now' }, { verb: ESCAPES }, 'close'],
+      cannot: [{ verb: 'open', why: `it is open ${ESCAPES}` }, { why: 'no verb' }],
+    })
+    expect(there?.rev).toBe('p-3')
+    expect(there?.can).toEqual(['close'])
+    expect(there?.cannot).toHaveLength(1)
+    expect(there?.cannot[0]?.verb).toBe('open')
+    expect(notText(there?.cannot)).toEqual([])
+    // An older Tade there says none of it, and nothing can be asked of it.
+    expect(project({})).toMatchObject({ rev: null, can: [], cannot: [] })
+  })
+
   it('adds up what its agents spent, the three kinds of dollar kept apart', () => {
     expect(machineOf(held(), 0).spend).toMatchObject({
       usd: 1.75,

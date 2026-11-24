@@ -38,7 +38,7 @@ function agent(name: string, reason = ''): RemoteAgent {
 }
 
 function project(name: string, agents: readonly RemoteAgent[], more = 0): RemoteProject {
-  return { name, title: null, agents, more, watching: null }
+  return { name, title: null, agents, more, rev: null, can: [], cannot: [], watching: null }
 }
 
 /** `n` agents named `<prefix>1` … `<prefix>n`. */

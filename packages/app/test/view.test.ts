@@ -138,14 +138,14 @@ describe('the AGENTS heading', () => {
 
   it('has nothing to clean up or hide while no agent has finished', () => {
     const { hits } = draw(state(), frame({ height: 40 }))
-    expect(control(hits, 'new-agent')).toBeDefined()
+    expect(control(hits, 'new-agent-where')).toBeDefined()
     expect(control(hits, 'close-done')).toBeUndefined()
     expect(control(hits, 'toggle-done')).toBeUndefined()
   })
 
   it('offers H and X as smaller controls beside the + , on its row', () => {
     const { rows, hits } = draw(here(), frame({ height: 40 }))
-    const plus = control(hits, 'new-agent')
+    const plus = control(hits, 'new-agent-where')
     const hide = control(hits, 'toggle-done')
     const close = control(hits, 'close-done')
     expect(plus).toBeDefined()
@@ -219,7 +219,7 @@ describe('the AGENTS heading', () => {
 
   it('gives up the small controls before the button, where the sidebar is narrow', () => {
     const narrow = draw(here({ sizes: { sidebarWidth: 23 } }), frame({ height: 40 }))
-    expect(control(narrow.hits, 'new-agent')).toBeDefined()
+    expect(control(narrow.hits, 'new-agent-where')).toBeDefined()
     expect(control(narrow.hits, 'close-done')).toBeUndefined()
     const wide = draw(here({ sizes: { sidebarWidth: 30 } }), frame({ height: 40 }))
     expect(control(wide.hits, 'close-done')).toBeDefined()

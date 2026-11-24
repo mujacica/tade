@@ -89,6 +89,11 @@ export interface PromptPanel {
      * `target` is the machine and its task there, joined by a NUL.
      */
     | 'remote-steer'
+    /**
+     * What a new agent on another machine is for: its task's words and what it
+     * is told first. `target` is the machine and its project there, joined by a NUL.
+     */
+    | 'new-there'
   /**
    * The terminal or agent it is about, for renaming one or running a command
    * in it; for a note being changed, when it was said and what it said, joined

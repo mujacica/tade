@@ -182,14 +182,41 @@ export class MachineActs {
         `Nothing they have said names ${machine}, so I will not: ${REMOTE_ACT_REACH.because}.`,
       )
     }
-    this.refuseDown(machine)
-    const act: Act = {
+    return this.send(machine, {
       key: req.key,
       method: req.method,
       params: req.params,
       quoted: said.slice().reverse(),
       from: machineLabel(),
-    }
+    })
+  }
+
+  /**
+   * One of that machine's tool calls, asked for by a press in this window —
+   * a person's own hand here, so there are no words to check it against and
+   * none are carried: what the far side needs a person's words for (a setting
+   * in its `asked` tier) it refuses, and says so. Otherwise as `act`: refused
+   * while it is down, run there through its own gate, its answer as text.
+   */
+  async pressed(req: {
+    machine: string
+    key: string
+    method: string
+    params: Record<string, unknown>
+  }): Promise<string> {
+    const answer = await this.send(req.machine.trim(), {
+      key: req.key,
+      method: req.method,
+      params: req.params,
+      quoted: [],
+      from: machineLabel(),
+    })
+    return typeof answer === 'string' ? answer : JSON.stringify(answer)
+  }
+
+  /** An act, sent to the machine it is for, and its answer handed back — a refusal there thrown here. */
+  private async send(machine: string, act: Act): Promise<unknown> {
+    this.refuseDown(machine)
     const held = this.reach?.(machine)
     let answer: ActAnswer
     if (held) {

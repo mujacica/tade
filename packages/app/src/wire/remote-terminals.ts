@@ -2,7 +2,15 @@ import { mkdir, readFile, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { type LaneId, printable, runtimeDir } from '@tade/core'
-import type { Answer, Held, Remote, RemoteLink, TerminalThere } from '@tade/remotes-core'
+import {
+  type Answer,
+  type Held,
+  type Remote,
+  type RemoteLink,
+  rootOk,
+  type TerminalThere,
+} from '@tade/remotes-core'
+import { RepositoriesAnswerSchema } from '@tade/web'
 import { ATTACHED, type AttachedInfo, attachedFrom, nextAttached } from '@tade/workbench/attached'
 import type { LaneRecord } from '@tade/workbench/registry'
 import { ORCHESTRATOR_TAB, showTerminal } from '../model.ts'
@@ -96,6 +104,34 @@ export class RemoteTerminals {
   }
 
   /**
+   * A shell in one of that machine's projects, in a lane here: a new tab each
+   * time, as a terminal here is, titled with the project — which is no task
+   * id, so it is never taken for an agent's (`attachedTo`), and run again
+   * after a lost connection the same way (`there`).
+   */
+  async shell(machine: string, project: string): Promise<void> {
+    let got: There
+    try {
+      got = await this.there(machine, project)
+    } catch (err) {
+      return this.say(`${machine}: ${printable(why(err))}`)
+    }
+    if ('why' in got) return this.say(got.why)
+    const id = nextAttached(machine, this.wire.opts.client.lanes())
+    try {
+      await this.run(id, machine, project, got.terminal, '')
+    } catch (err) {
+      return this.say(`a terminal to ${machine} could not start here: ${why(err)}`)
+    }
+    this.front(id)
+    flash(
+      this.wire,
+      `a terminal in ${project} on ${machine}${got.terminal.by ? `, over ${got.terminal.by}` : ''}`,
+    )
+    this.wire.draw()
+  }
+
+  /**
    * A terminal in front of the lower pane, with the keyboard in it and the
    * window's room to read it: an agent's own screen is a whole screen, which
    * the pane's third of the window cuts to its last few rows. The pane's own
@@ -138,8 +174,11 @@ export class RemoteTerminals {
         answered: false,
       }
     }
-    const asked = await reach.link.request(machine, '/api/attach', { task })
-    const line = lineIn(asked, machine)
+    // A task's agent there is that machine's own line for it; a project's
+    // shell is a login shell in its checkout there, at the root it says.
+    const line = task.includes('/')
+      ? lineIn(await reach.link.request(machine, '/api/attach', { task }), machine)
+      : shellIn(await reach.link.request(machine, REPOSITORIES, {}), machine, task)
     if (line.why !== null) return { why: line.why, answered: true }
     const terminal = await reach.link.attach(reach.remote, line.command)
     if (terminal === null) {
@@ -391,6 +430,38 @@ function nameOf(one: { task: string }): string {
 }
 
 /** That machine's line for the agent, or why there is none, from what `/api/attach` answered. */
+/** Where a machine says each of its projects is checked out (`/api/repositories`). */
+const REPOSITORIES = '/api/repositories'
+
+/**
+ * The line for a login shell in a project there, out of where that machine
+ * said it is checked out — or why there is none. A root that is not plain
+ * (`rootOk`) is one this machine does not hand a shell there.
+ */
+export function shellIn(
+  answer: Answer,
+  machine: string,
+  project: string,
+): { command: string; why: null } | { command: null; why: string } {
+  if (answer.status === 404) {
+    return {
+      command: null,
+      why: `${machine}'s Tade does not say where its projects are yet — update it there`,
+    }
+  }
+  const read = answer.status === 200 ? RepositoriesAnswerSchema.safeParse(answer.body) : null
+  if (!read?.success) return { command: null, why: `${machine} did not say where ${project} is` }
+  const root = read.data.projects.find((one) => one.project === project)?.root
+  if (root === undefined) return { command: null, why: `${project} is not open on ${machine}` }
+  if (!rootOk(root)) {
+    return {
+      command: null,
+      why: `${machine} named a folder for ${project} this machine does not hand a shell`,
+    }
+  }
+  return { command: `cd ${root} && exec "\${SHELL:-/bin/sh}" -l`, why: null }
+}
+
 export function lineIn(
   answer: Answer,
   machine: string,

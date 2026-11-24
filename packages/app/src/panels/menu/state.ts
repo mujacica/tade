@@ -45,6 +45,10 @@ export type MenuSubject =
   | { kind: 'projects'; hidden: string[] }
   /** Another machine's name along the top: its projects, each one a place to stand. */
   | { kind: 'machine'; machine: string }
+  /** A project's tab on another machine, along the top: what that machine lets be done to it. */
+  | { kind: 'remote-project'; machine: string; project: string }
+  /** Where the `+` opens what it opens, once there is a second machine: this one first. */
+  | { kind: 'new-where'; what: 'agent' | 'below' }
 
 /** A menu, opened from a ≡ or a right-click, where it was clicked. */
 export interface MenuPanel {
@@ -212,6 +216,69 @@ export function projectMenuItems(opts: {
           : 'nothing is deleted',
       danger: true,
       divider: true,
+    },
+  ]
+}
+
+/**
+ * What a project's tab on another machine offers: the same menu a project
+ * here has, item for item, so nothing is missing from it — and each act that
+ * cannot cross the link is there and off, saying where it is done instead.
+ *
+ * Two of them reach that machine. **Ask** puts its orchestrator's tab in
+ * front, which is how work is started or planned there: nothing here makes an
+ * agent on another machine but that machine. **Close** is that machine's own
+ * `close` (`/api/act/close`), offered only where its row says it may be asked
+ * now (`can`), and off with its own sentence where it said not (`cannot`).
+ * Renaming it, where its tab sits and its settings are that machine's config,
+ * which no verb reaches, so each says so rather than going missing.
+ */
+export function remoteProjectMenuItems(opts: {
+  machine: string
+  /** The link is up: nothing is asked of a machine that cannot hear it. */
+  live: boolean
+  /** Its orchestrator may be talked to from another screen (`Machine.talk`). */
+  talks: boolean
+  /** How many agents are running in it there. */
+  running: number
+  /** The close it offers, or why not, as that machine said. */
+  close: { ok: true } | { ok: false; why: string }
+}): MenuItem[] {
+  const there = `on ${opts.machine}’s own window`
+  const down = opts.live ? undefined : `${opts.machine} is not linked right now`
+  const ask = down ?? (opts.talks ? undefined : `talking to it from another screen is off there`)
+  const closeOff = down ?? (opts.close.ok ? undefined : opts.close.why)
+  return [
+    {
+      id: 'ask',
+      label: `Ask ${opts.machine}…`,
+      note: 'start or plan work there',
+      ...(ask ? { off: ask } : {}),
+    },
+    { id: 'rename', label: 'Rename…', divider: true, off: `renamed ${there}` },
+    {
+      id: 'move-left',
+      label: 'Move left',
+      divider: true,
+      off: `its tabs keep ${opts.machine}’s order`,
+    },
+    { id: 'move-right', label: 'Move right', off: `its tabs keep ${opts.machine}’s order` },
+    {
+      id: 'configure',
+      label: 'Configure…',
+      divider: true,
+      off: `its settings are ${opts.machine}’s`,
+    },
+    {
+      id: 'close',
+      label: `Close on ${opts.machine}`,
+      note:
+        opts.running > 0
+          ? `${opts.running === 1 ? 'an agent keeps' : `${opts.running} agents keep`} working`
+          : 'nothing is deleted',
+      danger: true,
+      divider: true,
+      ...(closeOff ? { off: closeOff } : {}),
     },
   ]
 }

@@ -1039,9 +1039,13 @@ drawn from what its away view sends — the projection the link holds.
   while /evals is open on a grouping (`GET /api/evaluations`), drawn as that machine's own section
   under this one's in the same columns (`cards-there.ts`, `figures.ts`), over all its work, never
   added in.
-- **Its tabs are grouped under its name**, this machine's first (`Frame.machines.here`, said only
-  where there are remotes): a chip per machine whose menu (`machine`, the Remotes subject's) is its
-  projects, then a tab per project carrying the marks that machine drew (`remoteStanding`). Short of
+- **Its tabs are grouped under its name**, after this machine's, which carry no name — they always
+  come first, and a `this Mac` there ran into the first tab: a chip per machine whose menu
+  (`machine`, the Remotes subject's) is its projects, then a tab per project carrying the marks that
+  machine drew (`remoteStanding`), with its `×` and `≡` on the ladder's rungs as a tab here
+  (`Fits.manage`). The `×` is that machine's own close at its door (`/api/act/close`, offered by its
+  row's `can`, `wire/remote-project.ts`); the `≡` (`remote-project`) is every item a tab here has,
+  each act that cannot cross the link off with where it is done. Short of
   room a machine folds its tabs into its chip (`vps ⋯2 !`) before a tab of this machine's goes in
   the `⋯`, and the place you stand in keeps its tab. The figures at the right stay this machine's.
 - **Standing in one is `state.elsewhere`, never `state.project`**, which stays the local project
@@ -1070,6 +1074,14 @@ drawn from what its away view sends — the projection the link holds.
   read `'whole'` by `machines.ts`), what it did not send counted with what did not fit, and where
   an older Tade sent none, that said beside the tool. `wire/remote-agent.ts` is the subject, owned by `Remotes` so `app.ts` never heard of it;
   everything rides `link.request`, the held connection, never one of its own.
+- **With another machine linked, the `+` asks where first** (`wire/new-where.ts`, the `new-where`
+  menu): this machine's row first, so enter does what the `+` did before there was a second —
+  `newAgent`, or the lower pane's own `bottom-new` items — then a row per project on each machine,
+  and a machine that takes nothing now off with why. An agent there is that machine's own
+  `task/create` and `worker/start` through its gate (`MachineActs.pressed`: a press here, so no
+  words are carried), on words asked first (`new-there`), because it never starts one told
+  nothing; a terminal there is a login shell in that project's root as it says (`shellIn`), in an
+  attached lane. With none linked nothing asks, and the key for a new agent never does.
 - **Typing into one is a terminal in the lower pane, never a second pane**: enter (or the first
   control) asks that machine for its line (`/api/attach`), the link for how to run it there, and
   opens a lane `remotes/<machine>/<n>` titled with the task there (`workbench/src/attached.ts`) —

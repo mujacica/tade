@@ -117,7 +117,11 @@ export function renderEmpty(
 
   if (fits.buttons) {
     const row = new Row(width, skin, pointer)
-      .button('+ New agent', { kind: 'action', name: 'new-agent' }, project ? 'primary' : 'off')
+      .button(
+        '+ New agent',
+        { kind: 'action', name: 'new-agent-where' },
+        project ? 'primary' : 'off',
+      )
       .space(2)
       .button(
         'Open project',

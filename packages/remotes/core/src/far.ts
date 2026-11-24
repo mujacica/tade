@@ -80,6 +80,14 @@ export interface FarEnd {
   ): void
   /** Every verb an owner asked of it, oldest first, as its window was handed each. */
   readonly acted: FarAct[]
+  /**
+   * Every tool call another machine asked its tool host to run (`/api/acts`),
+   * oldest first. Each is answered as its tool host answers: `task/create`
+   * with the task it made, anything else with that it was done — or as a test
+   * says (`answering`), which may throw to refuse it.
+   */
+  readonly toolCalls: { method: string; params: Record<string, unknown>; quoted: string[] }[]
+  answering: ((method: string, params: Record<string, unknown>) => string) | null
   /** Its orchestrator's conversation, what was said to it, and the journal its catch-up reads (`far-talk.ts`). */
   readonly talk: FarTalk
   /** The newest presence any owner carried, in its clock, or null. */
@@ -241,6 +249,8 @@ class Far implements FarEnd {
   readonly opened: { open: Open; device: string }[] = []
   opening: ((open: Open) => OpenAnswer) | null = null
   readonly acted: FarAct[] = []
+  readonly toolCalls: { method: string; params: Record<string, unknown>; quoted: string[] }[] = []
+  answering: ((method: string, params: Record<string, unknown>) => string) | null = null
   readonly found = new Map<string, WatchSeenAnswer>()
   readonly seen: { label: string; word: SeenWord }[] = []
   readonly talk = new FarTalk()
@@ -299,6 +309,21 @@ class Far implements FarEnd {
         keep: (source, fields) => this.connected().keep(source, fields),
       },
       acting: farActing(this.acted),
+      acts: {
+        take: async (act) => {
+          this.toolCalls.push({ method: act.method, params: act.params, quoted: act.quoted })
+          try {
+            return { key: act.key, ok: true, text: this.toolAnswer(act.method, act.params) }
+          } catch (err) {
+            return {
+              key: act.key,
+              ok: false,
+              text: err instanceof Error ? err.message : String(err),
+            }
+          }
+        },
+        outbox: async () => ({ acts: [] }),
+      },
       asking: this.talk.asking(),
       since: async (device, cut) => this.talk.since(device, cut, Date.now()),
       readingFor: (reach) => this.projectorFor(reach),
@@ -528,13 +553,25 @@ class Far implements FarEnd {
     }
   }
 
+  /** What its tool host answers a call with: a task made is the task, as `createTask` returns it. */
+  private toolAnswer(method: string, params: Record<string, unknown>): string {
+    if (this.answering) return this.answering(method, params)
+    if (method === 'task/create') {
+      const id = `${String(params.project)}/${String(params.slug)}`
+      return JSON.stringify({ id, worktree: join(this.home, 'worktrees', id) })
+    }
+    return `${method} done there`
+  }
+
   private projectorRev(reach: Reach): number {
     return this.projectors.get(reach.device)?.rev ?? 0
   }
 }
 
+/** An open project, saying what a real one says may be asked of it (`projectAble(true)`). */
 function projectIn(name: string, title: string, watching: readonly string[]): ProjectIn {
-  return { name, title, open: true, changes: 0, can: [], cannot: [], watching }
+  const can = [{ verb: 'close', how: 'now' as const }]
+  return { name, title, open: true, changes: 0, can, cannot: [], watching }
 }
 
 /** A machine with nothing to say about itself: what the far end answers until a test says more. */

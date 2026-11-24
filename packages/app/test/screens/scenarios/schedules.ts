@@ -136,7 +136,16 @@ const vpsLinked: Machines = {
       closed: false,
       seen: [],
       projects: [
-        { name: 'checkout', title: null, more: 0, watching: ['sentry.new-errors'], agents: [] },
+        {
+          name: 'checkout',
+          title: null,
+          more: 0,
+          rev: 'p1',
+          can: ['close'],
+          cannot: [],
+          watching: ['sentry.new-errors'],
+          agents: [],
+        },
       ],
       spend: null,
       talk: null,

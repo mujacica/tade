@@ -96,6 +96,11 @@ export class RemoteAgents implements Subject {
     return { remoteScreen: this.screen.screen }
   }
 
+  /** A shell in one of that machine's projects, in a lane here (`RemoteTerminals.shell`). */
+  shell(machine: string, project: string): Promise<void> {
+    return this.terminals.shell(machine, project)
+  }
+
   /** What a link holds moved: a terminal there that lost its connection may be run again. */
   moved(name: string, held: Held): void {
     this.terminals.moved(name, held)

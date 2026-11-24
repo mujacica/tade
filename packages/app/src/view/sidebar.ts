@@ -136,7 +136,8 @@ export function renderSidebar(
               },
             ]
           : []),
-        { label: ' + ', target: { kind: 'action' as const, name: 'new-agent' } },
+        // Where, once there is another machine to ask about (`new-where.ts`).
+        { label: ' + ', target: { kind: 'action' as const, name: 'new-agent-where' } },
       ],
       banded: true,
       rows: (row) =>

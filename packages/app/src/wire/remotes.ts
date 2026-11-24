@@ -36,6 +36,7 @@ import {
   type Machine,
   type Machines,
   type Place,
+  type RemoteProject,
   skewOf,
   unheard,
 } from '../machines.ts'
@@ -50,6 +51,7 @@ import {
   type WaitingNoteShown,
 } from '../panels/settings/remotes.ts'
 import type { Ui } from '../screen.ts'
+import { showTalk, talkTab } from '../talk-tab.ts'
 import { remoteStanding } from '../view/standing.ts'
 import { projectSays } from '../view/top.ts'
 import { Carries, type CarriesDeps } from './carry.ts'
@@ -79,6 +81,7 @@ import type { Places } from './placing.ts'
 import type { ProjectDoor } from './project-moves.ts'
 import { RemoteAgents } from './remote-agent.ts'
 import { RemoteMachines } from './remote-machine.ts'
+import { closeThere, remoteProjectItems } from './remote-project.ts'
 import { type RemoteReads, remoteReads } from './remote-reads.ts'
 import { RemoteTalks, type RemoteTalkTools } from './remote-talk.ts'
 import type { Settings } from './settings.ts'
@@ -167,6 +170,10 @@ export interface RemotesDeps {
   here: string
   /** Stand in a project on another machine. */
   go: (place: Place) => void
+  /** Stop standing in it, where you are: it was closed there. */
+  leave?: (place: Place) => void
+  /** Put a machine's orchestrator's tab in front, the line open on it. */
+  talk?: (machine: string) => void
   /** Something a remote holds moved: a frame, to draw it. */
   draw: () => void
   /** Open a file here in the viewer: a copy of another machine's document, once it is read. */
@@ -270,6 +277,11 @@ export class Remotes implements Subject {
     return this.talks?.interrupt() ?? false
   }
 
+  /** `/login` on a machine's orchestrator's tab: its orchestrator's own sign-in, there. */
+  signInOrchestrator(name: string): Promise<void> {
+    return this.carries.signInOrchestrator(name)
+  }
+
   /**
    * What the orchestrator's `tade_remote_tell` does, and what its reading tools
    * answer when they name a machine (`remote-reads.ts`), answered from this window.
@@ -317,6 +329,8 @@ export class Remotes implements Subject {
       ...this.moves?.actions(),
       // A name ending in `:` is handed the rest of a press's name; without it no press reaches it.
       'remote-document:': (rest) => this.readDocument(rest),
+      // `<machine> <project>`: a project's tab there, its `×` — that machine's own close.
+      'remote-close:': (rest) => this.closeThere(rest),
       // `<machine> <item>`: one of its requests, on a page that only reads.
       'remote-request:': (rest) => {
         const [machine = '', ...item] = rest.split(' ')
@@ -326,6 +340,27 @@ export class Remotes implements Subject {
         if (one === undefined) return this.deps.say(`${machine} no longer lists that request`)
         this.deps.show?.(requestTherePanel(machine, one.item, one.title ?? one.item))
       },
+    }
+  }
+
+  /** The machine and its project a `<machine> <project>` names, as folded now, or null. */
+  private projectThere(rest: string): { machine: Machine; project: RemoteProject } | null {
+    const [name = '', project = ''] = rest.split(' ')
+    const machine = this.machines().remotes.find((one) => one.name === name)
+    const found = machine?.projects.find((one) => one.name === project)
+    return machine && found ? { machine, project: found } : null
+  }
+
+  /** A project's tab on another machine, closed there — or why not, said. */
+  private async closeThere(rest: string): Promise<void> {
+    const there = this.projectThere(rest)
+    if (there === null)
+      return this.deps.say(`${rest.replace(' ', ' on ')} is not open there any more`)
+    try {
+      this.deps.say(await closeThere((name) => this.reach(name), there.machine, there.project))
+      this.deps.leave?.({ machine: there.machine.name, project: there.project.name })
+    } catch (err) {
+      this.deps.say(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -347,6 +382,18 @@ export class Remotes implements Subject {
 
   prompts(): Prompts {
     return this.agents?.prompts() ?? {}
+  }
+
+  /** Stand in a project on another machine. */
+  go(place: Place): void {
+    this.deps.go(place)
+  }
+
+  /** A shell in one of that machine's projects, in a lane here — or why not, said. */
+  async shellThere(machine: string, project: string): Promise<void> {
+    if (this.agents === null)
+      return this.deps.say('this window opens no terminal to another machine')
+    await this.agents.shell(machine, project)
   }
 
   /** Hand it what opens an agent there, which reaches the links through it. */
@@ -482,6 +529,21 @@ export class Remotes implements Subject {
         choose: (subject, project) => {
           if (this.moves?.chose(subject.machine, project) === true) return
           if (project !== '') this.deps.go({ machine: subject.machine, project })
+        },
+      },
+      'remote-project': {
+        title: (subject) => `${subject.project} on ${subject.machine}`,
+        items: (subject) => {
+          const there = this.projectThere(`${subject.machine} ${subject.project}`)
+          if (there === null) {
+            const why = `it is not open on ${subject.machine} any more`
+            return [{ id: '', label: subject.project, off: why }]
+          }
+          return remoteProjectItems(there.machine, there.project)
+        },
+        choose: (subject, id) => {
+          if (id === 'ask') this.deps.talk?.(subject.machine)
+          if (id === 'close') return this.closeThere(`${subject.machine} ${subject.project}`)
         },
       },
     }
@@ -964,6 +1026,16 @@ export function remotesFor(
     here: MACHINE,
     go: (place) => {
       wire.put(goElsewhere(wire.state, place))
+      wire.draw()
+    },
+    leave: (place) => {
+      const here = wire.state.elsewhere
+      if (here?.machine !== place.machine || here.project !== place.project) return
+      wire.put({ ...wire.state, elsewhere: null })
+      wire.draw()
+    },
+    talk: (machine) => {
+      wire.put(showTalk(wire.state, talkTab(machine)))
       wire.draw()
     },
     draw: () => wire.draw(),

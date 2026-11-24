@@ -80,7 +80,7 @@ function subjectOf(target: Target): MenuSubject | null {
     case 'project':
       return { kind: 'project', project: target.project }
     case 'remote-project':
-      return { kind: 'machine', machine: target.machine }
+      return { kind: 'remote-project', machine: target.machine, project: target.project }
     case 'menu':
       return target.subject
     case 'bottom-tab':

@@ -476,15 +476,20 @@ export function renderTop(
     r.tab(label, target, lit, within)
     if (buttons) r.icon('×', close, 'danger').icon('≡', menu)
   }
-  // Where there are other machines, this one's tabs are said to be this
-  // machine's, first: the same label the others carry, so no row of tabs
-  // goes unnamed. Given up with the rest of what a row short of room gives up.
-  const hereOf = (r: Row, fits: Fits): void => {
-    if (machines.length > 0 && !fits.hide) r.space().text(frame.machines?.here ?? '', skin.hint)
-  }
+  // This machine's tabs carry no name of their own, other machines or not:
+  // they always come first, so the only tabs a name is owed are another
+  // machine's (`remoteGroup`). A `this Mac` here once ran into the first tab
+  // and said nothing the order did not already say.
   const groups = (r: Row, fits: Fits, folded: boolean): void => {
     for (const machine of machines)
-      remoteGroup(r, machine, { tabs: fits.tabs, folded, away, now, hover: state.hover })
+      remoteGroup(r, machine, {
+        tabs: fits.tabs,
+        manage: fits.manage,
+        folded,
+        away,
+        now,
+        hover: state.hover,
+      })
   }
   // The one control that is a project you cannot see. A chip rather than a tab,
   // because it is not one of them and must never read as the project you are
@@ -498,10 +503,8 @@ export function renderTop(
     draw(probe)
     return probe.used
   }
-  // The wordmark and the `+`, which no rung of the ladder changes, and this
-  // machine's name, which only the rungs that put tabs away give up.
-  const chromeOf = (fits: Fits): number =>
-    probed(wordmark) + probed(plus) + probed((r) => hereOf(r, fits))
+  // The wordmark and the `+`, which no rung of the ladder changes.
+  const chrome = probed(wordmark) + probed(plus)
   // Six labellings and eight costings at most — one per detail and cut, one per
   // detail, cut and which tabs have the buttons — and the ladder's rungs ask for
   // them over and over.
@@ -541,7 +544,6 @@ export function renderTop(
     const cost = costs(fits)
     const spent = (tabs: readonly string[]): number =>
       tabs.reduce((sum, project) => sum + (cost.get(project) ?? 0), 0)
-    const chrome = chromeOf(fits)
     const every = chrome + spent(open) + probed((r) => groups(r, fits, false))
     const all: Strip = { shown: open, hidden: [], used: every, fits: every <= room, folded: false }
     if (all.fits || !fits.hide) return all
@@ -624,7 +626,6 @@ export function renderTop(
   const strip = found ? stripOf(found) : stripFor(LAST, width)
   const row = new Row(width, skin, pointer)
   wordmark(row)
-  hereOf(row, fits)
   const label = labels(fits)
   for (const project of strip.shown) tabOf(row, project, label.get(project) ?? project, fits.manage)
   if (strip.hidden.length > 0) moreOf(row, strip.hidden, moreLabel(strip.hidden, standings, now))
@@ -649,7 +650,14 @@ export function renderTop(
 function remoteGroup(
   r: Row,
   machine: Machine,
-  how: { tabs: TabDetail; folded: boolean; away: Place | null; now: number; hover: Target | null },
+  how: {
+    tabs: TabDetail
+    manage: Manage
+    folded: boolean
+    away: Place | null
+    now: number
+    hover: Target | null
+  },
 ): void {
   const here = (project: string) =>
     how.away !== null && how.away.machine === machine.name && how.away.project === project
@@ -673,7 +681,24 @@ function remoteGroup(
     const standing = remoteStanding(project)
     const label = tabLabel(project.title ?? project.name, standing, how.tabs, how.now)
     const target: Target = { kind: 'remote-project', machine: machine.name, project: project.name }
-    r.tab(label, target, here(project.name), sameTarget(how.hover, target))
+    // Its `×` and `≡` as a tab here has them, by the same rung of the ladder:
+    // closing is that machine's own act over the link, and the menu is what
+    // it lets be done, with what cannot cross the link said there.
+    const menu: Target = {
+      kind: 'menu',
+      subject: { kind: 'remote-project', machine: machine.name, project: project.name },
+    }
+    const close: Target = {
+      kind: 'action',
+      name: `remote-close:${machine.name} ${project.name}`,
+    }
+    const lit = here(project.name)
+    const buttons = how.manage === 'every' || (how.manage === 'here' && lit)
+    const within = buttons
+      ? pointingIn(how.hover, [target, menu, close])
+      : sameTarget(how.hover, target)
+    r.tab(label, target, lit, within)
+    if (buttons) r.icon('×', close, 'danger').icon('≡', menu)
   }
 }
 

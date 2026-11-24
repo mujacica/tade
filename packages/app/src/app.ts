@@ -41,6 +41,7 @@ import { Lanes } from './wire/lanes.ts'
 import { Looks, slowLook } from './wire/looks.ts'
 import { Machine } from './wire/machine.ts'
 import { Mouse } from './wire/mouse.ts'
+import { newWhereFor } from './wire/new-where.ts'
 import { Notes } from './wire/notes.ts'
 import type { Orchestrator } from './wire/orchestrator.ts'
 import { kittyActive, Repaint, repaintScreen, type Screen, screenFor } from './wire/paint.ts'
@@ -294,6 +295,8 @@ export class App {
       onScreenWith: (flow) => this.screens.onScreenWith(flow),
       refreshModels: () => this.routes.refreshModels(),
       writeSetting: (path, value) => this.settings.write(path, value),
+      signInThere: (machine) => this.remotes.signInOrchestrator(machine),
+      restartOrchestrator: () => this.orchestrator.moveAccount(false),
     })
     this.updates = new Updates(this.wire, {
       reload: () => this.window.reload(),
@@ -485,6 +488,14 @@ export class App {
       this.machine,
       this.updates,
       this.remotes,
+      newWhereFor(this.wire, {
+        machines: () => this.remotes.machines(),
+        newHere: () => this.agents.newAgent(''),
+        lanes: () => this.lanes,
+        acts: () => this.heart.acts,
+        shellThere: (machine, project) => this.remotes.shellThere(machine, project),
+        go: (place) => this.remotes.go(place),
+      }),
       this.heart.inventory,
       this.projects,
       this.voice,

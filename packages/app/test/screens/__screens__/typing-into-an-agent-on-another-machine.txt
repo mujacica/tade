@@ -1,4 +1,4 @@
- ▄▀   T A D E     this Mac  checkout !⠋    search ●      +      vps    tade !⠋◌    web ✓     lab    firmware      ! 1  in checkout      ctrl   +   space   talk 
+ ▄▀   T A D E      checkout !⠋    search ●      +      vps    tade !⠋◌   ×  ≡   web ✓     lab    firmware   ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  4                on vps █│ ! Webhooks ring the doorbell                                                                                    vps · 12m 
                                    ▕│   wants approval: gh api                                                                                                  

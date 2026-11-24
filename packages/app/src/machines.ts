@@ -90,6 +90,16 @@ export interface RemoteProject {
    * tokens; null where its Tade does not say, which is not *none*.
    */
   watching: readonly string[] | null
+  /**
+   * What an act on the whole project must still find true there (its row's
+   * `rev`), echoed as `was` and never read. Null where it sent none — an older
+   * Tade — which no act on it can be made without.
+   */
+  rev: string | null
+  /** The verbs that machine says may be asked of the whole project now (its `can`). */
+  can: readonly string[]
+  /** The ones it says may not, each with its sentence why, as text (its `cannot`). */
+  cannot: readonly { verb: string; why: string }[]
 }
 
 /**
@@ -311,7 +321,15 @@ function projectsIn(projection: Record<string, unknown>, skew: number): RemotePr
   const named = (name: string) => {
     const already = byName.get(name)
     if (already) return already
-    const made = { title: null, agents: [], more: 0, watching: null }
+    const made = {
+      title: null,
+      agents: [],
+      more: 0,
+      watching: null,
+      rev: null,
+      can: [] as string[],
+      cannot: [] as { verb: string; why: string }[],
+    }
     byName.set(name, made)
     return made
   }
@@ -323,6 +341,14 @@ function projectsIn(projection: Record<string, unknown>, skew: number): RemotePr
     if (name === '') continue
     const one = named(name)
     one.title = saidIn(row.title, NAME_MOST)
+    // Echoed and compared there, never drawn, as an agent's is.
+    one.rev = tokenIn(row, 'rev')
+    one.can = verbsIn(row.can)
+    one.cannot = listIn(row.cannot).flatMap((no) => {
+      const verb = tokenIn(no, 'verb')
+      const why = text(no.why, SAID_MOST)
+      return verb === null ? [] : [{ verb, why: why === '' ? 'it says not now' : why }]
+    })
     const counts = objectIn(row.counts)
     const total = numberIn(counts, 'tasks')
     const shown = numberIn(counts, 'shown')
@@ -374,11 +400,16 @@ function agentOf(
     approval: approvalIn(row.approval),
     parked: row.parked === true,
     lane: LANES.find((one) => one === row.lane) ?? 'none',
-    can: listIn(row.can).flatMap((one) => {
-      const verb = tokenIn(one, 'verb')
-      return verb === null ? [] : [verb]
-    }),
+    can: verbsIn(row.can),
   }
+}
+
+/** The verbs a row says may be asked of it, by name: a token each, or nothing. */
+function verbsIn(value: unknown): string[] {
+  return listIn(value).flatMap((one) => {
+    const verb = tokenIn(one, 'verb')
+    return verb === null ? [] : [verb]
+  })
 }
 
 /** Its own agent's lane, in the words the protocol has for one. */
