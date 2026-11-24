@@ -1,6 +1,6 @@
 {
   "name": "tade",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "A control room in your terminal for running coding agents — Claude Code, Codex and pi — and landing what they make.",
   "license": "MIT",
