@@ -4,6 +4,7 @@ import {
   type Config,
   defaultConfigPath,
   loadConfig,
+  orchestratorAccount,
   ownSignInName,
   runtimeDir,
   signInChosen,
@@ -90,6 +91,39 @@ function runHere(launch: LaunchSpec, say: (line: string) => void): Promise<numbe
   })
 }
 
+interface Signing {
+  config: string
+  orchestrator?: boolean
+}
+
+/**
+ * Which sign-in a `sign-in` or `sign-out` is about: the harness and account
+ * named, or the orchestrator's (`--orchestrator`), read out of this machine's
+ * own config. That is how another machine's window signs *this* machine's
+ * orchestrator in over its link (`/login` on its tab): it cannot know which
+ * account this one's orchestrator runs as, and this config can.
+ */
+export function whoSigns(
+  config: Config,
+  verb: 'sign-in' | 'sign-out',
+  harness: string | undefined,
+  account: string | undefined,
+  orchestrator: boolean | undefined,
+): { harness: string; name: string | null } {
+  if (orchestrator) {
+    if (harness !== undefined)
+      throw new Error(
+        `--orchestrator names its own harness and account: \`tade accounts ${verb} --orchestrator\``,
+      )
+    return { harness: config.orchestrator.harness, name: orchestratorAccount(config) }
+  }
+  if (harness === undefined)
+    throw new Error(
+      `name a harness, or --orchestrator for the orchestrator's: \`tade accounts ${verb} claude-code\``,
+    )
+  return { harness, name: account ?? null }
+}
+
 export function registerAccounts(program: Command, io: Io, setExit: (code: number) => void): void {
   const accounts = program
     .command('accounts')
@@ -136,9 +170,13 @@ export function registerAccounts(program: Command, io: Io, setExit: (code: numbe
 
   const signing = (verb: 'sign-in' | 'sign-out') =>
     accounts
-      .command(`${verb} <harness> [account]`)
+      .command(`${verb} [harness] [account]`)
       .option('-c, --config <path>', 'config file path', defaultConfigPath())
-      .action(async (harness: string, name: string | undefined, opts: { config: string }) => {
+      .option(
+        '--orchestrator',
+        "the orchestrator's: its harness and the account it runs as (orchestrator.account), read here",
+      )
+      .action(async (named: string | undefined, account: string | undefined, opts: Signing) => {
         const cfg = await loadConfig(opts.config)
         if (!cfg.ok) {
           io.err(`${cfg.path}: invalid config (run \`tade config --check\`)`)
@@ -146,7 +184,8 @@ export function registerAccounts(program: Command, io: Io, setExit: (code: numbe
           return
         }
         try {
-          const adapter = adapterFor(cfg.config, tadeHome(), harness, name ?? null)
+          const { harness, name } = whoSigns(cfg.config, verb, named, account, opts.orchestrator)
+          const adapter = adapterFor(cfg.config, tadeHome(), harness, name)
           if (verb === 'sign-out') {
             await adapter.signOut()
             io.out(`signed ${name ?? harness} out`)

@@ -168,6 +168,44 @@ describe('tade accounts, refusing', () => {
     )
   }, 60_000)
 
+  it('signs in the orchestrator’s own harness and account with --orchestrator, read out of this config', async () => {
+    // What another machine's `/login` runs here over its link. Claude Code is
+    // not on this PATH, so its sign-in is the one that could not start: the
+    // orchestrator's harness, chosen here and named by nobody.
+    const where = home('orchestrator:\n  harness: claude-code\n')
+    const said = await tade(where, ['accounts', 'sign-in', '--orchestrator', '-c', where.config])
+    expect(said.code).toBe(1)
+    expect(said.err).toContain('claude is not on the PATH here')
+    // And the account it runs as, where that is one paid for with a key.
+    const keyed = home(
+      'accounts:\n  ci:\n    harness: claude-code\n    kind: api-key\norchestrator:\n  harness: claude-code\n  account: ci\n',
+    )
+    const key = await tade(keyed, ['accounts', 'sign-in', '--orchestrator', '-c', keyed.config])
+    expect(key.code).toBe(2)
+    expect(key.err).toBe('ci is paid for with an API key: set it in Settings, Accounts')
+  }, 60_000)
+
+  it('asks for a harness or --orchestrator, and never both', async () => {
+    const where = home('')
+    const none = await tade(where, ['accounts', 'sign-in', '-c', where.config])
+    expect(none.code).toBe(2)
+    expect(none.err).toBe(
+      "name a harness, or --orchestrator for the orchestrator's: `tade accounts sign-in claude-code`",
+    )
+    const both = await tade(where, [
+      'accounts',
+      'sign-out',
+      'pi',
+      '--orchestrator',
+      '-c',
+      where.config,
+    ])
+    expect(both.code).toBe(2)
+    expect(both.err).toBe(
+      '--orchestrator names its own harness and account: `tade accounts sign-out --orchestrator`',
+    )
+  }, 60_000)
+
   it('sends an account paid for with a key to Settings rather than signing it in', async () => {
     const where = home('accounts:\n  ci:\n    harness: claude-code\n    kind: api-key\n')
     const said = await tade(where, ['accounts', 'sign-in', 'claude-code', 'ci', '-c', where.config])
