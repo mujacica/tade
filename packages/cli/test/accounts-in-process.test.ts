@@ -157,6 +157,17 @@ describe('tade accounts, refusing', () => {
     }
   }, 60_000)
 
+  it('says a sign-in whose program is not on the PATH could not start, and how to fix it', async () => {
+    // What a remote's sign-in did over SSH with Claude Code in ~/.local/bin:
+    // exit 1 and nothing after Tade's own line. The PATH here has no `claude`.
+    const where = home('')
+    const said = await tade(where, ['accounts', 'sign-in', 'claude-code', '-c', where.config])
+    expect(said.code).toBe(1)
+    expect(said.err).toBe(
+      "claude is not on the PATH here, so its sign-in could not start: install it, or put the folder it is in on the PATH — a command over SSH gets the system's PATH, not your login shell's",
+    )
+  }, 60_000)
+
   it('sends an account paid for with a key to Settings rather than signing it in', async () => {
     const where = home('accounts:\n  ci:\n    harness: claude-code\n    kind: api-key\n')
     const said = await tade(where, ['accounts', 'sign-in', 'claude-code', 'ci', '-c', where.config])

@@ -64,15 +64,29 @@ export function adapterFor(config: Config, home: string, harness: string, chosen
   })
 }
 
-/** Run a harness's own sign-in in this terminal, handing it the keyboard. */
-function runHere(launch: LaunchSpec): Promise<number> {
+/**
+ * Run a harness's own sign-in in this terminal, handing it the keyboard.
+ *
+ * A sign-in that could not even start says why: it used to exit 1 with nothing
+ * after Tade's own line, which is what a remote's sign-in looked like when its
+ * harness was installed in `~/.local/bin` and the command came over SSH, whose
+ * PATH is the system's and not the login shell's.
+ */
+function runHere(launch: LaunchSpec, say: (line: string) => void): Promise<number> {
   return new Promise((resolve) => {
     const child = spawn(launch.command, launch.args, {
       stdio: 'inherit',
       env: { ...process.env, ...launch.env },
     })
     child.on('exit', (code) => resolve(code ?? Exit.error))
-    child.on('error', () => resolve(Exit.error))
+    child.on('error', (err: NodeJS.ErrnoException) => {
+      say(
+        err.code === 'ENOENT'
+          ? `${launch.command} is not on the PATH here, so its sign-in could not start: install it, or put the folder it is in on the PATH — a command over SSH gets the system's PATH, not your login shell's`
+          : `${launch.command} could not start: ${err.message}`,
+      )
+      resolve(Exit.error)
+    })
   })
 }
 
@@ -145,7 +159,7 @@ export function registerAccounts(program: Command, io: Io, setExit: (code: numbe
             return
           }
           io.out(signing.how)
-          setExit(await runHere(signing.launch))
+          setExit(await runHere(signing.launch, io.err))
         } catch (err) {
           io.err((err as Error).message)
           setExit(Exit.invalidInput)
@@ -187,7 +201,7 @@ export function registerAccounts(program: Command, io: Io, setExit: (code: numbe
       const signing = adapterFor(cfg.config, tadeHome(), harness, named).signIn()
       if (!signing) return
       io.out(signing.how)
-      setExit(await runHere(signing.launch))
+      setExit(await runHere(signing.launch, io.err))
     })
 
   accounts
