@@ -223,7 +223,8 @@ describe('one exchange', () => {
   it('refuses a line that does not go on from the copy, a kind that does not travel, and a number that goes back', async () => {
     const mac = await machine('mac')
     const vps = await machine('vps')
-    await write(mac, 5)
+    // Every line a kind that travels: a pick of only `output`/`input` leaves the copy empty.
+    await write(mac, 5, () => 4 / 7)
     await exchange(mac, vps).done
     const [own] = await mac.feeds.summaries()
     if (own === undefined) throw new Error('no summary')
@@ -320,7 +321,8 @@ describe('forks', () => {
     const vps = await machine('vps')
     const mac = await machine('mac')
     const hub = await machine('hub')
-    await write(vps, 6)
+    // Every line a kind that travels, or the hub has no copy to fork from.
+    await write(vps, 6, () => 4 / 7)
     await exchange(hub, vps).done
     await exchange(mac, hub).done
     // The journal put back by hand with its epoch kept: the same numbers, other lines.
