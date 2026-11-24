@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { LOG, SERVICE, type ServiceState, START } from '@tade/core'
 import { systemdHere } from '@tade/workbench/machine'
@@ -204,12 +204,24 @@ describe('whether the agents would outlive the service', () => {
 
 describe('the unit for this machine', () => {
   it('runs `tade serve` with this Node and this Tade, on the PATH it carries', () => {
-    const unit = unitHere({ PATH: '/opt/bin:/usr/bin', HOME: '/home/you', LANG: 'en_US.UTF-8' })
+    const node = dirname(process.execPath)
+    const unit = unitHere({
+      PATH: `${node}:/home/you/.local/bin:/opt/bin:/usr/bin`,
+      HOME: '/home/you',
+      LANG: 'en_US.UTF-8',
+    })
     expect(unit.text).toContain(`ExecStart=${process.execPath} `)
     expect(unit.text).toMatch(/bin\.[tj]s serve\n/)
-    expect(unit.text).toContain('Environment=PATH=/opt/bin:/usr/bin')
+    expect(unit.text).toContain(`Environment=PATH=${node}:/home/you/.local/bin:/opt/bin:/usr/bin`)
     expect(unit.text).toContain('Environment=LANG=en_US.UTF-8')
     expect(unit.path).toBe('/home/you/.config/systemd/user/tade.service')
+  })
+
+  it('finds Node and ~/.local/bin where it was written over a bare ssh, which reads no profile', () => {
+    // A system PATH that is nowhere this Node could be, wherever the test runs.
+    const unit = unitHere({ PATH: '/system/bin', HOME: '/home/you', LANG: 'C.UTF-8' })
+    const path = `${dirname(process.execPath)}:/home/you/.local/bin:/system/bin`
+    expect(unit.text).toContain(`Environment=PATH=${path}`)
   })
 
   it('draws in UTF-8 whatever the shell was set to, and needs no tmux of its own', () => {

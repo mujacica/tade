@@ -4,6 +4,7 @@ import {
   LOG,
   SHOWN,
   START,
+  servicePath,
   serviceStateOf,
   serviceTrouble,
   serviceUnit,
@@ -79,6 +80,27 @@ describe('the unit', () => {
     expect(START).toBe(
       'systemctl --user daemon-reload && systemctl --user enable tade.service && systemctl --user reset-failed tade.service && systemctl --user restart tade.service',
     )
+  })
+})
+
+describe('the PATH a unit carries', () => {
+  // Over a bare `ssh host 'tade host service --write'` no profile is read, so
+  // the shell's PATH is the system's: no ~/.local/bin, where the installer and
+  // Claude Code put their commands, and maybe not Node's directory either.
+  it('puts Node’s directory and ~/.local/bin first where the shell lacked them', () => {
+    expect(servicePath('/usr/bin:/bin', '/opt/node/bin/node', '/home/you')).toBe(
+      '/opt/node/bin:/home/you/.local/bin:/usr/bin:/bin',
+    )
+  })
+
+  it('leaves a PATH that has them in the order it chose', () => {
+    const shell = '/usr/local/bin:/home/you/.local/bin:/usr/bin:/opt/node/bin'
+    expect(servicePath(shell, '/opt/node/bin/node', '/home/you/')).toBe(shell)
+  })
+
+  it('adds Node’s directory once, and no home directory where there is no home', () => {
+    expect(servicePath('', '/usr/bin/node', null)).toBe('/usr/bin')
+    expect(servicePath('/usr/bin::/bin:', '/usr/bin/node', null)).toBe('/usr/bin:/bin')
   })
 })
 

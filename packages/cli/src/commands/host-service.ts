@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -9,6 +10,7 @@ import {
   SERVICE,
   type ServiceState,
   START,
+  servicePath,
   serviceTrouble,
   serviceUnit,
   tadeHome,
@@ -49,14 +51,15 @@ export interface UnitHere {
  * The unit, for the Tade running now: this Node and this CLI, so what the
  * service starts is what was just run, and the PATH of the shell it was run
  * from, because a service's own has none of Node, the harnesses or an npm
- * prefix.
+ * prefix — with Node's directory and `~/.local/bin` where that shell lacked
+ * them (`servicePath`), as one run over a bare `ssh host '…'` does.
  */
 export function unitHere(env: NodeJS.ProcessEnv = process.env): UnitHere {
   const lang = env.LANG && /utf-?8/i.test(env.LANG) ? env.LANG : 'C.UTF-8'
   return {
     text: serviceUnit({
       tade: [process.execPath, fileURLToPath(new URL('../bin.ts', import.meta.url))],
-      path: env.PATH ?? '',
+      path: servicePath(env.PATH ?? '', process.execPath, env.HOME || homedir()),
       home: env.TADE_HOME ?? null,
       lang,
     }),

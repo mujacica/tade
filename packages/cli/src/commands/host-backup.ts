@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
   BACKUP_HOLDS_KEYS,
@@ -16,6 +17,7 @@ import {
   KEEP_THE_PASSWORD,
   passwordFor,
   type RunResult,
+  servicePath,
   shownRepository,
 } from '@tade/core'
 import {
@@ -362,7 +364,7 @@ export function timerHere(
   const lang = env.LANG && /utf-?8/i.test(env.LANG) ? env.LANG : 'C.UTF-8'
   const units = backupUnits({
     tade: [process.execPath, bin],
-    path: env.PATH ?? '',
+    path: servicePath(env.PATH ?? '', process.execPath, env.HOME || homedir()),
     home: env.TADE_HOME ?? null,
     lang,
   })

@@ -45,14 +45,34 @@ export interface ServiceFacts {
   /** How to run Tade, absolute, as far as `serve`: `['/usr/bin/node', '/home/you/…/bin.ts']`. */
   tade: readonly string[]
   /**
-   * The PATH everything it starts will have. A service's own is the system's
-   * bare one, which has none of Node, the harnesses or a user's npm prefix.
+   * The PATH everything it starts will have (`servicePath`). A service's own
+   * is the system's bare one, which has none of Node, the harnesses or a
+   * user's npm prefix.
    */
   path: string
   /** `TADE_HOME`, where it is not the default. */
   home: string | null
   /** A UTF-8 locale for the agents' terminals to draw in. */
   lang: string
+}
+
+/**
+ * The PATH a unit carries: the one of the shell it was written from, with the
+ * two directories a service cannot do without put first where it lacks them —
+ * Node's own, so a harness's `#!/usr/bin/env node` runs on the Node Tade does,
+ * and `~/.local/bin`, where the installer puts Tade when the global prefix is
+ * not the user's to write and where Claude Code installs itself.
+ *
+ * A login shell adds `~/.local/bin` from `~/.profile`; a bare
+ * `ssh host 'tade host service --write'` reads no profile, so a PATH copied
+ * from it as it stands is a service whose agents cannot be found.
+ */
+export function servicePath(shell: string, node: string, home: string | null): string {
+  const have = shell.split(':').filter((one) => one !== '')
+  const nodeDir = node.slice(0, node.lastIndexOf('/'))
+  const needed = [nodeDir, ...(home ? [`${home.replace(/\/+$/, '')}/.local/bin`] : [])]
+  const missing = [...new Set(needed)].filter((one) => one !== '' && !have.includes(one))
+  return [...missing, ...have].join(':')
 }
 
 /** The unit, as it is written to the file. */
