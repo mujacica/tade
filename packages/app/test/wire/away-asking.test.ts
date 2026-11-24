@@ -1,11 +1,13 @@
 import type { Arm } from '@tade/core'
 import { chatRev, digestOf, GRANTS, SCOPES, writeDevices } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
+import { actions } from '../../src/commands.ts'
+import { initialState } from '../../src/model.ts'
 import { AWAY_CONTROLS, awayPanel } from '../../src/panels/away/state.ts'
 import { PLAIN } from '../../src/skin.ts'
 import { deviceSaid, emptyTranscript, youSaid } from '../../src/transcript.ts'
 import { transcriptLines } from '../../src/transcript-view.ts'
-import { isLogIn, LOG_IN_IS_HERE } from '../../src/wire/web-asking.ts'
+import { answeredHere, FROM_AWAY, LOG_IN_IS_HERE } from '../../src/wire/web-asking.ts'
 import {
   ask,
   closeAll,
@@ -152,8 +154,8 @@ describe('one message, all the way through', () => {
   })
 })
 
-describe('/login typed on the away view’s line', () => {
-  it('is answered by the window with where the sign-in is, and never reaches the model', async () => {
+describe('the window’s slash commands typed on the away view’s line', () => {
+  it('/login is answered by the window with where the sign-in is, and never reaches the model', async () => {
     // The person's own phone, which reaches everything the keyboard does — and
     // still the words are never a turn: a model asked to sign itself in.
     const one = await ready({ scopes: [...SCOPES], granted: [...GRANTS] })
@@ -167,14 +169,36 @@ describe('/login typed on the away view’s line', () => {
     expect(lines[0]?.detail).toMatchObject({ device: DEVICE, tool: 'ask', why: 'nothing to do' })
   })
 
-  it('is only the command: a sentence about logging in is still Tade’s to answer', async () => {
-    expect(isLogIn('/login')).toBe(true)
-    expect(isLogIn('/login claude')).toBe(true)
-    expect(isLogIn('why did /login fail?')).toBe(false)
-    expect(isLogIn('/loginx')).toBe(false)
+  it('every other one is answered by the window too, what it is for included, and no turn starts', async () => {
+    const one = await ready({ scopes: [...SCOPES], granted: [...GRANTS] })
+    const typed = ['/new fix the double charge', '/settings', '/away', '/workflows', '/Stop sentry']
+    for (const [n, said] of typed.entries()) {
+      // A key each: one key is one message, and these are five.
+      const key = `${KEY.slice(0, -1)}${n}`
+      const answer = await ask(one.port, 'ask', { was: revOf(), key, rev: 0, said })
+      expect(answer.status).toBe(200)
+      expect(answer.body).toMatchObject({ did: false, rev: revOf(), said: answeredHere(said) })
+    }
+    expect(one.armed).toEqual([])
+    expect(one.said).toEqual([])
+    expect(one.theirs).toEqual([])
   })
 
-  it('still asks the arm first, so a device disconnected while typing it is refused', async () => {
+  it('has an answer for every command the window has, so a new one cannot become a sentence', () => {
+    const names = actions(initialState()).map((action) => action.name)
+    expect(Object.keys(FROM_AWAY).sort()).toEqual([...names].sort())
+  })
+
+  it('is only the command: a sentence about one, a path or another slash word is still Tade’s', () => {
+    expect(answeredHere('/login')).toBe(LOG_IN_IS_HERE)
+    expect(answeredHere('/login claude')).toBe(LOG_IN_IS_HERE)
+    expect(answeredHere('why did /login fail?')).toBeNull()
+    expect(answeredHere('/loginx')).toBeNull()
+    expect(answeredHere('/tmp/build.log says it failed')).toBeNull()
+    expect(answeredHere('/compact')).toBeNull()
+  })
+
+  it('still asks the arm first, so a device disconnected while typing one is refused', async () => {
     const one = await ready()
     one.show()
     await one.away.panel()

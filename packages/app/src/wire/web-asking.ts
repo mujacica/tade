@@ -243,9 +243,48 @@ function narrower(
 export const LOG_IN_IS_HERE =
   "The orchestrator's sign-in is a terminal on this machine: type /login on Tade's own line there, or run `tade accounts sign-in --orchestrator` in a shell on it."
 
-/** Whether a line from away is `/login`, as the window's line would read it (`parseCommand`). */
-export function isLogIn(said: string): boolean {
-  return parseCommand(said).name.toLowerCase() === '/login'
+/**
+ * What each of the window's slash commands (`actions`) is answered with when
+ * it is typed on the away view's line: where that is done from a device.
+ *
+ * **Every one of them is the window's, never a sentence.** At the machine a
+ * line that starts with one is carried out and never reaches the model; handed
+ * to the orchestrator from away it was a model asked to open a screen it does
+ * not have. So each is answered here, and none starts a turn — `/new` and
+ * `/stop` included, because what the window does with them is not what a model
+ * reads into them, and a device's words are never an agent's instruction
+ * except through a turn under its arm (`START`'s argument in `@tade/web`).
+ * `test/wire/away-asking.test.ts` fails when a command is added without one.
+ */
+export const FROM_AWAY: Readonly<Record<string, string>> = {
+  '/new':
+    'A new agent from here is asked of Tade in words: say what it should do, and where, without the /new.',
+  '/stop':
+    "Stopping an agent from here is Stop on its row, on the Agents page or in the agent's ⋯.",
+  '/open': 'The Agents page here lists every agent running: press one to open it.',
+  '/project': "Adding a repository is done at the machine: type /project on Tade's own line there.",
+  '/settings': 'Settings is its own page here: see and change what Tade has been told there.',
+  '/login': LOG_IN_IS_HERE,
+  '/away':
+    "The devices let in are the Devices page here; pairing a new one is /away on Tade's own line at the machine.",
+  '/workflows': 'Workflows is its own page here: the stored workflows, and writing one.',
+  '/evals': 'Evaluations is its own page here: what lands work, the races and the judge.',
+  '/plans': 'Plans is its own page here: every plan, and what wants you in each.',
+  '/race': 'Races are on the Evaluations page here, each with what was asked and who was picked.',
+  '/help':
+    "The window's keys are at the machine; here, type a page's name in this bar to go to it.",
+  '/quit':
+    "Closing the window is done at the machine: type /quit on Tade's own line there. Agents carry on if they can.",
+}
+
+/**
+ * The window's answer to a line from away that is one of its commands, as the
+ * window's line would read it (`parseCommand`), or null for anything else —
+ * a sentence about a command, a path, or a slash word that is not one of them,
+ * all of which are still Tade's to answer.
+ */
+export function answeredHere(said: string): string | null {
+  return FROM_AWAY[parseCommand(said).name.toLowerCase()] ?? null
 }
 
 /** What talking needs of the window: a few doors, and no path among them. */
@@ -300,12 +339,13 @@ export function webAsking(deps: AskingDeps): WebAsking {
 
     async ask(call: AskCall, from: From, here: boolean): Promise<Outcome> {
       const arm = armOf(deps, from, here, call.typed === true)
-      // `/login` is the window's, never a sentence: handed to the
-      // orchestrator it is a model asked to sign itself in. Answered here,
-      // after the arm (a device revoked a second ago is still refused) and
-      // before anything is written or handed over, so no turn starts.
-      if (isLogIn(call.said)) {
-        return { did: false, rev: chatRev({ busy: deps.seen().busy }), said: LOG_IN_IS_HERE }
+      // The window's commands are the window's, never a sentence
+      // (`FROM_AWAY`). Answered here, after the arm (a device revoked a second
+      // ago is still refused) and before anything is written or handed over,
+      // so no turn starts.
+      const windows = answeredHere(call.said)
+      if (windows !== null) {
+        return { did: false, rev: chatRev({ busy: deps.seen().busy }), said: windows }
       }
       const seen = deps.seen()
       // **The state the act named, re-checked against the world now.** A
