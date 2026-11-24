@@ -11,7 +11,7 @@ describe('picking what queued work waits on', () => {
   let terminal: FakeTerminal
   let client: Workbench
   let home: string
-  const { start, click, find } = windowUnderTest((wired) => {
+  const { start, click, find, sidebar } = windowUnderTest((wired) => {
     terminal = wired.terminal
     client = wired.client
     home = wired.home
@@ -21,8 +21,17 @@ describe('picking what queued work waits on', () => {
 
   /** Its row in the side, right-clicked, and Wait on… chosen from the menu. */
   async function openWaits(task: string) {
-    await until(`${task} in the queue`, () => onScreen(task))
-    const row = find(task)
+    // The row is looked for in the list and not anywhere on screen: the pane
+    // beside it says the same name ("app/behind is held: …"), and `find` reads
+    // the frame bottom up, so whenever that line was drawn before the click the
+    // right-click landed on it, opened no menu, and the test timed out.
+    const inList = () => {
+      const lines = sidebar().split('\n')
+      const row = lines.findIndex((line) => line.includes(task))
+      return row < 0 ? null : { row, col: lines[row]?.indexOf(task) ?? 0 }
+    }
+    await until(`${task} in the queue`, () => inList() !== null)
+    const row = inList() ?? find(task)
     terminal.press(`\x1b[<2;${row.col + 2};${row.row + 1}M`)
     terminal.press(`\x1b[<2;${row.col + 2};${row.row + 1}m`)
     await until('its menu', () => onScreen('Wait on…'))
