@@ -667,14 +667,20 @@ export class Queue implements Subject {
           finished: (task) => finished?.has(task) === true,
           now: this.wire.now(),
         })
+        const since = this.starts
         const made = await this.wire.opts.client.planTasks(plan, 'orchestrator', busy, {
           machines: places?.machines() ?? [],
           projectThere: (machine, project) => places?.projectThere(machine, project) ?? null,
           ...(elsewhere ? { elsewhere } : {}),
         })
         const sent = await this.sendPlaced(plan, made.made, places, reasons, byRule)
-        await this.wire.live?.refresh()
-        const started = await this.advance()
+        // Settled like any other change: `refresh` and `advance` hand back the
+        // look and the pass under way, which read the queue before the plan was
+        // in it, and the answer said "Queued" about work the next beat started.
+        // Every start since the plan was written counts, by whichever pass.
+        // Nothing is `answering`: what a plan's pass holds is told as ever.
+        const ours = new Set(made.made.map((task) => task.id))
+        const started = (await this.settle([], since)).filter((task) => ours.has(task))
         const live = this.wire.live
         const facts = live?.queueFacts()
         const waiting = made.made

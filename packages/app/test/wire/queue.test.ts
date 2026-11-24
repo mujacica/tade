@@ -2,9 +2,10 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ConfigSchema, taskDir } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Live } from '../../src/live.ts'
 import type { AppState } from '../../src/model.ts'
+import { Queue } from '../../src/wire/queue.ts'
 import {
   type FakeTerminal,
   type Repo,
@@ -30,6 +31,9 @@ describe('the window, and the work waiting in it', () => {
     client = wired.client
     repo = wired.repo
     home = wired.home
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it("writes a task's own rule down once it is met, and only then", async () => {
@@ -87,6 +91,63 @@ describe('the window, and the work waiting in it', () => {
         (await client.events({ types: ['queue_started'], task: 'app/refund-back' }))[0]?.detail
           .why === 'app/charge-once has finished',
     )
+  })
+
+  it('starts what a plan made ready when a pass begun before the plan is still under way', async () => {
+    // On macOS CI the beat's pass was still looking at the trees when the plan
+    // was written: the plan was handed that pass, which had read the queue
+    // before the plan's tasks were in it, and answered "Queued charge-once"
+    // about work the next beat started. Here that pass is held there.
+    const window = await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const live = (window as unknown as { wire: { live: Straddled } }).wire.live
+    const look = live.lookAtTrees.bind(live)
+    let inLook = () => {}
+    const looking = new Promise<void>((resolve) => {
+      inLook = resolve
+    })
+    let release = () => {}
+    const released = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    live.lookAtTrees = async (items) => {
+      inLook()
+      await released
+      return look(items)
+    }
+    await looking
+    // Let go only once the plan, written, asks for a pass: it is handed the one
+    // under way, which read the queue before the plan's tasks were in it.
+    const plan = client.planTasks.bind(client)
+    let planned = false
+    client.planTasks = async (...args) => {
+      const out = await plan(...args)
+      planned = true
+      return out
+    }
+    const advance = Queue.prototype.advance
+    vi.spyOn(Queue.prototype, 'advance').mockImplementation(function (this: Queue) {
+      const pass = advance.call(this)
+      if (planned) release()
+      return pass
+    })
+    const answer = await window.queueTools().plan({
+      project: 'app',
+      said: 'charge once, then give refunds back',
+      agents: [
+        { name: 'charge-once', said: 'charge once', prompt: '', after: [], touches: ['charge.ts'] },
+        {
+          name: 'refund-back',
+          said: 'then give refunds back',
+          prompt: '',
+          after: [{ agent: 'charge-once', why: 'both change charge.ts' }],
+          touches: ['charge.ts'],
+        },
+      ],
+    })
+    expect(answer).toContain('Started charge-once.')
+    expect(answer).toContain('Queued refund-back (after app/charge-once).')
+    expect(client.runs().map((run) => run.task)).toEqual(['app/charge-once'])
   })
 
   it('gives a finished task’s slot to queued work while its agent’s lane is still open', async () => {
