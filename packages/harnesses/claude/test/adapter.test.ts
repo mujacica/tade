@@ -243,6 +243,28 @@ describe('ClaudeAdapter', () => {
       expect(state.projects[spec.cwd]).toEqual({ hasTrustDialogAccepted: true })
     })
 
+    it('marks its first run done in an account folder a sign-in made, keeping what the sign-in wrote', async () => {
+      // A carried account signed in on a server first: `claude auth login`
+      // wrote its state with no onboarding, and the agent stopped on the theme.
+      const account = tmp('tade-claude-account-')
+      writeFileSync(
+        join(account, '.claude.json'),
+        JSON.stringify({ oauthAccount: { emailAddress: 'someone@example.com' } }),
+      )
+      adapter = new ClaudeAdapter({
+        runDir: tmp('tcc-'),
+        configDir: account,
+        home: tmp('tade-claude-home-'),
+        approvals: 'bypass',
+        type: async () => {},
+      })
+      const cwd = tmp('tade-claude-cwd-')
+      await adapter.supervise({ run: 'app/signed/agent', task: 'app/signed', cwd, prompt: '' })
+      const state = JSON.parse(readFileSync(join(account, '.claude.json'), 'utf8'))
+      expect(state.hasCompletedOnboarding).toBe(true)
+      expect(state.oauthAccount).toEqual({ emailAddress: 'someone@example.com' })
+    })
+
     it('says a turn, from the prompt to the end of it, and names the work from what was asked', async () => {
       const { hook, kinds, signals } = await setUp()
       await hook({ hook_event_name: 'SessionStart', session_id: 's', model: 'claude-opus-5' })

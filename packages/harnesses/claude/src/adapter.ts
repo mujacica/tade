@@ -687,10 +687,16 @@ export class ClaudeAdapter implements WorkerAdapter {
     try {
       // A folder Claude Code has never run in stops it with a question before
       // anything starts; Tade answers it for the folders it starts agents in.
-      await trustFolder(spec.cwd, this.opts.configDir).catch((err) =>
-        this.opts.onWarning(
-          `could not mark ${spec.cwd} as trusted for Claude Code, so it will ask in its lane: ${(err as Error).message}`,
-        ),
+      // In an account folder of Tade's own, its first run is marked done here
+      // too, however the folder came to be: `prepareAccount` writes that only
+      // into a folder with no state yet, and an account carried from another
+      // machine and signed in there first (`claude auth login` writes the state
+      // without it) put every agent on the colour-scheme question instead.
+      await trustFolder(spec.cwd, this.opts.configDir, { firstRun: this.ownFolder() }).catch(
+        (err) =>
+          this.opts.onWarning(
+            `could not mark ${spec.cwd} as trusted for Claude Code, so it will ask in its lane: ${(err as Error).message}`,
+          ),
       )
       const socket = runSocket(this.opts.socketDir, spec.run)
       const channel = await ClaudeChannel.listen({
