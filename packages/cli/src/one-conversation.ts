@@ -22,7 +22,10 @@ export async function shareConversation(
   cwd: string,
 ): Promise<OneConversation | null> {
   const replica = started.replica
-  if (!replica) return null
+  if (!replica) {
+    place.use(null)
+    return null
+  }
   const shared = new SharedConversation({
     home: place.home,
     me: place.me(),

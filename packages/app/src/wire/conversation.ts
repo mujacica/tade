@@ -1,7 +1,12 @@
 import { type ConversationAsk, hubOf, machineLabel, printable } from '@tade/core'
-import type { HubLink, MachineNamed, OneConversation } from '@tade/harnesses-core'
+import {
+  type HubLink,
+  HubStarting,
+  type MachineNamed,
+  type OneConversation,
+} from '@tade/harnesses-core'
 import type { Remote, RemoteLink } from '@tade/remotes-core'
-import type { WebConversation } from '@tade/web'
+import { STARTING, type WebConversation } from '@tade/web'
 import { clockOf, type Wiring, why } from './context.ts'
 
 // One orchestrator conversation on every machine, from the heart and the
@@ -46,8 +51,12 @@ export interface ConversationPlace {
   took(): void
   clock(at: number): string
   now(): number
-  /** The orchestrator's, once it is up on a harness that keeps one conversation everywhere; null when it stops. */
-  use(one: OneConversation | null): void
+  /**
+   * The orchestrator's, once it is up on a harness that keeps one conversation
+   * everywhere; `'starting'` while it is coming up again; null where it runs on
+   * one that keeps none, or did not start.
+   */
+  use(one: OneConversation | 'starting' | null): void
 }
 
 export interface FleetConversationDeps {
@@ -61,6 +70,13 @@ export class FleetConversation {
   private readonly wire: Wiring
   private readonly deps: FleetConversationDeps
   private one: OneConversation | null = null
+  /**
+   * Until the orchestrator's start has settled, a machine asking is told to
+   * wait (`STARTING`) rather than refused: the door opens before the
+   * orchestrator is up, and refusing then was a 500 reported from both ends
+   * on every start of a hub (TADE-A, TADE-B).
+   */
+  private starting = true
   private reach: ConversationReach | null = null
   private readonly downAt = new Map<string, number>()
   private lastAt = 0
@@ -92,7 +108,8 @@ export class FleetConversation {
       clock: (at) => clockOf(at),
       now: () => this.wire.now(),
       use: (one) => {
-        this.one = one
+        this.starting = one === 'starting'
+        this.one = one === 'starting' ? null : one
       },
     }
   }
@@ -115,6 +132,12 @@ export class FleetConversation {
         const answer = await held.link.request(name, DOOR, ask)
         // Unread: the exchange checks every answer before it takes anything (`ConversationReply`).
         if (answer.status === 200) return answer.body
+        // Its orchestrator not up yet: waited for, and not trouble.
+        if (
+          answer.status === 503 &&
+          (answer.body as { error?: unknown } | null)?.error === STARTING
+        )
+          throw new HubStarting(name)
         // An older Tade there has no such door: said in words, and carried on apart.
         const said = (answer.body as { said?: unknown } | null)?.said
         throw new Error(
@@ -141,6 +164,7 @@ export class FleetConversation {
     return async (body) => {
       const one = this.one
       if (!one) {
+        if (this.starting) return STARTING
         throw new Error(
           'the orchestrator here is not running on a harness that keeps one conversation on every machine',
         )

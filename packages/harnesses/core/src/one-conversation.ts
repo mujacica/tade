@@ -54,6 +54,20 @@ import {
 // waited out once is not waited for again until a lease is granted here, so
 // it costs one wait and not one per turn.
 
+/**
+ * The hub answered, and its orchestrator is not up yet: the moments after it
+ * started or changed model. **Not trouble**, so it is never warned of — a
+ * warning is reported, and every restart of a hub was one report from each
+ * machine (TADE-A). A turn here carries on apart, said once, exactly as with
+ * the hub down, and the two are merged once it is up.
+ */
+export class HubStarting extends Error {
+  constructor(hub: string) {
+    super(`${hub}'s orchestrator is starting`)
+    this.name = 'HubStarting'
+  }
+}
+
 /** The hub's link, where another machine is the hub. */
 export interface HubLink {
   /** Its name here. */
@@ -192,8 +206,12 @@ export class OneConversation {
         )
       } catch (err) {
         // The link went as it was asked: this turn carries on here.
-        this.opts.warn(`the conversation could not be exchanged with ${hub.name}: ${why(err)}`)
         this.one = null
+        if (err instanceof HubStarting) {
+          this.apart(hub, 'starting')
+          return
+        }
+        this.opts.warn(`the conversation could not be exchanged with ${hub.name}: ${why(err)}`)
         this.apart(hub)
         return
       }
@@ -289,6 +307,7 @@ export class OneConversation {
       )
     } catch (err) {
       // Given next time; the lease runs out by itself meanwhile.
+      if (err instanceof HubStarting) return
       this.opts.warn(`what this turn said could not be given to ${hub.name} yet: ${why(err)}`)
     }
   }
@@ -332,8 +351,10 @@ export class OneConversation {
           this.together(hub)
           if (done.refused) this.once(done.refused)
         } catch (err) {
-          this.opts.warn(`the conversation could not be exchanged with ${hub.name}: ${why(err)}`)
           this.one = null
+          // Asked again on the next beat; nothing is wrong yet.
+          if (err instanceof HubStarting) return
+          this.opts.warn(`the conversation could not be exchanged with ${hub.name}: ${why(err)}`)
           return
         }
       } else if (hub) {
@@ -419,12 +440,14 @@ export class OneConversation {
     if (took) this.opts.took?.(settled)
   }
 
-  private apart(hub: HubLink): void {
+  private apart(hub: HubLink, starting?: 'starting'): void {
     const since = hub.downSince ?? this.opts.now()
     if (this.apartSince !== null) return
     this.apartSince = since
     this.opts.say(
-      `${hub.name} not linked since ${this.opts.clock(since)}: carrying on here; this conversation is merged with ${hub.name}'s when it is back.`,
+      starting
+        ? `${hub.name}'s orchestrator is starting: carrying on here; this conversation is merged with ${hub.name}'s when it is up.`
+        : `${hub.name} not linked since ${this.opts.clock(since)}: carrying on here; this conversation is merged with ${hub.name}'s when it is back.`,
     )
   }
 

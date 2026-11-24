@@ -8,6 +8,7 @@ import {
   SharedConversation,
 } from '@tade/harnesses-core'
 import type { Answer } from '@tade/remotes-core'
+import { STARTING } from '@tade/web'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import type { Wiring } from '../../src/wire/context.ts'
@@ -117,6 +118,9 @@ function linkTo(hub: ReturnType<typeof side>, status = 200) {
         expect(path).toBe('/api/conversation')
         if (status !== 200) return { status, body: { said: 'nothing here' } }
         const answer = await hub.fleet.web()(JSON.parse(JSON.stringify(body)))
+        // As the door answers it (`@tade/web`'s `shared-conversation.ts`).
+        if (answer === STARTING)
+          return { status: 503, body: { error: 'starting', said: 'starting', after: 5 } }
         return { status: 200, body: JSON.parse(JSON.stringify(answer)) }
       },
     } as never,
@@ -161,7 +165,9 @@ describe('one conversation, from the heart and the window', () => {
       harness: 'toy',
       lease: { op: 'take', key: 'k' },
     })
-    expect(answer.lease).toMatchObject({ granted: false, holder: { name: expect.any(String) } })
+    expect(answer).toMatchObject({
+      lease: { granted: false, holder: { name: expect.any(String) } },
+    })
     await vps.one.after()
   })
 
@@ -176,6 +182,40 @@ describe('one conversation, from the heart and the window', () => {
     expect(mac.said.join('\n')).toContain('carrying on here')
     expect(mac.fleet.oneWith()).toBeNull()
     await mac.one.after()
+  })
+
+  it('waits for a hub whose orchestrator is starting, warning of nothing, and is one with it once it is up', async () => {
+    // TADE-A: an exchange while the hub's orchestrator came up was a 500,
+    // reported as trouble from this machine on every start of the hub.
+    const vps = side('vps')
+    vps.fleet.place().use('starting')
+    const mac = side('mac', { vps: REMOTE })
+    mac.fleet.withReach(linkTo(vps))
+    await mac.one.idle(false)
+    expect(mac.said).toEqual([])
+    await mac.one.before(true)
+    expect(mac.said).toEqual([
+      "vps's orchestrator is starting: carrying on here; this conversation is merged with vps's when it is up.",
+    ])
+    await mac.one.after()
+    expect(mac.fleet.oneWith()).toBeNull()
+    vps.fleet.place().use(vps.one)
+    await mac.one.idle(false)
+    expect(mac.said.filter((line) => line.startsWith('warn:'))).toEqual([])
+    expect(mac.fleet.oneWith()).toBe('vps')
+  })
+
+  it('tells a machine that links here to wait until the orchestrator has started, and not after', async () => {
+    const asks = {
+      from: { id: '99999999-9999-4999-8999-999999999999', name: 'mac' },
+      harness: 'toy',
+    }
+    const fresh = side('fresh')
+    fresh.fleet.place().use('starting')
+    expect(await fresh.fleet.web()(asks)).toBe(STARTING)
+    // A start that failed, or a harness that keeps no conversation: said, not waited on.
+    fresh.fleet.place().use(null)
+    await expect(fresh.fleet.web()(asks)).rejects.toThrow('not running on a harness')
   })
 
   it('refuses a machine that links here while the orchestrator is not sharing its conversation', async () => {

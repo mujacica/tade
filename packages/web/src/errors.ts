@@ -32,6 +32,7 @@ export const ERRORS = [
   'slow_down',
   'closing',
   'busy',
+  'starting',
   'broke',
 ] as const
 export type ErrorKind = (typeof ERRORS)[number]
@@ -124,6 +125,11 @@ const SAID: Readonly<Record<ErrorKind, { status: number; said: string }>> = {
   slow_down: { status: 429, said: 'too many tries — wait a moment' },
   closing: { status: 503, said: 'Tade is closing' },
   busy: { status: 503, said: 'too many connections — try again shortly' },
+  // Its orchestrator is not up yet — the moments after a start or a model
+  // change, when the door is open and nothing behind it answers. Waiting is
+  // the answer, so it is never `broke`: that one is reported as trouble, and
+  // every restart of a hub would have been one report from each machine.
+  starting: { status: 503, said: 'the orchestrator here is starting — try again shortly' },
   broke: { status: 500, said: 'something went wrong here' },
 }
 

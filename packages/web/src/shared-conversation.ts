@@ -37,8 +37,22 @@ export interface ConversationShareAnswer {
   refused?: string
 }
 
-/** The heart's half: take what was given, ask the lease, and answer. Throws the reason. */
-export type WebConversation = (body: ConversationAsk) => Promise<ConversationShareAnswer>
+/**
+ * What the heart answers while its orchestrator is still coming up: not
+ * trouble, and answered as `starting` (503, with a wait) rather than `broke`.
+ */
+export const STARTING = 'starting'
+
+/**
+ * The heart's half: take what was given, ask the lease, and answer —
+ * `STARTING` while there is no orchestrator yet to answer for. Throws the reason.
+ */
+export type WebConversation = (
+  body: ConversationAsk,
+) => Promise<ConversationShareAnswer | typeof STARTING>
+
+/** How long a machine that asked while the orchestrator here was starting waits, in seconds. */
+const STARTING_AFTER = 5
 
 /** The route: an owner's body read once, checked, and handed to the heart. */
 export async function conversationHere(
@@ -52,5 +66,7 @@ export async function conversationHere(
   if (!got.read) return { refusal: got.refusal }
   const parsed = ConversationBody.safeParse(got.body)
   if (!parsed.success) return { refusal: refuse('malformed') }
-  return { body: await conversation(parsed.data) }
+  const answer = await conversation(parsed.data)
+  if (answer === STARTING) return { refusal: refuse('starting', { after: STARTING_AFTER }) }
+  return { body: answer }
 }

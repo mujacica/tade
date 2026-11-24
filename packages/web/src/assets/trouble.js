@@ -188,6 +188,12 @@ export const TROUBLES = {
     fix: 'Try again shortly',
     steps: ['Try again shortly', 'Close this page’s other tabs'],
   },
+  starting: {
+    title: 'Still starting',
+    why: 'The orchestrator at the machine is not up yet.',
+    fix: 'Try again shortly',
+    steps: ['Try again shortly'],
+  },
   broke: {
     title: 'Something broke',
     why: 'Tade hit an error and wrote it in its log.',

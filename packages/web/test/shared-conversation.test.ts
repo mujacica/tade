@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mintOwner } from '../src/owner.ts'
 import { CSRF_HEADER } from '../src/request.ts'
 import { OWNED } from '../src/routes.ts'
-import type { ConversationShareAnswer } from '../src/shared-conversation.ts'
+import { type ConversationShareAnswer, STARTING } from '../src/shared-conversation.ts'
 import { ask, closeAll, pair, type Running, start } from './harness.ts'
 
 // One orchestrator conversation on every machine of the person's
@@ -115,6 +115,16 @@ describe('one conversation, shared', () => {
       expect(said.status, JSON.stringify(body).slice(0, 200)).toBe(400)
     }
     expect(handed).toEqual([])
+  })
+
+  it('tells a machine to wait while the orchestrator here is starting, and reports nothing as trouble', async () => {
+    // TADE-B: the door opens before the orchestrator is up, and an exchange
+    // from another machine then was a 500 and a warning on every start.
+    const one = await start({}, { conversation: async () => STARTING })
+    const said = await asOwner(one, await owner(one), fine)
+    expect(said.status, said.text).toBe(503)
+    expect(JSON.parse(said.text)).toMatchObject({ error: 'starting', after: 5 })
+    expect(one.told.filter((line) => line.type === 'warning')).toEqual([])
   })
 
   it('is the 404 of a path nobody wired where the heart gave no way to answer', async () => {

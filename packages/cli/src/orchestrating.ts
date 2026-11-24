@@ -432,10 +432,12 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
           const place = holding.conversationPlace?.()
           if (place) {
             await shareConversation(started, place, options.cwd ?? process.cwd()).catch(
-              (err: unknown) =>
+              (err: unknown) => {
+                place.use(null)
                 place.warn(
                   `it could not be made one across the machines, so it is this machine's alone for now: ${err instanceof Error ? err.message : String(err)}`,
-                ),
+                )
+              },
             )
           }
           // Nothing chosen, so the harness picked: keep what it picked, so the
@@ -449,6 +451,8 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
         // — unless it was closing that stopped it.
         .catch((err: unknown) => {
           if (quitting.signal.aborted) return
+          // Not starting any more: a machine asking is told why, not to wait.
+          holding.conversationPlace?.().use(null)
           holding.thinkerFailed(err instanceof Error ? err.message : String(err))
         })
     )
@@ -465,7 +469,7 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
     // is carried to another account, where one was chosen (`after`).
     const before = orchestrator ?? undefined
     // Its conversation is answered for by the one that starts next.
-    holding.conversationPlace?.().use(null)
+    holding.conversationPlace?.().use('starting')
     before?.useTurns(null)
     await stopOrchestrator()
     orchestrator = null
