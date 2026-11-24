@@ -488,6 +488,18 @@ export class Settings implements Subject {
       ...(how.over === undefined ? {} : { over: how.over }),
       ...(how.origin === undefined ? {} : { origin: how.origin }),
     })
+    // And what the change needs beyond the config being used, as from the page
+    // or a terminal: without it a carried `orchestrator.account` was written
+    // and never run as — the orchestrator went on as whoever it started as,
+    // "Not logged in" on a machine whose own sign-in was never made. A carry is
+    // somebody else's press, so a turn under way is let finish first.
+    const trouble = await this.followed(
+      key,
+      loaded.config,
+      clearedByHarness(key).length > 0,
+      how.carried !== undefined,
+    )
+    if (trouble) this.said(`${key} applies when the orchestrator next starts: ${trouble}`)
     // A carried write's stamp is on this line, so the next carry must find
     // it, or it reads as older here than it is: it waits for it.
     if (how.carried !== undefined) await written

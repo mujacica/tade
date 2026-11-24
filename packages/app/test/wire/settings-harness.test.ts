@@ -61,6 +61,7 @@ function world(over: { extensions?: boolean } = {}) {
     refreshModels: async () => void asked.push('refreshModels'),
     lookAtWhatIsInstalled: () => {},
     tellThinking: async () => null,
+    moveThinker: (afterTurn: boolean) => void asked.push(`moveThinker afterTurn=${afterTurn}`),
     setupChanged: () => void asked.push('setupChanged'),
     openSetup: () => false,
     silence: () => {},
@@ -118,5 +119,20 @@ describe('a key with no field, written by the one door', () => {
     expect(it_.asked).toEqual(['reconfigure intake', 'setupChanged'])
     await it_.settings.writeKey('agents.keep_awake', true, 'false')
     expect(it_.asked).toHaveLength(2)
+  })
+
+  it('starts the orchestrator again as an account another machine carried in, once its turn is over', async () => {
+    // A server linked to this Mac took `orchestrator.account: personal` by the
+    // carry, wrote it, and went on running as nobody — "Not logged in" — because
+    // the door wrote the file and never moved the orchestrator onto it.
+    const it_ = world()
+    await it_.settings.writeKey('accounts', { personal: { harness: 'pi' } } as never, 'not set')
+    expect(it_.asked).toEqual([])
+    await it_.settings.writeKey('orchestrator.account', 'personal', '', {
+      by: 'device cfe687a7d6db9d29',
+      carried: 'the-mac',
+    })
+    expect(it_.config()).toContain('account: personal')
+    expect(it_.asked).toEqual(['moveThinker afterTurn=true'])
   })
 })
