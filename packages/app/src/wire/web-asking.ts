@@ -13,6 +13,7 @@ import {
   type StopCall,
   type WebAsking,
 } from '@tade/web'
+import { parseCommand } from '../commands.ts'
 
 // The window's end of talking: what a message actually does, and the arm it
 // does it under.
@@ -231,6 +232,22 @@ function narrower(
   return was.filter((name) => now.includes(name))
 }
 
+/**
+ * What `/login` typed on the away view's line is answered with.
+ *
+ * The window's `/login` (`Machine.logIn`) is the orchestrator's harness's own
+ * sign-in in a terminal over the window, and nothing types into a terminal
+ * from away — so from a device it is the two places that sign-in can be done,
+ * rather than a turn of the model's.
+ */
+export const LOG_IN_IS_HERE =
+  "The orchestrator's sign-in is a terminal on this machine: type /login on Tade's own line there, or run `tade accounts sign-in --orchestrator` in a shell on it."
+
+/** Whether a line from away is `/login`, as the window's line would read it (`parseCommand`). */
+export function isLogIn(said: string): boolean {
+  return parseCommand(said).name.toLowerCase() === '/login'
+}
+
 /** What talking needs of the window: a few doors, and no path among them. */
 export interface AskingDeps {
   /** Whether the setting is on, read **at the turn** and never cached. */
@@ -283,6 +300,13 @@ export function webAsking(deps: AskingDeps): WebAsking {
 
     async ask(call: AskCall, from: From, here: boolean): Promise<Outcome> {
       const arm = armOf(deps, from, here, call.typed === true)
+      // `/login` is the window's, never a sentence: handed to the
+      // orchestrator it is a model asked to sign itself in. Answered here,
+      // after the arm (a device revoked a second ago is still refused) and
+      // before anything is written or handed over, so no turn starts.
+      if (isLogIn(call.said)) {
+        return { did: false, rev: chatRev({ busy: deps.seen().busy }), said: LOG_IN_IS_HERE }
+      }
       const seen = deps.seen()
       // **The state the act named, re-checked against the world now.** A
       // mismatch is the conversation having moved — somebody said something,

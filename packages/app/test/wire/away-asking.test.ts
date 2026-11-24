@@ -5,6 +5,7 @@ import { AWAY_CONTROLS, awayPanel } from '../../src/panels/away/state.ts'
 import { PLAIN } from '../../src/skin.ts'
 import { deviceSaid, emptyTranscript, youSaid } from '../../src/transcript.ts'
 import { transcriptLines } from '../../src/transcript-view.ts'
+import { isLogIn, LOG_IN_IS_HERE } from '../../src/wire/web-asking.ts'
 import {
   ask,
   closeAll,
@@ -148,6 +149,38 @@ describe('one message, all the way through', () => {
     expect(one.armed).toEqual([{ how: 'owner', device: DEVICE, theirs: true }])
     expect(one.said).toEqual([{ text: 'turn the commit judge on', device: DEVICE }])
     expect(one.theirs).toEqual(['turn the commit judge on'])
+  })
+})
+
+describe('/login typed on the away view’s line', () => {
+  it('is answered by the window with where the sign-in is, and never reaches the model', async () => {
+    // The person's own phone, which reaches everything the keyboard does — and
+    // still the words are never a turn: a model asked to sign itself in.
+    const one = await ready({ scopes: [...SCOPES], granted: [...GRANTS] })
+    const answer = await ask(one.port, 'ask', { was: revOf(), key: KEY, rev: 0, said: ' /LOGIN ' })
+    expect(answer.status).toBe(200)
+    expect(answer.body).toMatchObject({ did: false, rev: revOf(), said: LOG_IN_IS_HERE })
+    expect(one.armed).toEqual([])
+    expect(one.said).toEqual([])
+    expect(one.theirs).toEqual([])
+    const lines = await waitFor(one.client, 'web_asked')
+    expect(lines[0]?.detail).toMatchObject({ device: DEVICE, tool: 'ask', why: 'nothing to do' })
+  })
+
+  it('is only the command: a sentence about logging in is still Tade’s to answer', async () => {
+    expect(isLogIn('/login')).toBe(true)
+    expect(isLogIn('/login claude')).toBe(true)
+    expect(isLogIn('why did /login fail?')).toBe(false)
+    expect(isLogIn('/loginx')).toBe(false)
+  })
+
+  it('still asks the arm first, so a device disconnected while typing it is refused', async () => {
+    const one = await ready()
+    one.show()
+    await one.away.panel()
+    await one.away.submits().away?.(awayPanel(), `${AWAY_CONTROLS.revoke}${DEVICE}`)
+    const answer = await ask(one.port, 'ask', { was: revOf(), key: KEY, rev: 0, said: '/login' })
+    expect(answer.status).toBe(401)
   })
 })
 
