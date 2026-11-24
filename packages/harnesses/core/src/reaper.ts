@@ -36,6 +36,16 @@ if (!command || !Number.isInteger(parent)) {
   process.exit(2)
 }
 
+// Asked to stop, it stops what it started: never leaving the harness behind.
+// Listening comes before starting, because until `process.on` a SIGTERM takes
+// Node's default and ends this process on the spot — and one landing just after
+// `spawn` left the harness running with nobody watching it (a red macOS CI row
+// at f423a50b; widening that gap by 20ms orphaned 7 of 400). A handler only
+// runs once this file's top level has finished, so `child` is always there.
+for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) {
+  process.on(signal, () => goodbye(signal))
+}
+
 const child = spawn(command, args, { stdio: 'inherit' })
 
 const end = (signal: NodeJS.Signals = 'SIGTERM') => {
@@ -79,8 +89,3 @@ child.on('error', (err) => {
   process.stderr.write(`${err.message}\n`)
   process.exit(1)
 })
-
-// Asked to stop, it stops what it started: never leaving the harness behind.
-for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) {
-  process.on(signal, () => goodbye(signal))
-}

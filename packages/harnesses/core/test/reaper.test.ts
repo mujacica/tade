@@ -14,15 +14,32 @@ import { REAPER_PATH, reaped } from '../src/port.ts'
 
 const tmp = (prefix: string) => mkdtempSync(join(tmpdir(), prefix))
 
-/** Processes whose command line carries this mark, by pid. */
-function running(mark: string): number[] {
-  const listed = execFileSync('ps', ['-ax', '-o', 'pid=,command='], { encoding: 'utf8' })
-  return listed
+/** Processes whose command line carries this mark, as pid and parent pid. */
+function listed(mark: string): { pid: number; ppid: number }[] {
+  const out = execFileSync('ps', ['-axww', '-o', 'pid=,ppid=,command='], { encoding: 'utf8' })
+  return out
     .split('\n')
     .filter((line) => line.includes(mark) && !line.includes(' ps -ax'))
-    .map((line) => Number(line.trim().split(/\s+/)[0]))
-    .filter((pid) => Number.isInteger(pid))
+    .map((line) => {
+      const [pid, ppid] = line.trim().split(/\s+/).map(Number)
+      return { pid: pid ?? Number.NaN, ppid: ppid ?? Number.NaN }
+    })
+    .filter(({ pid }) => Number.isInteger(pid))
 }
+
+/** Processes whose command line carries this mark, by pid. */
+function running(mark: string): number[] {
+  return listed(mark).map(({ pid }) => pid)
+}
+
+/**
+ * Whether the watcher has started what it runs. The mark is on the watcher's
+ * own command line too, so "the mark is running" is true from the moment node
+ * starts, before it has started anything — and a test that stops it then is
+ * asking about nothing. What it started is the marked process it is parent of.
+ */
+const startedBy = (watcher: number, mark: string) =>
+  listed(mark).some(({ ppid }) => ppid === watcher)
 
 async function until(check: () => boolean, timeout = 15_000): Promise<void> {
   const deadline = Date.now() + timeout
@@ -81,7 +98,7 @@ describe('what Tade starts for itself', () => {
     const launch = reaped({ command: '/bin/sh', args: ['-c', `echo ${mark}; sleep 600`] })
     const child = spawn(launch.command, launch.args, { stdio: 'ignore' })
     started.push(child.pid ?? 0)
-    await until(() => running(mark).length > 0)
+    await until(() => startedBy(child.pid ?? 0, mark))
     child.kill('SIGTERM')
     await until(() => running(mark).length === 0)
     expect(running(mark)).toEqual([])
