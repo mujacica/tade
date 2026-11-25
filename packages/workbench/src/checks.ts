@@ -6,6 +6,7 @@ import {
   type ChecksRead,
   carryOver,
   followRenames,
+  HOOK_ID,
   type Holders,
   latestAt,
   planFor,
@@ -276,14 +277,42 @@ export async function runProjectChecks(opts: {
 
 /**
  * The related check handed the paths a change is about, each quoted for the
- * shell its command runs in. Every other check is left as it is: the paths
- * narrow the one check that is about a change, never the gate.
+ * shell its command runs in, and the commit hook run as a commit of exactly
+ * those paths would run it. Every other check is left as it is.
  */
 function withPaths(plan: Check[], paths: readonly string[]): Check[] {
   if (paths.length === 0) return plan
+  const quoted = paths.map(shellQuote).join(' ')
   return plan.map((check) =>
-    check.related ? { ...check, run: `${check.run} ${paths.map(shellQuote).join(' ')}` } : check,
+    check.related
+      ? { ...check, run: `${check.run} ${quoted}` }
+      : check.id === HOOK_ID
+        ? { ...check, run: asCommitOf(check.run, quoted) }
+        : check,
   )
+}
+
+/**
+ * A hook run as `git commit --only -- <paths>` runs it: with `GIT_INDEX_FILE`
+ * an index of HEAD plus those paths, so whatever it reads out of the index is
+ * this change and not what other agents in a shared checkout have staged or
+ * left beside it. What it reads out of the working tree is still the whole
+ * tree — that is a commit's answer too. `ls-files` is what makes a path that
+ * is gone a deletion, a directory its files, and one that never was nothing,
+ * rather than a hook that fails for a reason that is not the change's.
+ */
+function asCommitOf(run: string, quoted: string): string {
+  return [
+    'tade_index=$(mktemp -d) || exit 1',
+    'GIT_INDEX_FILE="$tade_index/index"',
+    'export GIT_INDEX_FILE',
+    '{ git read-tree HEAD 2>/dev/null || git read-tree --empty; } &&' +
+      ` git ls-files -z --cached --others --exclude-standard -- ${quoted} |` +
+      ` git update-index -z --add --remove --stdin && ${run}`,
+    'tade_said=$?',
+    'rm -rf "$tade_index"',
+    'exit $tade_said',
+  ].join('; ')
 }
 
 /** What a tool call is, as far as this rule cares. */

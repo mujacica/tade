@@ -230,6 +230,36 @@ describe('the related run', () => {
     expect(log.text).toContain('related to: src/a file.ts src/b.ts')
   })
 
+  it('runs the commit hook on the index a commit of the paths would have, not what others staged', async () => {
+    // A hook that reads the index (this repository's style step does) read
+    // every agent's files in a shared checkout when Tade ran it by hand.
+    const repo = mkrepo()
+    repo.commit('the hook', {
+      '.githooks/pre-commit': 'git diff --cached --name-only\n',
+      'package.json': JSON.stringify({ scripts: { 'test:related': 'true' } }),
+      'pnpm-lock.yaml': '',
+    })
+    const home = tmp('tade-checks-home-')
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  demo:\n    root: ${repo.root}\n`)
+    writeFileSync(join(repo.root, 'mine.ts'), 'mine\n')
+    writeFileSync(join(repo.root, 'theirs.ts'), 'theirs\n')
+    repo.git('add', 'theirs.ts')
+    const host = await load({ root: repo.root, home })
+    const caller = { kind: 'agent' as const, task: 'demo/one', project: 'demo', cwd: repo.root }
+
+    const answer = await host.call(
+      'checks_run',
+      { related: true, paths: ['mine.ts', 'never-was.ts'] },
+      { caller },
+    )
+    expect(answer.text).toContain('✓ `pre-commit` passed')
+    const log = await host.call('checks_log', { check: 'pre-commit' }, { caller })
+    expect(log.text).toContain('mine.ts')
+    expect(log.text).not.toContain('theirs.ts')
+    // And the checkout's own index is exactly as the other agent left it.
+    expect(repo.git('diff', '--cached', '--name-only')).toBe('theirs.ts\n')
+  })
+
   it('leaves the rollup unknown and says so beside it, never green', async () => {
     const where = related()
     const host = await load(where)
