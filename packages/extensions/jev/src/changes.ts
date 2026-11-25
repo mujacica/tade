@@ -36,6 +36,40 @@ export interface Change {
   unread: string[]
   /** Characters of patch left behind inside the files that were read. */
   cut: number
+  /**
+   * The files left out before anything was read, by name and why: what a
+   * question is not about (a lockfile, a binary, what the repository marks
+   * generated or vendored) and what is too big to be read as a judgement.
+   */
+  left: LeftOut[]
+}
+
+/**
+ * Why a file the change touched was left out of the reading.
+ *
+ * - `lockfile` and `output` are the names `SKIP` and `SKIP_IN` know: bulk, not
+ *   judgement.
+ * - `generated`, `vendored` and `no-diff` are the repository's own word for
+ *   it, out of its `.gitattributes` (`linguist-generated`, `linguist-vendored`,
+ *   `-diff` and the `binary` macro that sets it), read with `git check-attr` —
+ *   never guessed from a name.
+ * - `binary` is git's own answer, from the patch it printed.
+ * - `too-big` is a file over `FILE_BYTES` at the change's head, or a patch
+ *   over `PATCH_BYTES`: read whole it would be most of an ask, and read in
+ *   part it would be twenty thousand characters of a generated city.
+ */
+export type LeftWhy =
+  | 'lockfile'
+  | 'output'
+  | 'generated'
+  | 'vendored'
+  | 'no-diff'
+  | 'binary'
+  | 'too-big'
+
+export interface LeftOut {
+  file: string
+  why: LeftWhy
 }
 
 /** A branch with work on it that somebody asked for: what a review is about. */
@@ -79,8 +113,37 @@ export interface Unit {
  */
 const SKIP_IN = /(^|\/)(node_modules|vendor|dist)\//
 
+const LOCKFILE =
+  /(^|\/)(pnpm-lock\.yaml|package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|bun\.lockb?|Cargo\.lock|go\.sum|poetry\.lock|uv\.lock|Gemfile\.lock|composer\.lock|Pipfile\.lock|flake\.lock)$/i
+
 const SKIP =
-  /(^|\/)(pnpm-lock\.yaml|package-lock\.json|yarn\.lock|Cargo\.lock|go\.sum|poetry\.lock|uv\.lock|.*\.min\.(js|css)|.*\.(snap|ansi)|.*\.(png|jpg|jpeg|gif|webp|ico|svg|pdf|zip|gz|wav|mp3|mp4|woff2?|ttf))$/i
+  /(^|\/)(.*\.min\.(js|css)|.*\.(snap|ansi)|.*\.(png|jpg|jpeg|gif|webp|ico|svg|pdf|zip|gz|wav|mp3|mp4|woff2?|ttf))$/i
+
+/**
+ * The biggest file, at the change's head, that is read at all, in bytes.
+ *
+ * A change is listed before any of it is read, so a file this size is named
+ * and never fetched: a nightly change that carried a generated city and the
+ * night's records was one `git show` of more than 64 MB, which the program
+ * runner stops — and the whole change, its real fixes included, came back as a
+ * review that could not look, every ten minutes. Nothing a person wrote by
+ * hand and a question can be about is a megabyte in one file.
+ */
+const FILE_BYTES = 1_000_000
+
+/**
+ * The biggest patch of one file that is read, in bytes: the backstop for what
+ * `FILE_BYTES` cannot see — a file deleted, or one rewritten end to end.
+ *
+ * Each file is fetched on its own with this as the cap on what git may print,
+ * so git is stopped at the first byte past it rather than at 64 MB. Ten times
+ * `PATCH_LIMIT`: a patch under it is read up to `PATCH_LIMIT` as before, and
+ * one over it is not a reading of the file, so it is named instead.
+ */
+const PATCH_BYTES = 200_000
+
+/** How many paths one `git check-attr` or `git ls-tree` is handed, so no argument list is too long. */
+const PATHS_PER_CALL = 200
 
 /** How much of one file's patch is read. Past this, a question is about the first half anyway. */
 const PATCH_LIMIT = 20_000
@@ -133,6 +196,7 @@ export const CHARS_PER_TOKEN = 2.5
 export function cutTo(
   patches: readonly { file: string; patch: string }[],
   skipped: readonly string[] = [],
+  left: readonly LeftOut[] = [],
 ): Change {
   const files: FileChange[] = []
   const unread = [...skipped]
@@ -148,7 +212,7 @@ export function cutTo(
     files.push({ file: one.file, patch, cut: one.patch.length - patch.length })
     spent += patch.length
   }
-  return { files, unread, cut }
+  return { files, unread, cut, left: [...left] }
 }
 
 /**
@@ -158,16 +222,50 @@ export function cutTo(
  * be three different claims about the same reading.
  */
 export function partSaid(change: Change): string | null {
-  if (change.unread.length === 0 && change.cut === 0) return null
+  const left = leftSaid(change.left)
+  if (change.unread.length === 0 && change.cut === 0) return left
   const said: string[] = []
   if (change.unread.length > 0) {
-    const named = change.unread.slice(0, 3).join(', ')
     said.push(
-      `${change.unread.length} of ${change.files.length + change.unread.length} files were not read (${named}${change.unread.length > 3 ? ', and others' : ''})`,
+      `${change.unread.length} of ${change.files.length + change.unread.length} files were not read (${named(change.unread)})`,
     )
   }
   if (change.cut > 0) said.push(`${change.cut} characters of patch were left behind`)
-  return `Read in part: ${said.join('; ')}. What it did not read, it cannot have answered about.`
+  return [
+    `Read in part: ${said.join('; ')}. What it did not read, it cannot have answered about.`,
+    left,
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
+/** Up to three names, and that there were others. */
+function named(files: readonly string[]): string {
+  return `${files.slice(0, 3).join(', ')}${files.length > 3 ? ', and others' : ''}`
+}
+
+/** What each reason a file is left out is called, in the order they are said. */
+const LEFT_WORDS: Record<LeftWhy, string> = {
+  'too-big': 'too big to read',
+  generated: 'marked linguist-generated',
+  vendored: 'vendored',
+  'no-diff': 'marked -diff',
+  binary: 'binary',
+  lockfile: 'lockfiles',
+  output: 'images, snapshots or build output',
+}
+
+/** The files left out before reading, by reason and by name, or null where none were. */
+function leftSaid(left: readonly LeftOut[]): string | null {
+  if (left.length === 0) return null
+  const groups = (Object.keys(LEFT_WORDS) as LeftWhy[])
+    .map((why) => ({ why, files: left.filter((one) => one.why === why).map((one) => one.file) }))
+    .filter((group) => group.files.length > 0)
+    .map((group) => `${LEFT_WORDS[group.why]} (${group.files.length}): ${named(group.files)}`)
+  const big = left.some((one) => one.why === 'too-big')
+    ? ' Too big is a file over 1 MB, or a patch over 200 KB.'
+    : ''
+  return `Left out by name and never read — ${groups.join('; ')}.${big}`
 }
 
 async function git(
@@ -175,9 +273,23 @@ async function git(
   root: string,
   args: readonly string[],
   timeoutMs = 10_000,
+  maxBuffer?: number,
 ): Promise<{ ok: boolean; out: string; said: string }> {
-  const ran = await ctx.exec('git', ['-C', root, ...args], { timeoutMs })
+  const ran = await ctx.exec('git', ['-C', root, ...args], {
+    timeoutMs,
+    ...(maxBuffer ? { maxBuffer } : {}),
+  })
   return { ok: ran.code === 0, out: ran.stdout, said: ran.stderr.trim() }
+}
+
+/**
+ * A change git could not list or show at all: the change's own trouble, which
+ * reading it again at the same head will not mend — never the judge's, which
+ * is a look's trouble and is tried again. The review watch says one of these
+ * once, as a notice, and does not read it again until the change moves.
+ */
+export class Unreadable extends Error {
+  override name = 'Unreadable'
 }
 
 /** A task file, as far as anything here needs it. Never throws: a file nobody can read is no task. */
@@ -641,68 +753,184 @@ export function patchesIn(shown: string): { file: string; patch: string }[] {
  * anybody else committed in between, and a finding on somebody else's line is
  * worse than no finding. A file two agents both touched appears in both, which
  * is true — they both changed it.
+ *
+ * Listed first and read second. The listing is `--name-status`, which reads
+ * no file's content; then what no question is about is left out by name —
+ * lockfiles and output by `SKIP`, what the repository marks generated,
+ * vendored or `-diff` by its own `.gitattributes`, and any file over
+ * `FILE_BYTES` at the head — and only then is each file left fetched, on its
+ * own and with a cap on what git may print, until the change's budget is
+ * spent. One combined `git show` of everything used to be the whole of it, and
+ * a change carrying 64 MB of generated files was a change nothing could read.
+ *
+ * Throws `Unreadable` only where git could not even list it.
  */
 export async function changesFor(
   ctx: ExtensionContext,
   unit: Pick<Unit, 'root' | 'base' | 'head' | 'commits'>,
   paths: readonly string[] = [],
 ): Promise<Change> {
-  if (unit.commits.length === 0) {
-    return changesIn(ctx, unit.root, `${unit.base}...${unit.head}`, paths)
-  }
-  const shown = await git(
+  const scope = unit.commits.length === 0 ? [`${unit.base}...${unit.head}`] : unit.commits
+  const verb = unit.commits.length === 0 ? ['diff'] : ['show', '--format=']
+  const only = paths.length > 0 ? ['--', ...paths] : []
+  const listing = await git(
     ctx,
     unit.root,
-    [
-      'show',
-      '--format=',
-      '--unified=3',
-      ...unit.commits,
-      ...(paths.length > 0 ? ['--', ...paths] : []),
-    ],
+    [...verb, '--name-status', '-z', '--no-renames', ...scope, ...only],
     30_000,
   )
-  if (!shown.ok) throw new Error(`git show: ${shown.said || 'it would not resolve'}`)
-  const byFile = new Map<string, string>()
-  for (const { file, patch } of patchesIn(shown.out)) {
-    if (SKIP.test(file) || SKIP_IN.test(file)) continue
-    byFile.set(file, (byFile.get(file) ?? '') + patch)
+  if (!listing.ok) {
+    throw new Unreadable(`git ${verb[0]}: ${listing.said || 'it would not resolve'}`)
   }
-  return cutTo([...byFile.entries()].map(([file, patch]) => ({ file, patch })))
+  const files = namesIn(listing.out)
+  const left: LeftOut[] = []
+  const rest: string[] = []
+  for (const file of files) {
+    const why = LOCKFILE.test(file)
+      ? 'lockfile'
+      : SKIP.test(file) || SKIP_IN.test(file)
+        ? 'output'
+        : null
+    if (why) left.push({ file, why })
+    else rest.push(file)
+  }
+  const marked = await attributesOf(ctx, unit.root, rest)
+  const sizes = await sizesAt(ctx, unit.root, unit.head, rest)
+  const candidates: string[] = []
+  for (const file of rest) {
+    const why =
+      marked.get(file) ?? ((sizes.get(file) ?? 0) > FILE_BYTES ? ('too-big' as const) : null)
+    if (why) left.push({ file, why })
+    else candidates.push(file)
+  }
+  const patches: { file: string; patch: string }[] = []
+  const unread: string[] = []
+  let spent = 0
+  for (const file of candidates) {
+    // The same two bounds `cutTo` keeps, kept here as well so that what is
+    // past them is named without being fetched: known to have changed, and
+    // known not to have been read.
+    if (patches.length >= FILE_LIMIT || spent >= CHANGE_LIMIT) {
+      unread.push(file)
+      continue
+    }
+    const shown = await git(
+      ctx,
+      unit.root,
+      [...verb, '--unified=3', ...scope, '--', file],
+      20_000,
+      // Past the cap by a margin, so a cut that lands inside a character is
+      // still over it once decoded.
+      PATCH_BYTES + 4_096,
+    )
+    if (Buffer.byteLength(shown.out) > PATCH_BYTES) {
+      left.push({ file, why: 'too-big' })
+      continue
+    }
+    if (!shown.ok) {
+      unread.push(file)
+      continue
+    }
+    // Asked of what git printed and not of the patch: a binary file added has
+    // no `---`/`+++` lines, so `patchesIn` cannot name it, and it would go
+    // unsaid as an empty patch.
+    if (/^(Binary files .* differ|GIT binary patch)$/m.test(shown.out)) {
+      left.push({ file, why: 'binary' })
+      continue
+    }
+    const patch = patchesIn(shown.out)
+      .filter((one) => one.file === file)
+      .map((one) => one.patch)
+      .join('')
+    if (patch.trim() === '') continue
+    patches.push({ file, patch })
+    spent += Math.min(patch.length, PATCH_LIMIT)
+  }
+  return cutTo(patches, unread, left)
+}
+
+/** The paths out of `--name-status -z`, each once, in the order git gave them. */
+export function namesIn(listed: string): string[] {
+  const words = listed.split('\0')
+  const seen = new Set<string>()
+  // Status, then path; `--no-renames` means there is never a second path.
+  for (let at = 0; at + 1 < words.length; at += 2) {
+    const file = words[at + 1]?.replace(/^\n+/, '')
+    if (file) seen.add(file)
+  }
+  return [...seen]
 }
 
 /**
- * One change, file by file, with what a question cannot be about left out.
- * Empty when there is nothing in it a rubric could read — which is an answer,
- * and said as one.
+ * What the repository's own `.gitattributes` say each file is, where it says
+ * it is something no question is about. A repository that cannot be asked is
+ * read as one that marks nothing: the size caps still hold, so the failure is
+ * reading more than was needed, never less than was asked.
  */
-export async function changesIn(
+async function attributesOf(
   ctx: ExtensionContext,
   root: string,
-  range: string,
-  paths: readonly string[] = [],
-): Promise<Change> {
-  const listed = await git(ctx, root, [
-    'diff',
-    '--name-only',
-    range,
-    ...(paths.length > 0 ? ['--', ...paths] : []),
-  ])
-  if (!listed.ok) throw new Error(`git diff ${range}: ${listed.said || 'it would not resolve'}`)
-  const files = listed.out
-    .split('\n')
-    .map((file) => file.trim())
-    .filter((file) => file !== '' && !SKIP.test(file) && !SKIP_IN.test(file))
-  const patches: { file: string; patch: string }[] = []
-  for (const file of files.slice(0, FILE_LIMIT)) {
-    const shown = await git(ctx, root, ['diff', '--unified=3', range, '--', file], 20_000)
-    if (shown.out.trim() === '') continue
-    patches.push({ file, patch: shown.out })
+  files: readonly string[],
+): Promise<Map<string, LeftWhy>> {
+  const marked = new Map<string, LeftWhy>()
+  for (let at = 0; at < files.length; at += PATHS_PER_CALL) {
+    const asked = await git(ctx, root, [
+      'check-attr',
+      '-z',
+      'linguist-generated',
+      'linguist-vendored',
+      'diff',
+      '--',
+      ...files.slice(at, at + PATHS_PER_CALL),
+    ])
+    if (!asked.ok) continue
+    const words = asked.out.split('\0')
+    for (let one = 0; one + 2 < words.length; one += 3) {
+      const [file, name, value] = [words[one] ?? '', words[one + 1], words[one + 2]]
+      const set = value === 'set' || value === 'true'
+      const why: LeftWhy | null =
+        name === 'linguist-generated' && set
+          ? 'generated'
+          : name === 'linguist-vendored' && set
+            ? 'vendored'
+            : name === 'diff' && value === 'unset'
+              ? 'no-diff'
+              : null
+      // The first reason found stands: generated is said before -diff.
+      if (why && file && !marked.has(file)) marked.set(file, why)
+    }
   }
-  // The files past `FILE_LIMIT` are named rather than fetched: they are known
-  // to have changed and are known not to have been read, which is exactly what
-  // a reader needs to hear about them.
-  return cutTo(patches, files.slice(FILE_LIMIT))
+  return marked
+}
+
+/**
+ * Each file's size in bytes at `head`, where it is a file there: a file the
+ * change deleted has none, and is caught by `PATCH_BYTES` instead.
+ */
+async function sizesAt(
+  ctx: ExtensionContext,
+  root: string,
+  head: string,
+  files: readonly string[],
+): Promise<Map<string, number>> {
+  const sizes = new Map<string, number>()
+  for (let at = 0; at < files.length; at += PATHS_PER_CALL) {
+    const listed = await git(ctx, root, [
+      'ls-tree',
+      '-l',
+      '-z',
+      '--full-tree',
+      head,
+      '--',
+      ...files.slice(at, at + PATHS_PER_CALL),
+    ])
+    if (!listed.ok) continue
+    for (const entry of listed.out.split('\0')) {
+      const found = /^\d+ blob [0-9a-f]+ +(\d+)\t(.+)$/s.exec(entry)
+      if (found?.[1] && found[2]) sizes.set(found[2], Number(found[1]))
+    }
+  }
+  return sizes
 }
 
 /**

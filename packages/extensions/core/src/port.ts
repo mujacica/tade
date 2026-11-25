@@ -570,11 +570,16 @@ export interface ExtensionContext {
    */
   connected?(source: ConnectSource): Promise<string | null>
   fetch: typeof fetch
-  /** Run a program. Never throws: a failure is its code and what it said. */
+  /**
+   * Run a program. Never throws: a failure is its code and what it said.
+   * `maxBuffer` is the bytes of each output kept; past it the program is
+   * stopped and that is said, so a caller that asks for a bounded answer gets
+   * one rather than 64 MB of somebody's generated file.
+   */
   exec(
     command: string,
     args: readonly string[],
-    options?: { cwd?: string; timeoutMs?: number },
+    options?: { cwd?: string; timeoutMs?: number; maxBuffer?: number },
   ): Promise<ExecResult>
   /** Tade's home. */
   home: string

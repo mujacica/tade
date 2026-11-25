@@ -28,7 +28,7 @@ import {
   readyProblem,
   thresholds,
 } from './ask.ts'
-import { CHARS_PER_TOKEN, changesFor, unitFor, unitsIn, whoseIn } from './changes.ts'
+import { CHARS_PER_TOKEN, changesFor, partSaid, unitFor, unitsIn, whoseIn } from './changes.ts'
 import { circlingIn } from './circles.ts'
 import { findingsOf, shorten } from './loop.ts'
 import { mistakesWatch } from './mistakes.ts'
@@ -541,7 +541,7 @@ export const jevExtension: TadeExtension = {
         const change = await changesFor(ctx, unit, paths)
         if (change.files.length === 0) {
           throw new Error(
-            `nothing to read in ${unit.key}: no files a question could be about changed between ${unit.base.slice(0, 8)} and ${unit.head.slice(0, 8)}`,
+            `nothing to read in ${unit.key}: no files a question could be about changed between ${unit.base.slice(0, 8)} and ${unit.head.slice(0, 8)}${partSaid(change) ? `. ${partSaid(change)}` : ''}`,
           )
         }
         const only = Array.isArray(input.questions) ? input.questions.map(String) : null

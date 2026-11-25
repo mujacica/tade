@@ -16,6 +16,7 @@ import {
   partSaid,
   stateOf,
   type Unit,
+  Unreadable,
   unitsIn,
 } from './changes.ts'
 
@@ -226,6 +227,20 @@ function sizeOf(batch: readonly { file: string; patch: string }[]): number {
   return batch.reduce((sum, one) => sum + one.patch.length + one.file.length, 0)
 }
 
+/**
+ * The changes a look could not read, in one notice, or null where there were
+ * none. Each is named at its head, which is what keys it: the window says a
+ * notice when it differs from the last look's, and the cursor moves past the
+ * change, so the same change at the same head is said once and said again
+ * only once it has moved.
+ */
+export function untoldSaid(untold: readonly { unit: Unit; said: string }[]): string | null {
+  if (untold.length === 0) return null
+  return untold
+    .map(({ unit, said }) => `${unit.key} at ${unit.head.slice(0, 8)}: ${said}`)
+    .join(' ')
+}
+
 /** The questions that cleared the reporting threshold, highest first. */
 export function raisedIn(reading: Reading, report: number): string[] {
   return Object.entries(reading.answers)
@@ -390,13 +405,24 @@ export const reviewWatch: ExtensionWatch = {
     const asking = Asking.from(ctx)
     // What fails leaves its cursor where it was and is read again next time.
     const refused: string[] = []
+    // What nothing could read because of what the change itself is — git could
+    // not list it, or every file in it was left out — is no trouble with the
+    // look, and reading it again at the same head says the same thing. So it
+    // is said once, as a notice, and its cursor moves to its head: the next
+    // time it is read is the next time it moves. It used to be thrown, and a
+    // nightly change with 64 MB of generated files in it was a red line every
+    // ten minutes for as long as it stood.
+    const untold: { unit: Unit; said: string }[] = []
     let readable = 0
     for (const unit of still) {
       try {
         const change = await changesFor(ctx, unit)
         if (change.files.length === 0) {
           readable += 1
-          since[unit.key] = unit.head
+          const left = partSaid(change)
+          if (left) {
+            untold.push({ unit, said: `nothing in it a question could be about. ${left}` })
+          } else since[unit.key] = unit.head
           continue
         }
         const before = { requests: asking.requests, usd: asking.usd }
@@ -417,6 +443,10 @@ export const reviewWatch: ExtensionWatch = {
         )
         findings.push(...findingsIn(reading, unit, { ...limits, report }))
       } catch (err) {
+        if (err instanceof Unreadable) {
+          untold.push({ unit, said: `it could not be read: ${err.message}` })
+          continue
+        }
         refused.push(`${unit.key} (${err instanceof Error ? err.message : String(err)})`)
       }
     }
@@ -430,8 +460,13 @@ export const reviewWatch: ExtensionWatch = {
       )
     }
     if (findings.length > 0 || still.length > 0) forgetRead()
+    // A notice is only heard from a look that found nothing — beside a finding
+    // the window drops it — so where this one found something, what it could
+    // not read keeps its cursor and is said by the next look instead of never.
+    const said = findings.length === 0 ? untoldSaid(untold) : null
+    if (said) for (const { unit } of untold) since[unit.key] = unit.head
     // Unchanged when nothing moved, so a quiet hour does not move the cursor.
-    return { found: findings, since: JSON.stringify(since) }
+    return { found: findings, since: JSON.stringify(since), ...(said ? { said } : {}) }
   },
   agent: (finding) => ({
     title: `look at ${finding.key.replace(':', ' ')}`,

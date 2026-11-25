@@ -128,6 +128,16 @@ with `unread` and `cut` on it and not a list of files.
 - **`cutTo` reads a file whole or not at all.** Filling the last slot with three hundred characters
   of somebody's file and calling it a reading is worse than naming it unread. `CHANGE_LIMIT` and
   `FILE_LIMIT` are backstops on the whole change, not routine cuts.
+- **List first, read second, and never ask git for all of it.** `changesFor` lists with
+  `--name-status`, leaves out by name what no question is about — lockfiles and output (`SKIP`),
+  what the repository's `.gitattributes` mark `linguist-generated`, `linguist-vendored` or `-diff`,
+  binaries, and a file over `FILE_BYTES` at the head — then fetches each file on its own with a
+  `maxBuffer` of `PATCH_BYTES`. One combined `git show` of a nightly change carrying a generated
+  city was over the runner's 64 MB, and the whole change, its real fixes too, could not be read.
+  What was left out goes in `Change.left` and is said by `partSaid` with every finding.
+- **A change git cannot read at all is a notice, not trouble** (`Unreadable`, `untoldSaid`): said
+  once through the watch's `said`, keyed by its head, with the cursor moved past it — read again
+  only once it moves. Thrown, it was a ✗ every ten minutes. The judge refusing is still the look's.
 - **One ask refused is not a change nobody could read.** The batch is named as unread and the rest
   is read. And a look reads each change on its own, so one change nobody could read is not a look
   that could not look — only a look that could read nothing says so.

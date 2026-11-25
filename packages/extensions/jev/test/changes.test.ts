@@ -29,7 +29,7 @@ describe('how much of a change is read', () => {
   it('reads a change whole when it fits, and says nothing about it', () => {
     const change = cutTo([patch('a.ts', 100), patch('b.ts', 200)])
     expect(change.files.map((one) => one.file)).toEqual(['a.ts', 'b.ts'])
-    expect(change).toMatchObject({ unread: [], cut: 0 })
+    expect(change).toMatchObject({ unread: [], cut: 0, left: [] })
     // Nothing to say is said as nothing: a note under every review would be
     // read four hundred times and mean nothing on the four hundred and first.
     expect(partSaid(change)).toBeNull()
@@ -296,11 +296,16 @@ describe('an ask is built to fit, rather than sent to be refused', () => {
     // the task names and every file name — the part that varies most. An agent
     // whose intent is three paragraphs puts thousands of characters into every
     // ask before a line of diff.
-    const small = roomFor(asking, unit, { files: [file('a.ts', 10)], unread: [], cut: 0 }, [])
+    const small = roomFor(
+      asking,
+      unit,
+      { files: [file('a.ts', 10)], unread: [], cut: 0, left: [] },
+      [],
+    )
     const wordy = roomFor(
       asking,
       { ...unit, intent: 'x'.repeat(20_000) },
-      { files: [file('a.ts', 10)], unread: [], cut: 0 },
+      { files: [file('a.ts', 10)], unread: [], cut: 0, left: [] },
       [],
     )
     expect(small - wordy).toBeGreaterThan(19_000)
@@ -312,6 +317,7 @@ describe('an ask is built to fit, rather than sent to be refused', () => {
         files: Array.from({ length: 40 }, (_, at) => file(`packages/app/src/page-${at}.ts`, 10)),
         unread: [],
         cut: 0,
+        left: [],
       },
       [],
     )
@@ -319,7 +325,12 @@ describe('an ask is built to fit, rather than sent to be refused', () => {
   })
 
   it('leaves room for the estimate being an estimate, and never goes over the budget', () => {
-    const room = roomFor(asking, unit, { files: [file('a.ts', 10)], unread: [], cut: 0 }, [])
+    const room = roomFor(
+      asking,
+      unit,
+      { files: [file('a.ts', 10)], unread: [], cut: 0, left: [] },
+      [],
+    )
     expect(room).toBeLessThan(32_000 * CHARS_PER_TOKEN)
     expect(room).toBeGreaterThan(50_000)
   })

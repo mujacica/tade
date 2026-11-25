@@ -1433,11 +1433,12 @@ function withLinks(text: string, links: readonly Link[]): string {
 async function run(
   command: string,
   args: readonly string[],
-  options: { cwd?: string; timeoutMs?: number } = {},
+  options: { cwd?: string; timeoutMs?: number; maxBuffer?: number } = {},
 ): Promise<ExecResult> {
   const ran = await runProgram(command, args, {
     cwd: options.cwd,
     timeoutMs: options.timeoutMs ?? 120_000,
+    ...(options.maxBuffer ? { maxBuffer: options.maxBuffer } : {}),
   })
   return { code: ran.code, stdout: ran.stdout, stderr: ran.stderr }
 }
