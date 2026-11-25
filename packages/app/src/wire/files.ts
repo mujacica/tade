@@ -758,7 +758,8 @@ export class Files implements Subject {
     const root = task ? this.wire.live?.worktreeOf(task) : this.hereOnDisk()
     if (!root || panel?.kind !== 'confirm') return
     const marks = this.wire.live?.marksAt(root) ?? {}
-    const out = await discardIn(root, path, marks[path] === 'U')
+    // A file's name, never a pattern: `*.ts` is the file called that.
+    const out = await discardIn(root, `:(literal)${path}`, marks[path] === 'U')
     if (!out.ok) {
       this.wire.put({ ...this.wire.state, panel: { ...panel, busy: false, error: out.said } })
       return

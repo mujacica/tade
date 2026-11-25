@@ -135,6 +135,25 @@ describe('throwing away a change', () => {
     expect(gone(file)).toBe(true)
   })
 
+  it('takes away only the file called `*.txt`, not every file that would match it', async () => {
+    const repo = madeRepo()
+    const globbed = join(repo.root, '*.txt')
+    const other = join(repo.root, 'notes.txt')
+    writeFileSync(globbed, 'a file with an unlucky name')
+    writeFileSync(other, 'somebody else’s, never committed')
+
+    const world = wiring(repo.root, {
+      marks: { '*.txt': 'U', 'notes.txt': 'U' },
+      panel: confirming,
+    })
+    await new Files(world.wire, deps()).discard(null, '*.txt')
+
+    // The name is git's listing of a file, not a pattern: `clean -f -- *.txt`
+    // would take every untracked text file in the checkout with it.
+    expect(gone(globbed)).toBe(true)
+    expect(readFileSync(other, 'utf8')).toBe('somebody else’s, never committed')
+  })
+
   it('leaves everything alone where nothing asked the question', async () => {
     const repo = madeRepo()
     const file = join(repo.root, 'README.md')
