@@ -1,5 +1,6 @@
 import { type Document, printable, waitingDocuments } from '@tade/core'
 import type { Match, SearchRoot } from './finder.ts'
+import type { Machine } from './machines.ts'
 import {
   groupsOf,
   nowOf,
@@ -463,6 +464,12 @@ export interface SearchDocument {
   note: string | null
   /** When it was handed over, so of two the same the newest comes first. */
   at: string
+  /**
+   * The machine it is on, where that is not this one: then `path` is its name
+   * there, and a press reads it over the link into a copy here
+   * (`remote-document:`) rather than opening anything on this disk.
+   */
+  there?: string
 }
 
 /** How much of a task's name a document's row says before it gives way. */
@@ -516,19 +523,53 @@ export function searchDocuments(
   })
 }
 
+/**
+ * The documents other machines' work produced that can be read now: written,
+ * on a machine whose link is up, as what it said of itself lists them — the
+ * same rows a project here has, each pressed to read it over the link.
+ */
+export function documentsThere(remotes: readonly Machine[]): SearchDocument[] {
+  return remotes.flatMap((machine) =>
+    machine.link !== 'live'
+      ? []
+      : (machine.detail.about?.documents ?? [])
+          .filter((one) => one.state === 'written')
+          .map((one) => {
+            const label = printable(one.name)
+            const task = printable(one.task)
+            return {
+              project: printable(one.project),
+              path: one.name,
+              label,
+              lower: label.toLowerCase(),
+              task,
+              taskLower: task.toLowerCase(),
+              handedOver: true,
+              waits: false,
+              note: null,
+              at: one.at === null ? '' : new Date(one.at).toISOString(),
+              there: machine.name,
+            }
+          }),
+  )
+}
+
 /** A document's row, opened where it is, at a line if one was typed. */
 export function documentEntry(
   document: SearchDocument,
   line: number | null = null,
   column: number | null = null,
 ): SearchEntry {
-  const { label, note, project, task } = document
-  const said = line ? `line ${line}` : note
+  const { label, note, project, task, there } = document
+  const said = line && !there ? `line ${line}` : note
+  const where = there ? `${project} on ${there}` : project
   return {
-    id: openId(document.path, line, column),
+    id: there
+      ? `run:remote-document:${there} ${task} ${document.path}`
+      : openId(document.path, line, column),
     kind: 'document',
     label,
-    detail: task ? `${shortTask(task)} · ${project}` : project,
+    detail: task ? `${shortTask(task)} · ${where}` : where,
     mark: '¶',
     ...(document.waits ? { tone: 'waiting' as const } : {}),
     ...(said ? { note: said } : {}),

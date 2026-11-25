@@ -22,6 +22,7 @@ import { keysPanel } from '../panels/small/state.ts'
 import { type PlanRow, standingOf } from '../plans.ts'
 import {
   documentEntry,
+  documentsThere,
   type FoundDocument,
   looksLikePath,
   type PathLook,
@@ -250,12 +251,16 @@ export class Search implements Subject {
     if (panel?.kind !== 'search') return []
     const text = parseQuery(panel.query).text
     const matches = this.grepped.text === text ? this.grepped.matches : []
+    // Another machine's documents, as it last said of itself: read over the
+    // link on a press, since nothing of them is on this disk to list.
+    const there = documentsThere(this.deps.machines().remotes)
     const key = [
       panel.query,
       this.looked ? `${this.looked.path}\u0001${this.looked.is}` : '',
       this.meant?.said === panel.query ? this.meant.entries.length : -1,
       this.files?.at ?? 0,
       this.documents?.at ?? 0,
+      there.map((one) => `${one.there} ${one.task} ${one.path}`).join(),
       this.grepped.text,
       matches.length,
       this.wire.state.panes.length,
@@ -275,7 +280,7 @@ export class Search implements Subject {
         entries: searchResults(panel.query, {
           entries: this.searchable(),
           files: this.files?.files ?? [],
-          documents: this.documents?.all ?? [],
+          documents: [...(this.documents?.all ?? []), ...there],
           matches,
           terminals: this.terminalTexts,
           // Core's own reading of what `~` means, so the box and a project

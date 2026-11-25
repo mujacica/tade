@@ -1094,8 +1094,11 @@ drawn from what its away view sends — the projection the link holds.
   each item off with that machine's `cannot`, its link being down, or why no link carries it — and
   never off because its `can` did not list it: whether this machine may ask is that machine's to
   answer at the act. A view or a handler with a second branch for another machine is the bug
-  this replaced. A document's row is a press (`remote-document:<machine> <task> <name>`)
-  that copies it here over the link and opens the copy in the viewer, offered only while linked.
+  this replaced. A document there is found by search as one here is (`documentsThere`,
+  `search.ts`), its row a press (`remote-document:<machine> <task> <name>`) that copies it here over
+  the link and opens the copy in the viewer, offered only while linked and written.
+  What `seenThere` derives is the same object for the same inputs (`projected`, `lanedPanes`), or the
+  side is drawn again from nothing every frame a lane prints (`last-frame.test.ts`).
   A request's row in INTAKE there is a press too (`remote-request:<machine> <item>`, a name the router hands the
   rest of only because it ends in `:`), into a page that only reads (`panels/intake/there.ts`):
   labelled with its machine, its own words under this machine's `MATERIAL_LABEL`, and approving it

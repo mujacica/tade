@@ -10,12 +10,12 @@ import { standingThere } from './standing-there.ts'
 // machine, through the whole window — so the press goes through the router, as
 // a person's does, rather than calling an action by its name:
 //
-// - one of its requests, its row in that machine's INTAKE pressed, and the page
-//   that only reads in front — labelled with its machine, the request's own
-//   words under the label that says whose they are, and approving it said to be
-//   that machine's;
-// - one of its documents, its row in DOCUMENTS pressed, read here over the link
-//   into a copy in this home and opened in the viewer.
+// - one of its requests, its row in that machine's INTAKE pressed — its id, as
+//   a request here is drawn — and the page that only reads in front, labelled
+//   with its machine, the request's own words under the label that says whose
+//   they are, and approving it said to be that machine's;
+// - one of its documents, found by search as a document here is, read over the
+//   link into a copy in this home and opened in the viewer.
 //
 // The far end is a real away view (`far.ts`) carrying both, and the link the
 // scripted one.
@@ -102,9 +102,9 @@ describe('pressed down the side of a project on another machine', () => {
     const far = await standingOn((one) => {
       one.intake = [REQUEST]
     })
-    await until('its request down the side', () => shown('Dropped'), 20_000)
+    await until('its request down the side', () => shown('acme/tade#'), 20_000)
 
-    await press('Dropped')
+    await press('acme/tade#')
     await until('the page', () => shown('acme/tade#412 on vps'), 20_000)
     expect(shown('Approving it is vps’s')).toBe(true)
     // Its own words are further down the page, read by scrolling it.
@@ -120,7 +120,7 @@ describe('pressed down the side of a project on another machine', () => {
     expect(far.acted).toEqual([])
   })
 
-  it('reads one of its documents from its DOCUMENTS into a copy here and opens it in the viewer', async () => {
+  it('finds one of its documents by search, reads it into a copy here and opens it in the viewer', async () => {
     const at = new Date().toISOString()
     const text = '# The plan\n\nRing the doorbell on every delivery.\n'
     await standingOn((one) => {
@@ -145,10 +145,14 @@ describe('pressed down the side of a project on another machine', () => {
       }
       one.documents.set('tade/plan/PLAN.md', { at, text })
     })
-    // Offered as a press once it is linked and has said what its work produced.
-    await until('its document down the side', () => shown('tade/plan · press'), 20_000)
+    // Found once it is linked and has said what its work produced, saying whose it is.
+    terminal.press('\x0b')
+    await until('search', () => shown('Search'), 20_000)
+    for (const char of 'PLAN') terminal.press(char)
+    await until('its document in search', () => shown('tade on vps'), 20_000)
+    expect(shown('PLAN.md')).toBe(true)
 
-    await press('PLAN.md')
+    terminal.press('\r')
     await until(
       'the document, in the viewer',
       () => shown('Ring the doorbell on every delivery.'),
