@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { symlinkSync } from 'node:fs'
+import { mkdirSync, symlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -14,9 +14,16 @@ import { gitEnv, mkrepo, type Repo } from './fixtures/mkrepo.ts'
 // would have (`asCommitOf`), so it reads them the same way. Outside a commit —
 // by hand, or by Tade's checks with no paths — it still reads the whole tree.
 //
-// The repository here has no tsconfig, so a hook that got past its style step
-// stops at types, and no commit here ever lands. Which step said it failed is
-// the whole answer.
+// The repository the style tests use has no tsconfig, so a hook that got past
+// its style step stops at types, and none of their commits ever lands. Which
+// step said it failed is the whole answer.
+//
+// Types, in a commit, check the whole project as it is being committed: the
+// index written out with the installed packages lent to it, so another agent's
+// half-done file fails nobody's commit but its own, and a change to a port
+// still fails on the untouched file it breaks. The workspace here is two
+// packages joined the way pnpm joins this one's, by a link in node_modules, so
+// a lent link that reached the working tree's copy would be caught too.
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const HOOK = join(ROOT, '.githooks', 'pre-commit')
@@ -100,5 +107,118 @@ describe('the commit hook', () => {
     r.git('add', 'half.ts')
     r.write({ 'half.ts': TIDY })
     expect(run(r, 'git', 'commit', '-q', '-m', 'Half')).toContain(STYLE)
+  }, 60_000)
+})
+
+const PORT = 'packages/port/src/index.ts'
+const USER = 'packages/app/src/main.ts'
+const NUMBER = 'export const answer = (): number => 42\n'
+const STRING = 'export const answer = (): string => "42"\n'
+const WRONG = 'export const half: number = "not yet"\n'
+
+/** A two-package workspace with a tsconfig, whose app uses the port's `answer` as a number. */
+function workspace(): Repo {
+  const r = repo()
+  r.write({
+    // A smoke step that passes, so a commit the types let through lands.
+    'package.json': '{ "private": true, "type": "module", "scripts": { "test:smoke": "true" } }\n',
+    'tsconfig.json': `${JSON.stringify({
+      compilerOptions: {
+        target: 'ES2022',
+        module: 'NodeNext',
+        moduleResolution: 'NodeNext',
+        strict: true,
+        noEmit: true,
+        skipLibCheck: true,
+        types: [],
+      },
+      include: ['packages/*/src'],
+    })}\n`,
+    'packages/port/package.json':
+      '{ "name": "@x/port", "type": "module", "exports": "./src/index.ts" }\n',
+    [PORT]: NUMBER,
+    'packages/app/package.json': '{ "name": "@x/app", "type": "module" }\n',
+    [USER]: 'import { answer } from "@x/port"\n\nexport const doubled: number = answer() * 2\n',
+  })
+  // As pnpm links a workspace package: relative, and never committed.
+  mkdirSync(join(r.root, 'packages/app/node_modules/@x'), { recursive: true })
+  symlinkSync('../../../port', join(r.root, 'packages/app/node_modules/@x/port'))
+  r.git(
+    'add',
+    'package.json',
+    'tsconfig.json',
+    'packages/port/package.json',
+    PORT,
+    'packages/app/package.json',
+    USER,
+  )
+  r.git('commit', '-q', '--no-verify', '-m', 'Workspace')
+  return r
+}
+
+const commits = (r: Repo): number => Number(r.git('rev-list', '--count', 'HEAD').trim())
+
+describe('the commit hook’s types', () => {
+  it('are not failed by somebody else’s type error that is not in the commit', () => {
+    const r = workspace()
+    // Another agent's half-done work: a port changed under its user, and a
+    // file that does not type-check yet. Neither is in this commit.
+    r.write({ [PORT]: STRING, 'packages/app/src/half.ts': WRONG, 'packages/app/src/a.ts': TIDY })
+    expect(run(r, 'sh', HOOK)).toContain(TYPES)
+    const before = commits(r)
+    r.git('add', 'packages/app/src/a.ts')
+    const untracked = run(
+      r,
+      'git',
+      'commit',
+      '-q',
+      '-m',
+      'A',
+      '--only',
+      '--',
+      'packages/app/src/a.ts',
+    )
+    expect(untracked).not.toContain(TYPES)
+    expect(commits(r)).toBe(before + 1)
+
+    // Staged by somebody else, it is still not in a commit `--only` names.
+    r.git('add', 'packages/app/src/half.ts', PORT)
+    r.write({ 'packages/app/src/b.ts': TIDY })
+    r.git('add', 'packages/app/src/b.ts')
+    const staged = run(r, 'git', 'commit', '-q', '-m', 'B', '--only', '--', 'packages/app/src/b.ts')
+    expect(staged).not.toContain(TYPES)
+    expect(commits(r)).toBe(before + 2)
+  }, 60_000)
+
+  it('fail a commit of a file with a type error', () => {
+    const r = workspace()
+    r.write({ 'packages/app/src/half.ts': WRONG })
+    r.git('add', 'packages/app/src/half.ts')
+    const before = commits(r)
+    const failed = run(
+      r,
+      'git',
+      'commit',
+      '-q',
+      '-m',
+      'Half',
+      '--only',
+      '--',
+      'packages/app/src/half.ts',
+    )
+    expect(failed).toContain(TYPES)
+    expect(failed).toContain('packages/app/src/half.ts')
+    expect(commits(r)).toBe(before)
+  }, 60_000)
+
+  it('fail a change to a port on the untouched file it breaks', () => {
+    const r = workspace()
+    r.write({ [PORT]: STRING })
+    r.git('add', PORT)
+    const before = commits(r)
+    const failed = run(r, 'git', 'commit', '-q', '-m', 'Port', '--only', '--', PORT)
+    expect(failed).toContain(TYPES)
+    expect(failed).toContain(USER)
+    expect(commits(r)).toBe(before)
   }, 60_000)
 })
