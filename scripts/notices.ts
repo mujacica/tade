@@ -56,8 +56,27 @@ function licenceText(paths: readonly string[]): string | null {
   return null
 }
 
+/** The optional dependencies a package declares, as its installed manifest says. */
+function optionalOf(one: Licensed): string[] {
+  for (const dir of one.paths) {
+    try {
+      const read = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as {
+        optionalDependencies?: Record<string, string>
+      }
+      return Object.keys(read.optionalDependencies ?? {})
+    } catch {
+      // Not this copy: the next, or none.
+    }
+  }
+  return []
+}
+
 // Everything, then which of it Tade needs to run rather than only to be developed.
-const running = new Set(listed(true).map((one) => one.name))
+// `--prod` leaves out every optional dependency, even one a production package
+// cannot run without — `@lydell/node-pty`'s binary is this platform's optional
+// package — so those are counted as running with whatever declares them.
+const prod = listed(true)
+const running = new Set([...prod.map((one) => one.name), ...prod.flatMap(optionalOf)])
 const packages = new Map<string, Licensed & { dev: boolean }>()
 for (const one of listed(false)) {
   const known = packages.get(one.name)

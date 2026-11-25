@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { spawn as inTerminal } from '@lydell/node-pty'
 import { until } from '@tade/drivers-core/conformance'
-import { spawn as inTerminal } from 'node-pty'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { type Again, startAgain } from '../src/reloading.ts'

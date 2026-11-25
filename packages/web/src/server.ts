@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import { networkInterfaces } from 'node:os'
-import { publicSocket, routesOf } from '@tade/core'
+import { AWAY_REQUEST_SAID, publicSocket, routesOf } from '@tade/core'
 import { carryOut, type Did } from './acted.ts'
 import { type MenuStanding, menuHere } from './agent-menu.ts'
 import { answerHere } from './answering.ts'
@@ -179,7 +179,7 @@ export function webServer(opts: ServerOptions): WebServer {
       tell({
         type: 'warning',
         detail: {
-          message: `the away view could not answer a request: ${String(error).slice(0, 200)}`,
+          message: `${AWAY_REQUEST_SAID}${String(error).slice(0, 200)}`,
           request,
         },
       })

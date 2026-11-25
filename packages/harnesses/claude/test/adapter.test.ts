@@ -215,6 +215,8 @@ describe('ClaudeAdapter', () => {
       // is gone for the session (`MCP_WAITS`).
       expect(launch.env.MCP_TIMEOUT).toBe('180000')
       expect(launch.env.MCP_TOOL_TIMEOUT).toBe(String(TOOL_WAIT_MS))
+      // Tade's own server above, and none of claude.ai's connectors beside it.
+      expect(launch.env.ENABLE_CLAUDEAI_MCP_SERVERS).toBe('false')
       expect(readFileSync(given('--append-system-prompt-file'), 'utf8')).toBe(
         `You run in Tade.\n\n${BACKGROUNDED}`,
       )

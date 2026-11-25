@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -27,13 +27,32 @@ describe('node-pty’s spawn-helper', () => {
     expect(helperProblem(null)).toBeNull()
   })
 
-  it('names the file and the two commands when the bit is gone', () => {
+  it('names the file and the commands that install it again when the bit is gone', () => {
     const path = helper('inert', 0o644)
     const said = helperProblem(path)
     expect(said).toContain('posix_spawnp failed.')
     expect(said).toContain(`chmod +x ${path}`)
-    expect(said).toContain('pnpm approve-builds -g')
-    expect(said).toContain('--allow-scripts=tade-sh,node-pty')
+    expect(said).toContain('npm install -g tade-sh')
+    expect(said).toContain('pnpm add -g tade-sh')
+    // Nothing holds an install script any more, so nothing approves one.
+    expect(said).not.toContain('approve-builds')
+    expect(said).not.toContain('--allow-scripts')
+    expect(said).not.toContain('npx')
+  })
+
+  // Run with npx, the cache entry is the install: the same version is answered
+  // from it, so it has to be forgotten first, and a global install would be a
+  // second copy nothing runs.
+  it('names the npx cache entry to forget where that is where it is', () => {
+    const cache = join(where, '_npx', '5c1d2e3f4a5b6c7d', 'node_modules')
+    mkdirSync(cache, { recursive: true })
+    const path = join(cache, 'spawn-helper')
+    writeFileSync(path, '#!/bin/sh\n')
+    chmodSync(path, 0o644)
+    const said = helperProblem(path)
+    expect(said).toContain(`chmod +x ${path}`)
+    expect(said).toContain('npm cache npx rm 5c1d2e3f4a5b6c7d && npx tade-sh')
+    expect(said).not.toContain('npm install -g')
   })
 })
 
@@ -41,6 +60,18 @@ describe('finding it', () => {
   it('looks where node-pty looks, and finds a file or nothing at all', () => {
     const found = helperAt()
     if (found !== null) expect(existsSync(found)).toBe(true)
+  })
+
+  // macOS execs through the helper, and it is in the platform's own package,
+  // packed executable: the install that put it there ran no script.
+  it.runIf(process.platform === 'darwin')('finds it in this platform’s package, runnable', () => {
+    const found = helperAt()
+    expect(found).toContain(`@lydell/node-pty-darwin-${process.arch}/prebuilds/`)
+    expect(helperProblem(found)).toBeNull()
+  })
+
+  it('finds nothing for a platform nobody packed one for', () => {
+    expect(helperAt('freebsd', 'x64')).toBeNull()
   })
 
   it('knows Windows spawns through ConPTY and has no helper', () => {

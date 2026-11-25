@@ -1,22 +1,28 @@
 import { accessSync, constants, existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
+import { npxKeyOf } from '@tade/core'
 
 // Why a lane can fail with `posix_spawnp failed.` and nothing else.
 //
-// node-pty execs every lane through a small program of its own, `spawn-helper`,
-// which it ships prebuilt in its npm tarball for macOS and Windows. A tarball
-// carries no executable bit, so node-pty's own install script is what puts it
-// back — and a package manager that holds a dependency's install scripts until
-// somebody approves them (pnpm 10 by default, npm 11 with `allowScripts`)
-// leaves the file sitting there unrunnable. `pty.fork` then fails in the
-// native layer with five words that name neither the file nor the reason, and
-// Tade looks broken rather than un-approved.
+// node-pty execs every lane on macOS through a small program of its own,
+// `spawn-helper`. Tade's node-pty is `@lydell/node-pty`: microsoft/node-pty's
+// own prebuilds, one package per platform, with the helper packed executable
+// and no install script — so npm 12, pnpm and bun, which hold a dependency's
+// scripts until somebody approves them, have nothing to hold. (It used to
+// be microsoft/node-pty, whose tarball carries the helper without the bit and
+// whose install script puts it back; a held script was the usual way here.)
+//
+// What is left is a copy that lost the bit after the install: a `node_modules`
+// copied, synced or unpacked by something that keeps no file modes. `pty.fork`
+// then fails in the native layer with five words that name neither the file
+// nor the reason, and Tade looks broken.
 //
 // Nothing here fixes it: chmod-ing a file inside somebody's `node_modules` at
-// run time is a surprise, and the two commands that fix it properly are the
-// ones they will want next time as well. What this does is say which file,
-// and what to type.
+// run time is a surprise. What this does is say which file, and what to type.
+
+/** The node-pty Tade runs: microsoft/node-pty's prebuilds, one package per platform. */
+const PTY = '@lydell/node-pty'
 
 /**
  * The helper node-pty would exec through, or null where it uses none.
@@ -32,7 +38,11 @@ export function helperAt(
   if (platform === 'win32') return null
   let lib: string
   try {
-    lib = createRequire(import.meta.url).resolve('node-pty')
+    // `@lydell/node-pty` is a wrapper whose binary is in a package of its own
+    // per platform, an optional dependency of the wrapper's — so it is found
+    // from the wrapper, which is the only one that depends on it.
+    const wrapper = createRequire(import.meta.url).resolve(PTY)
+    lib = createRequire(wrapper).resolve(`${PTY}-${platform}-${arch}`)
   } catch {
     // Not installed at all is a different sentence, said by whoever imported it.
     return null
@@ -52,19 +62,30 @@ export function helperProblem(helper: string | null): string | null {
     accessSync(helper, constants.X_OK)
     return null
   } catch {
-    return (
-      `node-pty's spawn-helper is not executable, so every terminal Tade opens fails with\n` +
-      '"posix_spawnp failed." and nothing else. It comes out of the npm tarball without the\n' +
-      'bit, and the install script that puts it back was held — pnpm, npm 11 and bun do not\n' +
-      "run a package's install scripts until you approve them.\n" +
-      '\n' +
-      `  chmod +x ${helper}\n` +
-      '\n' +
-      'or approve the install script, which also fixes it for the next update:\n' +
-      '\n' +
-      '  pnpm   pnpm approve-builds -g\n' +
-      '  npm    npm install -g --allow-scripts=tade-sh,node-pty tade-sh\n' +
-      '  bun    bun pm -g trust --all\n'
-    )
+    // Run out of npx's cache, the install is that cache entry, and `npx` puts
+    // back only one it no longer has: the same version is answered from it.
+    // A global command there would be a second copy nothing runs.
+    const key = npxKeyOf(helper)
+    const again =
+      key !== null
+        ? [`  npx    npm cache npx rm ${key} && npx tade-sh`]
+        : [
+            '  npm    npm install -g tade-sh',
+            '  pnpm   pnpm add -g tade-sh',
+            '  bun    bun add -g tade-sh',
+          ]
+    return [
+      "node-pty's spawn-helper is not executable, so every terminal Tade opens fails with",
+      '"posix_spawnp failed." and nothing else. It is installed executable and needs no',
+      'install script, so this copy lost the bit afterwards — copied, synced or unpacked by',
+      'something that keeps no file modes.',
+      '',
+      `  chmod +x ${helper}`,
+      '',
+      'or install Tade again, which puts it back:',
+      '',
+      ...again,
+      '',
+    ].join('\n')
   }
 }

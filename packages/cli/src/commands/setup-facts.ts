@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   type Config,
   defaultConfigPath,
@@ -7,6 +8,7 @@ import {
   loadConfig,
   type MissingProgram,
   type NativeTrouble,
+  npxKeyOf,
   type ReadinessFacts,
   tadeHome,
   type Unattended,
@@ -75,6 +77,12 @@ export interface Look {
   installers: InstallersHere
   /** A server with no screen, and what keeps Tade running on it: null anywhere else. */
   unattended: Unattended | null
+  /**
+   * The npx cache entry this Tade runs out of (`~/.npm/_npx/<key>/`), or
+   * null where it was installed: what decides whether agents that outlive the
+   * window would be running files npm may replace.
+   */
+  npx?: string | null
 }
 
 /**
@@ -111,6 +119,7 @@ export async function lookHere(home = tadeHome()): Promise<Look> {
     extensions: extensions.listed,
     installers,
     unattended,
+    npx: npxKeyOf(fileURLToPath(import.meta.url)),
   }
 }
 

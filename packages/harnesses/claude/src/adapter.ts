@@ -66,6 +66,7 @@ import {
   headlessArgs,
   headlessEnv,
   MCP_WAITS,
+  NO_CLAUDE_AI_CONNECTORS,
   SNAPSHOT_OPTION,
   serverDown,
   serversIn,
@@ -1624,6 +1625,8 @@ export class ClaudeAdapter implements WorkerAdapter {
       // Its tool server given time to come up on a loaded machine, and a tool
       // Tade runs time to answer (`MCP_WAITS`).
       ...MCP_WAITS,
+      // Tade's own tool server and nothing of claude.ai's (`NO_CLAUDE_AI_CONNECTORS`).
+      ...NO_CLAUDE_AI_CONNECTORS,
     }
     if (spec.extras?.tools) env[WORKER_ENV.tools] = spec.extras.tools
     if (spec.title) env[WORKER_ENV.title] = spec.title

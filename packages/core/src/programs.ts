@@ -260,6 +260,12 @@ export type InstallManager =
   | 'pnpm'
   | 'yarn'
   | 'bun'
+  /**
+   * Run out of npx's cache (`~/.npm/_npx/<key>/`) and never installed: the
+   * next `npx` is what moves it, and only once that entry is gone or a newer
+   * version is asked for by name.
+   */
+  | 'npx'
   | 'volta'
   | 'mise'
   | 'asdf'
@@ -304,8 +310,18 @@ export interface ProgramPlace {
 const BREW_PREFIXES = ['/opt/homebrew/', '/usr/local/Homebrew/', '/home/linuxbrew/.linuxbrew/']
 const SYSTEM_DIRS = ['/usr/bin/', '/bin/', '/usr/sbin/', '/sbin/']
 
+/**
+ * The key of the npx cache entry a path is inside (`~/.npm/_npx/<key>/`), or
+ * null where it is in none — what `npm cache npx rm` takes to forget it.
+ */
+export function npxKeyOf(path: string): string | null {
+  return /[/\\]_npx[/\\]([^/\\]+)[/\\]/.exec(path)?.[1] ?? null
+}
+
 /** The manager a global package's path belongs to, read off the path itself. */
 function packageManagerOf(path: string): InstallManager {
+  // First: npx's cache is under npm's own folder, and npm did not install it.
+  if (npxKeyOf(path) !== null) return 'npx'
   if (/[/\\](?:\.)?pnpm(?:[/\\]|-global)/.test(path)) return 'pnpm'
   if (path.includes('/.bun/')) return 'bun'
   if (path.includes('/.yarn/') || path.includes('/yarn/global')) return 'yarn'
@@ -353,7 +369,12 @@ export function installOf(place: ProgramPlace): Install {
     // often a link in the manager's own folder, and what it points at is
     // often not.
     const manager = packageManagerOf(both)
-    const said = manager === 'volta' ? 'a package Volta installed' : `a global ${manager} package`
+    const said =
+      manager === 'volta'
+        ? 'a package Volta installed'
+        : manager === 'npx'
+          ? 'run with npx, out of its cache'
+          : `a global ${manager} package`
     return {
       manager,
       name: pkg.name,
@@ -424,6 +445,12 @@ export function updateWith(
       return { command: `yarn global add ${install.name}@latest` }
     case 'bun':
       return { command: `bun add --global ${install.name}@latest` }
+    case 'npx':
+      // Nothing to type into a terminal here: the next `npx` is the update, and
+      // `@latest` is what makes it ask rather than answer from its cache.
+      return {
+        cannot: `you ran it with npx: \`npx ${install.name}@latest\` runs the newest, or install it with \`npm install --global ${install.name}\``,
+      }
     case 'volta':
       return { command: `volta install ${install.name}@latest` }
     case 'mise':

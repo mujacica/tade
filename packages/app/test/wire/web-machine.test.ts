@@ -1,9 +1,16 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema, type EventFilter, type TadeEvent } from '@tade/core'
+import {
+  AWAY_REQUEST_SAID,
+  ConfigSchema,
+  type EventFilter,
+  ORCHESTRATOR_SAID,
+  type TadeEvent,
+} from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import { MachineAnswerSchema } from '@tade/web'
-import { describe, expect, it } from 'vitest'
+import { EventLog } from '@tade/workbench/events'
+import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import type { ScheduleView } from '../../src/model.ts'
 import type { Wiring } from '../../src/wire/context.ts'
@@ -43,6 +50,8 @@ function wired(over: {
   events?: TadeEvent[]
   extensions?: ExtensionHost
   config?: string
+  /** A real journal, read as the window reads its own, in place of `events`. */
+  log?: { read(filter: EventFilter): Promise<TadeEvent[]> }
 }) {
   writeFileSync(join(over.home, 'config.yaml'), over.config ?? '')
   const appended: unknown[] = []
@@ -56,10 +65,12 @@ function wired(over: {
       client: {
         schedules: () => [],
         log: {
-          read: async (filter: EventFilter) =>
-            (over.events ?? []).filter(
-              (one) => filter.types === undefined || filter.types.includes(one.type as never),
-            ),
+          read: over.log
+            ? (filter: EventFilter) => over.log?.read(filter)
+            : async (filter: EventFilter) =>
+                (over.events ?? []).filter(
+                  (one) => filter.types === undefined || filter.types.includes(one.type as never),
+                ),
           append: async (input: unknown) => {
             appended.push(input)
           },
@@ -300,5 +311,97 @@ describe('what this machine is, as its window answers it', () => {
     const { wire } = wired({ home: tmp('tade-machine-') })
     const answer = await machineFrom(wire, QUIET)()
     expect(answer).toMatchObject({ public: null, problems: [], schedules: [], documents: [] })
+  })
+})
+
+const closing: EventLog[] = []
+afterEach(async () => {
+  for (const log of closing.splice(0)) await log.close()
+})
+
+/** A real journal in a home of its own, as the window holding that home writes it. */
+async function journal(): Promise<{ home: string; log: EventLog }> {
+  const home = tmp('tade-standing-')
+  const log = await EventLog.open({ path: join(home, 'events.jsonl'), indexPath: null })
+  closing.push(log)
+  return { home, log }
+}
+
+const warn = (log: EventLog, message: string) =>
+  log.append({ type: 'warning', detail: { message } })
+const opened = (log: EventLog) =>
+  log.append({
+    type: 'tade_opened',
+    detail: { pid: 1, driver: 'tmux', lanes: 0, version: '0.4.2' },
+  })
+
+/** What the machine answer lists from its journal, newest first. */
+async function journalSaid(home: string, log: EventLog): Promise<string[]> {
+  const answer = await machineFrom(wired({ home, log }).wire, QUIET)()
+  return answer.problems.filter((one) => one.from === 'journal').map((one) => one.said)
+}
+
+// ipax's journal, as it was: the orchestrator's start could not place
+// "unknown/unknown" at 15:42, opus was chosen at 15:45, and three windows
+// opened since — each starting the orchestrator again, and saying again
+// whatever still held — and the stale line was still listed a day later.
+describe('the problems a machine lists from its journal are the ones that still stand', () => {
+  const unplaced = `${ORCHESTRATOR_SAID}claude-code cannot run "unknown/unknown": Claude Code runs opus, sonnet, fable, haiku, or a model's full name`
+  const notOne = `${AWAY_REQUEST_SAID}Error: the orchestrator here is not running on a harness that keeps one conversation on every machine`
+  const aborted = `${AWAY_REQUEST_SAID}Error: aborted`
+
+  it('drops what an earlier window said of its orchestrator and away view, which the next window says again where it holds', async () => {
+    const { home, log } = await journal()
+    await opened(log)
+    await warn(log, unplaced)
+    await log.append({
+      type: 'config_changed',
+      detail: { path: 'orchestrator.model', was: 'unknown', now: 'opus', by: 'window' },
+    })
+    await warn(log, notOne)
+    await opened(log)
+    await warn(log, aborted)
+    await warn(log, aborted)
+    await opened(log)
+    expect(await journalSaid(home, log)).toEqual([])
+  })
+
+  it('keeps what still holds: said by the window open now, once however often, and anything Tade cannot tell was put right', async () => {
+    const { home, log } = await journal()
+    const compaction = 'the journal is over its ceiling with nothing left to drop: 2,400 commits'
+    await warn(log, compaction)
+    await warn(log, unplaced)
+    await opened(log)
+    // The window open now, starting its orchestrator again, found the same.
+    await warn(log, unplaced)
+    await warn(log, aborted)
+    await warn(log, aborted)
+    expect(await journalSaid(home, log)).toEqual([aborted, unplaced, compaction])
+  })
+
+  it('keeps every line where no window opening is in the journal, since all of it is the open one’s', async () => {
+    const { home, log } = await journal()
+    await warn(log, unplaced)
+    await warn(log, notOne)
+    expect(await journalSaid(home, log)).toEqual([notOne, unplaced])
+  })
+
+  it('says a journal it could not read rather than listing nothing wrong', async () => {
+    const home = tmp('tade-standing-')
+    // Only the read for its warnings fails: the documents' read is another question.
+    const failing = {
+      read: async (filter: EventFilter) =>
+        filter.types?.includes('warning')
+          ? Promise.reject(new Error('EACCES: permission denied'))
+          : [],
+    }
+    const failed = await machineFrom(wired({ home, log: failing }).wire, QUIET)()
+    expect(failed.problems).toEqual([
+      {
+        from: 'journal',
+        at: null,
+        said: 'the journal could not be read for its warnings: EACCES: permission denied',
+      },
+    ])
   })
 })

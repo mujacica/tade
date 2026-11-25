@@ -191,30 +191,32 @@ over SSH.
 ### On your Mac
 
 ```sh
+npx tade-sh   # needs Node ≥ 22.19 (nodejs.org, mise or nvm) — nothing to install first, straight into setup
+```
+
+That runs Tade out of npx's cache, and the first time it is a short setup in the same terminal. To
+keep it, install it: the one-liner installs `tade-sh` with whichever of npm, pnpm or bun you have and
+prints the command before it runs it ([read it first](https://tade.sh/install.sh)).
+
+```sh
 curl -fsSL https://tade.sh/install.sh | sh
 tade                                          # the window; the first time, a short setup
 ```
 
-The one-liner installs `tade-sh` with whichever of npm, pnpm or bun you have and prints each command
-before it runs it ([read it first](https://tade.sh/install.sh)). Or by hand:
-
-```sh
-npm install -g tade-sh
-pnpm add -g tade-sh  && pnpm approve-builds -g
-bun add -g tade-sh   && bun pm -g trust --all
-```
-
-**Don't skip the second command on the pnpm and bun lines**: node-pty is native, and unbuilt it is a
-Tade that cannot open a terminal. `tade setup --check` looks at the machine again whenever you like.
-Optional: tmux 3.2+ (agents that outlive the window), whisper.cpp and ffmpeg (speech), `gh`.
-Any modern terminal runs it; it works best in [Ghostty](https://ghostty.org).
+Or by hand: `npm install -g tade-sh`, `pnpm add -g tade-sh` or `bun add -g tade-sh`. Nothing is
+compiled and nothing asks you to approve an install script: both native modules arrive ready-built,
+for macOS and for Linux with glibc 2.28 or newer, on x64 and arm64 (not Alpine).
+`tade setup --check` looks at the machine again whenever you like. Optional: tmux 3.2+ (agents that
+outlive the window — install Tade for those rather than running it from npx, whose cache npm may
+replace under them), whisper.cpp and ffmpeg (speech), `gh`. Any modern terminal runs it; it works
+best in [Ghostty](https://ghostty.org).
 
 ### On a VPS
 
 Any Debian or Ubuntu box you can reach over SSH, as an ordinary user with sudo:
 
 ```sh
-sudo apt-get install -y git tmux build-essential python3   # plus Node 22
+sudo apt-get install -y git tmux                           # plus Node ≥ 22.19
 curl -fsSL https://tade.sh/install.sh | sh
 tade setup                                                 # over SSH: signs each harness in
 tade host service                                          # runs `tade serve` under systemd

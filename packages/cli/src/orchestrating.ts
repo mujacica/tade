@@ -15,6 +15,7 @@ import {
   loadConfig,
   machineLabel,
   modelDetail,
+  ORCHESTRATOR_SAID,
   QUEUED_THERE_READS,
   queuedElsewhereSays,
   type ThinkingLevel,
@@ -315,7 +316,7 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
           type: 'warning',
           task: null,
           detail: {
-            message: `the orchestrator: other machines' journals could not be read for it: ${err instanceof Error ? err.message : String(err)}`,
+            message: `${ORCHESTRATOR_SAID}other machines' journals could not be read for it: ${err instanceof Error ? err.message : String(err)}`,
           },
         })
         return []
@@ -365,7 +366,7 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
         void client.log.append({
           type: 'warning',
           task: null,
-          detail: { message: `the orchestrator: ${message}` },
+          detail: { message: `${ORCHESTRATOR_SAID}${message}` },
         })
       },
       onToolsMissing: () => againForTools(),
@@ -508,7 +509,7 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
         type: 'warning',
         task: null,
         detail: {
-          message: `the orchestrator: starting it again for its tools failed: ${err instanceof Error ? err.message : String(err)}`,
+          message: `${ORCHESTRATOR_SAID}starting it again for its tools failed: ${err instanceof Error ? err.message : String(err)}`,
         },
       })
     })

@@ -53,11 +53,6 @@ COMMAND='tade'
 # holds the two to each other, so they cannot drift apart.
 NEEDS_NODE='22.19'
 
-# The two native dependencies, and the whole reason this script has anything
-# to say about install scripts at all (see `approval_for`).
-PTY='node-pty'
-SQLITE='better-sqlite3'
-
 say() { printf '%s\n' "$*"; }
 
 # Everything that stops goes to stderr and says what to do about it: the last
@@ -76,54 +71,15 @@ usage() {
   say 'Needs Node >= '"$NEEDS_NODE"' and one of npm, pnpm or bun.'
 }
 
-# What to pass so that the install scripts actually run.
-#
-# Two of Tade's dependencies are native: node-pty, which is every terminal it
-# opens, and better-sqlite3. On Linux node-pty is compiled during the install;
-# on macOS it arrives prebuilt and its `spawn-helper` comes out of the tarball
-# without its executable bit, which `tade-sh`'s own postinstall puts back. So
-# an install whose scripts were held is an install that goes green and a `tade`
-# that cannot open a terminal — the worst shape a failure has, because nothing
-# says a word until the first lane.
-#
-# All three managers hold a dependency's scripts by default now, and each has
-# its own way of being told otherwise. bun is the odd one: node-pty and
-# better-sqlite3 are both on its own default trusted list, so the two that
-# matter run anyway, and `--trust` is for `tade-sh` itself.
-#
-# Three names and no more. All three managers also warn about `@google/genai`,
-# `esbuild` and `protobufjs`, none of which Tade needs built — esbuild's binary
-# comes from its own platform package and transforms fine with its postinstall
-# skipped (measured, 0.28.2, 2026-10-05). A list grown to quiet a warning is a
-# list that approves somebody else's code for no reason.
-approval_for() {
-  case "$1" in
-    npm)
-      if npm_allows_scripts; then
-        printf -- '--allow-scripts=%s,%s,%s' "$PACKAGE" "$PTY" "$SQLITE"
-      fi
-      ;;
-    pnpm) printf -- '--allow-build=%s --allow-build=%s --allow-build=%s' "$PACKAGE" "$PTY" "$SQLITE" ;;
-    bun) printf -- '--trust' ;;
-  esac
-}
-
-# npm learnt `--allow-scripts` in 11.19, along with the policy that made it
-# necessary; an older npm ran a dependency's scripts anyway. Passing it there
-# would be a warning about an unknown config and a flag that does nothing, so
-# it goes only where it is understood.
-npm_allows_scripts() {
-  npm_version="$(npm --version 2>/dev/null)" || return 1
-  npm_major="${npm_version%%.*}"
-  npm_minor="${npm_version#*.}"
-  npm_minor="${npm_minor%%.*}"
-  case "$npm_major.$npm_minor" in
-    [0-9]*.[0-9]*) ;;
-    *) return 1 ;;
-  esac
-  if [ "$npm_major" -gt 11 ]; then return 0; fi
-  [ "$npm_major" -eq 11 ] && [ "$npm_minor" -ge 19 ]
-}
+# Nothing to approve, and so nothing passed to approve it. All three managers
+# hold a dependency's install scripts by default now (npm 12, pnpm, bun), and
+# Tade has none for them to hold: its two native modules arrive ready-built —
+# `@lydell/node-pty` is node-pty's prebuilds, one package per platform, with
+# no script, and better-sqlite3 ships its bindings in the package. All three
+# do warn about `@google/genai`, `esbuild` and `protobufjs`, none of which Tade
+# needs built — esbuild's binary comes from its own platform package and
+# transforms fine with its postinstall skipped (measured, 0.28.2, 2026-10-05).
+# A flag added to quiet a warning approves somebody else's code for no reason.
 
 # Where npm is to put it, where its own global folder is not this user's.
 #
@@ -246,16 +202,13 @@ nodejs.org or a version manager: mise, nvm, volta."
   spec="$PACKAGE"
   [ -z "$version" ] || spec="$PACKAGE@$version"
 
-  # Deliberately unquoted: `approval_for` returns nought, one or three words
-  # and every one of them is this script's own text, from the constants at the
-  # top. Nothing a person typed reaches here — the version goes in `$spec`,
-  # which is quoted everywhere it is used, and nothing is ever `eval`ed.
-  # `$place` is one word or none, quoted, because it holds $HOME.
-  # shellcheck disable=SC2046
+  # Nothing a person typed is ever a word of a shell line here — the version
+  # goes in `$spec`, which is quoted everywhere it is used, and nothing is ever
+  # `eval`ed. `$place` is one word or none, quoted, because it holds $HOME.
   case "$manager" in
-    npm) place="$(npm_place)" && set -- npm install --global ${place:+"$place"} $(approval_for npm) "$spec" ;;
-    pnpm) set -- pnpm add --global $(approval_for pnpm) "$spec" ;;
-    bun) set -- bun add --global $(approval_for bun) "$spec" ;;
+    npm) place="$(npm_place)" && set -- npm install --global ${place:+"$place"} "$spec" ;;
+    pnpm) set -- pnpm add --global "$spec" ;;
+    bun) set -- bun add --global "$spec" ;;
   esac
 
   say "Tade installs from npm: the package \`$PACKAGE\`, which puts the command \`$COMMAND\` on your PATH."

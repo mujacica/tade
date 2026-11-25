@@ -1,5 +1,5 @@
+import { spawn as openPty } from '@lydell/node-pty'
 import type { LaneId } from '@tade/core'
-import { spawn as openPty } from 'node-pty'
 import { expect, it } from 'vitest'
 import type { AttachOptions, LaneSpec, WorkspaceDriver } from './port.ts'
 import { until } from './waiting.ts'

@@ -14,14 +14,16 @@ describe('a dependency that did not load', () => {
     )
     expect(said).toContain('node-pty')
     expect(said).toContain('native module')
-    expect(said).toContain('xcode-select --install')
-    expect(said).toContain('build-essential')
+    // Nothing is compiled on install any more, so no toolchain is the answer.
+    expect(said).toContain('ready-built')
+    expect(said).toContain('glibc 2.28')
+    expect(said).not.toContain('build-essential')
   })
 
   it('says it is native even where the message quotes no package', () => {
     // What dlopen says is a path and nothing else, and a path read as a name
     // used to send somebody the advice for a dependency that failed to
-    // download rather than one that failed to build.
+    // download rather than one whose binary would not load.
     const said = nativeTrouble(
       withCode(
         'ERR_DLOPEN_FAILED',
@@ -29,13 +31,13 @@ describe('a dependency that did not load', () => {
       ),
     )
     expect(said).toContain('node-pty')
-    expect(said).toContain('build-essential')
+    expect(said).toContain('ready-built')
     expect(said).not.toContain('install that did not finish')
   })
 
   it("answers node-pty's own way of saying it", () => {
     const said = nativeTrouble(new Error('Failed to load native module: pty.node, checked: …'))
-    expect(said).toContain('node-pty')
+    expect(said).toContain('Tade could not load @lydell/node-pty.')
   })
 
   it('answers a module built against another Node', () => {
@@ -54,10 +56,35 @@ describe('a dependency that did not load', () => {
     expect(said).not.toContain('build-essential')
   })
 
-  it('names the gate that holds an install script rather than running it', () => {
+  // Neither native module has an install script, so a package manager that
+  // holds one (npm 12, pnpm, bun) is never the reason, and saying it was would
+  // send somebody to approve something that is not there.
+  it('names no gate on install scripts, because there is no script to hold', () => {
     const said = nativeTrouble(withCode('ERR_DLOPEN_FAILED', "dlopen 'node-pty'"))
-    expect(said).toContain('pnpm approve-builds')
-    expect(said).toContain('--allow-scripts=')
+    expect(said).not.toContain('approve-builds')
+    expect(said).not.toContain('--allow-scripts')
+    expect(said).not.toContain('npm 11')
+    expect(said).toContain('npm install -g tade-sh')
+  })
+
+  it("answers @lydell/node-pty's own error for a platform package that is not there", () => {
+    // A plain Error with no code, thrown by the wrapper at import.
+    const said = nativeTrouble(
+      new Error(
+        'The @lydell/node-pty package supports your platform (linux-x64), but it could not find the platform-specific package for it: @lydell/node-pty-linux-x64',
+      ),
+    )
+    expect(said).toContain('Tade could not load @lydell/node-pty.')
+    expect(said).toContain('native module')
+  })
+
+  it('names the npx cache entry to forget where Tade runs out of one', () => {
+    const said = nativeTrouble(
+      withCode('ERR_DLOPEN_FAILED', 'dlopen(/x/@lydell/node-pty-linux-x64/pty.node)'),
+      '/home/x/.npm/_npx/9a8b7c6d5e4f3a2b/node_modules/tade-sh/packages/cli/src/native.js',
+    )
+    expect(said).toContain('npm cache npx rm 9a8b7c6d5e4f3a2b && npx tade-sh')
+    expect(said).not.toContain('npm install -g')
   })
 
   it("keeps quiet about a relative file, which is Tade's own bug", () => {

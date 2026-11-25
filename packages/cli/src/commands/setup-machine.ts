@@ -185,6 +185,15 @@ export async function setUpWorkspace(ui: Ui, look: Look): Promise<void> {
     return
   }
 
+  // Agents in tmux run Tade's hooks and its MCP server by path, out of Tade's
+  // own package — which under npx is a cache entry npm may replace when it
+  // next fetches tade-sh, while those agents are still working. Said, never
+  // refused: it is a risk to name, and the install that removes it is theirs.
+  if (look.npx)
+    ui.say(
+      "  you ran Tade with npx: agents in tmux keep running Tade's own files out of npx's cache, which npm may replace when it fetches a newer tade-sh — `npm install -g tade-sh` gives them a Tade that stays put",
+    )
+
   // Whether tmux is here and new enough, and what would install it or bring
   // it up to date, all come from what the driver declared — the same
   // declaration the Updates page reads.

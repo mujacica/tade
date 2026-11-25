@@ -1,6 +1,12 @@
 import { open } from 'node:fs/promises'
 import { basename } from 'node:path'
-import { type Document, type Inventory, loadConfig, type TadeEvent } from '@tade/core'
+import {
+  type Document,
+  type Inventory,
+  loadConfig,
+  standingWarnings,
+  type TadeEvent,
+} from '@tade/core'
 import type { ExtensionHost } from '@tade/extensions-core'
 import {
   DOCUMENT_MOST,
@@ -25,15 +31,27 @@ import { configPathOf, type Wiring, why } from './context.ts'
 // out of what the window already holds — the schedules
 // and what their looks found, the extensions, the public name's health — and
 // four small reads it does not keep, each with a deadline: the config's own
-// warnings, the journal's last warnings, its documents, and whether a newer
-// Tade is out. Nothing here waits on a child process, and a read that runs out
-// of time is answered as having nothing to say rather than holding the answer.
+// warnings, the journal's warnings that still stand (`standingWarnings`), its
+// documents, and whether a newer Tade is out. Nothing here waits on a child
+// process. A read that runs out of time is answered without it rather than
+// holding the answer — and where it was the config or the journal, which is
+// where the problems are, that is said as a problem, never as there being none.
 
 /** How long any one read here may take before it is answered as nothing. */
 const LOOK_MS = 5_000
 
-/** How many of the journal's newest warnings are told. */
+/** How many of the journal's warnings that still stand are told, newest first. */
 const WARNINGS_MOST = 20
+
+/**
+ * How many of the journal's newest warnings and window opens are folded for
+ * them: enough that twenty still stand after a window's worth have gone. A
+ * line older than these is not told, as one past twenty never was.
+ */
+const WARNINGS_READ = 400
+
+/** A read that came back with nothing because it ran out of time, told apart from one that found nothing. */
+const LATE = Symbol('late')
 
 /** How the away view itself stands, as only it knows: its public name and its own trouble. */
 export interface AwayStanding {
@@ -51,13 +69,19 @@ export function machineFrom(wire: Wiring, away: AwayStanding): WebMachine {
     const now = wire.now()
     const [config, warnings, documents, kept] = await Promise.all([
       inTime(loadConfig(configPathOf(wire.opts)), LOOK_MS, null),
-      inTime(wire.opts.client.log.read({ types: ['warning'], limit: WARNINGS_MOST }), LOOK_MS, []),
+      inTime<readonly TadeEvent[] | string | typeof LATE>(
+        wire.opts.client.log
+          .read({ types: ['warning', 'tade_opened'], limit: WARNINGS_READ })
+          .catch((err: unknown) => why(err)),
+        LOOK_MS,
+        LATE,
+      ),
       inTime(documentsOf(wire.opts.client), LOOK_MS, []),
       inTime(lastUpdates(wire.opts.home), LOOK_MS, null),
     ])
     const problems: ProblemHere[] = [
       ...(config === null
-        ? []
+        ? [{ from: 'config' as const, at: null, said: 'config.yaml was not read in time' }]
         : config.ok
           ? config.warnings.map((said) => ({ from: 'config' as const, at: null, said }))
           : config.issues.map((one) => ({
@@ -101,13 +125,33 @@ function extensionProblems(host: ExtensionHost | undefined): ProblemHere[] {
   })
 }
 
-/** The journal's newest warnings, newest first: Tade's own trouble, as it wrote it down. */
-function journalProblems(warnings: readonly TadeEvent[]): ProblemHere[] {
-  return [...warnings].reverse().flatMap((event) => {
-    const message = event.detail.message
-    if (typeof message !== 'string' || message === '') return []
-    return [{ from: 'journal' as const, at: event.ts, said: message }]
-  })
+/**
+ * The journal's warnings that still stand, newest first: Tade's own trouble, as
+ * it wrote it down. A journal that could not be read, or not in time, says so —
+ * which is not the same answer as one with nothing wrong in it.
+ */
+function journalProblems(read: readonly TadeEvent[] | string | typeof LATE): ProblemHere[] {
+  if (read === LATE) {
+    return [
+      { from: 'journal', at: null, said: 'the journal was not read in time for its warnings' },
+    ]
+  }
+  if (typeof read === 'string') {
+    return [
+      {
+        from: 'journal',
+        at: null,
+        said: `the journal could not be read for its warnings: ${read}`,
+      },
+    ]
+  }
+  return standingWarnings(read)
+    .slice(0, WARNINGS_MOST)
+    .map((event) => ({
+      from: 'journal' as const,
+      at: event.ts,
+      said: String(event.detail.message),
+    }))
 }
 
 /** One schedule as another machine is told it: its words, its next run, and its watch's looks. */

@@ -1,5 +1,13 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  accessSync,
+  chmodSync,
+  constants,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -63,13 +71,7 @@ function fakeNode(says: string, exits: number): string {
 /**
  * The same, plus an `npm` answering the version given — a Node new enough to
  * pass the floor, so what the run exercises is the npm branch and nothing
- * else.
- *
- * What the script passes npm depends on npm's own version (`--allow-scripts`
- * landed in 11.19), so a dry run that reads whichever npm the machine happens
- * to have is a test about the machine. That is not a hypothetical: the lines
- * below were written on a laptop with npm 11.19.1 and went red on CI's 10.9.9,
- * where the flag is correctly left off.
+ * else, and a dry run is never a test about whichever npm the machine has.
  */
 function fakeNpm(version: string, prefix = ''): string {
   const bin = fakeNode(`v${process.versions.node}`, 0)
@@ -109,13 +111,13 @@ describe('the script itself', () => {
   })
 
   // The budget is on the lines that *do* something, so explaining itself
-  // costs nothing and a wall of shell is still a wall. 131 today; this may go
+  // costs nothing and a wall of shell is still a wall. 106 today; this may go
   // DOWN in the commit that earns it and never up, because the day this needs
   // half as much again is the day it is doing something a person piping it
   // into a shell cannot check.
   it('is small enough that somebody can read all of it', () => {
     const doing = lines.filter((line) => line.trim() !== '' && !line.trim().startsWith('#'))
-    expect(doing.length).toBeLessThanOrEqual(135)
+    expect(doing.length).toBeLessThanOrEqual(110)
   })
 })
 
@@ -162,12 +164,11 @@ describe('what it says it will do', () => {
     expect(text).toContain(`NEEDS_NODE='${floor}'`)
   })
 
-  it('names what the workspace lets build, and both native dependencies', () => {
+  it('names no dependency to let build, because the workspace lets none', () => {
     const built = Object.entries(allowBuilds())
       .filter(([, allowed]) => allowed)
       .map(([name]) => name)
-    expect(built).toEqual(['node-pty'])
-    for (const one of [...built, 'better-sqlite3']) expect(text).toContain(`'${one}'`)
+    expect(built).toEqual([])
   })
 })
 
@@ -197,6 +198,37 @@ describe('what the workspace lets build', () => {
       getPrebuildPath(): string | null
     }
     expect(binding.getPrebuildPath()).not.toBeNull()
+  })
+})
+
+describe('node-pty, which needs nothing built either', () => {
+  // `@lydell/node-pty` is microsoft/node-pty's own prebuilds, one optional
+  // package per platform, and this is what makes "nothing to approve" true
+  // rather than remembered: a version that grew an install script, or packed
+  // `spawn-helper` without its bit again, would be a lane that cannot open
+  // under every package manager that holds scripts — `npx tade-sh` on npm 12
+  // first of all.
+  // Neither package exports its `package.json`, so each is found by its
+  // entry point: the wrapper's `index.js`, the platform's `lib/index.js`.
+  const fromPty = createRequire(join(ROOT, 'packages/drivers/pty/package.json'))
+  const entry = fromPty.resolve('@lydell/node-pty')
+  const wrapper = join(dirname(entry), 'package.json')
+  const own = dirname(
+    dirname(createRequire(entry).resolve(`@lydell/node-pty-${process.platform}-${process.arch}`)),
+  )
+  const scriptsOf = (path: string) =>
+    (JSON.parse(readFileSync(path, 'utf8')) as { scripts?: Record<string, string> }).scripts ?? {}
+
+  it('has no install script, here or in this platform’s package', () => {
+    for (const path of [wrapper, join(own, 'package.json')])
+      for (const hook of ['preinstall', 'install', 'postinstall'])
+        expect(scriptsOf(path)[hook], `${path} ${hook}`).toBeUndefined()
+    expect(allowBuilds()['@lydell/node-pty']).toBeUndefined()
+  })
+
+  it.runIf(process.platform === 'darwin')('arrives with spawn-helper executable', () => {
+    const helper = join(own, 'prebuilds', `${process.platform}-${process.arch}`, 'spawn-helper')
+    expect(() => accessSync(helper, constants.X_OK)).not.toThrow()
   })
 })
 
@@ -239,23 +271,18 @@ describe('what it will not touch', () => {
 })
 
 describe('a dry run', () => {
-  // The three install lines in full: what the script passes on a person's
-  // behalf, and **not** what anybody quotes. The README and the site quote the
-  // short forms — `npm install -g tade-sh`, with `pnpm approve-builds -g` or
-  // `bun pm -g trust --all` beside the other two — and the flags below are the
-  // whole reason the one-liner is worth having. Putting these four lines on a
-  // page would be quoting the wrong thing; an agent syncing the site nearly
-  // did, off an earlier version of this comment.
+  // The three install lines in full, and the same short forms the README and
+  // the site quote: nothing Tade installs has an install script, so there is
+  // nothing to approve and no flag to pass on a person's behalf.
   //
   // Every one of them runs against a PATH of this file's own making rather
   // than the machine's, so each line is a fact about the script — see
-  // `fakeNpm`, and the two tests under these for the npm the flag is held
-  // back from.
-  const NEW_NPM = '11.19.1'
+  // `fakeNpm`.
+  const NEW_NPM = '12.2.3'
   const expected: Record<string, string> = {
-    npm: `npm install --global --allow-scripts=${PUBLISHED},node-pty,better-sqlite3 ${PUBLISHED}`,
-    pnpm: `pnpm add --global --allow-build=${PUBLISHED} --allow-build=node-pty --allow-build=better-sqlite3 ${PUBLISHED}`,
-    bun: `bun add --global --trust ${PUBLISHED}`,
+    npm: `npm install --global ${PUBLISHED}`,
+    pnpm: `pnpm add --global ${PUBLISHED}`,
+    bun: `bun add --global ${PUBLISHED}`,
   }
 
   for (const [manager, line] of Object.entries(expected)) {
@@ -267,33 +294,16 @@ describe('a dry run', () => {
     })
   }
 
-  // The other half of the npm line, and the half nothing held: an older npm
-  // ran a dependency's install scripts anyway, so there is nothing to ask it
-  // for, and asking would be a warning about a config it does not know plus a
-  // flag that does nothing. The install is still the right install — which is
-  // why this asserts the whole line rather than only the absence.
-  it('leaves --allow-scripts off an npm that would not understand it', () => {
-    const said = run(['--npm', '--dry-run'], { PATH: fakeNpm('10.9.9') })
-    expect(said.status).toBe(0)
-    expect(said.stdout).toContain(`\n  npm install --global ${PUBLISHED}\n`)
-    expect(said.stdout).not.toContain('--allow-scripts')
-  })
-
-  // 11.18 and 11.19 differ by the minor, and shell has no version compare, so
-  // the script picks the number apart itself. A test per side of the one
-  // boundary, because "11 is new enough" is the shape that mistake takes.
-  it('reads the minor rather than the major, on either side of 11.19', () => {
-    const sides: Array<[string, boolean]> = [
-      ['10.9.9', false],
-      ['11.18.4', false],
-      ['11.19.0', true],
-      ['12.0.0', true],
-    ]
-    for (const [version, flagged] of sides) {
+  // An approval flag here would approve somebody else's code for nothing:
+  // npm 12 holds scripts and npm 10 runs them, and neither changes what Tade
+  // needs, which is none.
+  it('passes no approval flag, whichever npm it is', () => {
+    for (const version of ['10.9.9', '11.18.4', '11.19.0', '12.2.3']) {
       const said = run(['--npm', '--dry-run'], { PATH: fakeNpm(version) })
       expect(said.status, version).toBe(0)
-      expect(said.stdout.includes('--allow-scripts='), version).toBe(flagged)
+      expect(said.stdout, version).toContain(`\n  npm install --global ${PUBLISHED}\n`)
     }
+    expect(text).not.toMatch(/--allow-scripts|--allow-build|--trust/)
   })
 
   // Node from nodejs.org or a distribution's package keeps npm's global
