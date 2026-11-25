@@ -1,6 +1,7 @@
 import { rm } from 'node:fs/promises'
 import type { FarEnd } from '@tade/remotes-core/far'
 import { afterEach, describe, expect, it } from 'vitest'
+import { MACHINE } from '../../src/wire/web-panel.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
 import { linkedToIpax } from './linked.ts'
 
@@ -38,7 +39,8 @@ describe('the + with another machine linked', () => {
     pressAgentsPlus()
     await until(said('where it asks'), () => shown('New agent on ipax'))
     const menu = rows().join('\n')
-    expect(menu).toMatch(/▌ New agent on this Mac/)
+    // This machine by the name it has on this platform: `this Mac`, `this machine` on Linux.
+    expect(menu).toContain(`▌ New agent on ${MACHINE}`)
     expect(menu).toContain('hello')
     expect(menu).toContain('tade')
   })
