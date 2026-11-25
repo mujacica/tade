@@ -91,7 +91,6 @@ export interface PromptPanel {
      * A sentence for an agent on another machine, sent as its `steer`:
      * `target` is the machine and its task there, joined by a NUL.
      */
-    | 'remote-steer'
     /**
      * What a new agent on another machine is for: its task's words and what it
      * is told first. `target` is the machine and its project there, joined by a NUL.
@@ -150,6 +149,8 @@ export interface BranchPanel {
   following: boolean
   busy: boolean
   error: string | null
+  /** The machine whose checkout's branches these are, where it is another's. */
+  there?: string
 }
 
 /** One of the project's branches, as git lists them. */

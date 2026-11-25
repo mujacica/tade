@@ -30,18 +30,34 @@ import { ownsOrTheirs, reachOf } from './surface.ts'
 // other terminal can reach them (`remoteAttach`), with the sentence the other
 // machine says instead of opening anything.
 //
+// **An agent's other lanes too**: the shell its pane has a tab for is asked
+// for by its id (`lane`), which must be one more segment of that very task's
+// — a lane of another task, or anything that walks, is refused as malformed.
+//
 // **It changes nothing and writes nothing.** A `POST`, because an owner's
 // request carries its token and because the answer is something to run; but
 // nothing moves here, and nothing goes in the journal: the terminal it opens is
 // an SSH session, which is that machine's record and this one's `sshd`'s.
 
-const AttachBody = z.strictObject({ task: TaskId })
+/**
+ * One of the task's own lanes beside its agent — a shell its pane has a tab
+ * for: the task's id and one more segment, so no name reaches another task's.
+ */
+const LANE = /^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]{0,63}$/
+
+const AttachBody = z
+  .strictObject({ task: TaskId, lane: z.string().max(400).regex(LANE).optional() })
+  .refine((body) => body.lane === undefined || body.lane.startsWith(`${body.task}/`))
 
 /** A line to run here for that task's agent, or why there is none. */
 export type AttachAnswer = { command: string } | { command: null; why: string }
 
-/** The window's half: the line for one task's agent, as its driver writes it. */
-export type WebAttaching = (task: string) => AttachAnswer
+/**
+ * The window's half: the line for one task's agent, as its driver writes it —
+ * or, given `lane`, for that lane of the task's (its shell), which is the
+ * driver's line for it in the same way.
+ */
+export type WebAttaching = (task: string, lane?: string) => AttachAnswer
 
 /** Why there is no line for a task this device may not see, which is the same as one not there. */
 export const NO_AGENT = 'there is no agent of that task running on this machine'
@@ -62,5 +78,6 @@ export async function attachHere(
   if (!has(reach, 'lanes') || !sees(reach, projectOf(task))) {
     return { body: { command: null, why: NO_AGENT } }
   }
-  return { body: attaching(task) }
+  const lane = parsed.data.lane
+  return { body: lane === undefined ? attaching(task) : attaching(task, lane) }
 }

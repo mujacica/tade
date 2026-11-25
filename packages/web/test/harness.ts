@@ -236,6 +236,7 @@ export async function start(
     owned?: Pick<
       ServerOptions,
       | 'machine'
+      | 'disk'
       | 'machines'
       | 'restarting'
       | 'orchestratorRestart'

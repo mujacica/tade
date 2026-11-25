@@ -103,7 +103,9 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
       : null
   const plain = edit ? edit.lines : (viewing?.text ?? [])
   const lines = edit ? edit.lines : drawn
-  const typeable = file !== null && !formatted && editable(file) === null
+  // A file on another machine is read and never typed into: this disk is not its.
+  const there = panel.there !== undefined
+  const typeable = !there && file !== null && !formatted && editable(file) === null
   const control = (id: string) => ({ kind: 'control' as const, id })
 
   // What git says about the file, laid into it — once it has been asked, which
@@ -324,7 +326,7 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
   const buttons =
     (sending ? sending.length + 5 : 0) +
     'Copy path'.length +
-    'Open in editor'.length +
+    (there ? 0 : 'Open in editor'.length) +
     'Close'.length +
     (saving ? 'Save'.length + 5 : 0) +
     12 +
@@ -371,9 +373,13 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
                       '  click to edit · ctrl+f find · ctrl+g line',
                     ]
                   : ['  click to edit · ctrl+f find · ctrl+g line']
-              : stepping > 0
-                ? ['  n/p change · ↑↓ scroll · space a page · e editor', '  n/p change']
-                : ['  ↑↓ scroll · space a page · e editor']
+              : there
+                ? stepping > 0
+                  ? ['  n/p change · ↑↓ scroll · ctrl+f find · ctrl+d changes', '  n/p change']
+                  : ['  ↑↓ scroll · ctrl+f find · ctrl+g line', '  ↑↓ scroll']
+                : stepping > 0
+                  ? ['  n/p change · ↑↓ scroll · space a page · e editor', '  n/p change']
+                  : ['  ↑↓ scroll · space a page · e editor']
     // Gone round an end is said in the colour a panel says things in, because
     // the press did something other than the one before it did.
     if (fits(where)) foot.text(where, where === span || !sent?.wrapped ? skin.hint : skin.waiting)
@@ -383,12 +389,9 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
   foot.right((r) => {
     if (sending) r.button(sending, control('send'), 'go').space()
     if (saving) r.button('Save', control('save'), 'attention').space()
-    r.button('Copy path', control('copy-path'))
-      .space()
-      .button('Open in editor', control('editor'), 'primary')
-      .space()
-      .button('Close', control('close'))
-      .space()
+    r.button('Copy path', control('copy-path')).space()
+    if (!there) r.button('Open in editor', control('editor'), 'primary').space()
+    r.button('Close', control('close')).space()
   })
   rows.push(foot.build())
   return box('File', rows, size.width, skin, { corner: 'esc' })

@@ -1245,14 +1245,15 @@ export function laneShown(state: AppState, pane: AgentPane): string | null {
 
 /**
  * The lane the pane draws for an agent on another machine: the terminal here
- * that is it (`Place.lane`), as an agent here is its own lane — read live,
+ * that is it (`Place.lane`), as an agent here is its own lane — or the one
+ * that is another lane of its in front (`Place.tab`) — read live,
  * sized to the pane and typed into there. Null where none is open, where it
  * has gone, or where the panel below has it in front: one lane is drawn in one
  * place, and the pane falls back to its screen read over the link.
  */
 export function laneThere(state: AppState): string | null {
   const place = state.focused === null ? state.elsewhere : null
-  const lane = place?.agent === undefined ? undefined : place.lane
+  const lane = place?.agent === undefined ? undefined : (place.tab?.lane ?? place.lane)
   if (lane === undefined || state.bottom === lane) return null
   return state.terminals.some((one) => one.id === lane) ? lane : null
 }

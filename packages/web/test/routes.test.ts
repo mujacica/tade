@@ -375,7 +375,8 @@ describe('the owner’s table', () => {
     // wrote (`since.ts`); the person's notes shared, written into what every
     // agent here is told (`shared-notes.ts`); and where each project is
     // checked out, a path no phone reads (`repositories.ts`); one project as
-    // this machine's window draws it, paths in it (`side.ts`); what this machine
+    // this machine's window draws it, paths in it (`side.ts`); what is on disk in
+    // it, the one owner's route that takes a path (`disk.ts`); what this machine
     // is, every machine's inventory and the press that moves the keys into one
     // file (`machines.ts`), Tade started again on the code on disk now
     // (`restarted.ts`) or its orchestrator alone, what one of its watches has already found (`watch-seen.ts`), whose each duty is where a repository is a project on several machines (`duties.ts`), one of
@@ -408,6 +409,7 @@ describe('the owner’s table', () => {
       'POST /api/acts/outbox',
       'POST /api/repositories',
       'POST /api/side',
+      'POST /api/disk',
       'POST /api/machine',
       'POST /api/machines',
       'POST /api/machines/press',

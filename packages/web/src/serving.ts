@@ -10,6 +10,7 @@ import type { WebCarrying } from './carried.ts'
 import type { WebChanges } from './changes.ts'
 import type { WebConfiguring } from './configuring.ts'
 import type { WebConnecting } from './connected.ts'
+import type { WebDisk } from './disk.ts'
 import type { WebDocument } from './document.ts'
 import type { WebDrafting } from './drafting.ts'
 import type { WebDuties } from './duties.ts'
@@ -306,6 +307,12 @@ export interface ServerOptions {
    * machine to draw it from as its own (`side.ts`).
    */
   side?: WebSide
+  /**
+   * A file, a change or the branches in one of those projects, pressed on
+   * another machine standing in it (`disk.ts`). Absent, the route is the `404`
+   * of a path nobody wired.
+   */
+  disk?: WebDisk
   /**
    * What this machine is, one of its documents, and one of its tools that only
    * reads, for an owner's window on another machine (`machine.ts`,

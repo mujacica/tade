@@ -524,34 +524,35 @@ export function searchDocuments(
 }
 
 /**
- * The documents other machines' work produced that can be read now: written,
- * on a machine whose link is up, as what it said of itself lists them — the
- * same rows a project here has, each pressed to read it over the link.
+ * The documents other machines' work produced: written, as what each machine
+ * last said of itself lists them — the same rows a project here has, each
+ * pressed to read it over the link. One on a machine whose link is not up is
+ * still a row, saying it is read once that machine is linked, rather than left
+ * out of the list in silence: what it last said is what this window knows.
  */
 export function documentsThere(remotes: readonly Machine[]): SearchDocument[] {
-  return remotes.flatMap((machine) =>
-    machine.link !== 'live'
-      ? []
-      : (machine.detail.about?.documents ?? [])
-          .filter((one) => one.state === 'written')
-          .map((one) => {
-            const label = printable(one.name)
-            const task = printable(one.task)
-            return {
-              project: printable(one.project),
-              path: one.name,
-              label,
-              lower: label.toLowerCase(),
-              task,
-              taskLower: task.toLowerCase(),
-              handedOver: true,
-              waits: false,
-              note: null,
-              at: one.at === null ? '' : new Date(one.at).toISOString(),
-              there: machine.name,
-            }
-          }),
-  )
+  return remotes.flatMap((machine) => {
+    const unread = machine.link === 'live' ? null : `read once ${machine.name} is linked`
+    return (machine.detail.about?.documents ?? [])
+      .filter((one) => one.state === 'written')
+      .map((one) => {
+        const label = printable(one.name)
+        const task = printable(one.task)
+        return {
+          project: printable(one.project),
+          path: one.name,
+          label,
+          lower: label.toLowerCase(),
+          task,
+          taskLower: task.toLowerCase(),
+          handedOver: true,
+          waits: unread !== null,
+          note: unread,
+          at: one.at === null ? '' : new Date(one.at).toISOString(),
+          there: machine.name,
+        }
+      })
+  })
 }
 
 /** A document's row, opened where it is, at a line if one was typed. */

@@ -13,8 +13,9 @@ import { hereOf } from './here.ts'
 // **Out of what the window already holds, and the same readers its own side
 // uses**: the panes are its state's, the checkout is `hereOf` — the very
 // function its FILES, CHANGES and GIT are read by — the notes are `Live`'s,
-// the schedules and the requests the subjects' own, and the header is what
-// `Routes` says of an agent here. So a project drawn there is drawn from the
+// the schedules and the requests the subjects' own, the header is what
+// `Routes` says of an agent here, and its ACTIONS tab is `Live`'s look at its
+// work, as the window's own is. So a project drawn there is drawn from the
 // values it would be drawn from here, and nothing is a second reading of them.
 //
 // A tree nobody here has open is asked for by the asking (`Live.files`
@@ -87,6 +88,10 @@ export function sideFrom(wire: Wiring, deps: SideDeps): WebSide {
         long: 'Work from outside this machine is off.',
       },
       agent: focused === null ? null : await agentOf(focused, ask.project),
+      // The agent's ACTIONS tab, only where the asking screen shows it: a look
+      // at its work is git, and it is asked of the same `Live` this window's
+      // own tab reads — null until that look has landed, as here.
+      actions: focused !== null && ask.actions === true ? (live?.actions(focused) ?? null) : null,
     })
   }
 

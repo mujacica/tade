@@ -154,13 +154,16 @@ export function tabsFrom(lanes: readonly LaneRecord[]): TerminalTab[] {
     })),
     // An agent on another machine, typed into here: its lane, as an agent's
     // here is, drawn in the pane when it is pressed and never a tab below
-    // (`terminalsOf`) — called by its machine and its name there, which that
-    // machine wrote, wherever a terminal's name is said.
+    // (`terminalsOf`) — and so is another of its lanes, its shell, titled by
+    // its id there — called by its machine and its name there, which that
+    // machine wrote, wherever a terminal's name is said. A shell in one of
+    // that machine's projects is titled by the project, no task's, and is a
+    // terminal below like any other.
     ...attachedFrom(lanes).map((one) => ({
       id: one.id,
       project: '',
       name: `${one.machine} · ${printable(one.task.slice(one.task.indexOf('/') + 1))}`,
-      agentThere: true as const,
+      ...(one.task.includes('/') ? { agentThere: true as const } : {}),
     })),
   ]
 }

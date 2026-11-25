@@ -1081,8 +1081,15 @@ drawn from what its away view sends — the projection the link holds.
   local and through the scripted link draws the same rows below the tabs. A Tade there too old to
   answer is drawn from its projection through the same views (`fromProjection`), said once. A
   control whose action means *this project* (`+`, add a note, a shell, `X`, all/next) is that
-  machine's while you stand there (`Subject.elsewhere`, looked up before `actions`), and what is on
-  its disk (a file, a change, its branch) is said rather than opened here (`remote-there:`).
+  machine's while you stand there (`Subject.elsewhere`, looked up before `actions`;
+  `wire/there-acts.test.ts` presses each). What is on its disk — a file, a change, its branch's
+  menu and branches — is read there (`/api/disk`, an owner's route whose far half
+  `wire/web-disk.ts` confines every path to the tree the side was drawn from, links followed) and
+  opened in the very panels here (`wire/remote-disk.ts`), marked as that machine's
+  (`FilePanel.there`, `BranchPanel.there`) so no save, editor, comment or switch reaches this disk;
+  its menus are the menus here with what would change that disk off (`not from here`). Its ACTIONS
+  tab is that machine's (`/api/side`'s `actions`, asked only while shown, kept under the carried
+  id), and its shell tab is a terminal here to that lane (`/api/attach` with `lane`, `Place.tab`).
 - **A row there is a row here, and the machine is a value in its id** (`there.ts`). Its agents, its
   queued work and its schedules are folded into `AgentPane`, `QueuedView` and `ScheduleView` with ids
   `@machine␟id` (`there`, `refOf`) and drawn by `taskRow`, `queueRow` and `schedulesSection` — so
@@ -1096,7 +1103,8 @@ drawn from what its away view sends — the projection the link holds.
   answer at the act. A view or a handler with a second branch for another machine is the bug
   this replaced. A document there is found by search as one here is (`documentsThere`,
   `search.ts`), its row a press (`remote-document:<machine> <task> <name>`) that copies it here over
-  the link and opens the copy in the viewer, offered only while linked and written.
+  the link and opens the copy in the viewer, written ones only — and one on a machine whose link
+  is not up stays a row saying it is read once that machine is linked, never dropped in silence.
   What `seenThere` derives is the same object for the same inputs (`projected`, `lanedPanes`), or the
   side is drawn again from nothing every frame a lane prints (`last-frame.test.ts`).
   A request's row in INTAKE there is a press too (`remote-request:<machine> <item>`, a name the router hands the

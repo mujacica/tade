@@ -84,6 +84,12 @@ export interface FilePanel {
    */
   atChange: AtChange | null
   busy: false
+  /**
+   * The machine the file is on, where it is another's (`wire/remote-disk.ts`):
+   * read there and drawn here, and never typed into, saved, commented on or
+   * opened in an editor of this machine's, which would be this machine's disk.
+   */
+  there?: string
 }
 
 /** Which change the view was sent to, from where, and whether it went round an end to get there. */
@@ -180,6 +186,8 @@ export function fileKey(
   const body = Math.max(1, inputs.body ?? 20)
   if (panel.asking) return askKey(panel, panel.asking, key, data, inputs)
   if (panel.edit) return typingKey(panel, panel.edit, key, data, body, inputs)
+  // Another machine's file is read, and only read: nothing here writes it.
+  if (panel.there !== undefined && THERE_ONLY_READS.has(key ?? '')) return stay(panel)
   // Reading moves the view the wheel's way, through the window's one move:
   // stopped at its last line, it was a screen past the last one drawn.
   switch (key) {
@@ -598,7 +606,13 @@ function inView(scroll: number, row: number, body: number): number {
   return scroll
 }
 
+/** The keys that write, comment or leave for an editor: nothing for a file on another machine. */
+const THERE_ONLY_READS: ReadonlySet<string> = new Set(['c', 'ctrl+r', 's', 'enter', 'e'])
+
 export function fileClick(panel: FilePanel, control: string, inputs: PanelInputs): PanelOutcome {
+  // Read there, it is not typed into here, and a comment on it is nobody's to send.
+  if (panel.there !== undefined && (control.startsWith('caret:') || control.startsWith('comment')))
+    return stay(panel)
   // `caret:<line>:<cell>:<how>` — a click in the text, by the line it landed
   // on and how far into it. Which character that is depends on the tabs and
   // the wide characters before it, and on how far the view has slid to keep

@@ -9,6 +9,7 @@ import {
 import { type AttachAnswer, attachHere } from './attached.ts'
 import { type Answering, type CarryAnswer, carryHere } from './carried.ts'
 import type { Device } from './devices.ts'
+import { type DiskAnswer, diskHere } from './disk.ts'
 import { type DocumentAnswer, documentHere } from './document.ts'
 import { dutiesHere } from './duties.ts'
 import type { Refusal } from './errors.ts'
@@ -47,7 +48,7 @@ import { type WatchSeenAnswer, watchSeenHere } from './watch-seen.ts'
 // machines (`shared-notes.ts`), every machine's journal kept on every other
 // (`shared-feeds.ts`), where each project's work is, for a fetch
 // over the same SSH (`repositories.ts`), one project as its window draws it
-// (`side.ts`), and what this machine is, one of its
+// (`side.ts`) and what is on its disk, pressed there (`disk.ts`), and what this machine is, one of its
 // documents and one of its tools that only reads (`machine.ts`, `document.ts`,
 // `tool-read.ts`), every machine's inventory and the press that moves the keys
 // into one file (`machines.ts`), Tade started again on the code on disk now
@@ -80,6 +81,7 @@ export const OWNED_DOOR: ReadonlySet<string> = new Set([
   'acts outbox',
   'repositories',
   'side',
+  'disk',
   'carry',
   'machine',
   'machines',
@@ -120,6 +122,7 @@ export async function carryOwned(
     | 'acts'
     | 'repositories'
     | 'side'
+    | 'disk'
     | 'machine'
     | 'machines'
     | 'restarting'
@@ -148,6 +151,7 @@ export async function carryOwned(
         | { acts: ActBody[] }
         | RepositoriesAnswer
         | SideAnswer
+        | DiskAnswer
         | MachineAnswer
         | MachinesAnswer
         | RestartAnswer
@@ -176,6 +180,7 @@ export async function carryOwned(
   if (route === 'acts outbox') return outboxHere(req, device, opts.acts)
   if (route === 'repositories') return repositoriesHere(req, device, opts.repositories)
   if (route === 'side') return sideHere(req, device, opts.side)
+  if (route === 'disk') return diskHere(req, device, opts.disk)
   if (route === 'machine') return machineHere(req, device, opts.machine)
   if (route === 'machines') return machinesHere(req, device, opts.machines)
   if (route === 'machines press') return machinesPressHere(req, device, opts.machines)

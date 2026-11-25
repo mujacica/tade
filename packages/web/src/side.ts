@@ -11,7 +11,8 @@ import { ownsOrTheirs, reachOf } from './surface.ts'
 // the side and their queued work, its schedules, its requests, what changed in
 // its checkout, its files, its notes and where its work is — and, for the one
 // agent another screen has in front of it, its harness, its model, how hard it
-// thinks and how full its context is.
+// thinks and how full its context is — and, where that screen shows it, its
+// ACTIONS tab: its commits, its review and how its checks stand.
 //
 // **What another of the person's machines draws the project from**, so a
 // project there is drawn by that machine's own views out of the values this
@@ -47,6 +48,8 @@ export const SIDE_MOST = {
   schedules: 200,
   intake: 400,
   expanded: 256,
+  commits: 200,
+  checks: 64,
 } as const
 
 const NAME = z.string().max(400)
@@ -291,6 +294,87 @@ const AgentSchema = z.object({
     .nullable(),
 })
 
+const MarkSchema = z.object({
+  text: TEXT,
+  tone: z.enum(['quiet', 'good', 'warning', 'bad']).optional(),
+})
+
+const CommitSchema = z.object({
+  sha: NAME,
+  subject: TEXT,
+  at: COUNT,
+  task: NAME.nullable(),
+  files: COUNT.nullable(),
+  added: COUNT.nullable(),
+  removed: COUNT.nullable(),
+})
+
+const CheckSchema = z.object({
+  id: NAME,
+  title: TEXT.nullable(),
+  run: TEXT.nullable(),
+  state: NAME,
+  required: z.boolean(),
+  skip: TEXT.nullable(),
+  chosen: z.boolean().nullable(),
+  needs: z.array(NAME).max(64),
+  summary: TEXT.nullable(),
+  seconds: COUNT.nullable(),
+  startedAt: WHEN,
+  at: WHEN,
+  commit: NAME.nullable(),
+  carried: z.boolean(),
+  counts: z
+    .array(z.object({ label: NAME, count: COUNT, tone: z.enum(['good', 'bad', 'quiet']) }))
+    .max(32),
+  places: z.array(z.object({ path: TEXT, at: NAME.nullable(), note: TEXT.nullable() })).max(64),
+  more: COUNT,
+  tail: z.array(TEXT).max(200),
+})
+
+/**
+ * What the agent in front of the asking screen has done, as this machine's
+ * ACTIONS tab draws it (the window's `ActionsView`): its own commits and the
+ * rest, what is not committed, the review it is out for and its checks.
+ */
+const ActionsSchema = z.object({
+  task: NAME,
+  branch: NAME.nullable(),
+  base: NAME.nullable(),
+  ahead: COUNT.nullable(),
+  behind: COUNT.nullable(),
+  dirty: COUNT,
+  shared: z.boolean(),
+  commit: NAME.nullable(),
+  mine: z.array(CommitSchema).max(SIDE_MOST.commits),
+  others: z.array(CommitSchema).max(SIDE_MOST.commits),
+  review: z
+    .object({
+      section: NAME,
+      id: NAME,
+      title: TEXT,
+      label: NAME.optional(),
+      note: TEXT.optional(),
+      marks: z.array(MarkSchema).max(32).optional(),
+      figures: z.array(MarkSchema).max(32).optional(),
+      age: z.object({ since: COUNT, says: NAME }).optional(),
+      links: z
+        .array(z.object({ title: TEXT, url: TEXT }))
+        .max(16)
+        .optional(),
+      task: NAME.optional(),
+      project: NAME.optional(),
+    })
+    .nullable(),
+  checks: z.array(CheckSchema).max(SIDE_MOST.checks),
+  rollup: z.enum(['pass', 'fail', 'unknown']),
+  pending: TEXT.nullable().optional(),
+  source: TEXT,
+  unread: z.array(TEXT).max(64),
+  running: z.object({ since: COUNT, by: NAME, done: COUNT, total: COUNT }).nullable(),
+  notes: z.array(TEXT).max(32),
+})
+
 /**
  * The answer, as this machine gives it and another reads it: read for its
  * shape — another field from a newer Tade is let be — and every value bounded,
@@ -314,6 +398,12 @@ export const SideAnswerSchema = z.object({
   intake: z.array(RequestSchema).max(SIDE_MOST.intake),
   intakeEmpty: z.object({ short: TEXT, long: TEXT }),
   agent: AgentSchema.nullable(),
+  /**
+   * The agent in front's ACTIONS tab, where the ask said it is shown: null
+   * until this machine has looked at its work, and absent from a Tade that
+   * does not draw it for another screen.
+   */
+  actions: ActionsSchema.nullable().optional(),
 })
 export type SideAnswer = z.infer<typeof SideAnswerSchema>
 export type SidePane = SideAnswer['panes'][number]
@@ -327,6 +417,8 @@ export const SideAskSchema = z.strictObject({
   expanded: z.array(TEXT).max(SIDE_MOST.expanded),
   /** Whether its FILES section is open: a tree nobody is looking at is not read. */
   files: z.boolean(),
+  /** Whether the agent in front's ACTIONS tab is shown: work nobody is looking at is not read. */
+  actions: z.boolean().optional(),
 })
 export type SideAsk = z.infer<typeof SideAskSchema>
 

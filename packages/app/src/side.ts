@@ -1,7 +1,7 @@
 import { type InboxRow, printable } from '@tade/core'
 import type { SideAnswer, SideAsk } from '@tade/web'
 import type { FileEntry } from './files.ts'
-import type { Change, Frame, NoteShown, TaskSpent } from './frame.ts'
+import type { ActionsView, Change, Frame, NoteShown, TaskSpent } from './frame.ts'
 import type { Target } from './hits.ts'
 import { elsewhereOf, type Machine, type Place, placeIn, type RemoteProject } from './machines.ts'
 import type { AgentPane, AppState, ScheduleView } from './model.ts'
@@ -58,6 +58,8 @@ export interface SideThere {
     vitals: Frame['vitals']
     offers: AgentOffers | null
   } | null
+  /** What the agent in front has done, as its ACTIONS tab draws it there; null where not asked or not looked at. */
+  actions: ActionsView | null
 }
 
 /** What the frame holds of the project there you are standing in: the answer, or why none yet. */
@@ -120,6 +122,7 @@ export function sideThere(answer: SideAnswer): SideThere {
             vitals: said.agent.vitals,
             offers: said.agent.offers as AgentOffers | null,
           },
+    actions: (said.actions ?? null) as ActionsView | null,
   }
 }
 
@@ -164,6 +167,8 @@ export interface SideFacts {
   intake: readonly InboxRow[]
   intakeEmpty: { short: string; long: string }
   agent: SideThere['agent']
+  /** The agent in front's ACTIONS tab, where the ask said it is shown. */
+  actions: ActionsView | null
 }
 
 /** How many of a list go: the wire's own bound, so an answer is never refused for its length. */
@@ -280,6 +285,20 @@ export function sideAnswerOf(facts: SideFacts): SideAnswer {
             vitals: facts.agent.vitals ?? null,
             offers: facts.agent.offers as NonNullable<SideAnswer['agent']>['offers'],
           },
+    actions:
+      facts.actions === null || !ids.has(facts.actions.task) || facts.ask.actions !== true
+        ? null
+        : ({
+            ...facts.actions,
+            mine: most(facts.actions.mine, 200),
+            others: most(facts.actions.others, 200),
+            checks: most(facts.actions.checks, 64),
+            // What clicking the review runs is a tool of this machine's: not the asking one's to run.
+            review:
+              facts.actions.review === null
+                ? null
+                : (({ opens: _opens, ...row }) => row)(facts.actions.review),
+          } as SideAnswer['actions']),
   }
 }
 
@@ -321,6 +340,7 @@ export function seenThere(
   const opened = state.schedule === null ? null : refOf(state.schedule)
   const seen: AppState = {
     ...state,
+    ...frontOf(state, place, focused),
     panes,
     project: place.project,
     elsewhere: null,
@@ -348,7 +368,10 @@ export function seenThere(
   // Until a terminal here is the agent there, its lane is its screen as that
   // machine last read it (`wire/remote-agent.ts`), drawn where its lane is.
   const read =
-    focused !== null && place.lane === undefined && frame.remoteScreen?.task === focused
+    focused !== null &&
+    place.lane === undefined &&
+    place.tab === undefined &&
+    frame.remoteScreen?.task === focused
       ? frame.remoteScreen
       : null
   const seenFrame: Frame = {
@@ -372,7 +395,7 @@ export function seenThere(
     intakeEmpty: side?.intakeEmpty ?? frame.intakeEmpty,
     lists: [],
     queuedThere: [],
-    actions: null,
+    actions: focused !== null && side?.actions?.task === focused ? side.actions : null,
     route: agent?.route ?? frame.route,
     vitals: agent?.vitals ?? null,
     offers: agent?.offers ?? null,
@@ -409,6 +432,49 @@ function lanedPanes(side: SideThere, agent?: string, lane?: string): AgentPane[]
   LANED.set(side, { agent, lane, panes })
   return panes
 }
+
+/**
+ * Which of the agent there's tabs is in front, in the ids the drawing is
+ * handed: the ACTIONS tab where this window shows it for that agent (kept
+ * under its id carried to the machine, as the press set it), and the lane
+ * there whose terminal here is in the pane (`Place.tab`) — and nothing this
+ * window holds for a task of its own that happens to have the same id.
+ */
+function frontOf(
+  state: AppState,
+  place: Place,
+  focused: string | null,
+): Pick<AppState, 'paneTab' | 'viewing'> {
+  const tab = focused === null ? undefined : state.paneTab[there(place.machine, focused)]
+  const lane = place.tab?.there
+  const mine = focused !== null && (focused in state.paneTab || focused in state.viewing)
+  if (focused === null || (tab === undefined && lane === undefined && !mine)) {
+    return { paneTab: state.paneTab, viewing: state.viewing }
+  }
+  // The same objects for the same inputs, as everything else drawn from here is.
+  const was = FRONTS.get(state.paneTab)
+  if (was?.viewing === state.viewing && was.focused === focused && was.lane === lane) {
+    return was.out
+  }
+  const { [focused]: _tab, ...paneTab } = state.paneTab
+  const { [focused]: _lane, ...viewing } = state.viewing
+  const out = {
+    paneTab: tab === undefined ? paneTab : { ...paneTab, [focused]: tab },
+    viewing: lane === undefined ? viewing : { ...viewing, [focused]: lane },
+  }
+  FRONTS.set(state.paneTab, { viewing: state.viewing, focused, lane, out })
+  return out
+}
+
+const FRONTS = new WeakMap<
+  AppState['paneTab'],
+  {
+    viewing: AppState['viewing']
+    focused: string
+    lane: string | undefined
+    out: Pick<AppState, 'paneTab' | 'viewing'>
+  }
+>()
 
 /** A pane there with the terminal here that is its agent as its lane. */
 function withLane(pane: AgentPane, lane: string | undefined): AgentPane {
@@ -603,5 +669,6 @@ function fromProjection(machine: Machine, project: RemoteProject): SideThere {
       ),
     intakeEmpty: { short: 'none', long: `${machine.name} has handed this project nothing.` },
     agent: null,
+    actions: null,
   }
 }

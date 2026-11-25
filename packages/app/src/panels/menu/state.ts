@@ -54,6 +54,17 @@ export type MenuSubject =
   | { kind: 'model-there'; id: string }
   /** Where the `+` opens what it opens, once there is a second machine: this one first. */
   | { kind: 'new-where'; what: 'agent' | 'below' }
+  /**
+   * A file, a folder, a change or the branch in a project on another machine
+   * you stand in: its FILES, CHANGES and GIT, as the side there named them
+   * (`wire/remote-disk.ts`).
+   */
+  | {
+      kind: 'disk-there'
+      machine: string
+      what: 'file' | 'folder' | 'change' | 'branch'
+      path: string
+    }
 
 /** A menu, opened from a ≡ or a right-click, where it was clicked. */
 export interface MenuPanel {

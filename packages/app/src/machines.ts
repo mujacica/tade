@@ -242,6 +242,11 @@ export interface Place {
    * the pane in place of its screen read over the link (`laneThere`).
    */
   lane?: string
+  /**
+   * Another of that agent's lanes in front of the pane — the shell its pane
+   * has a tab for — by its id there, and the terminal here that is it.
+   */
+  tab?: { there: string; lane: string }
 }
 
 /** How long a name may be here; a title or a reason, a little longer. */

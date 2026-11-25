@@ -6,6 +6,7 @@ import {
   appendDevice,
   type CarryLine,
   carryingAt,
+  type DiskAsk,
   type IntakeIn,
   type MachineAnswer,
   mintOwner,
@@ -30,6 +31,7 @@ import {
   type ToolReadAnswer,
   type WatchSeenAnswer,
   type WebConnecting,
+  type WebDisk,
   type WebServer,
   type WebSide,
   webServer,
@@ -113,8 +115,9 @@ export interface FarEnd {
   talking: boolean
   /**
    * The line its window answers an owner asking to be shown a task's agent
-   * (`/api/attach`), by task. A test sets it; a task not in it is answered as
-   * one whose agent is not running there.
+   * (`/api/attach`), by task — or one of its other lanes, by that lane's id. A
+   * test sets it; a task not in it is answered as one whose agent is not
+   * running there.
    */
   readonly attachable: Map<string, string>
   /**
@@ -130,6 +133,13 @@ export interface FarEnd {
   side: WebSide | null
   /** Every ask of `/api/side` it was answered, oldest first. */
   readonly sideAsked: SideAsk[]
+  /**
+   * What is on its disk in one of its projects, as its window answers an
+   * owner (`/api/disk`), by the ask. A test sets it; unset, nothing is there.
+   */
+  disk: WebDisk | null
+  /** Every ask of `/api/disk` it was answered, oldest first. */
+  readonly diskAsked: DiskAsk[]
   /**
    * The outside watches its window says it looks with, by project, as its
    * projection carries them (`ProjectRow.watching`). A test sets it; a project
@@ -244,6 +254,8 @@ class Far implements FarEnd {
   repositories: RepositoryHere[] = []
   side: WebSide | null = null
   readonly sideAsked: SideAsk[] = []
+  disk: WebDisk | null = null
+  readonly diskAsked: DiskAsk[] = []
   readonly watching = new Map<string, readonly string[]>()
   machine: MachineAnswer | null = null
   machineAsked = 0
@@ -380,8 +392,8 @@ class Far implements FarEnd {
           },
         },
       }),
-      attaching: (task) => {
-        const line = this.attachable.get(task)
+      attaching: (task, lane) => {
+        const line = this.attachable.get(lane ?? task)
         return line === undefined
           ? { command: null, why: 'its agent is not running there' }
           : { command: line }
@@ -390,6 +402,10 @@ class Far implements FarEnd {
       side: async (ask) => {
         this.sideAsked.push(ask)
         return this.side === null ? null : this.side(ask)
+      },
+      disk: async (ask) => {
+        this.diskAsked.push(ask)
+        return this.disk === null ? null : this.disk(ask)
       },
       seen: (device, word) => {
         this.seen.push({ label: device.label, word })

@@ -62,7 +62,11 @@ export class Viewed {
 
   /** Read a file in, throwing away whatever was open. */
   open(path: string, plain: boolean): void {
-    const file = readForView(path)
+    this.hold(readForView(path), plain)
+  }
+
+  /** A file read somewhere else — on another machine — held as one read here is. */
+  hold(file: ViewedFile, plain: boolean): void {
     this.held = {
       file,
       source: sourceLines(file, plain),

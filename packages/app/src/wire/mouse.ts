@@ -156,7 +156,13 @@ export interface MouseDeps {
 }
 
 /** What a press opens on the disk it is on: another machine's, while you stand in one of its projects. */
-const THERE_ON_DISK: ReadonlySet<Target['kind']> = new Set(['file', 'place', 'change', 'branch'])
+const THERE_ON_DISK: ReadonlySet<Target['kind']> = new Set([
+  'file',
+  'folder',
+  'place',
+  'change',
+  'branch',
+])
 
 export class Mouse {
   private readonly wire: Wiring
@@ -572,6 +578,28 @@ export class Mouse {
       this.deps.run('copy-path')
       return
     }
+    // Standing in a project on another machine, what is on that machine's
+    // disk is that machine's: a file, a place in a screen and a change are
+    // read there and opened here (`remote-there:`), and their menus and the
+    // branch's are that machine's (`disk-there`) — nothing here is opened in
+    // their place. A folder opens and closes here, as the tree is this window's.
+    const place = elsewhereOf(this.wire.state)
+    if (place !== null && THERE_ON_DISK.has(target.kind)) {
+      const path = 'path' in target ? target.path : ''
+      if (button === 'right' || target.kind === 'branch') {
+        const what =
+          target.kind === 'place'
+            ? 'file'
+            : (target.kind as 'file' | 'folder' | 'change' | 'branch')
+        this.deps.openMenu({ kind: 'disk-there', machine: place.machine, what, path }, at)
+        return
+      }
+      if (target.kind !== 'folder') {
+        const line = 'line' in target && target.line != null ? String(target.line) : ''
+        this.deps.run(`remote-there:${target.kind}\0${path}\0${line}`)
+        return
+      }
+    }
     // A right-click is the menu of whatever it is on, as it is everywhere else.
     if (button === 'right') {
       const subject = subjectOf(target)
@@ -579,13 +607,6 @@ export class Mouse {
         this.deps.openMenu(subject, at)
         return
       }
-    }
-    // Standing in a project on another machine, what is on that machine's
-    // disk is pressed there (`remote-there:`): its subject answers, in words
-    // where a press cannot cross yet, and nothing here is opened in its place.
-    if (elsewhereOf(this.wire.state) !== null && THERE_ON_DISK.has(target.kind)) {
-      this.deps.run(`remote-there:${target.kind}\0${'path' in target ? target.path : ''}`)
-      return
     }
     switch (target.kind) {
       case 'task': {
@@ -609,9 +630,9 @@ export class Mouse {
         break
       }
       case 'lane': {
-        // An agent there's own tab is that agent, looked at as a row of it is.
+        // An agent there's tabs are its lanes there: its own, or its shell.
         if (isThere(target.task)) {
-          this.deps.run(`remote-look:${target.task}`)
+          this.deps.run(`remote-lane:${target.task}\0${target.lane}`)
           return
         }
         // The tab of the half beside it gives that half the keyboard; any other shows it in front.
@@ -624,6 +645,11 @@ export class Mouse {
         break
       }
       case 'pane-tab':
+        // An agent there's ACTIONS tab is what that machine's window draws.
+        if (isThere(target.task)) {
+          this.deps.run(`remote-actions:${target.task}`)
+          return
+        }
         this.wire.put(viewActions(this.wire.state, target.task))
         break
       case 'check':

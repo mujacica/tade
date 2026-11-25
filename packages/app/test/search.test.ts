@@ -1,8 +1,11 @@
 import type { Document } from '@tade/core'
 import { describe, expect, it } from 'vitest'
+import type { Machine } from '../src/machines.ts'
 import { ABOUT_ASKED, askedAbout, isSentence, shortlist, worthAsking } from '../src/meant.ts'
 import {
   completed,
+  documentEntry,
+  documentsThere,
   type FoundDocument,
   fuzzy,
   GROUPS,
@@ -693,5 +696,48 @@ describe('the documents tasks produced', () => {
       })
       expect(out[0]?.kind).toBe('path')
     })
+  })
+})
+
+describe('another machine’s documents', () => {
+  /** A machine that said it has one written document, linked as `link`. */
+  const machine = (link: Machine['link']): Machine =>
+    ({
+      name: 'ipax',
+      link,
+      detail: {
+        about: {
+          documents: [
+            { task: 'tade/plan', project: 'tade', name: 'PLAN.md', state: 'written', at: 0 },
+            { task: 'tade/plan', project: 'tade', name: 'DRAFT.md', state: 'writing', at: null },
+          ],
+        },
+      },
+    }) as unknown as Machine
+
+  it('are rows as a project’s here are, pressed to read them over the link', () => {
+    const [one, ...rest] = documentsThere([machine('live')])
+    expect(rest).toEqual([])
+    const entry = documentEntry(one as NonNullable<typeof one>)
+    expect(entry).toMatchObject({
+      id: 'run:remote-document:ipax tade/plan PLAN.md',
+      label: 'PLAN.md',
+      detail: 'tade/plan · tade on ipax',
+    })
+    expect(entry.note).toBeUndefined()
+  })
+
+  it('stay rows while its link is not up, each saying why it cannot be read now', () => {
+    for (const link of ['down', 'linking', 'ended'] as const) {
+      const rows = documentsThere([machine(link)])
+      expect(
+        rows.map((one) => one.label),
+        link,
+      ).toEqual(['PLAN.md'])
+      expect(documentEntry(rows[0] as NonNullable<(typeof rows)[0]>)).toMatchObject({
+        note: 'read once ipax is linked',
+        tone: 'waiting',
+      })
+    }
   })
 })

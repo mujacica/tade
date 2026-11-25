@@ -26,6 +26,8 @@ export const SIDE_MS = 1_000
 export interface RemoteSideDeps {
   /** The link holding a machine, or null where none does. */
   reach(machine: string): { link: RemoteLink; live: boolean } | null
+  /** Whether the agent in front's ACTIONS tab is shown, so that machine is asked for it. */
+  actions?(): boolean
 }
 
 export class RemoteSide {
@@ -88,6 +90,9 @@ export class RemoteSide {
       agent: place.agent ?? null,
       expanded: state.expanded.slice(0, 256),
       files: sectionOpen(state, 'files', false),
+      // Asked for only while shown, and said only then: a Tade there from
+      // before ACTIONS was drawn for another screen refuses a field it does not know.
+      ...(this.deps.actions?.() === true ? { actions: true } : {}),
     }
     this.asking = key
     this.askedAt = this.wire.now()

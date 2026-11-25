@@ -58,6 +58,7 @@ import { changesFrom } from './web-changes.ts'
 import { CheckRecords } from './web-checks.ts'
 import { connectingFor } from './web-connect.ts'
 import type { AwayDeps } from './web-deps.ts'
+import { diskFrom } from './web-disk.ts'
 import { builtFrom, turnTo } from './web-follow.ts'
 import { EVERYTHING, widen } from './web-grants.ts'
 import { halvesFor } from './web-halves.ts'
@@ -297,6 +298,8 @@ export class Away implements Subject {
         hooks: hooksFor(this.wire, () => this.config(), this.deps.doorbell),
       }),
       ...(this.deps.side && { side: sideFrom(this.wire, this.deps.side) }),
+      // What is on disk in a project the side drew, pressed there: confined to its tree.
+      ...(this.deps.side && { disk: diskFrom(this.wire) }),
       ...ownedFor(
         this.wire,
         () => this.panelFacts(),

@@ -18,8 +18,8 @@ async function machine() {
   const one = await start(
     {},
     {
-      attaching: (task) => {
-        asked.push(task)
+      attaching: (task, lane) => {
+        asked.push(lane === undefined ? task : `${task} ${lane}`)
         return task === 'far/gone'
           ? { command: null, why: 'its agent is not running' }
           : { command: `tmux -L tade new-session -t tade-1 ';' select-window -t ':${task}'` }
@@ -104,11 +104,28 @@ describe('asking what to run here to be shown an agent', () => {
   it('reads a task id and nothing else', async () => {
     const { one, asked } = await machine()
     const made = await owner(one)
-    for (const body of [{ task: '../etc' }, { task: 'far/x', lane: 'far/x/agent' }, {}, null]) {
+    for (const body of [
+      { task: '../etc' },
+      // A lane is one more segment of that very task's, and nothing that walks.
+      { task: 'far/x', lane: 'far/y/shell' },
+      { task: 'far/x', lane: 'far/x/../../etc' },
+      { task: 'far/x', lane: 'far/x' },
+      { task: 'far/x', other: 1 },
+      {},
+      null,
+    ]) {
       const said = await asOwner(one, made, body)
       expect(said.status, JSON.stringify(body)).toBe(400)
     }
     expect(asked).toEqual([])
+  })
+
+  it('answers an owner with the line for another of the task’s lanes, by its id', async () => {
+    const { one, asked } = await machine()
+    const made = await owner(one)
+    const said = await asOwner(one, made, { task: 'far/fix-it', lane: 'far/fix-it/shell' })
+    expect(said.status, said.text).toBe(200)
+    expect(asked).toEqual(['far/fix-it far/fix-it/shell'])
   })
 
   it('is the 404 of a path nobody wired where the window gave no way to answer', async () => {

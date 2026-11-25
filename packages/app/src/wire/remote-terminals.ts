@@ -173,7 +173,10 @@ export class RemoteTerminals {
     }
   }
 
-  /** That machine's line for the agent, and how this link runs it there. Throws where neither could be asked. */
+  /**
+   * That machine's line for the agent — or, for `task/lane`, that lane of the
+   * task's — and how this link runs it there. Throws where neither could be asked.
+   */
   private async there(machine: string, task: string): Promise<There> {
     const reach = this.deps.reach(machine)
     if (reach === null || !reach.live) {
@@ -182,11 +185,22 @@ export class RemoteTerminals {
         answered: false,
       }
     }
-    // A task's agent there is that machine's own line for it; a project's
+    // A task's agent there is that machine's own line for it, and so is
+    // another of its lanes (its shell), named by its own id; a project's
     // shell is a login shell in its checkout there, at the root it says.
-    const line = task.includes('/')
-      ? lineIn(await reach.link.request(machine, '/api/attach', { task }), machine)
-      : shellIn(await reach.link.request(machine, REPOSITORIES, {}), machine, task)
+    const parts = task.split('/')
+    const line =
+      parts.length >= 3
+        ? lineIn(
+            await reach.link.request(machine, '/api/attach', {
+              task: parts.slice(0, 2).join('/'),
+              lane: task,
+            }),
+            machine,
+          )
+        : parts.length === 2
+          ? lineIn(await reach.link.request(machine, '/api/attach', { task }), machine)
+          : shellIn(await reach.link.request(machine, REPOSITORIES, {}), machine, task)
     if (line.why !== null) return { why: line.why, answered: true }
     const terminal = await reach.link.attach(reach.remote, line.command)
     if (terminal === null) {

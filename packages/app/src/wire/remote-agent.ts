@@ -28,7 +28,15 @@ import { type MenuItem, menuPanel } from '../panels/menu/state.ts'
 import { closeDonePanel, confirmRemovePanel, promptPanel } from '../panels/small/state.ts'
 import { QUEUE_SCOPES } from '../queue-view.ts'
 import type { SideThere } from '../side.ts'
-import { refOf, scheduleThere, there, thereItems, thereScheduleItems } from '../there.ts'
+import {
+  paneOf,
+  queuedOf,
+  refOf,
+  scheduleThere,
+  there,
+  thereItems,
+  thereScheduleItems,
+} from '../there.ts'
 import {
   type Actions,
   flash,
@@ -39,6 +47,7 @@ import {
   type Wiring,
   why,
 } from './context.ts'
+import { RemoteDisk, type RemoteDiskDeps } from './remote-disk.ts'
 import { RemoteSide } from './remote-side.ts'
 import { RemoteTerminals } from './remote-terminals.ts'
 
@@ -68,11 +77,18 @@ import { RemoteTerminals } from './remote-terminals.ts'
 // Opening one, running it again once its connection is back and moving it off
 // a way that does not get through are `remote-terminals.ts`'s.
 //
+// Telling it something is typing into that terminal, as it is for an agent
+// here: there is no prompt of the window's own for it. Another of its lanes —
+// the shell its pane has a tab for — is a terminal here in the same way
+// (`/api/attach` with that lane's id), put in the pane under that tab
+// (`Place.tab`), and its ACTIONS tab is what that machine's window draws
+// there (`/api/side`'s `actions`).
+//
 // **Everything else is a verb** (`/api/act/<verb>`), with the target and
 // what this window last saw of it (`was`, `rev`), so a press against a screen
 // that is out of date is that machine saying so rather than doing the wrong
-// thing. Only what that machine says may be asked of it now (`can`) is
-// offered, and what it answers is said as text.
+// thing. What is on its disk is read (`remote-disk.ts`), and what it answers
+// is said as text.
 
 /** How often the screen of an agent there is asked for again while you look at it. */
 export const LOOK_MS = 2_000
@@ -96,6 +112,10 @@ export interface RemoteAgentDeps {
     method: string
     params: Record<string, unknown>
   }): Promise<string>
+  /** The viewer and the branch panel, which what is read from that machine's disk opens in. */
+  files?(): ReturnType<RemoteDiskDeps['files']>
+  /** Something put on the clipboard, said in the strip. */
+  copy?(text: string): Promise<void>
 }
 
 /**
@@ -164,12 +184,28 @@ export class RemoteAgents implements Subject, ThereDoor {
   private readonly opening = new Set<string>()
   /** The project there you stand in, as that machine's window draws it. */
   private readonly side: RemoteSide
+  /** What is on its disk: a file, a change, its branches, read there and opened here. */
+  private readonly disk: RemoteDisk
 
   constructor(wire: Wiring, deps: RemoteAgentDeps) {
     this.wire = wire
     this.deps = deps
     this.terminals = new RemoteTerminals(wire, { reach: (machine) => deps.reach(machine) })
-    this.side = new RemoteSide(wire, { reach: (machine) => deps.reach(machine) })
+    this.side = new RemoteSide(wire, {
+      reach: (machine) => deps.reach(machine),
+      actions: () => this.showingActions(),
+    })
+    this.disk = new RemoteDisk(wire, {
+      reach: (machine) => deps.reach(machine),
+      shown: (place) => this.side.shownFor(place),
+      files: () => {
+        const files = deps.files?.()
+        if (!files) throw new Error('this window has no viewer to open it in')
+        return files
+      },
+      copy: (text) => deps.copy?.(text) ?? Promise.resolve(),
+      shell: (machine, project) => this.shellSaid(machine, project),
+    })
   }
 
   facts(): Partial<Frame> {
@@ -206,25 +242,14 @@ export class RemoteAgents implements Subject, ThereDoor {
       // A row of an agent there, pressed: looked at, as a row here is focused,
       // and opened where its lane runs, as a row here is opened by a click.
       'remote-look:': (task) => this.press(task),
-      'remote-attach': () => this.attach(),
-      'remote-steer': () => {
-        const looked = this.looked()
-        if (looked?.agent == null) return
-        const name = looked.agent.title ?? looked.agent.name
-        this.wire.put({
-          ...this.wire.state,
-          panel: {
-            ...promptPanel('remote-steer', `Tell ${name} on ${looked.machine.name}`, 'Say'),
-            target: `${looked.machine.name}\0${looked.agent.id}`,
-          },
-        })
-        this.wire.draw()
+      // A tab of an agent there's pane: its own lane, or another of its lanes.
+      'remote-lane:': (said) => {
+        const [task = '', lane = ''] = said.split('\0')
+        return this.lane(task, lane)
       },
-      'remote-stop': () => this.act('stop', { confirm: true }),
-      'remote-park': () => this.act('park', { parked: true }),
-      'remote-unpark': () => this.act('park', { parked: false }),
-      'remote-start': () => this.act('queue', { change: 'start' }),
-      'remote-reopen': () => this.act('reopen', {}),
+      // Its ACTIONS tab, which that machine's window draws (`/api/side`).
+      'remote-actions:': (task) => this.actionsTab(task),
+      'remote-attach': () => this.attach(),
       'remote-allow': () => this.answer(true),
       'remote-deny': () => this.answer(false),
     }
@@ -261,21 +286,21 @@ export class RemoteAgents implements Subject, ThereDoor {
         })
         this.wire.draw()
       },
-      'new-shell': async () => {
-        try {
-          await this.shell(machine, project)
-        } catch (err) {
-          notify(this.wire, `${machine}: ${why(err)}`)
-          this.wire.draw()
-        }
-      },
+      'new-shell': () => this.shellSaid(machine, project),
       'close-done': () => {
+        // The panes the side is drawn from: that machine's answer, or — from a
+        // Tade there too old to give one — its projection, as `seenThere` draws it.
         const side = this.side.shownFor(place)
-        const done = doneTasks({
-          ...this.wire.state,
-          panes: [...(side?.panes ?? [])],
-          project,
-        })
+        const found = side === null ? placeIn(this.deps.machines(), place) : null
+        const projected = found?.project
+        const panes =
+          side?.panes ??
+          (projected
+            ? projected.agents.map((agent) =>
+                agent.queued ? queuedOf(agent, projected) : paneOf(agent, projected),
+              )
+            : [])
+        const done = doneTasks({ ...this.wire.state, panes: [...panes], project })
         this.wire.put(
           done.length === 0
             ? notice(
@@ -300,21 +325,20 @@ export class RemoteAgents implements Subject, ThereDoor {
         }
         this.wire.draw()
       },
-      'remote-there:': (said) => this.onDisk(machine, said),
+      // Its ACTIONS tab's Run checks: that machine's own `checks_run`, as here.
+      'checks-run:': (id) => this.checksThere(id),
+      ...this.disk.elsewhere(),
     }
   }
 
-  /**
-   * A press on what is on that machine's disk — a file, a change, its branch —
-   * named as `<kind>\0<path>` by the mouse: said, since reading it from here
-   * is not built yet, and never opened from this machine's disk in its place.
-   */
-  private onDisk(machine: string, said: string): void {
-    const [kind = '', path = ''] = said.split('\0')
-    const what = kind === 'branch' || path === '' ? 'its branch' : printable(path)
-    this.say(
-      `${what} is on ${machine}: reading it from here is not built yet — open a terminal there with + below`,
-    )
+  /** A shell in that project there, in a terminal here; why not, said. */
+  private async shellSaid(machine: string, project: string): Promise<void> {
+    try {
+      await this.shell(machine, project)
+    } catch (err) {
+      notify(this.wire, `${machine}: ${why(err)}`)
+      this.wire.draw()
+    }
   }
 
   prompts(): Prompts {
@@ -338,20 +362,6 @@ export class RemoteAgents implements Subject, ThereDoor {
       'account-there': async (panel, text) => {
         await this.named(panel.target ?? '', 'account', { account: text })
       },
-      'remote-steer': async (panel, text) => {
-        const [machine = '', task = ''] = (panel.target ?? '').split('\0')
-        const looked = this.looked()
-        // The agent the panel was opened on, and nobody else: a window that moved
-        // on while somebody typed does not send their words somewhere new.
-        if (looked === null || looked.machine.name !== machine || looked.agent?.id !== task) {
-          throw new Error(`${task} on ${machine} is not the agent in front any more`)
-        }
-        if (text === '') throw new Error('say something')
-        const said = await this.carry(looked, 'steer', { said: text })
-        this.wire.put({ ...this.wire.state, panel: null })
-        flash(this.wire, said)
-        this.wire.draw()
-      },
     }
   }
 
@@ -362,6 +372,7 @@ export class RemoteAgents implements Subject, ThereDoor {
    */
   menus(): Menus {
     return {
+      ...this.disk.menus(),
       'model-there': {
         title: (subject) => `Model for ${this.title(subject.id)}`,
         items: (subject) => {
@@ -428,6 +439,111 @@ export class RemoteAgents implements Subject, ThereDoor {
     this.wire.draw()
     const looked = this.looked()
     if (looked !== null) void this.read(looked)
+  }
+
+  /** Whether the agent there in front has its ACTIONS tab shown: what the side then asks for. */
+  private showingActions(): boolean {
+    const place = elsewhereOf(this.wire.state)
+    if (place?.agent === undefined) return false
+    return this.wire.state.paneTab[there(place.machine, place.agent)] === 'actions'
+  }
+
+  /**
+   * Its ACTIONS tab pressed: shown in the pane, as here (`viewActions`), kept
+   * under its id carried to that machine, and asked of that machine now.
+   */
+  private actionsTab(id: string): void {
+    const place = elsewhereOf(this.wire.state)
+    const { machine, id: task } = refOf(id)
+    if (place === null || place.machine !== machine || place.agent !== task) return
+    const state = this.wire.state
+    this.wire.put({
+      ...state,
+      paneTab: { ...state.paneTab, [id]: 'actions' },
+      actionsScroll: 0,
+    })
+    this.side.soon()
+    this.wire.draw()
+  }
+
+  /**
+   * A tab of the agent there's pane pressed: its own lane brought back in
+   * front — opened where it is not yet — or another of its lanes, its shell,
+   * a terminal here to that lane there (`/api/attach` with the lane), put in
+   * the pane under its tab (`Place.tab`), as a press on a shell's tab here
+   * shows it there.
+   */
+  private async lane(id: string, lane: string): Promise<void> {
+    const place = elsewhereOf(this.wire.state)
+    const { machine, id: task } = refOf(id)
+    if (place === null || machine === null || place.machine !== machine) return
+    if (place.agent !== task) return this.look(id)
+    const state = this.wire.state
+    const { [id]: _actions, ...paneTab } = state.paneTab
+    if (!lane.startsWith(`${task}/`)) {
+      this.wire.put({ ...state, paneTab, elsewhere: withoutTab(place) })
+      this.wire.draw()
+      if (place.lane === undefined && this.looked()?.agent?.lane === 'running') await this.attach()
+      return
+    }
+    this.wire.put({ ...state, paneTab })
+    const open = attachedTo(this.wire.opts.client.lanes(), machine, lane)
+    if (open !== null) return this.inTab(task, lane, open.id)
+    const key = `${machine}\0${lane}`
+    if (this.opening.has(key)) return
+    this.opening.add(key)
+    try {
+      await this.terminals.open(machine, lane, (opened) => this.inTab(task, lane, opened))
+    } finally {
+      this.opening.delete(key)
+    }
+  }
+
+  /**
+   * A terminal here that is another lane of the agent there in front, put in
+   * the pane under that lane's tab — only while that agent is still in front.
+   */
+  private inTab(task: string, lane: string, id: string): void {
+    const place = elsewhereOf(this.wire.state)
+    if (place?.agent !== task) return
+    this.wire.live?.tabsNow()
+    const state = this.wire.state
+    this.wire.put({
+      ...leaveLine(state),
+      elsewhere: { ...place, tab: { there: lane, lane: id } },
+      keyboard: 'pane',
+      paneScroll: 0,
+      ...(state.bottom === id ? { bottom: ORCHESTRATOR_TAB } : {}),
+    })
+    this.wire.draw()
+  }
+
+  /**
+   * Run checks on its ACTIONS tab: that machine's own `checks_run` for the
+   * project, through its gate as any press there is — said at once, since a
+   * suite takes minutes, and again with what it came to.
+   */
+  private async checksThere(id: string): Promise<void> {
+    const { machine, id: task } = refOf(id)
+    if (machine === null) return
+    const project = task.split('/')[0] ?? task
+    flash(this.wire, `running ${project}'s checks on ${machine}`)
+    this.side.soon()
+    this.wire.draw()
+    try {
+      flash(
+        this.wire,
+        await this.pressedOn(machine, 'extension/call', {
+          tool: 'checks_run',
+          input: { project },
+          callId: randomBytes(8).toString('hex'),
+        }),
+      )
+    } catch (err) {
+      notify(this.wire, why(err))
+    }
+    this.side.soon()
+    this.wire.draw()
   }
 
   /**
@@ -784,7 +900,7 @@ export class RemoteAgents implements Subject, ThereDoor {
     const state = this.wire.state
     this.wire.put({
       ...leaveLine(state),
-      elsewhere: { ...looked.place, lane: id },
+      elsewhere: { ...withoutTab(looked.place), lane: id },
       keyboard: 'pane',
       paneScroll: 0,
       ...(state.bottom === id ? { bottom: ORCHESTRATOR_TAB } : {}),
@@ -853,6 +969,12 @@ export class RemoteAgents implements Subject, ThereDoor {
 /** Machine and task, as one key, or empty for nothing looked at. */
 function keyOf(place: Place | undefined | null): string {
   return place?.agent === undefined ? '' : `${place.machine}\0${place.agent}`
+}
+
+/** The agent there with its own lane in front, and no other of its lanes. */
+function withoutTab(place: Place): Place {
+  const { tab: _tab, ...rest } = place
+  return rest
 }
 
 /** The project there, with no agent in front and so no lane of one. */

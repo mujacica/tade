@@ -2,7 +2,7 @@ import type { LaneId } from '@tade/core'
 import type { AttachOptions, WorkspaceCapabilities } from '@tade/drivers-core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
-import { attachingFor, insideTheWindow, NOT_RUNNING } from '../../src/wire/web-attach.ts'
+import { attachingFor, insideTheWindow, LANE_GONE, NOT_RUNNING } from '../../src/wire/web-attach.ts'
 
 // This machine's half of one of its agents opened from another machine's
 // window: the driver's own line for the agent's lane as a pane, asked of the
@@ -43,6 +43,19 @@ describe('the line for one of this machine’s agents, asked from another', () =
     const { one, asked } = client({ alive: ['far/fix-it/agent'] })
     expect(attachingFor(one)('far/fix-it')).toEqual({ command: 'attach far/fix-it/agent' })
     expect(asked).toEqual([{ lane: 'far/fix-it/agent', options: { embedded: true } }])
+  })
+
+  it('is the driver’s own for another of the task’s lanes, its shell, asked by its id', () => {
+    const { one, asked } = client({ alive: ['far/fix-it/agent', 'far/fix-it/shell'] })
+    expect(attachingFor(one)('far/fix-it', 'far/fix-it/shell')).toEqual({
+      command: 'attach far/fix-it/shell',
+    })
+    expect(asked).toEqual([{ lane: 'far/fix-it/shell', options: { embedded: true } }])
+    // A shell that has gone is said as its own, never as the agent not running.
+    expect(attachingFor(one)('far/fix-it', 'far/fix-it/shell-2')).toEqual({
+      command: null,
+      why: LANE_GONE,
+    })
   })
 
   it('says the agent is not running rather than handing a line to nothing', () => {

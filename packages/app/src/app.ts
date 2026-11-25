@@ -327,6 +327,7 @@ export class App {
     this.remotes = remotesFor(this.wire, {
       screens: () => this.screens,
       files: () => this.files,
+      copy: (text) => copySaying(this.wire, text, (data) => this.terminal.write(data)),
       seen: (held) => this.heart.machinesSeen.linked(held),
       figures: () => this.heart.machinesSeen.host(),
       inventory: () => this.heart.inventory.latest(),

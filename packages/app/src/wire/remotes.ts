@@ -80,7 +80,7 @@ import {
 } from './notes-shared.ts'
 import type { Places } from './placing.ts'
 import type { ProjectDoor } from './project-moves.ts'
-import { RemoteAgents, type ThereDoor } from './remote-agent.ts'
+import { type RemoteAgentDeps, RemoteAgents, type ThereDoor } from './remote-agent.ts'
 import { RemoteMachines } from './remote-machine.ts'
 import { closeThere, remoteProjectItems } from './remote-project.ts'
 import { type RemoteReads, remoteReads } from './remote-reads.ts'
@@ -976,7 +976,12 @@ export function remotesFor(
   wire: Wiring,
   subjects: {
     screens: () => { onScreenWith(flow: (ui: Ui) => Promise<void>): Promise<void> }
-    files: () => { openFile(path: string): void; openLink(url: string): Promise<void> }
+    files: () => {
+      openFile(path: string): void
+      openLink(url: string): Promise<void>
+    } & NonNullable<ReturnType<NonNullable<RemoteAgentDeps['files']>>>
+    /** Something put on the clipboard, said in the strip: a path or a branch there, copied. */
+    copy?: (text: string) => Promise<void>
     /** The record of which machines are up (`machines-seen.ts`), which a link's moves are written to. */
     seen?: (held: Held) => void
     /** This machine's own figures, said to every remote with its word that it is up. */
@@ -1077,9 +1082,13 @@ export function remotesFor(
   })
     .withAgents((remotes) => {
       const acts = subjects.acts
+      const copy = subjects.copy
       return new RemoteAgents(wire, {
         ...reachingOf(remotes),
         ...(acts && { pressed: (req) => acts().pressed(req) }),
+        // A file, a change or the branches there, read and opened in this window's own panels.
+        files: () => subjects.files(),
+        ...(copy && { copy }),
       })
     })
     .withTalks(

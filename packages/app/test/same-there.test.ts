@@ -1,18 +1,28 @@
+import { realpathSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
-import { IDLE_REASON, type InboxRow } from '@tade/core'
+import { join } from 'node:path'
+import { ConfigSchema, IDLE_REASON, type InboxRow } from '@tade/core'
+import type { RemoteLink } from '@tade/remotes-core'
 import { type FarEnd, startFarEnd } from '@tade/remotes-core/far'
 import { makeScriptedLink, type ScriptedRemote } from '@tade/remotes-scripted'
-import { SideAnswerSchema, type SideAsk } from '@tade/web'
+import { DiskAnswerSchema, SideAnswerSchema, type SideAsk, type WebDisk } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
+import { mkrepo } from '../../../test/fixtures/mkrepo.ts'
+import { diffIn } from '../src/checkout-look.ts'
+import { parseDiff } from '../src/diff.ts'
 import type { Frame } from '../src/frame.ts'
 import type { Target } from '../src/hits.ts'
 import { goElsewhere, machineOf, type Place } from '../src/machines.ts'
 import { type AppState, focusTask, initialState, withProjects, withTasks } from '../src/model.ts'
+import { filePanel } from '../src/panels/file/state.ts'
 import { type SideFacts, sideAnswerOf, sideThere } from '../src/side.ts'
 import { PLAIN } from '../src/skin.ts'
-import { refOf } from '../src/there.ts'
+import { refOf, there as thereId } from '../src/there.ts'
 import { draw } from '../src/view.ts'
-import { frame, NOW, tasks } from './screens/scenarios/fixtures.ts'
+import { viewedThere } from '../src/wire/remote-disk.ts'
+import { Viewed } from '../src/wire/viewed.ts'
+import { diskOf } from '../src/wire/web-disk.ts'
+import { actions, frame, NOW, tasks } from './screens/scenarios/fixtures.ts'
 import { queueSchedules, queueTasks } from './screens/scenarios/queue.ts'
 
 // **The definition of an agent on another machine looking like one here.** The
@@ -128,6 +138,7 @@ function answering(here: {
         ask.agent === null || f.route === undefined
           ? null
           : { task: ask.agent, route: f.route, vitals: f.vitals ?? null, offers: f.offers ?? null },
+      actions: f.actions ?? null,
     }
     return sideAnswerOf(facts)
   }
@@ -145,11 +156,14 @@ describe('a project on another machine, drawn as one here', () => {
   async function throughTheLink(
     here: { state: AppState; frame: Frame },
     place: Place,
-  ): Promise<{ state: AppState; frame: Frame }> {
+    /** What this window has in front: the ACTIONS tab, and a far half for its disk. */
+    also: { actions?: boolean; disk?: WebDisk } = {},
+  ): Promise<{ state: AppState; frame: Frame; request: RemoteLink['request'] }> {
     const far = await startFarEnd({ projects: ['checkout'] })
     fars.push(far)
     far.show(['checkout'], {}, [])
     far.side = answering(here)
+    if (also.disk) far.disk = also.disk
     const remotes = new Map<string, ScriptedRemote>([['far-0', far]])
     const link = makeScriptedLink({ home: far.home, remotes })
     try {
@@ -166,6 +180,7 @@ describe('a project on another machine, drawn as one here', () => {
         agent: place.agent ?? null,
         expanded: [],
         files: true,
+        ...(also.actions ? { actions: true } : {}),
       }
       const answer = await link.request('ipax', '/api/side', ask)
       expect(answer.status).toBe(200)
@@ -176,12 +191,35 @@ describe('a project on another machine, drawn as one here', () => {
       const mine = withTasks(withProjects(initialState(), ['hello']), [
         { task: 'hello/greeting', state: 'working', lane: 'hello/greeting/agent' },
       ])
+      const stood = goElsewhere(
+        { ...mine, folded: here.state.folded, opened: here.state.opened },
+        place,
+      )
       const state = {
-        ...goElsewhere({ ...mine, folded: here.state.folded, opened: here.state.opened }, place),
+        ...stood,
         terminals: [{ id: LANE, project: '', name: 'ipax · stripe-v15', agentThere: true }],
+        // The ACTIONS tab, as a press on it there keeps it: under the id carried to the machine.
+        paneTab:
+          also.actions && place.agent
+            ? { [thereId('ipax', place.agent)]: 'actions' }
+            : stood.paneTab,
       } as AppState
+      const asked = also.disk
+        ? await link.request('ipax', '/api/disk', {
+            project: place.project,
+            agent: place.agent ?? null,
+            what: 'file',
+            path: 'src/webhooks.ts',
+            diff: true,
+          })
+        : null
+      const request: RemoteLink['request'] = async () => {
+        if (asked === null) throw new Error('no disk was asked of')
+        return asked
+      }
       return {
         state,
+        request,
         frame: {
           ...here.frame,
           // None of this window's own: standing there, the side is that machine's.
@@ -256,5 +294,81 @@ describe('a project on another machine, drawn as one here', () => {
     expect(draw(there.state, there.frame).rows.slice(1)).toEqual(
       draw(none.state, none.frame).rows.slice(1),
     )
+  }, 30_000)
+
+  it('draws an agent there’s ACTIONS tab exactly as the agent here’s', async () => {
+    const here = local()
+    const ours = {
+      state: { ...here.state, paneTab: { 'checkout/stripe-v15': 'actions' } } as AppState,
+      frame: { ...here.frame, actions: actions() },
+    }
+    const place: Place = {
+      machine: 'ipax',
+      project: 'checkout',
+      agent: 'checkout/stripe-v15',
+      lane: LANE,
+    }
+    const seen = await throughTheLink(ours, place, { actions: true })
+    const theirs = draw(seen.state, seen.frame)
+    expect(theirs.rows.slice(1)).toEqual(draw(ours.state, ours.frame).rows.slice(1))
+    const text = theirs.rows.join('\n')
+    expect(text).toContain('keep the old webhook shape working for a release')
+    // Its Run checks is that machine's.
+    expect(theirs.hits.map((hit) => hit.target)).toContainEqual({
+      kind: 'action',
+      name: 'checks-run:@ipax\u001fcheckout/stripe-v15',
+    })
+  }, 30_000)
+
+  it('opens a change there in the very viewer a change here opens in, read by its own half', async () => {
+    const repo = mkrepo()
+    repo.commit('the handler', {
+      'src/webhooks.ts': 'export const one = 1\nexport const two = 2\n',
+    })
+    writeFileSync(
+      join(repo.root, 'src/webhooks.ts'),
+      'export const one = 1\nexport const two = 3\n',
+    )
+    const disk = diskOf({
+      config: () => ConfigSchema.parse({ projects: { checkout: { root: repo.root } } }),
+      panes: () => [],
+      live: () => null,
+    })
+    const here = local()
+    const place: Place = { machine: 'ipax', project: 'checkout' }
+    const seen = await throughTheLink(here, place, { disk })
+    const answer = DiskAnswerSchema.parse((await seen.request('ipax', '/api/disk')).body)
+    if (answer.what !== 'file') throw new Error('no file read')
+    const path = join(realpathSync(repo.root), 'src/webhooks.ts')
+    // Here: the viewer reads the file and asks git, as `Files.openChange` does.
+    const mine = new Viewed()
+    mine.open(path, true)
+    const diff = await diffIn(realpathSync(repo.root), null, 'src/webhooks.ts')
+    mine.tell(path, null, parseDiff(diff ?? ''))
+    // There: what that machine's half read, held as the viewer holds a file.
+    const theirs = new Viewed()
+    theirs.hold(viewedThere(answer), true)
+    theirs.tell(path, null, parseDiff(answer.diff ?? ''))
+    const drawn = (viewed: Viewed, machine?: string) => {
+      const panel = {
+        ...filePanel(path, null, false, true),
+        ...(machine ? { there: machine } : {}),
+      }
+      const state = { ...here.state, panel } as AppState
+      return draw(state, {
+        ...here.frame,
+        panel: { viewing: viewed.showing(160, 110, true, null), diff: viewed.diff() },
+      }).rows
+    }
+    const ours = drawn(mine)
+    const there = drawn(theirs, 'ipax')
+    // Every row the same but the foot of the panel, which offers no editor and no typing for a file there.
+    const differ = ours.flatMap((row, at) => (row === there[at] ? [] : [at]))
+    expect(differ).toHaveLength(1)
+    const at = differ[0] ?? -1
+    expect(ours[at]).toContain('Open in editor')
+    expect(there[at]).not.toContain('Open in editor')
+    expect(there.join('\n')).toContain('export const two = 3')
+    expect(there.join('\n')).toContain('export const two = 2')
   }, 30_000)
 })

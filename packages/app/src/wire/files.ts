@@ -30,7 +30,7 @@ import { type BranchRow, branchPanel, promptPanel } from '../panels/small/state.
 import type { Panel } from '../panels.ts'
 import type { Ui } from '../screen.ts'
 import type { Skin } from '../skin.ts'
-import { onlyItsAppShows, shownByItsApp } from '../viewer.ts'
+import { onlyItsAppShows, shownByItsApp, type ViewedFile } from '../viewer.ts'
 import type { Shown } from './comments.ts'
 import {
   type Actions,
@@ -212,6 +212,11 @@ export class Files implements Subject {
       branch: (_panel, choice) => this.switchBranch(choice ?? ''),
       confirm: (panel) => this.discard(panel.task, panel.path),
       file: async (panel, choice) => {
+        // Read there: copying its path is all that is this window's to do with it.
+        if (panel.there !== undefined) {
+          if (choice === 'copy-path') await this.deps.copy(panel.path)
+          return
+        }
         if (choice === 'comment' || choice === 'send') return this.deps.comment(panel, choice)
         if (choice === 'editor') {
           this.wire.put({ ...this.wire.state, panel: null })
@@ -410,6 +415,38 @@ export class Files implements Subject {
   }
 
   /**
+   * A file read on another machine (`remote-disk.ts`), in the very viewer a
+   * file here opens in — at a line, or with what git there says changed in it
+   * drawn in and opened on its first change, as a change here is — marked as
+   * that machine's (`FilePanel.there`), so nothing here types into it, saves
+   * it, opens it in an editor or asks this machine's git about it.
+   */
+  openThere(
+    file: ViewedFile,
+    machine: string,
+    opened: {
+      line: number | null
+      diff: ParsedDiff | null
+      task: string | null
+      /** Opened as a change: with git's answer drawn in, on its first change. */
+      inline: boolean
+    },
+  ): void {
+    this.viewed.hold(file, !this.deps.skin.colour)
+    const inline = opened.inline && opened.diff !== null && opened.line === null
+    if (opened.diff !== null) this.viewed.tell(file.path, opened.task, opened.diff)
+    this.wire.put({
+      ...this.wire.state,
+      panel: {
+        ...filePanel(file.path, opened.line, this.viewed.markdown(), inline),
+        there: machine,
+      },
+    })
+    this.wire.draw()
+    if (inline) this.landOnChange(this.wire.state.panel)
+  }
+
+  /**
    * A file handed to the app that shows it. Where that could not happen the
    * viewer is what is left, with its button for your editor and the reason in it:
    * said in the conversation, it would be behind the panel.
@@ -452,7 +489,8 @@ export class Files implements Subject {
    */
   async saveFile(panel: FilePanel): Promise<void> {
     const edit = panel.edit
-    if (!edit || !this.viewed.has(panel.path)) return
+    // Another machine's file is never written here, where its path may name one of ours.
+    if (!edit || !this.viewed.has(panel.path) || panel.there !== undefined) return
     const about = this.viewed.about()
     try {
       const lines = this.viewed.save(edit, !this.deps.skin.colour)
@@ -657,11 +695,28 @@ export class Files implements Subject {
       this.wire.draw()
     }
   }
+  /**
+   * The Switch branch panel on another machine's checkout, with the branches
+   * that machine listed (`remote-disk.ts`): drawn as the one here is.
+   */
+  branchesThere(machine: string, rows: readonly BranchRow[]): void {
+    this.branchRows = [...rows]
+    this.wire.put({ ...this.wire.state, panel: { ...branchPanel(), there: machine } })
+    this.wire.draw()
+  }
+
   /** Switch the project's checkout to a branch, or to a new one. */
   async switchBranch(choice: string): Promise<void> {
     const panel = this.wire.state.panel
     const [verb, ...rest] = choice.split(':')
     const name = rest.join(':')
+    // Another machine's checkout is read from here, and switched there: never
+    // this machine's checkout, which its path may also name.
+    if (panel?.kind === 'branch' && panel.there !== undefined) {
+      const error = `${name || 'a branch'} is switched to on ${panel.there} itself, in a terminal there`
+      this.wire.put({ ...this.wire.state, panel: { ...panel, busy: false, error } })
+      return
+    }
     const here = this.hereOnDisk()
     if (!here || !name || panel?.kind !== 'branch') return
     const out = await git(
@@ -756,6 +811,9 @@ export class Files implements Subject {
    * a task's, and otherwise the checkout in front of you.
    */
   async loadFileDiff(task: string | null, path: string): Promise<void> {
+    // What git says of a file there came with it: this machine's git knows nothing of it.
+    const shown = this.wire.state.panel
+    if (shown?.kind === 'file' && shown.there !== undefined) return
     const live = this.wire.live
     const root = (task ? live?.worktreeOf(task) : null) ?? this.hereOnDisk()
     const open = this.resolvePath(path)
@@ -828,7 +886,7 @@ export class Files implements Subject {
       const path = panel.files[panel.file]
       return path ? { task: panel.task, path, diff: this.diff } : null
     }
-    if (panel?.kind !== 'file') return null
+    if (panel?.kind !== 'file' || panel.there !== undefined) return null
     const task = this.viewed.about()
     const root = (task ? this.wire.live?.worktreeOf(task) : null) ?? this.hereOnDisk()
     const inside = root ? relative(root, panel.path) : ''

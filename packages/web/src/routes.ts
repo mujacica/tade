@@ -765,6 +765,19 @@ export const OWNED: readonly Route[] = [
     here: true,
     theirs: true,
   },
+  // What is on disk in one of those projects, pressed there (`disk.ts`): a
+  // file, a change with what git says of it, or its branches — the one
+  // owner's route that takes a path, confined by the window to the tree the
+  // side was drawn from. A read.
+  {
+    method: 'POST',
+    path: '/api/disk',
+    name: 'disk',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
   // What this machine is, for another of the person's that links to it
   // (`machine.ts`): its version, its public name's health, its own problems,
   // its schedules' looks and its documents. One of its documents, as text
