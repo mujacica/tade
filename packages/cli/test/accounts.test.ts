@@ -2,6 +2,8 @@ import { spawn } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { Workbench } from '@tade/workbench'
+import { takeAccountRequests } from '@tade/workbench/account-requests'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -111,6 +113,64 @@ describe('tade accounts', () => {
     expect(bad.stderr).toContain('cannot name a sign-in')
     expect((await tade('accounts', 'name', 'claude-code')).stdout).toContain('has no name')
     expect(config().workers.default_names?.['claude-code']).toBeUndefined()
+  }, 60_000)
+
+  it('hands add, use, name and remove to the window holding the home — `tade serve` — which does them and answers', async () => {
+    const repo = mkrepo()
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    const config = () => parseYaml(readFileSync(join(home, 'config.yaml'), 'utf8'))
+    // A window holds the home and takes what a terminal asked on its beat, as
+    // the heart does (`AccountsHere.beat`): before this, every one was refused.
+    const window = await Workbench.open({ home })
+    const beside = async (...args: string[]) => {
+      let exited = false
+      const running = tade(...args).then((r) => {
+        exited = true
+        return r
+      })
+      while (!exited) {
+        await takeAccountRequests(home, window)
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+      return running
+    }
+    try {
+      const added = await beside('accounts', 'add', 'claude-code', 'Work')
+      expect(added.stderr).toBe('')
+      expect(added.code).toBe(0)
+      // Its sign-in needs no window, and nobody is at a keyboard here: said as a command.
+      expect(added.stdout).toContain(
+        'added work: sign it in with `tade accounts sign-in claude-code work`',
+      )
+      expect(config().accounts.work).toMatchObject({ harness: 'claude-code' })
+      // Written down by the window, which numbers the journal, as yours.
+      const [line] = await window.events({ types: ['state_change'] })
+      expect(line?.detail).toMatchObject({ account: 'work', added: true, by: 'you' })
+
+      const used = await beside('accounts', 'use', 'claude-code', 'work', '--project', 'app')
+      expect(used.code).toBe(0)
+      expect(used.stdout).toContain('in app run as work')
+      expect(config().projects.app.accounts).toEqual({ 'claude-code': 'work' })
+
+      const named = await beside('accounts', 'name', 'claude-code', 'sentry')
+      expect(named.stdout).toContain('own sign-in is called sentry')
+      // The machine's own answer, said back by the name it now has.
+      const own = await beside('accounts', 'use', 'claude-code')
+      expect(own.stderr).toBe('')
+      expect(own.stdout).toContain('run as sentry;')
+
+      // What the window refuses is the terminal's answer, exit and all.
+      const twice = await beside('accounts', 'add', 'claude-code', 'work')
+      expect(twice.code).toBe(1)
+      expect(twice.stderr).toContain('there is already an account called work')
+
+      const removed = await beside('accounts', 'remove', 'work')
+      expect(removed.code).toBe(0)
+      expect(removed.stdout).toBe('work is gone, and signed out')
+      expect(config().accounts ?? {}).toEqual({})
+    } finally {
+      await window.close()
+    }
   }, 60_000)
 
   it('says which account it does not know, rather than signing in to another', async () => {

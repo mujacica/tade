@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { AccountAway, AccountsAnswer, AccountsCall } from '../src/accounts.ts'
 import { Moved, NotOffered, type Outcome, type WebActing } from '../src/acting.ts'
 import { type ActivityIn, AGENT, MOMENTS } from '../src/agent.ts'
 import type { MenuItemIn } from '../src/agent-menu.ts'
@@ -28,6 +29,7 @@ import {
   worstOf,
 } from '../test/browser-plan.ts'
 import { agentHeld, input, NOW, note, queued, settingRows, task } from '../test/fixtures.ts'
+import { accountsAt } from './browser-accounts.ts'
 import { chatAt, harnessTalk } from './browser-chat.ts'
 import { deskAt, lanesSeen, paletteAt, paletteTappedAt, unpairedAt } from './browser-desk.ts'
 import { doingAt, type Running } from './browser-doing.ts'
@@ -212,6 +214,21 @@ async function serve() {
       press: () => true,
       settle: () => false,
     },
+    // **The Accounts page's half**, as the window hands it over
+    // (`AccountsHere`): this machine's accounts, or a linked machine's, by the
+    // tab a look names — a press answered with the page as it stands.
+    accounts: {
+      carry: async (call: AccountsCall) => accountsFor(call.machine ?? null),
+      signIn: async () => ({
+        state: 'idle',
+        who: null,
+        how: null,
+        rows: [],
+        link: null,
+        said: null,
+        about: null,
+      }),
+    },
     tickets,
     tell: () => {},
     // The keypress at the machine, answered yes — which is the whole of what
@@ -386,6 +403,78 @@ const MACHINES: MachinesAnswer = {
   file: '~/.config/tade/env',
   agents: 'any agent on this machine can read a key written down',
   notes: [],
+}
+
+/** One account the Accounts page is answered, signed in, with a plan and two windows. */
+const ACCOUNT: AccountAway = {
+  harness: 'claude-code',
+  title: 'Claude Code',
+  name: null,
+  ownName: null,
+  kind: 'subscription',
+  canAdd: true,
+  why: null,
+  signedIn: true,
+  who: 'person@example.com',
+  plan: 'Max 20x',
+  problem: null,
+  windows: [
+    { label: '5h', minutes: 300, used: 42 },
+    { label: '7d', minutes: 10_080, used: 9 },
+  ],
+  agents: 3,
+  forNewAgents: true,
+  projects: [],
+  canSignIn: true,
+  install: null,
+}
+
+/**
+ * What the Accounts page is answered, by tab: this machine with its own
+ * sign-in, an account beside it and pi; and a linked one with an account not
+ * signed in that one project runs as — a press of every kind on the page.
+ */
+const ACCOUNTS: Record<string, readonly AccountAway[]> = {
+  here: [
+    ACCOUNT,
+    { ...ACCOUNT, name: 'work', forNewAgents: false, agents: 0, plan: 'Team', windows: [] },
+    {
+      ...ACCOUNT,
+      harness: 'pi',
+      title: 'pi',
+      canAdd: false,
+      why: 'keeps one account',
+      windows: [],
+    },
+  ],
+  vps: [
+    { ...ACCOUNT, agents: 1 },
+    {
+      ...ACCOUNT,
+      name: 'deploy-bot',
+      signedIn: false,
+      who: null,
+      plan: null,
+      windows: [],
+      agents: 0,
+      forNewAgents: false,
+      projects: ['shop', 'sentry'],
+    },
+  ],
+}
+
+function accountsFor(machine: string | null): AccountsAnswer {
+  return {
+    machine,
+    machines: [
+      { id: null, label: 'mac' },
+      { id: 'vps', label: 'vps' },
+    ],
+    accounts: [...(ACCOUNTS[machine ?? 'here'] ?? [])],
+    said: null,
+    trouble: false,
+    keys: 'An agent runs as you, whichever sign-in it is on.',
+  }
 }
 
 const LIFE: ActivityIn[] = Array.from({ length: 240 }, (_, n) => {
@@ -823,6 +912,15 @@ async function asActing(
   await machinesAt(page as never, origin, found, {
     machines: (MACHINES.columns ?? []).map((one) => one.machine),
     rows: MACHINES.rows.map((one) => ({ label: one.label, cells: one.cells.length })),
+  })
+  // **The Accounts page, on the same device**: a tab per machine, each one's
+  // accounts drawn when it is pressed, and both fitting (`browser-accounts.ts`).
+  await accountsAt(page as never, origin, found, {
+    tabs: ['mac · here', 'vps'],
+    accounts: [
+      ['its own sign-in', 'work', 'its own sign-in'],
+      ['its own sign-in', 'deploy-bot'],
+    ],
   })
   await context.close()
   granting = []

@@ -738,11 +738,20 @@ export const SETTINGS_SCREENS: Scenario[] = [
   {
     name: 'settings-accounts',
     about:
-      "Who each harness's agents run as: each harness's own sign-in, a second Claude Code " +
-      'account beside it that one project runs as, how much of the plan is used, what can be ' +
-      'done to each, and that an agent runs as you whichever it is on.',
+      "Who each harness's agents run as, on a tab for this machine and one for every machine " +
+      "it links to: each harness's own sign-in, a second Claude Code account beside it that one " +
+      'project runs as, how much of the plan is used, what can be done to each, and that an ' +
+      'agent runs as you whichever it is on.',
     state: { ...base(), panel: { ...settingsPanel('accounts'), row: 0 } },
-    frame: frame({ panel: settingsFacts() }),
+    frame: frame({
+      panel: {
+        ...settingsFacts(),
+        accountTabs: [
+          { id: '', label: 'laptop' },
+          { id: 'vps', label: 'vps' },
+        ],
+      },
+    }),
   },
   {
     name: 'settings-list-open',

@@ -316,8 +316,11 @@ describe('the real folder', () => {
     // 467 until the orchestrator could be signed in from the phone (about
     // 3.2 KB: `sign-in.js`, the sheet `/login` opens with the sign-in's link,
     // screen, code field and keys, and its rules in `sign-in.css`) took it
-    // from 466.68 at a07fdd95 to 469.82.
-    expect(wire).toBeLessThan(471 * 1024)
+    // from 466.68 at a07fdd95 to 469.82. 471 until Settings › Accounts was
+    // on the phone with a tab per machine (about 8.7 KB: `pages/accounts.js`,
+    // its pure words and presses, its rules, an icon, and the sign-in sheet
+    // taking any account's door) took it from 470.21 at aa2f8021 to 478.90.
+    expect(wire).toBeLessThan(481 * 1024)
     // And the files as they sit, which is what a browser holds once it has
     // them: about a megabyte, with the comments every module carries. 768
     // until the pages were redrawn one at a time, each 40–90 KB as it sits.
@@ -375,7 +378,10 @@ describe('the real folder', () => {
     // card's rules) took it to 1489.59. 1491 until the orchestrator could be
     // signed in from the phone (10 KB as it sits: `sign-in.js` and its
     // reasons, and the sheet's rules in `sign-in.css`) took it from 1489.66 at
-    // a07fdd95 to 1499.38.
-    expect(raw).toBeLessThan(1501 * 1024)
+    // a07fdd95 to 1499.38. 1501 until Settings › Accounts was on the phone
+    // with a tab per machine (28 KB as it sits: three files and their reasons,
+    // most of them what each press does on which machine) took it from
+    // 1500.51 at aa2f8021 to 1528.93.
+    expect(raw).toBeLessThan(1531 * 1024)
   })
 })

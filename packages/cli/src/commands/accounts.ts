@@ -12,7 +12,7 @@ import {
   windowUsed,
 } from '@tade/core'
 import type { LaunchSpec } from '@tade/harnesses-core'
-import type { Workbench } from '@tade/workbench'
+import type { AccountRequest } from '@tade/workbench/account-requests'
 // Subpath imports: the CLI must not load the driver stack to read who is signed in.
 import { harnessAccount, listAccounts } from '@tade/workbench/accounts'
 import { HARNESS_ADAPTERS } from '@tade/workbench/harnesses'
@@ -25,24 +25,57 @@ import { Exit, type Io } from '../io.ts'
 // so what you give it goes where the harness keeps it and never through Tade.
 //
 // Adding, removing and choosing one are the workbench's own acts — the very
-// ones the Accounts page calls — so they open it, and are refused while a
-// window holds the home rather than writing a config that window would not
-// read: there, Settings and the orchestrator are where it is done.
-
-/** Where to ask instead, while a window holds the home. */
-const THERE = 'Tade is open: do it in Settings › Accounts there, or ask the orchestrator'
+// ones the Accounts page calls — so they open it. Where a window already holds
+// the home — `tade serve` on a machine nobody sits at, whose shell is the only
+// one there is — they are handed to that window instead (`account-requests.ts`),
+// which does them on its next beat and answers here: a headless service has no
+// Settings, and stopping it to add an account is stopping everything it runs.
 
 /**
- * One of the workbench's own acts, from here. Loaded only when one is asked
- * for: listing who is signed in must not load the driver stack.
+ * One of the workbench's own acts, from here: done here where nothing holds
+ * the home, or handed to the window that does. `told` says what came of it,
+ * with the config as it is after. Loaded only when one is asked for: listing
+ * who is signed in must not load the driver stack.
  */
 async function acting(
   io: Io,
   setExit: (code: number) => void,
-  act: (tade: Workbench) => Promise<void>,
-): Promise<void> {
+  request: AccountRequest,
+  told: (named: string | null, config: Config) => void,
+): Promise<boolean> {
   const { withWorkbench } = await import('../with-workbench.ts')
-  await withWorkbench(io, setExit, act, THERE)
+  const { accountDone, awaitAccount, requestAccount } = await import(
+    '@tade/workbench/account-requests'
+  )
+  let done = false
+  await withWorkbench(
+    io,
+    setExit,
+    async (tade) => {
+      told(await accountDone(tade, request), tade.config)
+      done = true
+    },
+    // A window holds the journal, so it does it (`AccountsHere.beat`).
+    async (busy) => {
+      const home = tadeHome()
+      const answer = await awaitAccount(home, await requestAccount(home, request))
+      if (answer === 'untaken') {
+        throw new Error(
+          `${busy.message}, and it did not take the request in time, so nothing was done: do it in Settings › Accounts there, or from another machine's Settings › Accounts`,
+        )
+      }
+      if (answer === 'doing') {
+        io.out('the window there is doing it: `tade accounts` shows it once it has')
+        return
+      }
+      if (!answer.ok) throw new Error(answer.error)
+      const cfg = await loadConfig(defaultConfigPath())
+      if (!cfg.ok) throw new Error(`${cfg.path}: invalid config (run \`tade config --check\`)`)
+      told(answer.named, cfg.config)
+      done = true
+    },
+  )
+  return done
 }
 
 /** The adapter for one harness's sign-in, made as `tade accounts` makes it: never the workbench. */
@@ -213,24 +246,29 @@ export function registerAccounts(program: Command, io: Io, setExit: (code: numbe
     .option('--api-key', 'paid for with an API key rather than a subscription: set it in Settings')
     .option('--bare', 'start it without your own settings, skills and plugins')
     .action(async (harness: string, name: string, opts: { apiKey?: boolean; bare?: boolean }) => {
-      let added = false
-      await acting(io, setExit, async (tade) => {
-        await tade.addAccount({
-          name,
+      let named = name.trim().toLowerCase()
+      const added = await acting(
+        io,
+        setExit,
+        {
+          do: 'add',
           harness,
+          name,
           kind: opts.apiKey ? 'api-key' : 'subscription',
           share: !opts.bare,
-        })
-        added = true
-      })
+        },
+        (came) => {
+          named = came ?? named
+        },
+      )
       if (!added) return
-      const named = name.trim().toLowerCase()
       if (opts.apiKey) {
         io.out(`added ${named}: set its key in Settings › Accounts`)
         return
       }
       // Its own sign-in next, as Settings goes straight into it — here, where
       // somebody is at the keyboard, and said as a command where nobody is.
+      // Here even where a window did the adding: a sign-in needs no window.
       if (!process.stdin.isTTY) {
         io.out(`added ${named}: sign it in with \`tade accounts sign-in ${harness} ${named}\``)
         return
@@ -248,12 +286,11 @@ export function registerAccounts(program: Command, io: Io, setExit: (code: numbe
     .description(
       'Take an account away: signed out, its folder removed, and every project that named it back on the machine’s',
     )
-    .action((name: string) =>
-      acting(io, setExit, async (tade) => {
-        await tade.removeAccount(name)
-        io.out(`${name} is gone, and signed out`)
-      }),
-    )
+    .action(async (name: string) => {
+      await acting(io, setExit, { do: 'remove', name }, () =>
+        io.out(`${name} is gone, and signed out`),
+      )
+    })
 
   accounts
     .command('use <harness> [account]')
@@ -263,20 +300,37 @@ export function registerAccounts(program: Command, io: Io, setExit: (code: numbe
     .option('-p, --project <name>', "this project's new agents only")
     .option('--unset', "with --project: give the question back to the machine's answer")
     .action(
-      (harness: string, account: string | undefined, opts: { project?: string; unset?: boolean }) =>
-        acting(io, setExit, async (tade) => {
-          if (opts.unset && opts.project === undefined)
-            throw new Error('--unset is for a project: the machine has no answer above it')
-          const name = opts.unset ? undefined : !account || account === 'default' ? null : account
-          await tade.useAccount(harness, name, opts.project)
-          const who =
-            name === undefined
-              ? 'as the machine does'
-              : (name ?? ownSignInName(tade.config, harness) ?? 'its own sign-in')
-          io.out(
-            `new ${harness} agents${opts.project ? ` in ${opts.project}` : ''} run as ${who}; an agent already working stays on its own`,
-          )
-        }),
+      async (
+        harness: string,
+        account: string | undefined,
+        opts: { project?: string; unset?: boolean },
+      ) => {
+        if (opts.unset && opts.project === undefined) {
+          io.err('--unset is for a project: the machine has no answer above it')
+          setExit(Exit.error)
+          return
+        }
+        const name = opts.unset ? undefined : !account || account === 'default' ? null : account
+        await acting(
+          io,
+          setExit,
+          {
+            do: 'use',
+            harness,
+            ...(name === undefined ? {} : { account: name }),
+            ...(opts.project === undefined ? {} : { project: opts.project }),
+          },
+          (_, config) => {
+            const who =
+              name === undefined
+                ? 'as the machine does'
+                : (name ?? ownSignInName(config, harness) ?? 'its own sign-in')
+            io.out(
+              `new ${harness} agents${opts.project ? ` in ${opts.project}` : ''} run as ${who}; an agent already working stays on its own`,
+            )
+          },
+        )
+      },
     )
 
   accounts
@@ -284,16 +338,15 @@ export function registerAccounts(program: Command, io: Io, setExit: (code: numbe
     .description(
       "Call a harness's own sign-in something, so it is shown and chosen by that name: `tade accounts name claude-code work`. It still signs in where the harness always does; no name takes it away",
     )
-    .action((harness: string, name: string | undefined) =>
-      acting(io, setExit, async (tade) => {
-        const named = await tade.nameOwnSignIn(harness, name ?? null)
+    .action(async (harness: string, name: string | undefined) => {
+      await acting(io, setExit, { do: 'name', harness, name: name ?? null }, (named) =>
         io.out(
           named === null
             ? `${harness}'s own sign-in has no name`
             : `${harness}'s own sign-in is called ${named}; \`default\` still means it too`,
-        )
-      }),
-    )
+        ),
+      )
+    })
 
   signing('sign-in').description(
     "Sign a harness's account in with its own sign-in, in this terminal: `tade accounts sign-in claude-code work`",

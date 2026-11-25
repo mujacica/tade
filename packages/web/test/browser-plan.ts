@@ -171,6 +171,10 @@ export const CHECKS = [
   // (`browser-machines.ts`): the grid drawn, a line per machine for every item
   // and nothing refused, fitting the screen with every control a thumb's size.
   'machines',
+  // The Accounts page for the person's own device, at both phones' widths
+  // (`browser-accounts.ts`): a tab per machine, each one's accounts drawn when
+  // it is pressed, fitting the screen with every control a thumb's size.
+  'accounts',
   // The three an installed shell owns. `install` is a real registration in a
   // real browser; `offline-cold` is a deep link opened with the network off,
   // which is the whole point of the thing; `no-api-cache` enumerates every

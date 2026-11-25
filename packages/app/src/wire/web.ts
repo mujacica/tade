@@ -310,6 +310,8 @@ export class Away implements Subject {
       orchestratorRestart: orchestratorRestartFrom(this.wire, this.deps.restartOrchestrator),
       // `/login` from the person's own phone: its sign-in, run here and typed into from there.
       orchestratorSignIn: this.signIn,
+      // Settings › Accounts for every machine, and an account's sign-in from away.
+      ...(this.deps.accounts && { accounts: this.deps.accounts }),
       ...(this.deps.feeds && { feeds: this.deps.feeds.web() }),
       ...(this.deps.conversation && { conversation: this.deps.conversation.web() }),
       ...(this.deps.duties && { duties: this.deps.duties.door() }),

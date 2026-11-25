@@ -298,6 +298,11 @@ export class App {
       writeSetting: (path, value) => this.settings.write(path, value),
       signInThere: (machine) => this.remotes.signInOrchestrator(machine),
       restartOrchestrator: () => this.orchestrator.moveAccount(false),
+      // Every machine's Accounts tab, through the heart's door, which the phone uses too.
+      accountsThere: () => this.heart.accounts,
+      // An account's own sign-in there, in a terminal over the link: the Remotes page's press.
+      signInAccountThere: (machine, harness, account) =>
+        this.remotes.action(`remote:sign-in:${machine}:${harness}:${account ?? ''}`),
     })
     this.updates = new Updates(this.wire, {
       reload: () => this.window.reload(),
@@ -339,6 +344,8 @@ export class App {
     this.heart.duties.withReach((name) => this.remotes.reachFor(name))
     // And so do acts on another machine (`tade_remote_act`).
     this.heart.acts.withReach((name) => this.remotes.reachFor(name))
+    // And every machine's accounts, for Settings › Accounts here and on the phone.
+    this.heart.accounts.withReach((name) => this.remotes.reachFor(name))
     // And a parting is fetched afresh over them before a merge is proposed for it.
     this.heart.sync.withLookAgain(
       async (project, machines) => await this.remotes.mirrored()?.lookAgain(project, machines),

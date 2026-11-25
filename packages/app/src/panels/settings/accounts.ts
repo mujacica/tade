@@ -11,7 +11,8 @@ import type { SettingsPanel } from './state.ts'
 
 /**
  * One thing that can be done on the Accounts page: `account:<verb>:<harness>:<name>`,
- * the name empty for a harness's own sign-in.
+ * the name empty for a harness's own sign-in — and `:<machine>` after it on
+ * another machine's tab, whose presses are carried out there.
  */
 export interface AccountAction {
   id: string
@@ -50,14 +51,34 @@ export interface AccountShown {
 }
 
 /**
+ * The page's tabs: this machine first, by `ACCOUNTS_HERE`, then every machine
+ * it links to by name. One tab is no tabs: a machine with no others draws none.
+ */
+export const ACCOUNTS_HERE = ''
+
+/** The tab the page is on: the one chosen where it is still a tab, and this machine's otherwise. */
+export function accountsTab(chosen: string, tabs: readonly string[]): string {
+  return tabs.includes(chosen) ? chosen : ACCOUNTS_HERE
+}
+
+/** The machine an account press is for, out of its id: null for this one. */
+export function accountMachine(id: string): string | null {
+  return id.split(':')[4] || null
+}
+
+/**
  * Everything that can be done to accounts, account by account and harness by
  * harness, in the order the page draws them — which is the order the
- * keyboard walks them, since both come from here.
+ * keyboard walks them, since both come from here. `machine` is the tab's,
+ * null for this machine's.
  */
-export function accountActions(accounts: readonly AccountShown[]): AccountAction[] {
+export function accountActions(
+  accounts: readonly AccountShown[],
+  machine: string | null = null,
+): AccountAction[] {
   const actions: AccountAction[] = []
   const id = (verb: string, harness: string, name: string | null) =>
-    `account:${verb}:${harness}:${name ?? ''}`
+    `account:${verb}:${harness}:${name ?? ''}${machine === null ? '' : `:${machine}`}`
   const harnesses = [...new Set(accounts.map((one) => one.harness))]
   for (const harness of harnesses) {
     const mine = accounts.filter((one) => one.harness === harness)

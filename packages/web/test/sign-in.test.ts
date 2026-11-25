@@ -229,4 +229,55 @@ describe('the sheet `/login` opens on the page', () => {
       'Signed in as work.',
     )
   })
+  it('is any account’s by its options: its own door, heading and words, its fields on every press, and told once it ends', async () => {
+    const asked: unknown[] = []
+    let answer: SignInStanding = RUNNING
+    const ctx = {
+      ask: async (method: string, path: string, body: unknown) => {
+        asked.push([method, path, body])
+        return { status: 200, body: answer }
+      },
+      sentence: () => '',
+      session: () => null,
+    }
+    const timers: (() => void)[] = []
+    const sheet = signInSheet(
+      ctx,
+      (run) => timers.push(run),
+      () => {},
+      {
+        path: '/api/accounts/sign-in',
+        heading: 'Sign an account in',
+        said: () => 'its own words',
+        id: 'ac-head',
+      },
+    )
+    const ended: unknown[] = []
+    const whose = { machine: 'ipax', harness: 'claude-code', account: 'work' }
+    await sheet.open(undefined, {
+      with: whose,
+      heading: 'Sign work in on ipax',
+      ended: (standing) => ended.push(standing),
+    })
+    const node = sheet.node as StillElement
+    expect(node.getAttribute('aria-labelledby')).toBe('ac-head')
+    expect((node.querySelector('h2') as StillElement).textContent).toBe('Sign work in on ipax')
+    expect((node.querySelector('.signin-how') as StillElement).textContent).toBe('its own words')
+    ;(node.querySelector('[aria-label="Down"]') as StillElement).click()
+    await Promise.resolve()
+    expect(asked).toEqual([
+      ['POST', '/api/accounts/sign-in', { ...whose, do: 'start' }],
+      ['POST', '/api/accounts/sign-in', { ...whose, do: 'key', key: 'down' }],
+    ])
+    expect(ended).toEqual([])
+    answer = { ...RUNNING, state: 'ended', said: 'Signed in as work.' }
+    timers.at(-1)?.()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(ended).toEqual([answer])
+    // Once: a look after it ended tells nobody again.
+    ;(node.querySelector('[aria-label="Down"]') as StillElement).click()
+    await Promise.resolve()
+    expect(ended).toHaveLength(1)
+  })
 })

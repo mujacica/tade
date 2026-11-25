@@ -570,6 +570,20 @@ describe('loadConfig', () => {
     expect(r.ok && r.unknown).toEqual(['tomorrow'])
     expect(r.ok && r.config.agents.give_way).toBe(5)
   })
+
+  it('takes away a setting that is not there as nothing to do, whatever is missing above it', async () => {
+    // `tade accounts use claude-code` on a machine that never chose another
+    // account: its own sign-in is `workers.accounts.claude-code` unset, and
+    // unsetting it threw because `workers` was not there.
+    const dir = await mkdtemp(join(tmpdir(), 'tade-cfg-'))
+    const path = join(dir, 'config.yaml')
+    await writeFile(path, 'workers:\n  default_names:\n    claude-code: sentry\n')
+    writeSetting(path, 'workers.accounts.claude-code', undefined)
+    writeSetting(path, 'projects.app.accounts.claude-code', undefined)
+    expect(await readFile(path, 'utf8')).toBe(
+      'workers:\n  default_names:\n    claude-code: sentry\n',
+    )
+  })
 })
 
 // The config can hold a DSN, and a DSN is a credential: a file anybody on the

@@ -15,6 +15,7 @@ import {
   withTranscript,
 } from './model.ts'
 import { type Entry, REPEAT_MS, tadeDid } from './transcript.ts'
+import { AccountsHere } from './wire/accounts-here.ts'
 import { MachineActs } from './wire/acts.ts'
 import { agentMenuDoors } from './wire/agent-doors.ts'
 import { Agents, type AgentsDeps } from './wire/agents.ts'
@@ -52,6 +53,7 @@ import { Updates, type UpdateTools } from './wire/updates.ts'
 import { noTwins, type WatchTwinsHere } from './wire/watch-where.ts'
 import { Away, type AwayDeps } from './wire/web.ts'
 import { talkingThrough } from './wire/web-asking.ts'
+import { knownHere } from './wire/web-lanes.ts'
 import { reloadStopsOf } from './wire/window.ts'
 
 // The part of the window that runs with no screen: the beat, and on it the
@@ -360,6 +362,12 @@ export class Heart {
   readonly batches: Batches
   /** The tasks a terminal asked for while this holds the journal: `tade task create` beside it. */
   readonly taskRequests: TaskRequests
+  /**
+   * Settings › Accounts for this machine and every one it links to, for the
+   * phone and another machine's window, and what a terminal beside this asked
+   * of the accounts: `tade accounts add` beside `tade serve` (`accounts-here.ts`).
+   */
+  readonly accounts: AccountsHere
   /** The one door a setting is written by, and the page a face draws for it. */
   readonly settings: Settings
   /** Opening, closing and naming projects. */
@@ -498,6 +506,11 @@ export class Heart {
       closesWhenDone: (task) => this.closing.owes(task),
     })
     this.taskRequests = new TaskRequests(this.wire)
+    this.accounts = new AccountsHere(this.wire, {
+      use: () => this.settings.use(this.wire.opts.client.config),
+      reread: () => face.settings.loadAccounts(),
+      known: () => knownHere(this.wire, this.wire.opts.config),
+    })
     this.closing = new CloseWhenDone(this.wire, {
       orchestrator: this.orchestrator,
       close: (task) => this.agents.closeFinished(task),
@@ -575,6 +588,8 @@ export class Heart {
       linear: this.linear,
       // A sign-in made here from another machine's `/login`, once any turn is over.
       restartOrchestrator: () => this.orchestrator.moveAccount(true),
+      // Every machine's accounts, from the phone and another machine's Settings.
+      accounts: this.accounts,
     })
   }
 
@@ -662,6 +677,7 @@ export class Heart {
         })
         void this.foldConfig()
         void this.taskRequests.beat()
+        this.accounts.beat(this.now())
         face.beat(tasks, moved)
       },
       onEvent: (event) => {

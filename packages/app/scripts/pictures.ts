@@ -330,8 +330,9 @@ export const PICTURES: readonly Picture[] = [
     scenario: 'settings-accounts',
     crop: 'panel',
     about:
-      "Accounts: each harness's own sign-in, a second Claude Code account beside it that one " +
-      'project runs as, how much of the plan is used, and what can be done to each.',
+      "Accounts, a tab for each machine: each harness's own sign-in, a second Claude Code " +
+      'account beside it that one project runs as, how much of the plan is used, and what can ' +
+      'be done to each.',
   },
   {
     file: 'machines.svg',

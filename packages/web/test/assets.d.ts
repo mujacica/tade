@@ -502,7 +502,24 @@ declare module '*/assets/sign-in.js' {
     ctx: unknown,
     later?: (run: () => void, ms: number) => unknown,
     unlater?: (timer: unknown) => void,
-  ): { node: unknown; open(from?: unknown): Promise<unknown>; close(): void }
+    options?: {
+      path?: string
+      heading?: string
+      said?: (standing: unknown) => string
+      id?: string
+    },
+  ): {
+    node: unknown
+    open(
+      from?: unknown,
+      opening?: {
+        with?: Record<string, unknown>
+        heading?: string
+        ended?: (standing: unknown) => void
+      },
+    ): Promise<unknown>
+    close(): void
+  }
 }
 
 declare module '*/assets/agent-menu.js' {

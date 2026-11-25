@@ -170,8 +170,11 @@ you can at the machine; **Sign out** or `tade web revoke` takes it back.
 Pick the model for the orchestrator and for new agents. Claude Code, Codex, Grok Build and OpenCode
 sign in as themselves, and can run as more than one account — your subscription and your company's —
 chosen per project. OpenCode reaches the ChatGPT, Copilot or OpenCode Go plan it is signed in to.
+Settings › Accounts has a tab for each of your machines, here and on your phone: add, sign in or
+switch an account on a linked server without logging in to it. Its own sign-in runs there, so the
+token stays on that machine.
 
-![Accounts: each harness's own sign-in, a second Claude Code account one project runs as, and how much of each plan is used](https://raw.githubusercontent.com/mujacica/tade/main/images/accounts.svg)
+![Accounts, a tab for each machine: each harness's own sign-in, a second Claude Code account one project runs as, and how much of each plan is used](https://raw.githubusercontent.com/mujacica/tade/main/images/accounts.svg)
 
 ## Extensions and MCP servers
 

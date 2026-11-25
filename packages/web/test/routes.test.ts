@@ -274,8 +274,9 @@ describe('the five tables a setting turns on', () => {
 
   it('still has no route that publishes, grants or reaches a credential, but the owner’s', () => {
     // The list `LOCAL_ONLY_ACTS` names, asserted against the whole of what
-    // this listener can ever serve rather than trusted as a sentence. The one
-    // exception is `OWNED`'s carry, which is the SSH key's and is held below.
+    // this listener can ever serve rather than trusted as a sentence. The
+    // exceptions are `OWNED`'s — the carry, and Settings › Accounts for every
+    // machine (`accounts.ts`) — which are the SSH key's and are held below.
     const every = routesFor({
       ...OFF,
       enabled: true,
@@ -295,13 +296,20 @@ describe('the five tables a setting turns on', () => {
       '/api/persona',
       '/api/grant',
       '/api/config',
-      '/api/accounts',
       '/api/settings/set',
       '/api/settings/key',
       '/api/settings/secret',
       '/api/settings/grant',
     ]) {
       expect(paths, forbidden).not.toContain(forbidden)
+    }
+    // Accounts are added, signed in and chosen only by the person: at this
+    // machine's door as the SSH key's, or from their own full-access device —
+    // never from a route a granted phone's session reaches.
+    for (const path of ['/api/accounts', '/api/accounts/sign-in']) {
+      const route = every.find((one) => one.path === path)
+      expect(OWNED, path).toContain(route)
+      expect(route, path).toMatchObject({ here: true, theirs: true })
     }
     // **Everything under `/api/settings` with every capability on**: one read
     // and one change, and the change is the one that reaches `settingReach`'s
@@ -366,7 +374,8 @@ describe('the owner’s table', () => {
     // never to be; the catch-up read from the cursor an owner's presence
     // wrote (`since.ts`); the person's notes shared, written into what every
     // agent here is told (`shared-notes.ts`); and where each project is
-    // checked out, a path no phone reads (`repositories.ts`); what this machine
+    // checked out, a path no phone reads (`repositories.ts`); one project as
+    // this machine's window draws it, paths in it (`side.ts`); what this machine
     // is, every machine's inventory and the press that moves the keys into one
     // file (`machines.ts`), Tade started again on the code on disk now
     // (`restarted.ts`) or its orchestrator alone, what one of its watches has already found (`watch-seen.ts`), whose each duty is where a repository is a project on several machines (`duties.ts`), one of
@@ -398,12 +407,15 @@ describe('the owner’s table', () => {
       'POST /api/acts',
       'POST /api/acts/outbox',
       'POST /api/repositories',
+      'POST /api/side',
       'POST /api/machine',
       'POST /api/machines',
       'POST /api/machines/press',
       'POST /api/restart',
       'POST /api/orchestrator/restart',
       'POST /api/orchestrator/sign-in',
+      'POST /api/accounts',
+      'POST /api/accounts/sign-in',
       'POST /api/inventory',
       'POST /api/watch/seen',
       'POST /api/duties',

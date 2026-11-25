@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { HookRung, NetworkAddress } from '@tade/core'
+import type { WebAccounts } from './accounts.ts'
 import type { WebActing } from './acting.ts'
 import type { WebMenus } from './agent-menu.ts'
 import type { WebAnswers } from './answered.ts'
@@ -332,6 +333,12 @@ export interface ServerOptions {
    * (`signing-in.ts`). Absent, the route is the `404` of a path nobody wired.
    */
   orchestratorSignIn?: WebSigningIn
+  /**
+   * Settings › Accounts for this machine and every one it links to, and an
+   * account's own sign-in (`accounts.ts`). Absent, both routes are the `404`
+   * of a path nobody wired.
+   */
+  accounts?: WebAccounts
   document?: WebDocument
   tool?: WebToolRead
   /**

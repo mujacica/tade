@@ -1,7 +1,14 @@
 import { HARNESS_CHOICES, orchestratorAccount, ownSignInName } from '@tade/core'
+import type { AccountAway, AccountsCall, AccountsTab } from '@tade/web'
 import type { AccountView } from '@tade/workbench'
 import type { Frame } from '../frame.ts'
-import { accountActions } from '../panels/settings/accounts.ts'
+import {
+  ACCOUNTS_HERE,
+  type AccountShown,
+  accountActions,
+  accountMachine,
+  accountsTab,
+} from '../panels/settings/accounts.ts'
 import { ACCOUNTS, settingsPanel } from '../panels/settings/state.ts'
 import { promptPanel } from '../panels/small/state.ts'
 import type { Ui } from '../screen.ts'
@@ -37,7 +44,35 @@ export interface MachineDeps {
   signInThere(machine: string): Promise<void>
   /** Start this machine's orchestrator again, on what it is signed in as now. */
   restartOrchestrator(): void
+  /**
+   * Every machine's accounts, and a press on another's carried out there
+   * (`AccountsHere`, over this machine's link to it). Absent, the Accounts
+   * page is this machine's alone.
+   */
+  accountsThere?: () => {
+    tabs(): AccountsTab[]
+    carry(
+      call: AccountsCall,
+      device: string,
+    ): Promise<{ accounts: AccountAway[] | null; said: string | null; trouble: boolean }>
+  }
+  /** An account's own sign-in on another machine, in a terminal over its link (`Carries`). */
+  signInAccountThere?: (machine: string, harness: string, account: string | null) => Promise<void>
 }
+
+/** What one other machine's tab holds: what it last said, and whether it is asked again. */
+interface Held {
+  /** Its accounts as it last said them; null before it has. */
+  accounts: AccountShown[] | null
+  /** Why it could not say, where the last look could not. */
+  said: string | null
+  asking: boolean
+  /** Asked again the next time its tab is drawn: Settings opened, or something done to it. */
+  stale: boolean
+}
+
+/** Who presses on another machine's tab, as that machine's door is told: this window. */
+const BY = 'window'
 
 /** How a provider is paid for, the way a page that asked says it. */
 function credentialLabel(kind: 'signed-in' | 'api-key' | 'env-key' | undefined): string | null {
@@ -61,20 +96,94 @@ export class Machine implements Subject {
    * about nothing.
    */
   private paid: Record<string, 'signed-in' | 'api-key' | 'env-key'> | null = null
+  /** Each other machine's tab on the Accounts page, by its name (`accounts-here.ts` asks it). */
+  private readonly there = new Map<string, Held>()
 
   constructor(wire: Wiring, deps: MachineDeps) {
     this.wire = wire
     this.deps = deps
   }
 
-  /** What the Accounts page says, when Settings is open. */
+  /** What the Accounts page says, when Settings is open: on the tab it is on. */
   panel(): Frame['panel'] {
     if (this.wire.state.panel?.kind !== 'settings') return {}
-    return { accounts: this.views }
+    const tabs = this.tabs()
+    const tab = this.tab(tabs)
+    if (tab === ACCOUNTS_HERE) return { accounts: this.views, accountTabs: tabs }
+    const held = this.heldThere(tab)
+    return {
+      accounts: held?.accounts ?? [],
+      accountTabs: tabs,
+      accountsSaid: held?.said ?? `Asking ${tab} who its harnesses are signed in as…`,
+    }
   }
 
   inputs() {
-    return { accountActions: accountActions(this.views) }
+    const tabs = this.tabs()
+    const tab = this.tab(tabs)
+    const views = tab === ACCOUNTS_HERE ? this.views : (this.there.get(tab)?.accounts ?? [])
+    return {
+      accountActions: accountActions(views, tab === ACCOUNTS_HERE ? null : tab),
+      accountTabs: tabs.map((one) => one.id),
+    }
+  }
+
+  /** The Accounts page's tabs: this machine's, then every machine it links to; none for one machine. */
+  private tabs(): { id: string; label: string }[] {
+    const tabs = this.deps.accountsThere?.().tabs() ?? []
+    if (tabs.length < 2) return []
+    return tabs.map((one) => ({ id: one.id ?? ACCOUNTS_HERE, label: one.label }))
+  }
+
+  /** The tab the page is on. */
+  private tab(tabs: readonly { id: string }[]): string {
+    const panel = this.wire.state.panel
+    const chosen = panel?.kind === 'settings' ? panel.scope : ACCOUNTS_HERE
+    return accountsTab(
+      chosen,
+      tabs.map((one) => one.id),
+    )
+  }
+
+  /**
+   * What a machine's tab holds, asked for the first time it is drawn and again
+   * once it is stale. Never waits: the look answers into the tab and draws.
+   */
+  private heldThere(machine: string): Held | undefined {
+    const held = this.there.get(machine)
+    if (held === undefined || (held.stale && !held.asking)) void this.askThere(machine)
+    return held
+  }
+
+  /**
+   * A look or a press on another machine's accounts, over this machine's link
+   * to it, and what it answered held for its tab. A press that came back is
+   * said on the page; a look that could not look leaves what was said last,
+   * with why, rather than an empty tab.
+   */
+  async askThere(
+    machine: string,
+    call: AccountsCall = { machine, do: 'look' },
+  ): Promise<{ said: string | null; trouble: boolean }> {
+    const door = this.deps.accountsThere?.()
+    if (door === undefined) return { said: null, trouble: false }
+    const was = this.there.get(machine)
+    this.there.set(machine, {
+      accounts: was?.accounts ?? null,
+      said: was?.said ?? null,
+      asking: true,
+      stale: false,
+    })
+    const answer = await door.carry(call, BY)
+    const accounts = answer.accounts?.map(shownOf) ?? was?.accounts ?? null
+    this.there.set(machine, {
+      accounts,
+      said: answer.accounts === null ? answer.said : null,
+      asking: false,
+      stale: false,
+    })
+    this.wire.draw()
+    return { said: answer.said, trouble: answer.trouble }
   }
 
   actions(): Actions {
@@ -139,8 +248,17 @@ export class Machine implements Subject {
     return {
       'account-name': async (panel, text) => {
         if (!panel.target) return
-        const [harness = '', kind = 'subscription'] = panel.target.split('\u0000')
+        const [harness = '', kind = 'subscription', machine = ''] = panel.target.split('\u0000')
         const name = text.trim().toLowerCase()
+        if (machine !== '') {
+          await this.addThere(
+            machine,
+            harness,
+            name,
+            kind === 'api-key' ? 'api-key' : 'subscription',
+          )
+          return
+        }
         await this.wire.opts.client.addAccount({
           name,
           harness,
@@ -161,7 +279,16 @@ export class Machine implements Subject {
       // page (`workers.default_names.<harness>`): empty takes the name away.
       'account-own-name': async (panel, text) => {
         if (!panel.target) return
-        const harness = panel.target
+        const [harness = '', machine = ''] = panel.target.split('\u0000')
+        if (machine !== '') {
+          await this.pressThere(machine, {
+            machine,
+            do: 'name',
+            harness,
+            name: text.trim().toLowerCase(),
+          })
+          return
+        }
         // Nothing to take away is nothing to write: without a name or an
         // added account there is no row, and an empty name is no name.
         const named = this.views.some((one) => one.harness === harness && one.ownName)
@@ -181,6 +308,11 @@ export class Machine implements Subject {
       },
       'account-key': async (panel, text) => {
         if (!panel.target) return
+        const [account = '', machine = ''] = panel.target.split('\u0000')
+        if (machine !== '') {
+          await this.pressThere(machine, { machine, do: 'key', account, key: text })
+          return
+        }
         const where = await this.wire.opts.client.saveAccountKey(panel.target, text)
         this.wire.put({
           ...this.wire.state,
@@ -289,8 +421,12 @@ export class Machine implements Subject {
     return id
   }
 
-  /** Ask every harness who its accounts are signed in as, and draw what they say. */
+  /**
+   * Ask every harness who its accounts are signed in as, and draw what they
+   * say — and every other machine's tab asked again the next time it is drawn.
+   */
   async loadAccountViews(): Promise<void> {
+    for (const held of this.there.values()) held.stale = true
     this.views = await this.wire.opts.client.accounts().catch(() => this.views)
     this.wire.draw()
   }
@@ -304,6 +440,11 @@ export class Machine implements Subject {
   async accountAction(id: string): Promise<void> {
     const [, verb = '', harness = '', named = ''] = id.split(':')
     const name = named || null
+    const machine = accountMachine(id)
+    if (machine !== null) {
+      await this.actionThere(machine, verb, harness, name)
+      return
+    }
     const title = HARNESS_CHOICES.find((one) => one.id === harness)?.title ?? harness
     // The own sign-in by the name somebody gave it, where they did.
     const own = this.views.find((one) => one.harness === harness && one.name === null)?.ownName
@@ -375,6 +516,130 @@ export class Machine implements Subject {
     await this.loadAccountViews()
   }
 
+  /**
+   * A press on another machine's tab: carried out there, over this machine's
+   * link to it — its own sign-in in a terminal there, everything else through
+   * its door — and said on the page whatever came of it.
+   */
+  private async actionThere(
+    machine: string,
+    verb: string,
+    harness: string,
+    name: string | null,
+  ): Promise<void> {
+    const title = HARNESS_CHOICES.find((one) => one.id === harness)?.title ?? harness
+    const own = this.there
+      .get(machine)
+      ?.accounts?.find((one) => one.harness === harness && one.name === null)?.ownName
+    switch (verb) {
+      case 'sign-in':
+        if (this.deps.signInAccountThere === undefined) return
+        await this.deps.signInAccountThere(machine, harness, name)
+        await this.askThere(machine)
+        return
+      case 'sign-out':
+        await this.pressThere(machine, { machine, do: 'sign-out', harness, account: name })
+        return
+      case 'use':
+        await this.pressThere(machine, { machine, do: 'use', harness, account: name })
+        return
+      case 'remove':
+        if (name) await this.pressThere(machine, { machine, do: 'remove', account: name })
+        return
+      case 'add':
+      case 'add-key':
+        this.wire.put({
+          ...this.wire.state,
+          panel: {
+            ...promptPanel(
+              'account-name',
+              verb === 'add'
+                ? `Add a ${title} account on ${machine}`
+                : `Add a ${title} account on ${machine}, paid with an API key`,
+              'NAME',
+            ),
+            target: `${harness}\u0000${verb === 'add' ? 'subscription' : 'api-key'}\u0000${machine}`,
+          },
+        })
+        this.wire.draw()
+        return
+      case 'name':
+        this.wire.put({
+          ...this.wire.state,
+          panel: {
+            ...promptPanel(
+              'account-own-name',
+              `Name ${title}'s own sign-in on ${machine}`,
+              'NAME',
+              own ?? '',
+            ),
+            target: `${harness}\u0000${machine}`,
+          },
+        })
+        this.wire.draw()
+        return
+      case 'key':
+        if (!name) return
+        this.wire.put({
+          ...this.wire.state,
+          panel: {
+            ...promptPanel('account-key', `${name}'s API key on ${machine}`, 'KEY'),
+            target: `${name}\u0000${machine}`,
+          },
+        })
+        this.wire.draw()
+        return
+    }
+  }
+
+  /** One press on another machine's accounts, said on its tab of the page. */
+  private async pressThere(machine: string, call: AccountsCall): Promise<void> {
+    this.backOnTab(machine)
+    const came = await this.askThere(machine, call)
+    this.onPage(came.trouble ? null : came.said, came.trouble ? came.said : null)
+  }
+
+  /**
+   * An account added on another machine, and then — for a subscription — its
+   * own sign-in there, in a terminal over the link, as one added here goes
+   * straight into its sign-in. An API-key account goes straight on to its key.
+   */
+  private async addThere(
+    machine: string,
+    harness: string,
+    name: string,
+    kind: 'subscription' | 'api-key',
+  ): Promise<void> {
+    this.backOnTab(machine)
+    const came = await this.askThere(machine, { machine, do: 'add', harness, name, kind })
+    if (came.trouble) {
+      this.onPage(null, came.said)
+      return
+    }
+    if (kind === 'api-key') {
+      this.wire.put({
+        ...this.wire.state,
+        panel: {
+          ...promptPanel('account-key', `${name}'s API key on ${machine}`, 'KEY'),
+          target: `${name}\u0000${machine}`,
+        },
+      })
+      this.wire.draw()
+      return
+    }
+    this.onPage(came.said, null)
+    if (this.deps.signInAccountThere === undefined) return
+    await this.deps.signInAccountThere(machine, harness, name)
+    await this.askThere(machine)
+  }
+
+  /** The Accounts page, on that machine's tab: where a prompt over it goes back to. */
+  private backOnTab(machine: string): void {
+    const panel = this.wire.state.panel
+    if (panel?.kind === 'settings' && panel.category === ACCOUNTS && panel.scope === machine) return
+    this.wire.put({ ...this.wire.state, panel: settingsPanel(ACCOUNTS, '', machine) })
+  }
+
   /** An account's own sign-in, in a terminal inside this one, then the accounts read again. */
   async signInto(harness: string, name: string | null): Promise<void> {
     const signing = this.wire.opts.client.signInFor(harness, name)
@@ -443,5 +708,32 @@ export class Machine implements Subject {
       this.wire.put({ ...this.wire.state, panel: { ...panel, saved, error } })
     }
     if (drawn) this.wire.draw()
+  }
+}
+
+/** Another machine's account as the page draws one of this machine's. */
+function shownOf(one: AccountAway): AccountShown {
+  return {
+    harness: one.harness,
+    name: one.name,
+    ownName: one.ownName,
+    kind: one.kind,
+    canAdd: one.canAdd,
+    why: one.why,
+    status: { signedIn: one.signedIn, who: one.who, plan: one.plan, problem: one.problem },
+    limits:
+      one.windows.length === 0
+        ? null
+        : {
+            windows: one.windows.map((window) => ({ minutes: window.minutes, used: window.used })),
+          },
+    agents: one.agents,
+    forNewAgents: one.forNewAgents,
+    projects: one.projects,
+    // Which account the orchestrator there runs as is that machine's setting,
+    // moved from its own Settings or by `/login` on its tab.
+    forOrchestrator: null,
+    canSignIn: one.canSignIn,
+    install: one.install === null ? null : { command: one.install },
   }
 }

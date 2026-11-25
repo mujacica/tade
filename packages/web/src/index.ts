@@ -45,6 +45,7 @@
 // The name is `web` because that is what it serves. It has nothing to do with
 // the owner's `tade-web` site project, and neither one is the other's.
 
+export * from './accounts.ts'
 export * from './acted.ts'
 export * from './acting.ts'
 export * from './acts.ts'

@@ -249,6 +249,7 @@ export const ROUTES: readonly Route[] = [
   shellAt('/talk', 'talk page'),
   shellAt('/devices', 'devices page'),
   shellAt('/machines', 'machines page'),
+  shellAt('/accounts', 'accounts page'),
   shellAt('/settings', 'settings page'),
   shellAt('/more', 'more page'),
   // The service worker, at the root because that is what decides its scope: a
@@ -833,6 +834,29 @@ export const OWNED: readonly Route[] = [
     method: 'POST',
     path: '/api/orchestrator/sign-in',
     name: 'orchestrator sign-in',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
+  // Settings › Accounts for every machine of the person's (`accounts.ts`):
+  // this machine's sign-ins and the presses on them, or another machine's,
+  // asked over this one's link to it as its owner; and an account's own
+  // sign-in, run on the machine whose it is and typed into from the phone.
+  // What the SSH key that reaches each machine may do there.
+  {
+    method: 'POST',
+    path: '/api/accounts',
+    name: 'accounts',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
+  {
+    method: 'POST',
+    path: '/api/accounts/sign-in',
+    name: 'accounts sign-in',
     needs: 'read',
     mutates: true,
     here: true,

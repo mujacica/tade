@@ -278,6 +278,16 @@ export function taskRequestsSpool(home: string): string {
 }
 
 /**
+ * What a terminal asked of the accounts while a window held the home — `tade
+ * accounts add`, `use`, `remove` or `name` beside a running `tade serve` —
+ * waiting for that window to do it (`@tade/workbench/account-requests`): one
+ * file per request, then its answer, each gone once read.
+ */
+export function accountRequestsSpool(home: string): string {
+  return join(home, 'account-requests')
+}
+
+/**
  * Where what Tade records *about a directory* goes — check runs, the run lock,
  * what is running now.
  *

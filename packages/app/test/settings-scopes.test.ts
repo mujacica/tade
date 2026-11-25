@@ -193,3 +193,79 @@ describe('the Intake page, which is one source at a time', () => {
     }
   })
 })
+
+describe('the Accounts page, which is one machine at a time', () => {
+  const groups = settingsOf(config)
+  const ACCOUNT = {
+    harness: 'claude-code',
+    name: null,
+    kind: 'subscription' as const,
+    canAdd: true,
+    why: null,
+    status: { signedIn: true, who: 'amir@example.com', plan: null, problem: null },
+    limits: null,
+    agents: 0,
+    forNewAgents: true,
+    canSignIn: true,
+  }
+  const TABS = [
+    { id: '', label: 'laptop' },
+    { id: 'ipax', label: 'ipax' },
+  ]
+
+  it('draws a tab for each machine above the accounts, the one it is on chosen', () => {
+    for (const width of WIDTHS) {
+      const drawn = drawnAt(
+        'accounts',
+        { width, accounts: [ACCOUNT], accountTabs: TABS },
+        panelFor('accounts', { scope: 'ipax' }),
+      )
+      const rows = plainRows(drawn)
+      // Nothing runs into anything, at any width.
+      expect(new Set(rows.map((row) => visibleWidth(row))).size, `width ${width}`).toBe(1)
+      // On one row where they fit, and wrapped under the lead word where they do not.
+      const tabs = rows.findIndex((row) => row.includes('laptop'))
+      expect(tabs, `width ${width}`).toBeGreaterThan(-1)
+      expect(rows.slice(tabs, tabs + 2).join('\n'), `width ${width}`).toContain('ipax')
+      // Every tab is a press that puts the page on that machine.
+      const ids = drawn.hits.flatMap((hit) =>
+        hit.target.kind === 'control' ? [hit.target.id] : [],
+      )
+      expect(ids).toContain('scope:')
+      expect(ids).toContain('scope:ipax')
+    }
+  })
+
+  it('draws no tabs where there is one machine, and says why a machine has nothing to show', () => {
+    const alone = plainRows(drawnAt('accounts', { accounts: [ACCOUNT], accountTabs: [] }))
+    expect(alone.some((row) => row.includes('laptop'))).toBe(false)
+    const down = plainRows(
+      drawnAt(
+        'accounts',
+        { accounts: [], accountTabs: TABS, accountsSaid: 'ipax could not be asked: timed out' },
+        panelFor('accounts', { scope: 'ipax' }),
+      ),
+    ).join('\n')
+    expect(down).toContain('ipax could not be asked: timed out')
+    expect(down).not.toContain('Asking each harness')
+  })
+
+  it('walks the machines with the keyboard, above the first press, and a click goes to one', () => {
+    const inputs = { settings: groups, accountTabs: ['', 'ipax'], accountActions: [] }
+    const up = panelKey(panelFor('accounts', { focus: 'form', row: 0 }), 'up', '', inputs)
+      .panel as SettingsPanel
+    expect(up.focus).toBe('scopes')
+    const right = panelKey(up, 'right', '', inputs).panel as SettingsPanel
+    expect(right.scope).toBe('ipax')
+    expect((panelKey(right, 'right', '', inputs).panel as SettingsPanel).scope).toBe('')
+    expect((panelKey(right, 'down', '', inputs).panel as SettingsPanel).focus).toBe('form')
+    const clicked = panelClick(panelFor('accounts'), 'scope:ipax', inputs).panel as SettingsPanel
+    expect(clicked).toMatchObject({ scope: 'ipax', row: 0 })
+    // One machine: nothing to walk into, as on any other page.
+    const alone = panelKey(panelFor('accounts', { focus: 'form', row: 0 }), 'up', '', {
+      settings: groups,
+      accountTabs: [],
+    }).panel as SettingsPanel
+    expect(alone.focus).toBe('search')
+  })
+})

@@ -33,6 +33,7 @@ import { classOn, el, textIn } from './dom.js'
 import { forget, startInstall, takeUpdate } from './install.js'
 import { backoffAt, connectionOf, outsideOf, standingOf } from './live.js'
 import { countsOf, forgetView, lastSeenScreen, readView, saveView } from './offline.js'
+import { accountsScreen } from './pages/accounts.js'
 import { taskScreen } from './pages/agent.js'
 import { changesScreen } from './pages/agent-changes.js'
 import { checksScreen } from './pages/checks.js'
@@ -284,6 +285,7 @@ const SCREENS = {
   lastSeen: () => lastSeenScreen(held.lastView ?? {}, Date.now()),
   devices: () => devicesScreen(ctx),
   machines: () => machinesScreen(ctx),
+  accounts: () => accountsScreen(ctx),
   settings: () => settingsScreen(ctx),
   pair: () => pairScreen(ctx),
   more: () => moreScreen(),

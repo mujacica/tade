@@ -4,7 +4,7 @@ import type { UpdateLook as UpdatesShown } from '@tade/workbench/programs'
 import { normalKey } from '../../keys.ts'
 import type { PanelInputs } from '../../panels.ts'
 import { close, type PanelOutcome, scrolled, stay, typed } from '../outcome.ts'
-import { accountChoice } from './accounts.ts'
+import { accountChoice, accountsTab } from './accounts.ts'
 import { LOOK_AGAIN } from './domain.ts'
 import { MACHINES, machineChoice } from './machines.ts'
 import { REMOTES, remoteChoice, remotePresses } from './remotes.ts'
@@ -506,8 +506,14 @@ function settingsPress(
   // rather than in it, because a selector that scrolls away is one you cannot
   // see the answer of while you read the rows under it.
   if (panel.focus === 'scopes') {
-    const names = scopesOf(panel.category, groups).map((one) => one.id)
-    const at = Math.max(0, names.indexOf(scopeHere(panel.scope, panel.category, groups) ?? ''))
+    // Accounts' tabs are its machines, walked the same way (`accounts.ts`).
+    const machines = panel.category === ACCOUNTS ? (inputs.accountTabs ?? []) : null
+    const names = machines ?? scopesOf(panel.category, groups).map((one) => one.id)
+    const here =
+      machines === null
+        ? (scopeHere(panel.scope, panel.category, groups) ?? '')
+        : accountsTab(panel.scope, machines)
+    const at = Math.max(0, names.indexOf(here))
     if (key === 'left' || key === 'right') {
       const next = names[(at + (key === 'right' ? 1 : -1) + names.length) % names.length]
       return next === undefined ? stay(panel) : stay({ ...panel, scope: next, row: 0, scroll: 0 })
@@ -557,7 +563,10 @@ function settingsPress(
     return stay({ ...panel, row: Math.min(Math.max(0, count - 1), panel.row + 1) })
   if (key === 'up') {
     if (panel.row > 0) return stay({ ...panel, row: panel.row - 1 })
-    const selector = scopedGroup(panel.category, groups) !== null && !panel.search
+    const selector =
+      !panel.search &&
+      (scopedGroup(panel.category, groups) !== null ||
+        (panel.category === ACCOUNTS && (inputs.accountTabs ?? []).length > 1))
     return stay({ ...panel, focus: selector ? 'scopes' : 'search' })
   }
   if (panel.category === ACCOUNTS && !panel.search) {

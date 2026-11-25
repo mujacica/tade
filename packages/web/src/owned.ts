@@ -1,5 +1,11 @@
 import type { IncomingMessage } from 'node:http'
 import type { DutiesAnswer } from '@tade/core'
+import {
+  type AccountSignInStanding,
+  type AccountsAnswer,
+  accountSignInHere,
+  accountsHere,
+} from './accounts.ts'
 import { type AttachAnswer, attachHere } from './attached.ts'
 import { type Answering, type CarryAnswer, carryHere } from './carried.ts'
 import type { Device } from './devices.ts'
@@ -46,7 +52,8 @@ import { type WatchSeenAnswer, watchSeenHere } from './watch-seen.ts'
 // `tool-read.ts`), every machine's inventory and the press that moves the keys
 // into one file (`machines.ts`), Tade started again on the code on disk now
 // (`restarted.ts`) or its orchestrator alone, its orchestrator's sign-in driven
-// from the phone (`signing-in.ts`), what another machine of theirs has (`inventory-told.ts`), what one of its watches has already found (`watch-seen.ts`), its public name's records looked at now (`records.ts`),
+// from the phone (`signing-in.ts`), Settings › Accounts for this machine and
+// every one it links to, with an account's own sign-in (`accounts.ts`), what another machine of theirs has (`inventory-told.ts`), what one of its watches has already found (`watch-seen.ts`), its public name's records looked at now (`records.ts`),
 // work it hands this machine to start here (`taken.ts`), and
 // a project it is moving here, opened (`opened.ts`). One door in `server.ts` for all of them (`OWNED_DOOR`),
 // because each is the SSH key's word and nothing an ordinary phone's session
@@ -80,6 +87,8 @@ export const OWNED_DOOR: ReadonlySet<string> = new Set([
   'restart',
   'orchestrator restart',
   'orchestrator sign-in',
+  'accounts',
+  'accounts sign-in',
   'inventory',
   'watch seen',
   'duties',
@@ -116,6 +125,7 @@ export async function carryOwned(
     | 'restarting'
     | 'orchestratorRestart'
     | 'orchestratorSignIn'
+    | 'accounts'
     | 'inventoryTold'
     | 'document'
     | 'tool'
@@ -143,6 +153,8 @@ export async function carryOwned(
         | RestartAnswer
         | OrchestratorRestartAnswer
         | SignInStanding
+        | AccountsAnswer
+        | AccountSignInStanding
         | InventoryToldAnswer
         | WatchSeenAnswer
         | DutiesAnswer
@@ -172,6 +184,8 @@ export async function carryOwned(
     return orchestratorRestartHere(req, device, opts.orchestratorRestart)
   }
   if (route === 'orchestrator sign-in') return signInHere(req, device, opts.orchestratorSignIn)
+  if (route === 'accounts') return accountsHere(req, device, opts.accounts)
+  if (route === 'accounts sign-in') return accountSignInHere(req, device, opts.accounts)
   if (route === 'inventory') return inventoryToldHere(req, device, opts.inventoryTold, now)
   if (route === 'watch seen') return watchSeenHere(req, device, opts.watchSeen)
   if (route === 'duties') return dutiesHere(req, device, opts.duties)

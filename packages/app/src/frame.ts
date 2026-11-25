@@ -534,6 +534,8 @@ export interface Frame {
       | 'choices'
       | 'settings'
       | 'accounts'
+      | 'accountTabs'
+      | 'accountsSaid'
       | 'updates'
       | 'updatesBusy'
       | 'remotes'

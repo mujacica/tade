@@ -143,6 +143,8 @@ export interface PanelInputs {
   settings?: readonly SettingGroup[]
   /** What can be done on the Accounts page, in the order the keyboard walks it. */
   accountActions?: readonly AccountAction[]
+  /** The Accounts page's tabs, by id, this machine's (`ACCOUNTS_HERE`) first; none for one machine. */
+  accountTabs?: readonly string[]
   /** What can be done on the Updates page, in the order the keyboard walks it. */
   updateActions?: readonly UpdateAction[]
   /** What can be pressed on the Remotes page, in the order the keyboard walks it. */

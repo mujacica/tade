@@ -1,4 +1,5 @@
 import type { InboxRow } from '@tade/core'
+import type { WebAccounts } from '@tade/web'
 import type { MachineActs } from './acts.ts'
 import type { FleetConversation } from './conversation.ts'
 import type { Waking } from './doorbell.ts'
@@ -147,6 +148,12 @@ export interface AwayDeps {
    * that there is no orchestrator here to start again.
    */
   restartOrchestrator?: () => void
+  /**
+   * Settings › Accounts for this machine and every one it links to, and an
+   * account's sign-in from away (`accounts-here.ts`). Absent, both routes are
+   * the `404` of a path nobody wired.
+   */
+  accounts?: WebAccounts
   /**
    * The schedules subject, for a webhook delivery to make a watch look now
    * (`wire/doorbell.ts`): its one method that does, never the subject, for

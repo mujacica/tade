@@ -240,6 +240,7 @@ export async function start(
       | 'restarting'
       | 'orchestratorRestart'
       | 'orchestratorSignIn'
+      | 'accounts'
       | 'inventoryTold'
       | 'seen'
       | 'watchSeen'

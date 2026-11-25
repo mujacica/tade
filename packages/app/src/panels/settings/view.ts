@@ -24,7 +24,7 @@ import {
   TWO_PANE,
   tabRow,
 } from '../frame.ts'
-import { accountActions } from './accounts.ts'
+import { ACCOUNTS_HERE, accountActions, accountsTab } from './accounts.ts'
 import { connectLines, connectsHere } from './connect.ts'
 import {
   badgeFor,
@@ -161,6 +161,17 @@ function scopeRow(
   )
 }
 
+/** The Accounts page's machines, as a row of tabs: this machine first, walked as a page's scopes are. */
+function accountTabRow(panel: SettingsPanel, ctx: PanelContext, form: number): Line[] {
+  const tabs = ctx.accountTabs ?? []
+  const chosen = accountsTab(
+    panel.scope,
+    tabs.map((one) => one.id),
+  )
+  const pointer = panel.focus === 'scopes' ? withFocus(ctx.pointer, `scope:${chosen}`) : ctx.pointer
+  return tabRow(() => new Row(form, ctx.skin, pointer), ctx.skin, 'on', tabs, chosen, 'scope', form)
+}
+
 /** Whether the pointer is on this setting: its row, or any control of it. */
 function onSetting(hover: Target | null, path: string): boolean {
   if (hover?.kind !== 'control') return false
@@ -244,6 +255,11 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
   const scoped = panel.search ? null : scopedGroup(panel.category, ctx.settings)
   const chosen = scoped ? scopeHere(panel.scope, panel.category, ctx.settings) : null
   if (scoped) formHead.push(...scopeRow(panel, ctx, form, scoped, chosen))
+  // Accounts is one machine's at a time, and which is a row of tabs the same
+  // shape: this machine first, then every machine it links to.
+  if (panel.category === ACCOUNTS && !panel.search && (ctx.accountTabs ?? []).length > 1) {
+    formHead.push(...accountTabRow(panel, ctx, form))
+  }
   // A heading and then the settings. What a group is about is still written
   // down — `about` is half of what the search box matches on, and `tade
   // config` reads it — but three lines of prose over every page, saying what
@@ -273,7 +289,11 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
   let anchor: { line: number; col: number; setting: Setting } | null = null
 
   if (panel.category === ACCOUNTS && !panel.search) {
-    const actions = accountActions(ctx.accounts)
+    const tab = accountsTab(
+      panel.scope,
+      (ctx.accountTabs ?? []).map((one) => one.id),
+    )
+    const actions = accountActions(ctx.accounts, tab === ACCOUNTS_HERE ? null : tab)
     const focused = panel.focus === 'form' ? (actions[panel.row]?.id ?? null) : null
     const named = Math.min(22, Math.max(6, form - 30))
     /** The last line that was a row of buttons, so two never end up touching. */
@@ -395,12 +415,9 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
       body.push(blank(form))
     }
     if (ctx.accounts.length === 0)
-      body.push(
-        new Row(form, skin)
-          .space()
-          .text(cap('Asking each harness…', form - 2), skin.hint)
-          .build(),
-      )
+      for (const line of wrapTo(ctx.accountsSaid ?? 'Asking each harness…', form - 2, 4)) {
+        body.push(new Row(form, skin).space().text(line, skin.hint).build())
+      }
     // Where somebody decides which sign-in agents run as, and adds one with a
     // key: whichever it is, an agent runs as you and can read what Tade keeps.
     else

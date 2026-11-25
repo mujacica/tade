@@ -201,6 +201,8 @@ export function draw(state: AppState, given: Frame, last: LastFrame | null = nul
     choices: extra.choices ?? [],
     settings: extra.settings ?? [],
     accounts: extra.accounts ?? [],
+    accountTabs: extra.accountTabs ?? [],
+    accountsSaid: extra.accountsSaid ?? null,
     updates: extra.updates ?? null,
     updatesBusy: extra.updatesBusy ?? false,
     remotes: extra.remotes ?? [],

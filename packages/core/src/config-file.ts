@@ -126,8 +126,12 @@ export function writeSetting(
   }
   const doc = parseDocument(text)
   const at = key.split('.')
-  if (value === undefined || value === '') doc.deleteIn(at)
-  else doc.setIn(at, typeof value === 'object' ? doc.createNode(value) : value)
+  // Taking away what is not there is nothing to do: `deleteIn` throws on a
+  // path whose parents are missing, which made `tade accounts use claude-code`
+  // fail on a machine that never chose another account for it.
+  if (value === undefined || value === '') {
+    if (doc.hasIn(at)) doc.deleteIn(at)
+  } else doc.setIn(at, typeof value === 'object' ? doc.createNode(value) : value)
   // A home nothing has written yet — `tade web on` on a new box before setup —
   // is made here rather than an ENOENT out of a stack trace.
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })

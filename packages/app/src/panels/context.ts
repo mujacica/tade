@@ -125,8 +125,15 @@ export interface PanelContext {
   choices: readonly Choice[]
   /** Every setting, grouped, as it is now. */
   settings: readonly SettingGroup[]
-  /** Every account agents can run as, each harness's own sign-in first. */
+  /** Every account agents can run as, each harness's own sign-in first: on the tab the page is on. */
   accounts: readonly AccountShown[]
+  /**
+   * The Accounts page's tabs, this machine first (`ACCOUNTS_HERE`) and then
+   * each it links to; none where there are no others.
+   */
+  accountTabs?: readonly { id: string; label: string }[]
+  /** Why the tab the page is on has no accounts to draw, where it has none: a machine not answering. */
+  accountsSaid?: string | null
   /**
    * What the Updates page knows: what is installed here and, once somebody
    * has asked, what is current. Null until the page has looked.

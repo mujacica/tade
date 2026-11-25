@@ -59,7 +59,10 @@ program and exposes `run(argv, io)` which returns an exit code instead of callin
   window** — never appends beside it, because `seq` is the holder's (`config-changes.ts`). A config
   write spools its `config_changed` lines; `tade task create` spools the request and waits for the
   answer (`task-requests.ts`, taken on the beat by `wire/task-requests.ts`), which is how a served
-  machine's own shell gives it work. A spool reads only what the command takes on its line.
+  machine's own shell gives it work; `tade accounts add|use|remove|name` do the same through the
+  shared `spool.ts` (`account-requests.ts`, taken by `wire/accounts-here.ts`), both sides calling one
+  `accountDone`. A spool reads only what the command takes on its line. A new one goes on
+  `spool.ts`, not on a fresh copy of `task-requests.ts`.
 - **A command that puts something back writes over nothing** (`tade host restore`): refused while
   anything holds the home or it has a journal, a press — or `--yes`, said from a pipe — before
   anything moves, and whatever it moved aside or left unplaced said with where it is.
