@@ -86,6 +86,13 @@ import { type FakeTerminal, SPAWNING_MS, screenOf, until, windowUnderTest } from
 // the box taking the watch over within the lease once the cable is cut, with
 // what the Mac had found; the Mac taking it back once the cable is in again,
 // with what the box had found — and every request found once, on one machine.
+//
+// And one reload of every machine (`fleet-reload.ts`), pressed here with one
+// box's cable cut: the other asked over the real sshd what it runs and to
+// restart through its own door, a `tade serve` nothing keeps saying so in its
+// own words and left running, the cut one said as not reached, and this
+// window reloaded last. The service's restart and `tade host upgrade` moving
+// a box that is behind need systemd and a box, so they are the script's.
 
 const bin = fileURLToPath(new URL('../../../cli/src/bin.ts', import.meta.url))
 const sshd = await startSshd()
@@ -1001,5 +1008,85 @@ describe.skipIf(cannot !== null)(
         (JSON.parse(taken ?? '{}') as { detail?: { placed?: string } }).detail?.placed,
       ).toContain(`placed on vps from ${machineLabel()}: it waits for later and nothing ties it to`)
     }, 480_000)
+
+    it('reloads every machine from here: each asked through its own door over ssh, one nothing keeps saying so and left running, one cut said, then this window', async () => {
+      if (typeof sshd === 'string') return
+      const vps1 = await box('vps1', 'app', sshd.dir)
+      const vps2 = await box('vps2', 'site', sshd.dir)
+      const remotes = pair(sshd, [vps1, vps2])
+      terminal.rows = 50
+      terminal.columns = 160
+      // This window's own reload is the last step, counted rather than re-execed.
+      let reloaded = 0
+      const window = await wired.start({
+        config: ConfigSchema.parse({ projects: { app: { root: wired.repo.root } }, remotes }),
+        remoteLinks: { ssh: (options) => makeSshLink({ ...options, args: ['-F', sshd.config] }) },
+        thinker: { ask: async () => 'ok', tell: async () => {} },
+        reloadWindow: async () => {
+          reloaded += 1
+        },
+      })
+      await until(
+        'both machines’ projects along the top',
+        () => /vps1\]?\s+app/.test(rows()[0] ?? '') && /vps2\]?\s+site/.test(rows()[0] ?? ''),
+        60_000,
+      )
+      const reach = (name: string) =>
+        (
+          window as unknown as { remotes: { reachFor(name: string): { live: boolean } | null } }
+        ).remotes.reachFor(name)
+      const said = () =>
+        (
+          window as unknown as { wire: { state: { transcript: { entries: { text?: string }[] } } } }
+        ).wire.state.transcript.entries.flatMap((one) => (one.text ? [one.text] : []))
+      const here = () => readFileSync(join(wired.home, 'events.jsonl'), 'utf8')
+
+      // vps2's cable cut: its Tade goes, and this window knows the link is not up.
+      vps2.serving.kill('SIGTERM')
+      await until(
+        'vps2 known closed here, its link not up',
+        () =>
+          /"type":"machine_seen"[^\n]*"machine":"vps2","way":"to","state":"closed"/.test(here()) &&
+          reach('vps2')?.live !== true,
+        30_000,
+      )
+      expect(reach('vps1')?.live).toBe(true)
+      const opened = (journal: string) => (journal.match(/"type":"tade_opened"/g) ?? []).length
+      const openedOnVps1 = opened(vps1.journal())
+
+      // The orchestrator's `tade_reload`, on the person's words: every machine first, by name.
+      await wired.client.log.append({ type: 'said', detail: { text: 'reload everything' } })
+      expect(await window.updateTools().reload({ said: 'reload everything' })).toContain(
+        'Reloading in a moment: vps1 and vps2 first',
+      )
+      await until('this window reloaded, last', () => reloaded === 1, 120_000)
+
+      // Each machine said in words: vps1 answered its own door, from its own
+      // `tade serve`, that nothing would start it again; vps2 was not reached.
+      const lines = said()
+      const began = lines.findIndex((one) =>
+        one.startsWith('Reloading every machine: vps1 and vps2 first'),
+      )
+      const one = lines.findIndex((line) => line.startsWith('vps1 was not reloaded: '))
+      const two = lines.findIndex((line) =>
+        line.startsWith('vps2 could not be reached, so it was not reloaded'),
+      )
+      const last = lines.findIndex((line) => line.endsWith(' reloads now.'))
+      expect(began, lines.join('\n')).toBeGreaterThanOrEqual(0)
+      expect(one, lines.join('\n')).toBeGreaterThan(began)
+      expect(two, lines.join('\n')).toBeGreaterThan(began)
+      expect(last).toBeGreaterThan(Math.max(one, two))
+      expect(lines[one]).toContain('no window and no service keeping it')
+      // Same Tade on both sides, so nothing was updated first.
+      expect(lines.some((line) => line.includes('updating it to'))).toBe(false)
+
+      // And nothing there restarted: the same `tade serve`, opened once, no restart written down.
+      expect(vps1.serving.exitCode).toBeNull()
+      expect(opened(vps1.journal())).toBe(openedOnVps1)
+      expect(vps1.journal()).not.toMatch(/"type":"web_did"[^\n]*"verb":"restart"/)
+      // Nothing came back, so nothing is left for the window that comes back to check.
+      expect(existsSync(join(wired.home, 'reload-check.json'))).toBe(false)
+      await window.stop()
+    }, 300_000)
   },
 )
