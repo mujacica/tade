@@ -375,4 +375,65 @@ describe.runIf(opencode)('OpenCode in a lane', () => {
       'take a long while',
     ])
   }, 240_000)
+
+  it('compacts a headless conversation between its turns, keeping its session, and says how full it is', async () => {
+    // A compaction is refused unless its summary has the headings of
+    // OpenCode's template, so the scripted model writes one.
+    model = await startFakeModel({
+      finalText: '## Objective\n- say hello\n\n## Requirements\n- (none)',
+      main: own,
+      usage: { prompt: 1000, completion: 50 },
+    })
+    const account = accountFor(model)
+    const cwd = tmp('tade-opencode-work-')
+    const one = make(account, 'bypass')
+    const spec = {
+      run: 'app/oc-compact/agent',
+      task: 'app/oc-compact',
+      cwd,
+      prompt: 'say hello',
+      model: { provider: 'tade-test', id: 'fake' },
+    }
+    const signals: WorkerSignal[] = []
+    one.onSignal(spec.run, (signal) => signals.push(signal))
+    const failing = (err: unknown) => {
+      throw new Error(`${(err as Error).message}\n${JSON.stringify(signals)}`)
+    }
+    const idles = () => signals.filter((s) => s.type === 'idle').length
+    await one.start(spec)
+    await until(() => idles() === 1, { timeout: 60_000 }).catch(failing)
+    const before = signals.length
+    const asked = model.requests.length
+
+    await one.compact(spec.run)
+    // It asked the model for a summary, and said how full it is after —
+    // without saying a turn that nobody began.
+    expect(model.requests.length).toBeGreaterThan(asked)
+    const since = signals.slice(before)
+    expect(since.filter((s) => s.type === 'turn_done' || s.type === 'idle')).toEqual([])
+    const context = since.find((s) => s.type === 'context')
+    expect(context).toMatchObject({ percent: expect.any(Number) })
+    expect((context as { tokens: number }).tokens).toBeGreaterThan(0)
+    const record = execFileSync(
+      'opencode',
+      ['session', 'export', sessionIdFor(spec.task), '--standalone'],
+      {
+        cwd,
+        env: (one as unknown as { accountEnv(): NodeJS.ProcessEnv }).accountEnv(),
+      },
+    ).toString()
+    const kinds = (
+      JSON.parse(record) as { messages: { type: string; status?: string }[] }
+    ).messages.map((m) => (m.status ? `${m.type}:${m.status}` : m.type))
+    expect(kinds).toContain('compaction:completed')
+
+    // The same conversation goes on, and nothing of the compaction is a message in it.
+    await one.prompt(spec.run, 'and now?')
+    await until(() => idles() === 2, { timeout: 60_000 }).catch(failing)
+    const history = await one.history(spec.task, cwd, { limit: 30 })
+    expect(history.items.filter((item) => item.kind === 'sent').map((item) => item.text)).toEqual([
+      'say hello',
+      'and now?',
+    ])
+  }, 240_000)
 })

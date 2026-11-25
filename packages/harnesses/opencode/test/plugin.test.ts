@@ -72,6 +72,14 @@ function context() {
       interrupt: record('interrupt'),
       update: record('update'),
       switchModel: record('switchModel'),
+      // What a compacted session holds: its summary and what came after it.
+      context: async () => ({
+        data: [
+          { id: 'msg_c', type: 'compaction', status: 'completed', summary: 'x'.repeat(360) },
+          { id: 'msg_u', type: 'user', text: 'y'.repeat(40) },
+          { id: 'msg_i', type: 'idle', outcome: 'succeeded' },
+        ],
+      }),
     },
     mcp: {
       list: async () => [{ name: 'sentry', status: { status: 'failed', error: 'spawn ENOENT' } }],
@@ -213,6 +221,19 @@ describe('Tade’s plugin inside OpenCode', () => {
       { type: 'problem', text: expect.stringContaining('attempt 2): overloaded') },
       { type: 'turn_done', status: 'ok' },
       { type: 'idle' },
+    ])
+  })
+
+  it('says how full the context is once a compaction of its own session ends', async () => {
+    const { signals, stand } = await supervised()
+    const model = { providerID: 'openai', id: 'gpt-5.5', variant: 'default' }
+    // Another session's compaction is not this conversation's.
+    stand.emit('session.compaction.ended', { sessionID: 'ses_child', model, text: 's' })
+    stand.emit('session.compaction.ended', { model, text: 's', tokens: { input: 900, output: 90 } })
+    await until(() => signals.some((s) => s.type === 'context'), { timeout: 5_000 })
+    // 400 characters held, four a token, of the model's 1000.
+    expect(signals.filter((s) => s.type === 'context')).toMatchObject([
+      { type: 'context', tokens: 100, percent: 10 },
     ])
   })
 

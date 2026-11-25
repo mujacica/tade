@@ -69,6 +69,39 @@ socket.on('data', (chunk) => {
 `
 }
 
+/**
+ * The stand-in's `opencode serve`, as a compaction sees one: it says where it
+ * listens, and its plugin says what the real one says of a compaction — its
+ * execution starting and ending, which is not a turn, and how full the
+ * context is after. With `serve-crash` in its folder it never comes up. It
+ * runs until it is ended, and writes down the password it was given.
+ */
+function serveOf(dir: string): string {
+  return `import { existsSync, writeFileSync } from 'node:fs'
+import { connect } from 'node:net'
+const here = ${JSON.stringify(dir)}
+const env = process.env
+writeFileSync(here + '/serve-env.json', JSON.stringify({ password: env.OPENCODE_PASSWORD, config: env.OPENCODE_CONFIG_CONTENT, approvals: env.TADE_APPROVALS }))
+if (existsSync(here + '/serve-crash')) {
+  process.stderr.write('port in use\\n')
+  process.exit(3)
+}
+process.stdout.write('server listening on http://127.0.0.1:4096\\n')
+const socket = connect(env.TADE_RUN_SOCKET)
+const say = (signal) => socket.write(JSON.stringify({ run: env.TADE_RUN_ID, at: Date.now(), ...signal }) + '\\n')
+socket.on('connect', () => {
+  say({ type: 'started', sessionId: env.TADE_OPENCODE_SESSION, model: 'openai/gpt-5.5', thinking: null })
+  say({ type: 'idle' })
+  say({ type: 'turn_started' })
+  say({ type: 'context', tokens: 120, percent: 1 })
+  say({ type: 'turn_done', status: 'ok' })
+  say({ type: 'idle' })
+})
+socket.on('error', () => {})
+setInterval(() => {}, 1000)
+`
+}
+
 /** A stand-in `opencode`, and the folder it answers from and writes down in. */
 function standIn(): { bin: string; dir: string; ran: () => string[] } {
   const dir = tmp('tade-opencode-stand-')
@@ -89,12 +122,20 @@ case "$1 $2" in
   "session import") id=$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).info.id)' "$3"); cp "$3" "$here/sessions/$id.json"; exit 0 ;;
   "models --standalone") cat "$here/models.txt" 2>/dev/null; exit 0 ;;
   "--standalone run") exec "${process.execPath}" "$here/turn.mjs" "$@" ;;
+  "serve --hostname") exec "${process.execPath}" "$here/serve.mjs" "$@" ;;
+  "api --server")
+    printf '%s' "\${OPENCODE_PASSWORD:-}" > "$here/asked-with"
+    case "$4" in
+      session.compact) [ -f "$here/busy" ] && { echo "Session is busy" >&2; exit 1; }; echo '{"data":{"id":"msg_compact","type":"compaction","delivery":"steer"}}' ;;
+    esac
+    exit 0 ;;
 esac
 exit 0
 `,
   )
   chmodSync(bin, 0o755)
   writeFileSync(join(dir, 'turn.mjs'), turnOf(dir))
+  writeFileSync(join(dir, 'serve.mjs'), serveOf(dir))
   return {
     bin,
     dir,
@@ -478,6 +519,111 @@ describe('the OpenCode adapter', () => {
       // Nothing running, nothing to stop.
       await one.abort(RUN)
       expect(seen.idles()).toBe(2)
+    })
+
+    /** The stand-in's record of the task's session, with a compaction under `msg_compact`. */
+    function compacted(dir: string, compaction: Record<string, unknown>): void {
+      const id = sessionIdFor('app/fix')
+      writeFileSync(
+        join(dir, 'sessions', `${id}.json`),
+        JSON.stringify({
+          info: { id },
+          messages: [
+            { id: 'msg_1', type: 'user', text: 'first' },
+            { id: 'msg_compact', type: 'compaction', ...compaction },
+            { id: 'msg_2', type: 'idle', outcome: 'succeeded' },
+          ],
+        }),
+      )
+    }
+
+    it('compacts between turns in a server of its own, says how full it is, and makes what was said meanwhile the next turn', async () => {
+      const stand = standIn()
+      const one = adapter(stand.bin)
+      const seen = watch(one, stand.dir)
+      await one.start(spec(tmp('tade-opencode-cwd-'), { prompt: 'first' }))
+      await until(() => seen.idles() === 1, { timeout: 15_000 })
+      compacted(stand.dir, { status: 'completed', summary: '## Objective' })
+      const before = seen.signals.length
+
+      const compacting = one.compact(RUN)
+      // Said while it compacts: waits for it, and is not said into it.
+      await one.prompt(RUN, 'meanwhile')
+      await compacting
+      await until(() => seen.idles() === 2, { timeout: 15_000 })
+      const since = seen.signals.slice(before)
+      // Its execution ending is not a turn's: the one turn is what was said meanwhile.
+      expect(since.map((s) => s.type)).toEqual([
+        'started',
+        'context',
+        'turn_started',
+        'started',
+        'message',
+        'turn_done',
+        'idle',
+      ])
+      expect(since.find((s) => s.type === 'message')).toMatchObject({ text: 'heard: meanwhile' })
+
+      const session = sessionIdFor('app/fix')
+      const ran = stand.ran()
+      expect(ran).toContainEqual(
+        expect.stringMatching(/^serve --hostname 127\.0\.0\.1 --port 0 \|/),
+      )
+      expect(ran).toContainEqual(
+        expect.stringMatching(
+          new RegExp(
+            `^api --server http://127\\.0\\.0\\.1:4096 session\\.compact -d \\{\\} --param sessionID=${session} \\|`,
+          ),
+        ),
+      )
+      expect(ran).toContainEqual(
+        expect.stringContaining(`experimental.session.wait --param sessionID=${session}`),
+      )
+      // The server runs the run's config, ungated, behind a password made for
+      // it, which is asked with and never written on a line.
+      const served = JSON.parse(readFileSync(join(stand.dir, 'serve-env.json'), 'utf8')) as {
+        password: string
+        config: string
+        approvals: string
+      }
+      expect(served.password.length).toBeGreaterThanOrEqual(32)
+      expect(readFileSync(join(stand.dir, 'asked-with'), 'utf8')).toBe(served.password)
+      expect(ran.some((line) => line.includes(served.password))).toBe(false)
+      expect(served.approvals).toBe('bypass')
+      expect((JSON.parse(served.config) as { plugins: string[] }).plugins).toEqual([PLUGIN_DIR])
+    })
+
+    it('says why it could not compact, in OpenCode’s words, and never across a turn', async () => {
+      const stand = standIn()
+      const one = adapter(stand.bin)
+      const seen = watch(one, stand.dir)
+      writeFileSync(join(stand.dir, 'hold'), '')
+      await one.start(spec(tmp('tade-opencode-cwd-'), { prompt: 'first' }))
+      await until(() => seen.signals.filter((s) => s.type === 'started').length === 2, {
+        timeout: 15_000,
+      })
+      await expect(one.compact(RUN)).rejects.toThrow(/middle of a turn/)
+      await one.abort(RUN)
+      await until(() => seen.idles() === 1, { timeout: 15_000 })
+
+      compacted(stand.dir, {
+        status: 'failed',
+        error: { type: 'compaction.unavailable', message: 'Nothing to compact yet' },
+      })
+      await expect(one.compact(RUN)).rejects.toThrow(
+        'OpenCode could not compact: Nothing to compact yet',
+      )
+      writeFileSync(join(stand.dir, 'busy'), '')
+      await expect(one.compact(RUN)).rejects.toThrow('OpenCode would not compact: Session is busy')
+      writeFileSync(join(stand.dir, 'serve-crash'), '')
+      await expect(one.compact(RUN)).rejects.toThrow(
+        'OpenCode could not start a server to compact in: port in use',
+      )
+      // None of it was a turn, and the next thing said still is one.
+      expect(seen.idles()).toBe(1)
+      rmSync(join(stand.dir, 'hold'))
+      await one.prompt(RUN, 'carry on')
+      await until(() => seen.idles() === 2, { timeout: 15_000 })
     })
   })
 

@@ -46,7 +46,10 @@ export const OPENCODE_CAPABILITIES: WorkerCapabilities = {
   headless: true,
   spend: { usd: 'estimate', tokens: true, limits: 'anytime' },
   accounts: true,
-  compact: 'none',
+  // Headless, between turns: `session.compact` asked of a server of its own
+  // (`SERVER`, `adapter.ts`), which stays until the compaction is done. In a
+  // lane, the TUI's own /compact.
+  compact: 'idle',
   pins: false,
   conversation: { replicate: false },
   why: {
@@ -60,7 +63,7 @@ export const OPENCODE_CAPABILITIES: WorkerCapabilities = {
     limits:
       'can say how much of a plan is used only for OpenCode Go, signed in with an OpenCode account; it reads no ChatGPT or Copilot limits at all',
     compact:
-      'compacts by itself when its context fills, or when /compact is typed into its own terminal; Tade cannot ask it to',
+      'compacts only between turns, and an agent in a lane only when /compact is typed into it',
     conversation:
       'keeps its conversation in its own database, which Tade cannot merge across machines, so each machine has its own',
   },

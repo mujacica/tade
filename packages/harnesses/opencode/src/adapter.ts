@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
@@ -49,6 +49,7 @@ import { configFor, modelRef } from './config.ts'
 import { accountOf, goLimitsIn, type Integration, integrationsIn, planPays } from './plan.ts'
 import {
   answerOf,
+  compactionOf,
   type Exported,
   exportedIn,
   historyOf,
@@ -115,6 +116,30 @@ const THEIRS = ['OPENCODE_CONFIG', 'OPENCODE_CONFIG_CONTENT', 'OPENCODE_DB', 'OP
 /** The folders an added account moves, which the agent's own shell commands must not see moved. */
 const MOVED = ['XDG_DATA_HOME', 'XDG_STATE_HOME', 'OPENCODE_CONFIG_DIR'] as const
 
+/** An API-key account's key, read from where Tade keeps it by the command that prints it. */
+const KEY_LINE =
+  'if [ -n "$key" ]; then OPENCODE_API_KEY="$(/bin/sh -c "$key")" || exit 1; export OPENCODE_API_KEY; fi'
+
+/**
+ * A server for one compaction of a headless conversation, and nothing else.
+ *
+ * OpenCode compacts only inside a server that is still running when the
+ * compaction is done: one `opencode api session.compact --standalone` starts
+ * takes the request and is gone before it has run, and no later server picks
+ * it up. And `opencode run` cannot host one, because it will not start
+ * without a message, which would be said into the conversation. So it is
+ * `serve` — what `--standalone` itself runs inside every client — on a port
+ * loopback chooses, behind a password Tade made for it (`OPENCODE_PASSWORD`),
+ * with the run's config, so Tade's plugin is in it as it is in a turn. Seen in
+ * OpenCode 2.4.1.
+ */
+const SERVER = [
+  'bin="$1"; key="$2"; shift 2',
+  `unset ${[...INHERITED_SESSION, ...THEIRS.filter((name) => name !== 'OPENCODE_CONFIG_CONTENT')].join(' ')}`,
+  KEY_LINE,
+  'exec "$bin" serve --hostname 127.0.0.1 --port 0',
+].join('\n')
+
 /**
  * How an agent is started or brought back: one line either way.
  *
@@ -147,7 +172,7 @@ const LAUNCHER = [
   'shift "$n"',
   `unset TADE_OPENCODE_OPENING ${[...INHERITED_SESSION, ...THEIRS.filter((name) => name !== 'OPENCODE_CONFIG_CONTENT')].join(' ')}`,
   'if [ -n "$opening" ]; then TADE_OPENCODE_OPENING="$opening"; export TADE_OPENCODE_OPENING; fi',
-  'if [ -n "$key" ]; then OPENCODE_API_KEY="$(/bin/sh -c "$key")" || exit 1; export OPENCODE_API_KEY; fi',
+  KEY_LINE,
   'if [ -f "$create" ]; then',
   '  said="$(unset OPENCODE_CONFIG_CONTENT TADE_RUN_SOCKET TADE_OPENCODE_OPENING; "$bin" api session.create --standalone -d "$(cat "$create")" 2>&1)" ||',
   '    printf "%s\\n" "Tade could not make this agent’s OpenCode session first, so its plugin will: $said" >&2',
@@ -163,6 +188,15 @@ const SETTLE_MS = 2_000
 
 /** How long OpenCode's `auth list` is believed: one turn's usage asks it, so not every one. */
 const CONNECTIONS_MS = 60_000
+
+/** How long a compaction's server is given to say where it is listening. */
+const SERVE_MS = 30_000
+
+/** How long one question to that server is given; the compaction itself is `COMPACT_MS`. */
+const API_MS = 60_000
+
+/** How long a compaction is waited for: as long as the window waits for one. */
+const COMPACT_MS = 10 * 60_000
 
 export interface OpenCodeAdapterOptions {
   /** Directory for per-run files: the instructions, the session it makes, pictures. */
@@ -220,6 +254,11 @@ interface Headless {
   stderr: string
   /** Said for after the turn that is running: the next turn's words. */
   waiting: string[]
+  /**
+   * A compaction in flight, whose process is `child`: whether its plugin has
+   * said how full the context is since. Its execution ending is not a turn's.
+   */
+  compacting: { context: boolean } | null
 }
 
 export class OpenCodeAdapter implements WorkerAdapter {
@@ -668,6 +707,7 @@ export class OpenCodeAdapter implements WorkerAdapter {
       made: false,
       stderr: '',
       waiting: [],
+      compacting: null,
     }
     this.tadeSays(entry, {
       type: 'started',
@@ -784,9 +824,102 @@ export class OpenCodeAdapter implements WorkerAdapter {
     }, ABORT_MS).unref?.()
   }
 
+  /**
+   * Compact a headless conversation between its turns, keeping its session:
+   * a server of its own for the length of it (`SERVER`), asked through
+   * OpenCode's own API — `session.compact`, then `experimental.session.wait`
+   * until the session is idle again — and how it came out read back from the
+   * record. Its plugin says how full the context is once OpenCode says the
+   * compaction is over. Anything said meanwhile is the next turn.
+   */
   async compact(run: RunId): Promise<void> {
-    this.require(run)
-    throw new Error(`OpenCode ${this.capabilities.why.compact}`)
+    const entry = this.require(run)
+    const headless = entry.headless
+    if (!headless) throw new Error(`OpenCode ${this.capabilities.why.compact}`)
+    if (headless.child) {
+      throw new Error('OpenCode is in the middle of a turn, and compacts only between them')
+    }
+    const spec = entry.spec
+    const session = sessionIdFor(spec.task)
+    const password = randomBytes(24).toString('base64url')
+    const key = this.opts.account?.kind === 'api-key' ? (this.opts.account.key ?? '') : ''
+    const launch = reaped({
+      command: '/bin/sh',
+      args: ['-c', SERVER, 'tade-opencode', this.opts.bin, key],
+    })
+    const server = spawn(launch.command, launch.args, {
+      cwd: spec.cwd,
+      env: {
+        ...this.accountEnv(),
+        ...spec.env,
+        ...this.runEnv(spec, this.filesFor(spec), true),
+        OPENCODE_PASSWORD: password,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: true,
+    })
+    const compacting = { context: false }
+    headless.child = server
+    headless.compacting = compacting
+    headless.listening = false
+    headless.ended = false
+    headless.aborting = false
+    headless.stderr = ''
+    server.stderr?.setEncoding('utf8')
+    server.stderr?.on('data', (chunk: string) => {
+      headless.stderr = (headless.stderr + chunk).slice(-4_000)
+    })
+    // `close` rather than `exit`: what it wrote as it ended is read by then.
+    const gone = new Promise<void>((resolve) => {
+      server.on('close', () => resolve())
+      server.on('error', () => resolve())
+    })
+    try {
+      const url = await listeningOn(server, gone, SERVE_MS)
+      if (!url) {
+        throw new Error(
+          `OpenCode could not start a server to compact in: ${lastLine(headless.stderr) || 'it did not say why'}`,
+        )
+      }
+      const api = (args: string[], timeoutMs: number) =>
+        runProgram(
+          this.opts.bin,
+          ['api', '--server', url, ...args, '--param', `sessionID=${session}`],
+          {
+            cwd: existing(spec.cwd) ?? this.opts.home,
+            timeoutMs,
+            env: { ...this.accountEnv(), OPENCODE_PASSWORD: password },
+          },
+        )
+      const asked = await api(['session.compact', '-d', '{}'], API_MS)
+      const input = asked.code === 0 ? admitted(asked.stdout) : null
+      if (!input) throw new Error(`OpenCode would not compact: ${saidBy(asked)}`)
+      const waited = await api(['experimental.session.wait'], COMPACT_MS)
+      if (waited.code !== 0 || waited.timedOut) {
+        throw new Error(
+          `OpenCode did not finish compacting: ${waited.timedOut ? `it had not after ${COMPACT_MS / 60_000} minutes` : saidBy(waited)}`,
+        )
+      }
+      // How full it is now is the plugin's to say, as OpenCode says it ended.
+      const deadline = Date.now() + SETTLE_MS
+      while (!compacting.context && entry.channel.connected && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 25))
+      }
+      endHeadless(server)
+      await gone
+      await this.settled(entry)
+      const outcome = compactionOf(await this.exportOf(session, spec.cwd), input)
+      if (!outcome) throw new Error('OpenCode did not say how its compaction ended')
+      if ('failed' in outcome) throw new Error(`OpenCode could not compact: ${outcome.failed}`)
+    } finally {
+      endHeadless(server)
+      if (headless.child === server) headless.child = null
+      headless.compacting = null
+      headless.listening = false
+      // What was said while it compacted is the next turn, as after a turn.
+      const next = headless.waiting.splice(0).join('\n\n')
+      if (next && this.runs.get(run) === entry) this.turnOf(entry, next)
+    }
   }
 
   async stop(run: RunId): Promise<void> {
@@ -847,6 +980,10 @@ export class OpenCodeAdapter implements WorkerAdapter {
       // Its turns are Tade's to begin and end: each process's plugin says
       // `idle` as it connects, before the turn it was started for has begun.
       if (signal.type === 'idle' || signal.type === 'turn_started') return
+      // A compaction runs as an execution of its own, and its end is not a
+      // turn's: said as one, it would answer whatever was asked next.
+      if (headless.compacting && signal.type === 'turn_done') return
+      if (headless.compacting && signal.type === 'context') headless.compacting.context = true
       if (signal.type === 'turn_done') headless.ended = true
       if (signal.type === 'started') headless.listening = true
     }
@@ -901,6 +1038,7 @@ export class OpenCodeAdapter implements WorkerAdapter {
   private say(entry: Run, type: 'steer' | 'queue', message: string): void {
     const headless = entry.headless
     if (!headless) this.tell(entry, type, message)
+    else if (headless.compacting) headless.waiting.push(message)
     else if (!headless.child) this.turnOf(entry, message)
     else if (type === 'queue' || headless.ended) headless.waiting.push(message)
     else if (headless.listening) entry.channel.send({ type, message })
@@ -1236,6 +1374,55 @@ export function modelSaid(model: WorkerModel): string {
 /** The last thing a process wrote that is not blank. */
 function lastLine(text: string): string {
   return text.trim().split('\n').filter(Boolean).at(-1)?.trim() ?? ''
+}
+
+/** What a question to OpenCode came back with when it failed, in its words. */
+function saidBy(ran: { code: number; stdout: string; stderr: string }): string {
+  return lastLine(ran.stderr) || lastLine(ran.stdout) || `it ended with ${ran.code}`
+}
+
+/**
+ * The id `session.compact` filed the request under: what the record names the
+ * compaction by. Null where its answer names none; an answer that is not JSON
+ * at all is said as that, since the compaction cannot be followed without it.
+ */
+function admitted(stdout: string): string | null {
+  let said: unknown
+  try {
+    said = JSON.parse(stdout)
+  } catch (err) {
+    throw new Error(
+      `OpenCode answered session.compact with something that is not JSON (${(err as Error).message}): ${lastLine(stdout) || 'nothing'}`,
+    )
+  }
+  const data = (said as { data?: { id?: unknown } } | null)?.data
+  return typeof data?.id === 'string' && data.id ? data.id : null
+}
+
+/** Where a server Tade started says it listens, once it has; null if it ended or never said. */
+function listeningOn(
+  server: ChildProcess,
+  gone: Promise<void>,
+  ms: number,
+): Promise<string | null> {
+  return new Promise((resolve) => {
+    let said = ''
+    const timer = setTimeout(() => resolve(null), ms)
+    timer.unref?.()
+    server.stdout?.setEncoding('utf8')
+    server.stdout?.on('data', (chunk: string) => {
+      said = (said + chunk).slice(-4_000)
+      const url = /listening on (https?:\/\/\S+)/.exec(said)?.[1]
+      if (url) {
+        clearTimeout(timer)
+        resolve(url)
+      }
+    })
+    void gone.then(() => {
+      clearTimeout(timer)
+      resolve(null)
+    })
+  })
 }
 
 /** A folder that is there, or null: a command is never started in one that is gone. */

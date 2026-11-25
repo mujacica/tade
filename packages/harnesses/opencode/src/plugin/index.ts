@@ -46,6 +46,8 @@ interface Context {
     }): Promise<unknown>
     interrupt(input: { sessionID: string }): Promise<unknown>
     update(input: { sessionID: string; title?: string }): Promise<unknown>
+    /** The messages the next step is sent: everything after the last compaction. */
+    context?(input: { sessionID: string }): Promise<unknown>
     switchModel(input: {
       sessionID: string
       model: { providerID: string; id: string; variant?: string }
@@ -119,6 +121,27 @@ const str = (value: unknown): string | null =>
   typeof value === 'string' && value.length > 0 ? value : null
 const count = (value: unknown): number =>
   typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
+
+/**
+ * About how many tokens a compacted conversation holds, at four characters a
+ * token: OpenCode says nothing of how full one is until its next step, and
+ * a context still read as full is compacted again. Its own instructions and
+ * tools are not in it, so it reads emptier than it is until that step says.
+ */
+export function tokensHeld(context: unknown): number {
+  const said = obj(context)
+  const messages = Array.isArray(said?.data) ? said.data : Array.isArray(context) ? context : []
+  let chars = 0
+  for (const raw of messages as unknown[]) {
+    const message = obj(raw)
+    if (!message) continue
+    for (const text of [message.summary, message.text, obj(message.metadata)?.recent]) {
+      if (typeof text === 'string') chars += text.length
+    }
+    if (Array.isArray(message.content)) chars += JSON.stringify(message.content).length
+  }
+  return Math.ceil(chars / 4)
+}
 
 /** `provider/id`, as a model reference names it. */
 function modelName(model: unknown): string | null {
@@ -455,6 +478,12 @@ export default {
           return
         case 'session.execution.interrupted':
           if (own) ended('aborted')
+          return
+        case 'session.compaction.ended':
+          if (own && ctx.session.context) {
+            const held = tokensHeld(await ctx.session.context({ sessionID: session }))
+            await sayContext(held, modelName(data.model) ?? model)
+          }
           return
         case 'session.retry.scheduled':
           if (own) {

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   answerOf,
+  compactionOf,
   type Exported,
   exportedIn,
   firstSaid,
@@ -53,6 +54,32 @@ describe('reading what OpenCode exported', () => {
     expect(historyOf(null, { limit: 5 })).toEqual({ items: [], earlier: null })
     expect(turnIn(null)).toBeNull()
     expect(answerOf(null, 'call_1')).toBeNull()
+    expect(compactionOf(null, 'msg_c')).toBeNull()
+  })
+
+  it('says how a compaction it was asked for ended, by the id it was filed under', () => {
+    const record = (compaction: Record<string, unknown>): Exported => ({
+      info: { id: 'ses_x' },
+      messages: [
+        { id: 'msg_old', type: 'compaction', status: 'failed', error: { message: 'an old one' } },
+        { id: 'msg_c', type: 'compaction', ...compaction },
+      ],
+    })
+    expect(compactionOf(record({ status: 'completed', summary: '## Objective' }), 'msg_c')).toEqual(
+      { done: true },
+    )
+    expect(
+      compactionOf(
+        record({ status: 'failed', error: { type: 'aborted', message: 'Compaction cancelled' } }),
+        'msg_c',
+      ),
+    ).toEqual({ failed: 'Compaction cancelled' })
+    expect(
+      compactionOf(record({ status: 'failed', error: { type: 'compaction.failed' } }), 'msg_c'),
+    ).toEqual({ failed: 'compaction.failed' })
+    // Still running, or never filed: the record has no word of it.
+    expect(compactionOf(record({ status: 'running' }), 'msg_c')).toBeNull()
+    expect(compactionOf(record({ status: 'completed' }), 'msg_other')).toBeNull()
   })
 
   it('counts what every step used, cached input apart and reasoning with the output', () => {

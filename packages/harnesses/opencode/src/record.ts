@@ -64,6 +64,23 @@ export function exportedIn(text: string): Exported | null {
   return { info, messages: doc.messages.map(obj).filter((one): one is Json => one !== null) }
 }
 
+/**
+ * How a compaction Tade asked for came out, as the record says: the message it
+ * left is filed under the id `session.compact` answered with, `completed` or
+ * `failed` with OpenCode's own words. Null where the record has no word of it
+ * — the compaction never ran, or has not ended.
+ */
+export function compactionOf(
+  exported: Exported | null,
+  id: string,
+): { done: true } | { failed: string } | null {
+  const message = exported?.messages.find((one) => one.type === 'compaction' && one.id === id)
+  if (message?.status === 'completed') return { done: true }
+  if (message?.status !== 'failed') return null
+  const error = obj(message.error)
+  return { failed: str(error?.message) ?? str(error?.type) ?? 'OpenCode did not say why' }
+}
+
 /** `provider/id`, as a step names the model it ran on. Null where it does not say. */
 export function modelOfStep(message: Json): string | null {
   const model = obj(message.model)
