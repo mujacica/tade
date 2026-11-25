@@ -38,7 +38,13 @@ export function sideFrom(wire: Wiring, deps: SideDeps): WebSide {
     const now = wire.now()
     const kept = offered.get(task)
     if (kept && now - kept.at < OFFERS_MS) return kept.offers
-    const known = await wire.opts.client.agentHarness(task).catch(() => null)
+    // A harness that could not be asked is said, as any failed look is
+    // (`wire.note`), and the header then says what the config routes it to —
+    // as the window's own does before it has learned an agent's harness.
+    const known = await wire.opts.client.agentHarness(task).catch((err: unknown) => {
+      wire.note(err)
+      return null
+    })
     const offers = known
       ? { harness: known.harness, offers: agentOffers(known.harness, known.capabilities) }
       : null

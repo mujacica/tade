@@ -58,6 +58,7 @@ function window(asked: string[]) {
   const wire = {
     state,
     now: () => 0,
+    note: () => {},
     live,
     opts: {
       config: ConfigSchema.parse({ projects: { tade: { root: '/srv/tade' } } }),
