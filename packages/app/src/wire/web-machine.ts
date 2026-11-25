@@ -4,6 +4,7 @@ import {
   type Document,
   type Inventory,
   loadConfig,
+  STANDING_READS,
   standingWarnings,
   type TadeEvent,
 } from '@tade/core'
@@ -44,9 +45,10 @@ const LOOK_MS = 5_000
 const WARNINGS_MOST = 20
 
 /**
- * How many of the journal's newest warnings and window opens are folded for
- * them: enough that twenty still stand after a window's worth have gone. A
- * line older than these is not told, as one past twenty never was.
+ * How many of the journal's newest warnings, and the lines that supersede
+ * some (`STANDING_READS`), are folded for them: enough that twenty still
+ * stand after a window's worth have gone. A line older than these is not
+ * told, as one past twenty never was.
  */
 const WARNINGS_READ = 400
 
@@ -71,12 +73,16 @@ export function machineFrom(wire: Wiring, away: AwayStanding): WebMachine {
       inTime(loadConfig(configPathOf(wire.opts)), LOOK_MS, null),
       inTime<readonly TadeEvent[] | string | typeof LATE>(
         wire.opts.client.log
-          .read({ types: ['warning', 'tade_opened'], limit: WARNINGS_READ })
+          .read({ types: [...STANDING_READS], limit: WARNINGS_READ })
           .catch((err: unknown) => why(err)),
         LOOK_MS,
         LATE,
       ),
-      inTime(documentsOf(wire.opts.client), LOOK_MS, []),
+      inTime<Document[] | string | typeof LATE>(
+        documentsOf(wire.opts.client).catch((err: unknown) => why(err)),
+        LOOK_MS,
+        LATE,
+      ),
       inTime(lastUpdates(wire.opts.home), LOOK_MS, null),
     ])
     const problems: ProblemHere[] = [
@@ -94,6 +100,7 @@ export function machineFrom(wire: Wiring, away: AwayStanding): WebMachine {
         ? []
         : [{ from: 'away' as const, at: null, said: `the away view: ${away.problem()}` }]),
       ...journalProblems(warnings),
+      ...documentsProblem(documents),
     ]
     return {
       at: new Date(now).toISOString(),
@@ -105,7 +112,8 @@ export function machineFrom(wire: Wiring, away: AwayStanding): WebMachine {
       schedules: scheduleViews(wire.opts.client.schedules(), wire.live ?? null, now).map(
         scheduleHere,
       ),
-      documents: documentsHere(documents),
+      documents:
+        typeof documents === 'string' || documents === LATE ? [] : documentsHere(documents),
       // The last look, never one started for this answer: nothing here waits on a child.
       inventory: away.inventory?.() ?? null,
     }
@@ -152,6 +160,28 @@ function journalProblems(read: readonly TadeEvent[] | string | typeof LATE): Pro
       at: event.ts,
       said: String(event.detail.message),
     }))
+}
+
+/**
+ * Why the documents are missing from an answer, where they are: the journal
+ * could not be read for them, or not in time — never told as there being none.
+ */
+function documentsProblem(read: readonly Document[] | string | typeof LATE): ProblemHere[] {
+  if (read === LATE) {
+    return [
+      { from: 'journal', at: null, said: 'the journal was not read in time for its documents' },
+    ]
+  }
+  if (typeof read === 'string') {
+    return [
+      {
+        from: 'journal',
+        at: null,
+        said: `the journal could not be read for its documents: ${read}`,
+      },
+    ]
+  }
+  return []
 }
 
 /** One schedule as another machine is told it: its words, its next run, and its watch's looks. */

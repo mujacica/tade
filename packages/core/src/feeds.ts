@@ -132,6 +132,8 @@ export const STAYS_HERE: Readonly<Partial<Record<EventType, string>>> = {
   hook_rung: 'a webhook arriving at this machine’s door, bounded per minute and nobody else’s',
   orchestrator_told: 'what this machine’s orchestrator was told, which its own conversation holds',
   orchestrator_compacted: 'this machine’s orchestrator’s conversation, compacted',
+  orchestrator_started:
+    'this machine’s orchestrator started, which only its own warnings are read against',
   journal_compacted: 'what this machine’s compaction did to its own file',
   web_refused: 'a stranger at this machine’s door',
   web_proved: 'the person proving it is them at this machine’s door, every few hours',

@@ -184,6 +184,9 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
   // (`Orchestrator.start`'s `signal`) rather than waited out and stopped.
   const quitting = new AbortController()
   let starting: Promise<void> = Promise.resolve()
+  // How many times this window has begun starting it: every one after the
+  // first is a start again inside the window.
+  let starts = 0
   const stopOrchestrator = async () => {
     await orchestrator?.stop().catch(() => {})
   }
@@ -391,6 +394,17 @@ export async function orchestrating(o: OrchestratingOptions): Promise<Orchestrat
   }
 
   const startThinker = async (holding: Holding, after?: Orchestrator) => {
+    // Written as it begins, before anything it finds is said: what an earlier
+    // start said of the orchestrator stops standing here (`standingWarnings`),
+    // and this one says again whatever still holds. Its number is taken as it
+    // is appended, so it is before them without waiting on the write; a write
+    // that fails is a promise nobody awaited, reported as one (`watchProcess`),
+    // and the earlier start's lines then stay listed rather than the start.
+    void client.log.append({
+      type: 'orchestrator_started',
+      task: null,
+      detail: { again: starts++ > 0 },
+    })
     const options = await thinkerOptions()
     const config = options.config
     return (
