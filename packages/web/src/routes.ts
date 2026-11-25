@@ -851,6 +851,18 @@ export const OWNED: readonly Route[] = [
     here: true,
     theirs: true,
   },
+  // Whose each duty is, where one repository is a project on several of the
+  // person's machines (`duties.ts`): a claim can make a watch here hold off,
+  // which an edit to this box's config over SSH could do too.
+  {
+    method: 'POST',
+    path: '/api/duties',
+    name: 'duties',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
   {
     method: 'POST',
     path: '/api/document',

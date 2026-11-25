@@ -11,6 +11,7 @@ import type { WebConfiguring } from './configuring.ts'
 import type { WebConnecting } from './connected.ts'
 import type { WebDocument } from './document.ts'
 import type { WebDrafting } from './drafting.ts'
+import type { WebDuties } from './duties.ts'
 import type { WebEarlier } from './earlier.ts'
 import type { WebHooks } from './hooked.ts'
 import type { WebInventoryTold } from './inventory-told.ts'
@@ -234,6 +235,11 @@ export interface ServerOptions {
    * nobody wired.
    */
   watchSeen?: WebWatchSeen
+  /**
+   * Whose each duty is, answered by the board this machine keeps as the hub
+   * (`duties.ts`). Absent, the route is the `404` of a path nobody wired.
+   */
+  duties?: WebDuties
   /**
    * What another machine of the person's has, told here to be kept
    * (`inventory-told.ts`). Absent, the route is the `404` of a path nobody wired.

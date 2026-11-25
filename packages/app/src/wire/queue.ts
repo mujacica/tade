@@ -72,6 +72,7 @@ import { type ReplayTools, replaysLook, replayTools } from './replays.ts'
 // subjects: the queue's tools answer for schedules as well, and this is the
 // shape of what `queue_schedule` takes. What it *does* is the schedules'.
 import type { ScheduleRequest } from './schedules.ts'
+import { NoAnswer } from './take-parts.ts'
 
 // Queued work is a task that has not started, and this is what starts it.
 //
@@ -744,7 +745,10 @@ export class Queue implements Subject {
         gone.add(task.id)
         said.push(`${went}${reason ? ` (${reason})` : ''}`)
       } catch (err) {
-        if (byRule.has(agent.name)) {
+        if (err instanceof NoAnswer) {
+          // It may be queued there: picked up here as well, it would run on both.
+          said.push(`${task.id} was sent to ${machine} and no answer came back: ${why(err)}.`)
+        } else if (byRule.has(agent.name)) {
           const back = await this.wire.opts.client
             .parkTask(task.id, false, { by: 'orchestrator', was: true })
             .then(

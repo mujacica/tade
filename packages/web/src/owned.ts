@@ -1,8 +1,10 @@
 import type { IncomingMessage } from 'node:http'
+import type { DutiesAnswer } from '@tade/core'
 import { type AttachAnswer, attachHere } from './attached.ts'
 import { type Answering, type CarryAnswer, carryHere } from './carried.ts'
 import type { Device } from './devices.ts'
 import { type DocumentAnswer, documentHere } from './document.ts'
+import { dutiesHere } from './duties.ts'
 import type { Refusal } from './errors.ts'
 import { type InventoryToldAnswer, inventoryToldHere } from './inventory-told.ts'
 import { carryLooking } from './looking.ts'
@@ -77,6 +79,7 @@ export const OWNED_DOOR: ReadonlySet<string> = new Set([
   'orchestrator sign-in',
   'inventory',
   'watch seen',
+  'duties',
   'document',
   'tool',
   'records',
@@ -94,6 +97,7 @@ export async function carryOwned(
     | 'present'
     | 'seen'
     | 'watchSeen'
+    | 'duties'
     | 'looking'
     | 'carrying'
     | 'attaching'
@@ -136,6 +140,7 @@ export async function carryOwned(
         | SignInStanding
         | InventoryToldAnswer
         | WatchSeenAnswer
+        | DutiesAnswer
         | DocumentAnswer
         | ToolReadAnswer
         | RecordsAnswer
@@ -163,6 +168,7 @@ export async function carryOwned(
   if (route === 'orchestrator sign-in') return signInHere(req, device, opts.orchestratorSignIn)
   if (route === 'inventory') return inventoryToldHere(req, device, opts.inventoryTold, now)
   if (route === 'watch seen') return watchSeenHere(req, device, opts.watchSeen)
+  if (route === 'duties') return dutiesHere(req, device, opts.duties)
   if (route === 'seen') return seenHere(req, device, now, opts.seen)
   if (route === 'document') return documentHere(req, device, opts.document)
   if (route === 'tool') return toolHere(req, device, opts.tool)

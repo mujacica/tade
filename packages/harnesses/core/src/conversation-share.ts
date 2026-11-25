@@ -18,12 +18,19 @@ import {
   type ConversationAsk,
   ConversationReply,
   feedDir,
+  Lease,
+  type LeaseAnswer,
   type LeaseOp,
   MACHINE_ID,
+  type MachineNamed,
   PeerRoom,
   SHARE_ANSWER,
   SHARE_LINE,
 } from '@tade/core'
+
+export type { LeaseAnswer, MachineNamed } from '@tade/core'
+export { LEASE_MS, RENEW_MS } from '@tade/core'
+
 import { appendixFor, type ConversationFormat, mergeConversations } from './conversation.ts'
 import {
   appendLines,
@@ -76,10 +83,6 @@ import { ifMissing } from './sessions.ts'
 // the fleet while machines can reach it. It runs out by itself (`LEASE_MS`)
 // unless renewed, so a machine that went away mid-turn holds nobody up long.
 
-/** How long a lease lasts unless it is renewed: a turn renews it every `RENEW_MS`. */
-export const LEASE_MS = 90_000
-export const RENEW_MS = 20_000
-
 /** How much one request gives, and how much one answer carries. */
 const GIVE_BYTES = 48 * 1024
 const ANSWER_BYTES = SHARE_ANSWER
@@ -94,18 +97,6 @@ const ANSWER_FILE = (ANSWER_BYTES / 4) * 3
  * this long is no entry anybody wrote — and held in memory, it is the window's.
  */
 const PIECE_MOST = 16 * 1024 * 1024
-
-/** A machine, by its id and what it calls itself. */
-export interface MachineNamed {
-  id: string
-  name: string
-}
-
-export interface LeaseAnswer {
-  granted: boolean
-  /** Who holds it, where somebody else does, and since when. */
-  holder?: { name: string; since: number }
-}
 
 /** A piece of a file beside a record, in base64. */
 export interface BesidePiece {
@@ -146,33 +137,12 @@ export interface ConversationAnswer {
   files?: BesideSaid
 }
 
-/** The hub's lease on whose turn it is. In memory: a hub that restarts begins with nobody's turn. */
-export class TurnLease {
-  private held: { id: string; name: string; key: string; since: number; until: number } | null =
-    null
-
-  /** Who holds it now, if anybody: one that ran out holds nothing. */
-  holder(now: number): { id: string; name: string; since: number } | null {
-    if (this.held && this.held.until <= now) this.held = null
-    return this.held
-  }
-
-  ask(op: LeaseOp, who: MachineNamed, key: string, now: number): LeaseAnswer {
-    const held = this.holder(now)
-    const mine = held !== null && held.id === who.id && this.held?.key === key
-    const busy = (): LeaseAnswer =>
-      held ? { granted: false, holder: { name: held.name, since: held.since } } : { granted: true }
-    if (op === 'release') {
-      if (mine) this.held = null
-      return { granted: true }
-    }
-    if (op === 'look') return mine ? { granted: true } : busy()
-    if (held && !mine) return busy()
-    const since = mine ? held.since : now
-    this.held = { id: who.id, name: who.name, key, since, until: now + LEASE_MS }
-    return { granted: true }
-  }
-}
+/**
+ * The hub's lease on whose turn it is: core's `Lease`, the one every duty a
+ * hub keeps is held under too (`DutyBoard`). In memory: a hub that restarts
+ * begins with nobody's turn.
+ */
+export class TurnLease extends Lease {}
 
 /** What settling one copy into this record came to. */
 export type Settled =

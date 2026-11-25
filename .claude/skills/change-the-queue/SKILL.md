@@ -40,6 +40,7 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | `packages/app/src/wire/queue-holds.ts` | what holds work as it starts besides the rule: `planHold`, `intakeSays`, `plansFor` (asking first), `probingNow`, `standsFor` |
 | `packages/app/src/wire/watch-tools.ts` | the orchestrator's `tade_watches` and `tade_watch_change`, held to `WATCH_REACH` (`mayWatch`) |
 | `packages/core/src/watch-where.ts`, `app/src/wire/watch-where.ts` | one machine per repository: `watchWhere`, `watchingIn`; `whereNow`, `notLooking` |
+| `packages/core/src/duties.ts`, `app/src/wire/duties.ts`, `web/src/duties.ts` | whose each duty is across machines: `DutyBoard` (the hub's, beside the turn `Lease`), `compareRank`, `BATCH_RANK`, `standsIn`, `grantedUntil`; `FleetDuties`, `/api/duties` |
 | `packages/app/src/wire/proposals.ts` | what a look's findings become, and a decision carried out: `actOnFound`, `offerProposals`, `putToOrchestrator`, `workNow`, `decideProposal` |
 | `packages/app/src/wire/leftovers.ts` | what an agent left, told to the orchestrator the moment it is written down: `offerLeftovers` (from `tellNow`, `wire/handed.ts`) |
 | `packages/app/src/wire/batches.ts`, `core/src/batches.ts` | the full checks once a batch, and a red batch made one proposal (`change-the-checks`) |
@@ -528,6 +529,26 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   `Schedules.where`), because a press there could only be refused. **No remote is called `here`**,
   the word `watches` uses for this machine: `tade remote add` refuses it (`NewRemoteName`), and a
   config that has one keeps working without it, the block ignored and said (`gone.ts`).
+- **Where a hub is named, whose a duty is, is the hub's word, never each machine's guess**
+  (`core/src/duties.ts`, `app/src/wire/duties.ts`, the door `/api/duties`). A duty is a
+  repository's watch (`about: 'repository'`), a batch of the full checks at one commit, or the
+  merge of a branch parted between two machines (`dutyOf`, `mergeDuty`), named by the repository
+  `origin` gives, so both machines name it alike. Every machine with the project claims each duty
+  it would do on every beat — `Schedules.claimWatches` keeps an hourly watch's claim fresh — and the
+  hub's `DutyBoard` (in memory, beside the turn lease, which is the same `Lease`) grants it to one:
+  ranked by `projects.<name>.watches` (`here` › unsaid › a remote), then the machine the project
+  was opened on first (its folder in the home's birth time), then the hub, then the id. A batch is
+  ranked alike everywhere (`BATCH_RANK`), so the hub runs it wherever it has the commit, and another
+  machine only after `BATCH_WAIT_MS`. **Never two, never none**: a better-ranked machine is given a
+  watch only once the holder `yield`s after its look and lets go, with what it found and its cursor
+  (`handed`, written as seen by `takenOver` before the first look); a batch or a merge is never
+  handed on mid-way; a holder that goes quiet lapses after `LEASE_MS`, one that said goodbye at
+  once (`gone`); the asker lets go first, its grant counted from when it asked (`grantedUntil`); a
+  restarted hub grants only to a machine already doing it until every machine that links to it has
+  claimed (`GRACE_MS`). Cut off from the hub, a machine stands in only where the hub said goodbye or
+  has been silent `STAND_IN_MS` (`standsIn`) — two machines that reach the world but not each other
+  both look after that, and that is said. Before the hub has answered, or with a hub too old to know
+  the door, or several remotes and no hub named, the older rule below answers.
 - **Work moves between machines by git, and the conversation never does**
   (`wire/moves.ts`, `wire/hand-over.ts`; the far half is `web-take.ts` behind `/api/take`). Queued
   work started on a remote instead ("Start on vps" on its card, `tade_task_move`) is the same task

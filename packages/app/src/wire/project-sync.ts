@@ -24,6 +24,7 @@ import { lookSync, moveSync, type SyncLooked, type SyncLookOptions } from '@tade
 import { withTranscript } from '../model.ts'
 import { problem } from '../transcript.ts'
 import { saidLately, type Wiring } from './context.ts'
+import type { DutyVerdict, FleetDuties } from './duties.ts'
 import { type Tellable, tellOrKeep } from './handed.ts'
 import { putToOrchestrator } from './proposals.ts'
 
@@ -91,6 +92,14 @@ export interface ProjectSyncDeps {
     context: string
     base: string
   }): Promise<string>
+  /**
+   * Whose proposing the merge of a branch parted from another machine's is,
+   * where one repository is a project on several (`duties.ts`): null where
+   * nothing is asked, and it is this machine's.
+   */
+  merge?(project: string, branch: string, head: string, target: string): DutyVerdict | null
+  /** That merge was proposed: done for good. */
+  merged?(duty: string): void
   /** Told the orchestrator with the next thing somebody says. */
   news(text: string): void
   /** Told the orchestrator now, after its turn. */
@@ -422,6 +431,23 @@ export class ProjectSync {
     const from = verdict.from.find((one) => one !== ORIGIN) ?? verdict.from[0] ?? ORIGIN
     const stem = mergeSlugStem(from, branch)
     const open = await this.deps.openProposal(name, stem)
+    // Parted from another machine's branch, both machines see the parting: one proposes it.
+    const duty =
+      from === ORIGIN || open !== null
+        ? null
+        : (this.deps.merge?.(name, branch, facts.head ?? '', verdict.target) ?? null)
+    if (duty !== null && !duty.mine) {
+      const said = `${name}'s ${branch} was not moved: ${verdict.why}. The merge is not proposed here: ${duty.said}.`
+      await this.holdOnce(name, `diverged:${targetKey(facts)}`, said, {
+        project: name,
+        branch,
+        held: 'diverged',
+        why: verdict.why,
+        from: joinedNames(verdict.from),
+        ...(duty.on ? { elsewhere: duty.on } : {}),
+      })
+      return { verdict, said }
+    }
     let proposal = open
     if (open === null) {
       const made = mergeProposal({
@@ -434,6 +460,7 @@ export class ProjectSync {
         behind: verdict.behind,
       })
       proposal = await this.deps.propose({ project: name, ...made, base: branch })
+      if (duty !== null) this.deps.merged?.(duty.duty)
     }
     const said = `${name}'s ${branch} was not moved: ${verdict.why}. ${open === null ? `Proposed ${proposal}, parked for the orchestrator.` : `${proposal} is already proposed for it.`}`
     await this.holdOnce(name, `diverged:${targetKey(facts)}`, said, {
@@ -506,10 +533,18 @@ export function openProposalIn(
 }
 
 /** The heart's half: the world status last looked at, the journal, the agents and the orchestrator. */
-export function projectSyncFor(wire: Wiring, orchestrator: () => Tellable): ProjectSync {
+export function projectSyncFor(
+  wire: Wiring,
+  orchestrator: () => Tellable,
+  duties: Pick<FleetDuties, 'merge' | 'done'> | null = null,
+): ProjectSync {
   const client = wire.opts.client
   return new ProjectSync({
     home: wire.opts.home,
+    ...(duties && {
+      merge: (project, branch, head, target) => duties.merge(project, branch, head, target),
+      merged: (duty) => duties.done(duty),
+    }),
     projects: () => {
       const world = wire.live?.world
       if (!world) return null

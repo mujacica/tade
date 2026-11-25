@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { expandHome, printable, runProgram, type TaskFile } from '@tade/core'
 import type { Answer, Remote, RemoteLink } from '@tade/remotes-core'
@@ -18,6 +19,27 @@ export async function askThere(
   take: Take,
 ): Promise<TakeAnswer> {
   return answerOf(machine, await call(reach, machine, take))
+}
+
+/**
+ * No answer came back — the link went mid-request — so whether the work was
+ * taken there is not known. Never read as a no: work that may be queued there
+ * is not picked up here, which would run it on both machines. Asked again
+ * with the same id it is answered the same (`takenBefore`), so asking again is
+ * how it is found out.
+ */
+export class NoAnswer extends Error {}
+
+/**
+ * A take's id where it is not a hand-over's: the same for the same queued
+ * work however often it is sent, so a machine that took it once answers
+ * `already` rather than making it twice.
+ */
+export function queuedTakeId(machine: string, task: string, created: Date): string {
+  return createHash('sha256')
+    .update(`${machine}\n${task}\n${created.toISOString()}`)
+    .digest('hex')
+    .slice(0, 32)
 }
 
 /**
@@ -55,8 +77,8 @@ async function call(
   try {
     answer = await reach.link.call(reach.remote, '/api/take', after.length > 0 ? take : bare)
   } catch (err) {
-    throw new Error(
-      `${machine}: ${printable(why(err))} — it may not have been taken there; look at its queue before moving it again`,
+    throw new NoAnswer(
+      `${machine}: ${printable(why(err))} — it may have been taken there, so it is kept parked here rather than run on both: Start on ${machine} again once it is linked, which is answered the same if it was`,
     )
   }
   if (answer.status === 404) {

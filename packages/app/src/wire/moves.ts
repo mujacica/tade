@@ -35,7 +35,15 @@ import {
   pushedTo,
 } from './hand-over.ts'
 import { ProjectMoves } from './project-moves.ts'
-import { askHanding, askThere, beginsOf, contextOf, removeHere } from './take-parts.ts'
+import {
+  askHanding,
+  askThere,
+  beginsOf,
+  contextOf,
+  NoAnswer,
+  queuedTakeId,
+  removeHere,
+} from './take-parts.ts'
 
 // Work moved to another machine of the person's: queued
 // work started there instead of here — "Start on vps" on its card, or the
@@ -764,6 +772,8 @@ export class Moves {
         ? { begins: await beginsOf(this.wire, task, project, file.start.from) }
         : {}),
       check: false,
+      // The same id however often it is sent: taken once there, it is answered `already`.
+      handOver: queuedTakeId(this.wire.opts.client.machine.id, task, file.created),
     }
     if (take.intent.length > TAKE_WORDS_MOST || take.prompt.length > TAKE_WORDS_MOST) {
       throw new Error(`${task}'s words are longer than one request to ${machine} carries.`)
@@ -782,8 +792,10 @@ export class Moves {
     const back = async () => (how.madeParked ? '' : await this.pickUp(task, by))
     let answer: TakeAnswer
     try {
-      answer = await askThere(reach, machine, take)
+      answer = await this.askOnceMore(reach, machine, take)
     } catch (err) {
+      // No answer is not a no: it may be queued there, so it stays parked here.
+      if (err instanceof NoAnswer) throw err
       throw new Error(`${why(err)}${await back()}`)
     }
     if (!answer.took) {
@@ -808,6 +820,26 @@ export class Moves {
     return removed === null
       ? `${went} It is no longer queued here.`
       : `${went} It could not be removed here (${removed}), so it stays parked here: remove it.`
+  }
+
+  /**
+   * The take, asked again once where no answer came back — by its id, so a
+   * take that landed the first time is answered `already` — and of a machine
+   * too old to read the id, asked without it.
+   */
+  private async askOnceMore(
+    reach: { link: RemoteLink; remote: Remote },
+    machine: string,
+    take: Take,
+  ): Promise<TakeAnswer> {
+    try {
+      return (await askHanding(reach, machine, take)).answer
+    } catch (err) {
+      if (!(err instanceof NoAnswer)) throw err
+      const again = this.deps.reach(machine)
+      if (again === null || !again.live) throw err
+      return (await askHanding(again, machine, take)).answer
+    }
   }
 
   /** The project there that is this one's repository: exactly one, or why not. */
