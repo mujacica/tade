@@ -278,6 +278,22 @@ const ALLOWED: Record<string, number> = {
   'packages/harnesses/core/src/history.ts': 2,
   'packages/harnesses/core/src/port.ts': 1,
   'packages/harnesses/core/src/reaper.ts': 1,
+  // Grok Build's adapter came from Claude Code's (709dc306), and so did these: the
+  // `/rename` typed before a prompt, `inTurn`'s chain, a listener that throws,
+  // the channel closed on the way out, `skillIn`'s fallback, an answer that is
+  // not JSON read from the record instead, and the usage count's chain, whose
+  // next count reads the same record again. The rest are a line of somebody
+  // else's format read as null (`ask`, `channel`, `headless`, `record`, `mcp`),
+  // `realpath` falling back to the name it was given, and a tool list or a
+  // headless run's server file `mcp.ts` cannot read becoming none. The usage
+  // chain and `mcp.ts`'s two files are the ones still worth a word.
+  'packages/harnesses/grok/src/adapter.ts': 7,
+  'packages/harnesses/grok/src/ask.ts': 2,
+  'packages/harnesses/grok/src/channel.ts': 1,
+  'packages/harnesses/grok/src/headless.ts': 1,
+  'packages/harnesses/grok/src/home.ts': 1,
+  'packages/harnesses/grok/src/mcp.ts': 3,
+  'packages/harnesses/grok/src/record.ts': 1,
   'packages/harnesses/pi/src/adapter.ts': 11,
   'packages/harnesses/pi/src/compat.ts': 1,
   'packages/harnesses/pi/src/installed.ts': 2,

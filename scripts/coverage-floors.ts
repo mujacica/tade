@@ -63,6 +63,10 @@ export const FLOOR: Record<string, number> = {
   // the fixing, which starts an agent.
   'packages/extensions/review': 85,
   'packages/harnesses/claude': 77,
+  // 67.4% with no `grok` on the PATH and 79.1% with one (MOVES). What is
+  // measured and untested is `still.ts`, which Claude Code's has a test for,
+  // and `sessions.ts`'s carrying a conversation across.
+  'packages/harnesses/grok': 67,
   'packages/orchestrator': 77,
   // `src/wire/` is the hole and everything else here is over 89%: the pure
   // layers (`view/` at 97%) are what the goldens hold, and the wiring is what
@@ -170,6 +174,8 @@ export const FLOOR: Record<string, number> = {
  */
 export const MOVES: Record<string, string> = {
   'packages/harnesses/claude': 'its live-lane tests run only where Claude Code is installed',
+  'packages/harnesses/grok':
+    'its live-lane and headless tests run only where Grok Build is installed',
   'packages/orchestrator': 'claude.test.ts runs only where Claude Code is installed',
   // 86% with no `sshd` to link through, 100% on a machine that can run one as
   // an ordinary user: the master and its forward are only ever driven for real.
@@ -254,6 +260,9 @@ export const UNSEEN: Record<string, string> = {
   'packages/harnesses/claude/src/statusline.ts': 'run by Claude Code after every reply',
   'packages/harnesses/codex/src/hook.ts': 'run by Codex, once per hook',
   'packages/harnesses/codex/src/mcp.ts': 'run by Codex for the life of a session',
+  'packages/harnesses/grok/src/hook.ts': 'run by Grok Build, once per hook',
+  'packages/harnesses/grok/src/mcp.ts': 'run by Grok Build for the life of a session',
+  'packages/harnesses/grok/src/statusline.ts': 'run by Grok Build after every reply',
   'packages/harnesses/core/src/reaper.ts': 'runs between Tade and a headless harness',
   // Both driven for real by `acp/test/lane.test.ts`, which starts the lane the
   // way a driver would and the tools server the way an agent would; what the
