@@ -70,10 +70,12 @@ export function transcriptLines(
    * moment worth saying it, which is where every harness says it too.
    */
   stoppable = false,
+  /** This machine's own conversation: a path in it is on this disk (`linkedRow`). */
+  here = false,
 ): Line[] {
   const lines: Line[] = []
   const plainText = (text: string) => lines.push({ text: fit(text, width), hits: [] })
-  const linked = (text: string) => lines.push(linkedRow(text, width, skin, pointer, linkers))
+  const linked = (text: string) => lines.push(linkedRow(text, width, skin, pointer, linkers, here))
 
   // Nothing said yet: how to read what will be.
   if (transcript.entries.length === 0) {

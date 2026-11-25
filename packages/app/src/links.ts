@@ -16,6 +16,9 @@ export interface Linker {
  * answer — with its links and file references made clickable. The one under
  * the pointer is underlined, which costs that row its own colours while you
  * point at it — a fair trade for seeing what you would open.
+ *
+ * `here` says the text is this machine's own, so a path in it is on this disk
+ * even while you stand in a project on another machine (`Target` `place`).
  */
 export function linkedRow(
   line: string,
@@ -23,6 +26,7 @@ export function linkedRow(
   skin: Skin,
   pointer: Pointer,
   linkers: readonly Linker[] = [],
+  here = false,
 ): { text: string; hits: Hit[] } {
   const plain = stripTerminalSequences(line)
   const hits: Hit[] = []
@@ -37,6 +41,7 @@ export function linkedRow(
             path: found.target.path,
             ...(found.target.line ? { line: found.target.line } : {}),
             ...(found.target.column ? { column: found.target.column } : {}),
+            ...(here ? { here: true as const } : {}),
           }
     const to = Math.min(found.to, width - 1)
     hits.push({ row: 0, from: found.from, to, target })

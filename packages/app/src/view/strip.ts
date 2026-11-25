@@ -177,6 +177,8 @@ export function renderStrip(
     frame.now ?? 0,
     frame.linkers,
     talk === undefined ? (frame.orchestratorOffers?.interrupt.shown ?? false) : true,
+    // This machine's own conversation names this machine's files, wherever you stand.
+    talk === undefined,
   )
   const quiet = (text: string): Line => ({ text: fit(text, inner), hits: [] })
   if (talk !== undefined) body.push(...talkRows(talk, inner, skin, clockOf(frame)).map(quiet))

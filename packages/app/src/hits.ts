@@ -89,8 +89,12 @@ export type Target =
   | { kind: 'screen'; lane: string; from: number; drags: boolean }
   /** A link on an agent's screen. */
   | { kind: 'link'; url: string }
-  /** A file reference on an agent's screen, maybe at a line. */
-  | { kind: 'place'; path: string; line?: number; column?: number }
+  /**
+   * A file reference on an agent's screen, maybe at a line. `here` is a path
+   * this machine's own orchestrator said, so it is on this disk wherever you
+   * stand: the strip under another machine's project is still this one's.
+   */
+  | { kind: 'place'; path: string; line?: number; column?: number; here?: true }
   /**
    * A section's heading. `quiet` is what the drawing found: nothing in it, so
    * it is shut unless asked for — carried here so that pressing it does what

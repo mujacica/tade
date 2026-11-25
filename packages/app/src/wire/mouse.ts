@@ -582,9 +582,11 @@ export class Mouse {
     // disk is that machine's: a file, a place in a screen and a change are
     // read there and opened here (`remote-there:`), and their menus and the
     // branch's are that machine's (`disk-there`) — nothing here is opened in
-    // their place. A folder opens and closes here, as the tree is this window's.
+    // their place. A folder opens and closes here, as the tree is this window's,
+    // and a path this machine's own orchestrator said is on this disk (`here`).
     const place = elsewhereOf(this.wire.state)
-    if (place !== null && THERE_ON_DISK.has(target.kind)) {
+    const ours = target.kind === 'place' && target.here === true
+    if (place !== null && !ours && THERE_ON_DISK.has(target.kind)) {
       const path = 'path' in target ? target.path : ''
       if (button === 'right' || target.kind === 'branch') {
         const what =
