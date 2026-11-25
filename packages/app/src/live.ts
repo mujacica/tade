@@ -212,6 +212,12 @@ export class Live {
   /** The last look's answer and tabs, as said: one the same is not news (`doRefresh`). */
   private answered: string | null = null
   private tabs: string | null = null
+  /**
+   * A look's warnings already said, kept the way a watch keeps its keys: one
+   * still standing is said once, not on every look that moved something else,
+   * and one that went and came back is said again (`saidOnce`).
+   */
+  private warned: ReadonlySet<string> = new Set()
   /** The branch each task was started from, as status last saw it. */
   private readonly bases = new Map<string, string>()
   /** The last look at each task's commits and checks, for the ACTIONS tab. */
@@ -1207,7 +1213,9 @@ export class Live {
         this.revisions++
         this.snapshots = snapshots
         this.trees = treesFrom(workspace, this.trees)
-        for (const warning of workspace.warnings) this.opts.onWarning?.(warning)
+        const warned = saidOnce(this.warned, workspace.warnings)
+        this.warned = warned.standing
+        for (const warning of warned.fresh) this.opts.onWarning?.(warning)
       }
       this.opts.onTasks?.(this.snapshots, moved)
     } catch (err) {
@@ -1290,4 +1298,17 @@ function placedFrom(events: readonly TadeEvent[]): Map<string, string> {
     if (typeof event.detail.placed === 'string') out.set(event.task, event.detail.placed)
   }
   return out
+}
+
+/**
+ * The warnings of a look that were not standing at the last, and every one
+ * standing now: a warning is said when it appears and not again while it
+ * stays, and one that went away is forgotten, so it is said if it comes back.
+ */
+export function saidOnce(
+  standing: ReadonlySet<string>,
+  now: readonly string[],
+): { fresh: string[]; standing: ReadonlySet<string> } {
+  const next = new Set(now)
+  return { fresh: [...next].filter((one) => !standing.has(one)), standing: next }
 }

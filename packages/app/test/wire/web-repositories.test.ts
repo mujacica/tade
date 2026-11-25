@@ -71,6 +71,8 @@ describe('where this machine’s work is, for another machine', () => {
         root: repo.root,
         repository: 'github.com/acme/app',
         base: 'main',
+        // Its base's own head, so another machine knows when main here moved with no task's branch to say so.
+        baseHead: repo.git('rev-parse', 'main').trim(),
         branches: [
           { task: 'app/fix', branch: 'tade/fix', base: 'main', head: HEAD, live: true },
           { task: 'app/done', branch: 'tade/done', base: 'main', head: HEAD, live: false },

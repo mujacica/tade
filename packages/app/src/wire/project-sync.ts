@@ -50,7 +50,18 @@ import { putToOrchestrator } from './proposals.ts'
 // said in the strip once for as long as they stay the same, and a refusal or a
 // parted branch is written once as `project_sync_held`. A parted branch is one
 // proposal at a time: while the last merge proposed for that branch is neither
-// finished nor removed, no other is made.
+// finished nor removed, no other is made. **And one per pair of heads**: a
+// merge proposed for this head here and that head there — and finished,
+// declined or still open — is never proposed again until one of them moves,
+// which the journal answers (`proposedIn`), so a window opened again does not
+// propose it again either.
+//
+// **Looked at again before proposing.** What another machine's branch is, is
+// what this home's mirror last fetched (`mirrors.ts`), which a far branch
+// that moved since — on, back, or forced — leaves stale. Before a merge is
+// proposed, every machine it names is fetched afresh (`lookAgain`) and the
+// rules run again on what came: a parting that was only a stale mirror is not
+// proposed.
 //
 // **Two machines parting is a state, not a failure**: said as a notice, once
 // when they part, and again only when what is to be done about it changes — a
@@ -94,6 +105,11 @@ export interface ProjectSyncDeps {
   steer(task: string, message: string): Promise<void>
   /** A merge for this branch already proposed under any of these names and still open, by its task id, or null. */
   openProposal(project: string, stems: readonly string[]): Promise<string | null>
+  /**
+   * The merge already proposed for this branch at this pair of heads, open or
+   * not, by its task id, or null: the journal's `project_sync_held` (`proposedIn`).
+   */
+  proposedFor?(pair: ProposedPair): Promise<string | null>
   /** Whether agents in the project may push at all: its `push`, or `agents.push`, is not `never`. */
   pushes(project: string): boolean
   /** The merge a parted branch needs, made parked and put to the orchestrator: the task's id. */
@@ -128,7 +144,25 @@ export interface ProjectSyncDeps {
   /** The look and the move: status's, or a test's. */
   look?: (opts: SyncLookOptions) => Promise<SyncLooked>
   move?: typeof moveSync
+  /**
+   * These machines' branches in the project fetched into its mirror now,
+   * whatever they last said (`Mirrors.lookAgain`); absent, or before the
+   * window links any, nothing is fetched and the mirror is read as it is.
+   */
+  lookAgain?: (project: string, machines: readonly string[]) => Promise<void>
 }
+
+/** One parting, by what it is between: the branch, the source, and the head on each side. */
+export interface ProposedPair {
+  project: string
+  branch: string
+  from: string
+  head: string
+  target: string
+}
+
+/** How a run looks again before it proposes: origin fetched too where it was not, or not at all. */
+type Again = { origin: boolean } | null
 
 /** What one run of the rules came to, in a sentence somebody can act on. */
 export interface SyncOutcome {
@@ -155,9 +189,16 @@ export class ProjectSync {
   /** What each project's look could not do, said once. */
   private readonly troubled = new Map<string, string>()
   private readonly busy = new Set<string>()
+  private lookingAgain: ProjectSyncDeps['lookAgain'] | null
 
   constructor(deps: ProjectSyncDeps) {
     this.deps = deps
+    this.lookingAgain = deps.lookAgain ?? null
+  }
+
+  /** How other machines' branches are fetched afresh, once the window holds its links (`app.ts`). */
+  withLookAgain(lookAgain: NonNullable<ProjectSyncDeps['lookAgain']>): void {
+    this.lookingAgain = lookAgain
   }
 
   /** A source of one project moved — or of every project, unnamed: looked at on the next beat. */
@@ -281,12 +322,25 @@ export class ProjectSync {
         ...(how.only ? { only: how.only } : {}),
       }
       const look = this.deps.look ?? lookSync
-      const first = await look(opts)
-      this.troubles(name, first.troubles.length === 0 ? null : first.troubles.join('; '))
-      const verdict = syncVerdict(first.facts, how.mode)
-      if (verdict.kind !== 'move') return await this.decided(project, first.facts, verdict, how)
-      if (verdict.byRef) return await this.moved(project, first.facts, verdict)
-      return await this.underLock(project, { ...opts, fetchOrigin: false }, how)
+      // At most twice: the second where a merge was about to be proposed, on
+      // the sources fetched afresh (`parted`).
+      let fetchOrigin = how.fetchOrigin
+      for (let again: Again = { origin: !how.fetchOrigin }; ; again = null) {
+        const first = await look({ ...opts, fetchOrigin })
+        this.troubles(name, first.troubles.length === 0 ? null : first.troubles.join('; '))
+        const verdict = syncVerdict(first.facts, how.mode)
+        if (verdict.kind !== 'move') {
+          const outcome = await this.decided(project, first.facts, verdict, how, again)
+          if (outcome !== null) return outcome
+          // Origin fetched too, where the parting names it and this run had not.
+          fetchOrigin =
+            again?.origin === true && verdict.kind === 'diverged' && verdict.from.includes(ORIGIN)
+          if (fetchOrigin) this.fetched.set(name, this.deps.now())
+          continue
+        }
+        if (verdict.byRef) return await this.moved(project, first.facts, verdict)
+        return await this.underLock(project, { ...opts, fetchOrigin: false }, how)
+      }
     } finally {
       this.looked.set(name, this.deps.now())
       this.busy.delete(name)
@@ -322,7 +376,12 @@ export class ProjectSync {
       }
       const again = await (this.deps.look ?? lookSync)(opts)
       const verdict = syncVerdict(again.facts, how.mode)
-      if (verdict.kind !== 'move') return await this.decided(project, again.facts, verdict, how)
+      if (verdict.kind !== 'move') {
+        // Never null with nothing to look again with.
+        return (
+          (await this.decided(project, again.facts, verdict, how, null)) ?? { verdict, said: '' }
+        )
+      }
       return await this.moved(project, again.facts, verdict)
     } finally {
       await lock.release()
@@ -390,13 +449,18 @@ export class ProjectSync {
     return { verdict, said: news }
   }
 
-  /** Every verdict but a move: said, written, proposed or put to the orchestrator, each once. */
+  /**
+   * Every verdict but a move: said, written, proposed or put to the
+   * orchestrator, each once — or null, where a merge was about to be proposed
+   * and the sources it names are to be looked at again first (`again`).
+   */
   private async decided(
     project: SyncProject,
     facts: SyncFacts,
     verdict: SyncVerdict,
     how: { asked: boolean },
-  ): Promise<SyncOutcome> {
+    again: Again,
+  ): Promise<SyncOutcome | null> {
     const name = project.name
     switch (verdict.kind) {
       case 'still':
@@ -434,7 +498,7 @@ export class ProjectSync {
         return { verdict, said }
       }
       case 'diverged':
-        return this.parted(project, facts, verdict)
+        return this.parted(project, facts, verdict, again)
       case 'move':
         return { verdict, said: '' }
     }
@@ -449,7 +513,8 @@ export class ProjectSync {
     project: SyncProject,
     facts: SyncFacts,
     verdict: Extract<SyncVerdict, { kind: 'diverged' }>,
-  ): Promise<SyncOutcome> {
+    again: Again,
+  ): Promise<SyncOutcome | null> {
     const name = project.name
     const branch = facts.branch ?? ''
     // A machine's own branch is the one to merge where it and origin agree: it is the newer word.
@@ -478,6 +543,33 @@ export class ProjectSync {
     }
     let proposal = open
     if (open === null) {
+      const pair: ProposedPair = {
+        project: name,
+        branch,
+        from,
+        head: facts.head ?? '',
+        target: verdict.target,
+      }
+      const before = (await this.deps.proposedFor?.(pair)) ?? null
+      if (before !== null) {
+        const said = `${parted}. ${before} was proposed for these two heads already (${shortSha(pair.head)} here, ${shortSha(pair.target)} there), so no other merge is proposed until either moves.`
+        await this.holdOnce(name, `diverged:${branch}:${from}:had:${before}`, said, {
+          project: name,
+          branch,
+          held: 'diverged',
+          why: verdict.why,
+          from: joinedNames(verdict.from),
+          proposed: before,
+        })
+        return { verdict, said }
+      }
+      // What another machine's branch is, is what the mirror last fetched: fetched afresh first.
+      const machines = verdict.from.filter((one) => one !== ORIGIN)
+      const origin = again?.origin === true && verdict.from.includes(ORIGIN)
+      if (again !== null && ((machines.length > 0 && this.lookingAgain) || origin)) {
+        if (machines.length > 0) await this.lookingAgain?.(name, machines)
+        return null
+      }
       const made = mergeProposal({
         project: name,
         branch,
@@ -499,6 +591,8 @@ export class ProjectSync {
       why: verdict.why,
       from: joinedNames(verdict.from),
       ...(proposal ? { proposal } : {}),
+      // The pair a merge was made for, read back by `proposedIn`.
+      ...(open === null ? { source: from, head: facts.head ?? '', target: verdict.target } : {}),
     })
     return { verdict, said }
   }
@@ -570,6 +664,30 @@ export function openProposalIn(
   return [...open].at(-1) ?? null
 }
 
+/**
+ * The merge proposed for one parting, at one pair of heads, by its task id —
+ * the newest, whatever became of it — or null: out of the `project_sync_held`
+ * lines written when one was made.
+ */
+export function proposedIn(events: readonly TadeEvent[], pair: ProposedPair): string | null {
+  let found: string | null = null
+  for (const event of events) {
+    if (event.type !== 'project_sync_held') continue
+    const detail = event.detail as Record<string, unknown>
+    if (
+      typeof detail.proposal === 'string' &&
+      detail.project === pair.project &&
+      detail.branch === pair.branch &&
+      detail.source === pair.from &&
+      detail.head === pair.head &&
+      detail.target === pair.target
+    ) {
+      found = detail.proposal
+    }
+  }
+  return found
+}
+
 /** The heart's half: the world status last looked at, the journal, the agents and the orchestrator. */
 export function projectSyncFor(
   wire: Wiring,
@@ -604,6 +722,8 @@ export function projectSyncFor(
         project,
         stems,
       ),
+    proposedFor: async (pair) =>
+      proposedIn(await client.log.read({ types: ['project_sync_held'] }), pair),
     pushes: (project) => mergePushes(wire.opts.config, project),
     propose: async (req) => {
       const task = await freshName(req.slug, (slug) =>

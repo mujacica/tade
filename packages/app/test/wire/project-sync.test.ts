@@ -12,6 +12,7 @@ import {
   openProposalIn,
   ProjectSync,
   type ProjectSyncDeps,
+  proposedIn,
   SOON_MS,
   SYNC_EVERY_MS,
 } from '../../src/wire/project-sync.ts'
@@ -44,6 +45,7 @@ function syncing(
     said?: string[]
     tasks?: { id: string; dir: string }[]
     pushes?: boolean
+    lookAgain?: ProjectSyncDeps['lookAgain']
   } = {},
 ) {
   let now = Date.parse('2026-11-22T09:00:00Z')
@@ -88,6 +90,8 @@ function syncing(
       steered.push({ task, message })
     },
     openProposal: async (project, stems) => openProposalIn(created, project, stems),
+    proposedFor: async (pair) => proposedIn(journal as unknown as TadeEvent[], pair),
+    ...(over.lookAgain ? { lookAgain: over.lookAgain } : {}),
     pushes: () => over.pushes ?? true,
     propose: async (req) => {
       proposed.push({
@@ -346,6 +350,87 @@ describe('keeping a project in step', () => {
     await one.sync.beat()
     expect(one.proposed).toHaveLength(2)
     expect(kinds()).toEqual(['tade', 'tade'])
+  })
+
+  it('proposes the merge of one pair of heads once, however it was put away, and again once a head moves', async () => {
+    const { here, there } = twoMachines()
+    const mirror = mirrorDir(here.home, 'app')
+    runGit(here.home, 'init', '-q', '--bare', mirror)
+    const commitThere = (path: string) => {
+      writeFileSync(join(there, path), `${path}\n`)
+      runGit(there, 'add', '-A')
+      runGit(there, 'commit', '-q', '-m', `${path} there`)
+      runGit(there, 'push', '-q', '--force', mirror, '+refs/heads/*:refs/remotes/ipax/*')
+    }
+    commitThere('theirs.ts')
+    here.commit('work here', { 'mine.ts': 'mine\n' })
+    const one = syncing(here)
+    await one.sync.beat()
+    expect(one.proposed).toHaveLength(1)
+    // Declined: the orchestrator removed it. The same two heads are not proposed again, here or after a reopen.
+    one.created.push({
+      ...(one.created[0] as TadeEvent),
+      seq: one.created.length,
+      type: 'task_removed',
+    } as TadeEvent)
+    for (const _look of [1, 2, 3]) {
+      one.later(SYNC_EVERY_MS)
+      await one.sync.beat()
+      expect(one.proposed).toHaveLength(1)
+    }
+    const reopened = syncing(here)
+    reopened.journal.push(...one.journal)
+    reopened.created.push(...one.created)
+    await reopened.sync.beat()
+    expect(reopened.proposed).toEqual([])
+    expect(reopened.noticed).toEqual([
+      expect.stringContaining(
+        `app/${one.proposed[0]?.slug} was proposed for these two heads already`,
+      ),
+    ])
+    expect(one.noticed).toHaveLength(2)
+
+    // One of them moved: a merge of the new pair, under a name of its own.
+    commitThere('theirs-2.ts')
+    one.later(SYNC_EVERY_MS)
+    await one.sync.beat()
+    expect(one.proposed).toHaveLength(2)
+    expect(one.proposed[1]?.slug).not.toBe(one.proposed[0]?.slug)
+  })
+
+  it('fetches the machine afresh before proposing, and a far main back in step proposes nothing', async () => {
+    const { here, there } = twoMachines()
+    const mirror = mirrorDir(here.home, 'app')
+    runGit(here.home, 'init', '-q', '--bare', mirror)
+    const handOver = () =>
+      runGit(there, 'push', '-q', '--force', mirror, '+refs/heads/*:refs/remotes/ipax/*')
+    // The mirror holds ipax's main as it was: parted from this one.
+    writeFileSync(join(there, 'theirs.ts'), 'theirs\n')
+    runGit(there, 'add', '-A')
+    runGit(there, 'commit', '-q', '-m', 'theirs there')
+    handOver()
+    const mine = here.commit('work here', { 'mine.ts': 'mine\n' })
+    // Since, ipax's main was force-moved onto the very commit this one is on, and the mirror was not told.
+    runGit(there, 'fetch', '-q', here.root, 'main')
+    runGit(there, 'reset', '-q', '--hard', 'FETCH_HEAD')
+    expect(runGit(there, 'rev-parse', 'HEAD').trim()).toBe(mine)
+
+    const asked: { project: string; machines: readonly string[] }[] = []
+    const one = syncing(here, {
+      lookAgain: async (project, machines) => {
+        asked.push({ project, machines })
+        handOver()
+      },
+    })
+    await one.sync.beat()
+    expect(asked).toEqual([{ project: 'app', machines: ['ipax'] }])
+    expect(runGit(mirror, 'rev-parse', 'refs/remotes/ipax/main').trim()).toBe(mine)
+    expect(one.proposed).toEqual([])
+    expect(one.noticed).toEqual([])
+    one.later(SYNC_EVERY_MS)
+    await one.sync.beat()
+    expect(one.proposed).toEqual([])
+    expect(asked).toHaveLength(1)
   })
 
   it('counts a merge proposed under its old name, with the source in it, as still open', async () => {

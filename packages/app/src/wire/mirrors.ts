@@ -118,6 +118,8 @@ export class Mirrors {
   private readonly held = new Map<string, Mirrored>()
   /** One fetch at a time into each mirror, whichever machine it is from. */
   private readonly turns = new Map<string, Promise<unknown>>()
+  /** Each remote's look going on now, so one asked to look again waits for it rather than for nothing. */
+  private readonly looking = new Map<string, Promise<void>>()
   /** This machine's branches as last pushed into each remote's mirror of each project, by remote and project. */
   private readonly pushed = new Map<string, string>()
   /** The mirrors this machine's branches under its former name were taken out of, this time Tade is open. */
@@ -205,8 +207,37 @@ export class Mirrors {
     }))
   }
 
-  /** One remote, asked where its work is, and every project here that is the same repository fetched. Never throws. */
-  async look(name: string): Promise<void> {
+  /**
+   * Each of these machines' branches in one project here fetched now, whether
+   * or not what they last said moved — because what they last said is the very
+   * thing that may be stale: what `ProjectSync` asks before it proposes merging
+   * a parted branch, so a far branch that moved, rewound or was force-moved
+   * since is in the mirror first. A look already going on is waited for, then
+   * this one taken. Never throws; a machine not linked is passed over.
+   */
+  async lookAgain(project: string, machines: readonly string[]): Promise<void> {
+    await Promise.all(
+      machines.map(async (name) => {
+        if (this.deps.reach(name)?.live !== true) return
+        await this.looking.get(name)
+        await this.look(name, project)
+      }),
+    )
+  }
+
+  /**
+   * One remote, asked where its work is, and every project here that is the
+   * same repository fetched — `fetching` fetched whatever it says. Never throws.
+   */
+  look(name: string, fetching?: string): Promise<void> {
+    const going = this.looking.get(name)
+    if (going !== undefined) return going
+    const one = this.lookOnce(name, fetching).finally(() => this.looking.delete(name))
+    this.looking.set(name, one)
+    return one
+  }
+
+  private async lookOnce(name: string, fetching: string | undefined): Promise<void> {
     const held = this.deps.reach(name)
     if (held === null || this.busy.has(name)) return
     this.busy.add(name)
@@ -238,7 +269,7 @@ export class Mirrors {
           sameRepository(named[i] ?? null, one.repository),
         )
         for (const one of there) {
-          const problem = await this.mirrorOne(name, held, here, one)
+          const problem = await this.mirrorOne(name, held, here, one, fetching === here.name)
           if (problem !== null) problems.push(problem)
         }
         this.keep(here.name, name, there)
@@ -277,13 +308,25 @@ export class Mirrors {
       root: string
       base: string | null
       branches: readonly BranchThere[]
+      baseHead?: string | null | undefined
       mirror?: string | undefined
     },
+    force = false,
   ): Promise<string | null> {
     const mirror = mirrorDir(this.deps.home, here.name)
     const fetched = await this.inTurn(mirror, async () => {
       const before = await mirrorHeads(mirror, machine)
-      if (before !== null && !fetchDue(machine, there.branches, before)) {
+      // Its base too, where it said where that is: with every agent there in
+      // its checkout, no task's branch says the base moved, and the mirror
+      // kept a commit that machine had long left.
+      const said =
+        there.base === null || there.baseHead === undefined || there.baseHead === null
+          ? there.branches
+          : [
+              ...there.branches,
+              { task: '', branch: there.base, base: null, head: there.baseHead, live: false },
+            ]
+      if (!force && before !== null && !fetchDue(machine, said, before)) {
         this.heads(here.name, mirror, await mirrorHeads(mirror))
         return null
       }

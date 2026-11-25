@@ -85,6 +85,8 @@ async function repositoryOf(
     root: project.root,
     repository,
     base: base?.ref ?? null,
+    // Only a branch of this checkout's own: origin's, a machine fetches from origin itself.
+    baseHead: base && !base.ref.startsWith('origin/') ? base.oid : null,
     // A task's own branch, and nothing of one in the shared checkout: its work
     // there is hunks nobody has committed, which no fetch can carry.
     branches: project.tasks.flatMap((task) => {

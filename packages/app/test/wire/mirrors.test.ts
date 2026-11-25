@@ -147,6 +147,33 @@ describe('another machine’s branches, mirrored here', () => {
     await one.close()
   })
 
+  it('fetches a far base that moved where no task’s branch did, and fetches afresh when asked whatever was said', async () => {
+    const one = await linked()
+    await one.mirrors.beat(['vps'])
+    const mirror = mirrorDir(one.here.home, 'app')
+    const held = () => runGit(mirror, 'rev-parse', mirrorRef('vps', 'main')).trim()
+    const first = held()
+
+    // Every agent there works in its checkout: no task's branch says main moved, its base head does.
+    const moved = workThere(one.there, 'main', 'on-main.ts')
+    const said = one.far.repositories[0] as (typeof one.far.repositories)[number]
+    one.far.repositories = [{ ...said, branches: [], baseHead: moved }]
+    one.later(AGAIN_MS)
+    await one.mirrors.beat(['vps'])
+    expect(held()).toBe(moved)
+
+    // Rewound there, by a Tade that says nothing of its base: asked again, it is fetched anyway.
+    runGit(one.there, 'reset', '-q', '--hard', first)
+    one.far.repositories = [{ ...said, branches: [] }]
+    one.later(AGAIN_MS)
+    await one.mirrors.beat(['vps'])
+    expect(held()).toBe(moved)
+    await one.mirrors.lookAgain('app', ['vps'])
+    expect(held()).toBe(first)
+    expect(one.said).toEqual([])
+    await one.close()
+  })
+
   it('mirrors nothing of a project there that is another repository, whatever it is called', async () => {
     const one = await linked()
     one.far.repositories = [

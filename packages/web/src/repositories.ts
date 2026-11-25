@@ -59,6 +59,13 @@ const RepositorySchema = z.object({
   repository: z.string().max(400).nullable(),
   /** The branch its work merges into, or null where none could be found. */
   base: z.string().regex(BRANCH).nullable(),
+  /**
+   * The commit that branch is on here, where it is a branch of this
+   * checkout's own: what tells another machine its mirror of it is behind,
+   * which no task's branch does where every agent works in the checkout.
+   * Absent from an older Tade.
+   */
+  baseHead: z.string().regex(HEAD).nullable().optional(),
   branches: z.array(BranchSchema).max(BRANCHES_MOST),
   /**
    * This machine's mirror of the project, in its home, ready to be pushed
@@ -103,6 +110,9 @@ export function repositoriesFor(all: readonly RepositoryHere[], reach: Reach): R
     .map((one) => ({
       ...one,
       base: named(one.base),
+      ...(one.baseHead === undefined
+        ? {}
+        : { baseHead: one.baseHead !== null && HEAD.test(one.baseHead) ? one.baseHead : null }),
       branches: one.branches
         .filter((branch) => BRANCH.test(branch.branch))
         .slice(0, BRANCHES_MOST)

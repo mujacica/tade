@@ -339,6 +339,10 @@ export class App {
     this.heart.duties.withReach((name) => this.remotes.reachFor(name))
     // And so do acts on another machine (`tade_remote_act`).
     this.heart.acts.withReach((name) => this.remotes.reachFor(name))
+    // And a parting is fetched afresh over them before a merge is proposed for it.
+    this.heart.sync.withLookAgain(
+      async (project, machines) => await this.remotes.mirrored()?.lookAgain(project, machines),
+    )
     this.voice = new Voice(this.wire, {
       submit: () => this.keyboard.submit(),
       say: (said) => this.orchestrator.say(said),
