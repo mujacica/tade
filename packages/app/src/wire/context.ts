@@ -491,6 +491,15 @@ export interface Subject {
   submits?(): Submits
   /** The one-line panels it carries out, by what each is for. */
   prompts?(): Prompts
+  /**
+   * The panels marked as another machine's (`there`) it carries out — a save,
+   * a discard, a switch or a branch named on that machine's checkout. Looked up
+   * **instead of** `submits` and `prompts` for such a panel, never before them:
+   * one nobody carries there is nothing, rather than the same press done to
+   * this machine's checkout, whose paths it may also name.
+   */
+  submitsThere?(): Submits
+  promptsThere?(): Prompts
 }
 
 /**

@@ -103,9 +103,10 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
       : null
   const plain = edit ? edit.lines : (viewing?.text ?? [])
   const lines = edit ? edit.lines : drawn
-  // A file on another machine is read and never typed into: this disk is not its.
+  // A file on another machine is typed into here and saved there, and never
+  // opened in this machine's editor: this disk is not its.
   const there = panel.there !== undefined
-  const typeable = !there && file !== null && !formatted && editable(file) === null
+  const typeable = file !== null && !formatted && editable(file) === null
   const control = (id: string) => ({ kind: 'control' as const, id })
 
   // What git says about the file, laid into it — once it has been asked, which
@@ -383,7 +384,9 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
     // Gone round an end is said in the colour a panel says things in, because
     // the press did something other than the one before it did.
     if (fits(where)) foot.text(where, where === span || !sent?.wrapped ? skin.hint : skin.waiting)
-    const keys = hints.find((one) => 1 + where.length + one.length + buttons + 2 <= inner)
+    // A comment on a file there is nobody's to send, so it is not offered.
+    const offered = there ? hints.filter((one) => !one.includes('c comment')) : hints
+    const keys = offered.find((one) => 1 + where.length + one.length + buttons + 2 <= inner)
     if (keys) foot.text(keys, skin.hint)
   }
   foot.right((r) => {

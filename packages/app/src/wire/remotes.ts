@@ -64,6 +64,7 @@ import {
   type Menus,
   type Prompts,
   type Subject,
+  type Submits,
   type Wiring,
 } from './context.ts'
 import type { FleetFeeds, FleetSync } from './feeds.ts'
@@ -388,6 +389,15 @@ export class Remotes implements Subject {
 
   prompts(): Prompts {
     return this.agents?.prompts() ?? {}
+  }
+
+  /** The panels that are another machine's, carried out there (`remote-disk.ts`). */
+  submitsThere(): Submits {
+    return this.agents?.submitsThere() ?? {}
+  }
+
+  promptsThere(): Prompts {
+    return this.agents?.promptsThere() ?? {}
   }
 
   /** Stand in a project on another machine. */

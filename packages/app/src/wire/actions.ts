@@ -214,7 +214,8 @@ export class Router {
     else {
       // Widened at the lookup: the key it was registered under is what says the
       // handler is the one for this panel, and the compiler cannot see that.
-      const does = this.submits()[panel.kind] as
+      const table = thereOf(panel) === undefined ? this.submits() : this.submitsThere()
+      const does = table[panel.kind] as
         | ((panel: Panel, choice: string | undefined) => Promise<void> | void)
         | undefined
       if (does) await does(panel, choice)
@@ -247,7 +248,7 @@ export class Router {
    * still in it and the reason underneath.
    */
   private async savePrompt(panel: PromptPanel, choice?: string): Promise<void> {
-    const does = this.prompts()[panel.purpose]
+    const does = (panel.there === undefined ? this.prompts() : this.promptsThere())[panel.purpose]
     if (!does) return
     try {
       await does(panel, panel.text.trim(), choice)
@@ -302,6 +303,23 @@ export class Router {
     return table
   }
 
+  /** What carries out a panel that is another machine's: only these, and nothing of this one's. */
+  private submitsThere(): Submits {
+    let table: Submits = {}
+    for (const subject of this.deps.subjects()) {
+      if (subject.submitsThere) table = { ...table, ...subject.submitsThere() }
+    }
+    return table
+  }
+
+  private promptsThere(): Prompts {
+    let table: Prompts = {}
+    for (const subject of this.deps.subjects()) {
+      if (subject.promptsThere) table = { ...table, ...subject.promptsThere() }
+    }
+    return table
+  }
+
   /** The actions that are another machine's while you stand in one of its projects. */
   private elsewhere(): Actions {
     if (elsewhereOf(this.wire.state) === null) return {}
@@ -329,4 +347,9 @@ function found(table: Actions, action: string): { does: Actions[string]; rest: s
   }
   const does = best === null ? undefined : table[best]
   return does && best !== null ? { does, rest: action.slice(best.length) } : null
+}
+
+/** The machine a panel is about, where it is another's. */
+function thereOf(panel: Panel): string | undefined {
+  return 'there' in panel ? panel.there : undefined
 }

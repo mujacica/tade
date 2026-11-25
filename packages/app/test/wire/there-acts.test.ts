@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { ConfigSchema } from '@tade/core'
@@ -152,7 +152,8 @@ describe('a project on another machine, pressed as a project here', () => {
     await until(said('all showing'), () => (rows()[rowOf()] ?? '').includes('<all>'), 20_000)
   })
 
-  it('opens a change and a file there in the viewer, and its branch’s menu with its own branches', async () => {
+  /** A project there with one change in it, its disk a real repository read and written by the real far half. */
+  async function standingInChange(): Promise<{ there: ReturnType<typeof mkrepo>; far: FarEnd }> {
     const there = mkrepo()
     there.commit('the hook', { 'hook.ts': 'export const ring = 1\n' })
     there.git('branch', 'tade/elsewhere-only')
@@ -201,27 +202,124 @@ describe('a project on another machine, pressed as a project here', () => {
     // Tall enough that GIT is on screen under CHANGES and FILES.
     terminal.resize(100, 60)
     await until(said('its changes'), () => wired.sidebar().includes('hook.ts'), 20_000)
-    // The change, pressed: read there, opened in the viewer with git there drawn in.
+    return { there, far }
+  }
+
+  /** The change there, pressed: read there, opened in the viewer with git there drawn in. */
+  async function openTheChange(): Promise<void> {
     const changes = wired.headingRow('CHANGES').row + 1
     wired.click((rows()[changes] ?? '').indexOf('hook.ts') + 1, changes)
     await until(said('the change there'), () => shown('export const ring = 2'), 20_000)
+  }
+
+  it('opens a change and a file there in the viewer, and its branch’s menu with its own branches', async () => {
+    const { far } = await standingInChange()
+    await openTheChange()
     await until(said('the line it replaced'), () => shown('export const ring = 1'), 5_000)
     expect(far.diskAsked.at(-1)).toMatchObject({ project: 'tade', what: 'file', path: 'hook.ts' })
-    // Another machine's file: read here, and nothing here offers to write it.
+    // Another machine's file: typed into here and saved there, never in this machine's editor.
     expect(shown('Open in editor')).toBe(false)
-    expect(shown('click to edit')).toBe(false)
+    expect(shown('click to edit')).toBe(true)
     terminal.press('\x1b')
     await until(said('the viewer closed'), () => !shown('export const ring = 2'), 20_000)
-    // Its branch: its menu, and Switch branch… with that machine's branches.
-    await until(said('its branch'), () => wired.sidebar().includes('GIT'), 20_000)
-    const git = wired.headingRow('GIT').row
-    const on = rows().findIndex((line, at) => at > git && line.slice(0, 26).includes('main'))
-    wired.click((rows()[on] ?? '').indexOf('main') + 1, on)
+    // Its branch: its menu, all of it carried there, and Switch branch… with that machine's branches.
+    openTheBranchMenu()
     await until(said('the branch’s menu'), () => shown('Switch branch'), 20_000)
-    expect(shown('not from here')).toBe(true)
+    expect(shown('New branch')).toBe(true)
+    expect(shown('not from here')).toBe(false)
     terminal.press('\r')
     await until(said('its branches'), () => shown('tade/elsewhere-only'), 20_000)
     expect(far.diskAsked.at(-1)).toMatchObject({ project: 'tade', what: 'branches' })
+  })
+
+  /** The branch under GIT, pressed: its menu. */
+  function openTheBranchMenu(): void {
+    const git = wired.headingRow('GIT').row
+    const on = rows().findIndex((line, at) => at > git && line.slice(0, 26).includes('main'))
+    wired.click((rows()[on] ?? '').indexOf('main') + 1, on)
+  }
+
+  it('switches its checkout to one of its branches there, and never this machine’s', async () => {
+    const { there, far } = await standingInChange()
+    const mine = wired.repo.git('branch', '--show-current').trim()
+    openTheBranchMenu()
+    await until(said('the branch’s menu'), () => shown('Switch branch'), 20_000)
+    terminal.press('\r')
+    await until(said('its branches'), () => shown('Switch branch on vps'), 20_000)
+    await until(said('the branch there'), () => shown('tade/elsewhere-only'), 20_000)
+    const row = wired.find('tade/elsewhere-only')
+    wired.click(row.col + 2, row.row)
+    await until(
+      said('the checkout there switched'),
+      () => there.git('branch', '--show-current').trim() === 'tade/elsewhere-only',
+      20_000,
+    )
+    expect(far.diskAsked.at(-1)).toMatchObject({
+      project: 'tade',
+      what: 'switch',
+      name: 'tade/elsewhere-only',
+      create: false,
+    })
+    await until(said('it said so'), () => shown('on tade/elsewhere-only on vps'), 20_000)
+    expect(wired.repo.git('branch', '--show-current').trim()).toBe(mine)
+  })
+
+  it('makes a branch there from New branch…, named there', async () => {
+    const { there } = await standingInChange()
+    openTheBranchMenu()
+    await until(said('the branch’s menu'), () => shown('New branch'), 20_000)
+    const made = wired.find('New branch')
+    wired.click(made.col + 1, made.row)
+    await until(said('the name’s line'), () => shown('New branch on vps'), 20_000)
+    for (const char of 'tade/bell') terminal.press(char)
+    terminal.press('\r')
+    await until(
+      said('the branch there'),
+      () => there.git('branch', '--show-current').trim() === 'tade/bell',
+      20_000,
+    )
+  })
+
+  it('saves a file typed into there, there, and discards a change there', async () => {
+    const { there, far } = await standingInChange()
+    const hook = join(there.root, 'hook.ts')
+    // The file under FILES, pressed: opened to read, as one here is.
+    const files = wired.headingRow('FILES').row + 1
+    wired.click((rows()[files] ?? '').indexOf('hook.ts') + 1, files)
+    await until(said('the file there'), () => shown('export const ring = 2'), 20_000)
+    const line = wired.find('export const ring = 2')
+    wired.click(line.col + 'export const ring = 2'.length, line.row)
+    terminal.press('0')
+    await until(said('what was typed'), () => shown('export const ring = 20'), 20_000)
+    expect(readFileSync(hook, 'utf8')).toBe('export const ring = 2\n')
+    terminal.press('\x13')
+    await until(
+      said('the file saved there'),
+      () => readFileSync(hook, 'utf8') === 'export const ring = 20\n',
+      20_000,
+    )
+    await until(said('it said so'), () => shown('Saved hook.ts on vps'), 20_000)
+    expect(far.diskAsked.at(-1)).toMatchObject({ what: 'save', text: 'export const ring = 20\n' })
+    terminal.press('\x1b')
+    await until(said('the viewer closed'), () => !shown('export const ring = 20'), 20_000)
+    // The change, right-pressed: Discard changes…, asked, and thrown away there.
+    const changes = wired.headingRow('CHANGES').row + 1
+    const col = (rows()[changes] ?? '').indexOf('hook.ts')
+    terminal.press(`\x1b[<2;${col + 2};${changes + 1}M`)
+    terminal.press(`\x1b[<2;${col + 2};${changes + 1}m`)
+    await until(said('the change’s menu'), () => shown('Discard changes'), 20_000)
+    const discard = wired.find('Discard changes')
+    wired.click(discard.col + 2, discard.row)
+    await until(said('the question'), () => shown('Discard changes on vps?'), 20_000)
+    const go = wired.find('Discard ')
+    const button = rows()[go.row]?.lastIndexOf('Discard') ?? -1
+    wired.click(button + 1, go.row)
+    await until(
+      said('the change thrown away there'),
+      () => readFileSync(hook, 'utf8') === 'export const ring = 1\n',
+      20_000,
+    )
+    expect(far.diskAsked.at(-1)).toMatchObject({ what: 'discard', path: 'hook.ts' })
   })
 
   it('opens its shell tab there as a terminal here to that lane, in the pane under the tab', async () => {

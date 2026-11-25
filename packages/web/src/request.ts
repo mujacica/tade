@@ -134,10 +134,14 @@ export function labelOf(said: string): string {
  */
 export type Read = { read: true; body: unknown } | { read: false; refusal: Refusal; spent: boolean }
 
-/** The body, or why there is not one. Bounded as it arrives, not as declared. */
-export async function readBody(req: IncomingMessage): Promise<Read> {
+/**
+ * The body, or why there is not one. Bounded as it arrives, not as declared:
+ * by `BODY_MAX`, or by `most` for the one route that carries a whole file
+ * (`DISK_BODY_MAX`), read only once the device asking is known.
+ */
+export async function readBody(req: IncomingMessage, most = BODY_MAX): Promise<Read> {
   const declared = header(req, 'content-length')
-  if (declared !== null && Number(declared) > BODY_MAX) {
+  if (declared !== null && Number(declared) > most) {
     return { read: false, refusal: refuse('too_big'), spent: false }
   }
   const chunks: Buffer[] = []
@@ -147,7 +151,7 @@ export async function readBody(req: IncomingMessage): Promise<Read> {
     size += bytes.length
     // Counted as it arrives and not from the declared length, because the
     // declared length is the client's claim: a chunked body declares none.
-    if (size > BODY_MAX) {
+    if (size > most) {
       req.destroy()
       return { read: false, refusal: refuse('too_big'), spent: true }
     }

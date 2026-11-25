@@ -44,6 +44,7 @@ import {
   notify,
   type Prompts,
   type Subject,
+  type Submits,
   type Wiring,
   why,
 } from './context.ts'
@@ -205,6 +206,7 @@ export class RemoteAgents implements Subject, ThereDoor {
       },
       copy: (text) => deps.copy?.(text) ?? Promise.resolve(),
       shell: (machine, project) => this.shellSaid(machine, project),
+      soon: () => this.side.soon(),
     })
   }
 
@@ -339,6 +341,16 @@ export class RemoteAgents implements Subject, ThereDoor {
       notify(this.wire, `${machine}: ${why(err)}`)
       this.wire.draw()
     }
+  }
+
+  /** The panels that are that machine's — a save, a discard, a switch — carried out there. */
+  submitsThere(): Submits {
+    return this.disk.submitsThere()
+  }
+
+  /** A branch made or renamed on that machine's checkout. */
+  promptsThere(): Prompts {
+    return this.disk.promptsThere()
   }
 
   prompts(): Prompts {

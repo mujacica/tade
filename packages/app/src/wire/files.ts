@@ -1,6 +1,6 @@
 import { basename, isAbsolute, relative, resolve } from 'node:path'
 import { expandHome, type LaneId } from '@tade/core'
-import { git } from '@tade/status'
+import { agentBranch, discardIn, pullIn, renameIn, switchIn } from '../checkout-write.ts'
 import { type ParsedDiff, parseDiff } from '../diff.ts'
 import {
   chooseEditor,
@@ -30,7 +30,7 @@ import { type BranchRow, branchPanel, promptPanel } from '../panels/small/state.
 import type { Panel } from '../panels.ts'
 import type { Ui } from '../screen.ts'
 import type { Skin } from '../skin.ts'
-import { onlyItsAppShows, shownByItsApp, type ViewedFile } from '../viewer.ts'
+import { editedText, onlyItsAppShows, shownByItsApp, type ViewedFile } from '../viewer.ts'
 import type { Shown } from './comments.ts'
 import {
   type Actions,
@@ -260,13 +260,8 @@ export class Files implements Subject {
         const here = this.hereOnDisk()
         if (!here)
           return promptFailed(this.wire, panel, 'There is no checkout here to make a branch in.')
-        const out = await git(here, ['switch', '-c', text])
-        if (!out.ok)
-          return promptFailed(
-            this.wire,
-            panel,
-            out.stderr.split('\n')[0] ?? 'git would not make it',
-          )
+        const out = await switchIn(here, text, true)
+        if (!out.ok) return promptFailed(this.wire, panel, out.said)
         this.wire.put(
           acknowledge({ ...this.wire.state, panel: null }, `on ${text}`, this.wire.now()),
         )
@@ -296,14 +291,9 @@ export class Files implements Subject {
             acknowledge({ ...this.wire.state, panel: null }, `on ${made}`, this.wire.now()),
           )
         } else {
-          const name = text.startsWith('tade/') ? text : `tade/${text}`
-          const out = await git(here, ['branch', '-m', current, name])
-          if (!out.ok)
-            return promptFailed(
-              this.wire,
-              panel,
-              out.stderr.split('\n')[0] ?? 'git would not rename it',
-            )
+          const name = agentBranch(text)
+          const out = await renameIn(here, current, name)
+          if (!out.ok) return promptFailed(this.wire, panel, out.said)
           this.wire.put(
             acknowledge({ ...this.wire.state, panel: null }, `renamed to ${name}`, this.wire.now()),
           )
@@ -444,6 +434,43 @@ export class Files implements Subject {
     })
     this.wire.draw()
     if (inline) this.landOnChange(this.wire.state.panel)
+  }
+
+  /**
+   * What a file there would hold, saved, and what it was when it was read —
+   * for `remote-disk.ts` to carry to that machine, whose far half refuses it
+   * where the file moved since. Null where nothing typed is that panel's file.
+   */
+  editedThere(panel: FilePanel): { text: string; size: number; mtimeMs: number } | null {
+    const file = this.viewed.file()
+    if (!panel.edit || panel.there === undefined || !file || !this.viewed.has(panel.path)) {
+      return null
+    }
+    return { text: editedText(panel.edit, file), size: file.size, mtimeMs: file.mtimeMs }
+  }
+
+  /**
+   * A file there, saved there and read again: held as what is on that disk now,
+   * with what git there says of it, and the panel as a save here leaves it —
+   * nothing unsaved, the caret where it was typing. `sent` is the panel as it
+   * was saved from: what was typed while the save was on its way stays, unsaved,
+   * over the file as it now is there.
+   */
+  savedThere(sent: FilePanel, file: ViewedFile, diff: ParsedDiff | null): void {
+    const now = this.wire.state.panel
+    if (now?.kind !== 'file' || now.path !== sent.path || now.there !== sent.there) return
+    const task = this.viewed.about()
+    this.viewed.hold(file, !this.deps.skin.colour)
+    if (diff !== null) this.viewed.tell(file.path, task, diff)
+    const said = `Saved ${basename(file.path)} on ${sent.there}.`
+    const typedSince = now.edit !== null && now.edit !== sent.edit
+    const panel =
+      typedSince && now.edit
+        ? // Its lines no longer come from the file as held: each is coloured again.
+          { ...now, said, warned: false, edit: { ...now.edit, from: now.edit.from.map(() => -1) } }
+        : savedFile(now, this.viewed.text(file.path), said)
+    this.wire.put({ ...this.wire.state, panel: { ...panel, path: file.path } })
+    this.wire.draw()
   }
 
   /**
@@ -663,9 +690,9 @@ export class Files implements Subject {
         break
       case 'pull': {
         if (!here) break
-        const out = await git(here, ['pull', '--ff-only'], 60_000)
+        const out = await pullIn(here)
         if (out.ok) flash(this.wire, `pulled ${branch || 'the branch'}`)
-        else notify(this.wire, `pull failed: ${out.stderr.split('\n')[0]}`)
+        else notify(this.wire, `pull failed: ${out.said}`)
         break
       }
       case 'copy':
@@ -710,26 +737,15 @@ export class Files implements Subject {
     const panel = this.wire.state.panel
     const [verb, ...rest] = choice.split(':')
     const name = rest.join(':')
-    // Another machine's checkout is read from here, and switched there: never
-    // this machine's checkout, which its path may also name.
-    if (panel?.kind === 'branch' && panel.there !== undefined) {
-      const error = `${name || 'a branch'} is switched to on ${panel.there} itself, in a terminal there`
-      this.wire.put({ ...this.wire.state, panel: { ...panel, busy: false, error } })
-      return
-    }
+    // Another machine's checkout is switched there (`remote-disk.ts`, which the
+    // router hands a panel marked as that machine's): never this machine's
+    // checkout, which its path may also name.
+    if (panel?.kind === 'branch' && panel.there !== undefined) return
     const here = this.hereOnDisk()
     if (!here || !name || panel?.kind !== 'branch') return
-    const out = await git(
-      here,
-      verb === 'create' ? ['switch', '-c', name] : ['switch', name],
-      30_000,
-    )
+    const out = await switchIn(here, name, verb === 'create')
     if (!out.ok) {
-      // Git's own words: an unstaged change in the way is a reason worth reading.
-      this.wire.put({
-        ...this.wire.state,
-        panel: { ...panel, busy: false, error: out.stderr.split('\n')[0] ?? 'git refused' },
-      })
+      this.wire.put({ ...this.wire.state, panel: { ...panel, busy: false, error: out.said } })
       return
     }
     this.wire.put(acknowledge({ ...this.wire.state, panel: null }, `on ${name}`, this.wire.now()))
@@ -742,15 +758,9 @@ export class Files implements Subject {
     const root = task ? this.wire.live?.worktreeOf(task) : this.hereOnDisk()
     if (!root || panel?.kind !== 'confirm') return
     const marks = this.wire.live?.marksAt(root) ?? {}
-    const out =
-      marks[path] === 'U'
-        ? await git(root, ['clean', '-f', '--', path])
-        : await git(root, ['restore', '--staged', '--worktree', '--source=HEAD', '--', path])
+    const out = await discardIn(root, path, marks[path] === 'U')
     if (!out.ok) {
-      this.wire.put({
-        ...this.wire.state,
-        panel: { ...panel, busy: false, error: out.stderr.split('\n')[0] ?? 'git refused' },
-      })
+      this.wire.put({ ...this.wire.state, panel: { ...panel, busy: false, error: out.said } })
       return
     }
     this.wire.put(

@@ -1086,8 +1086,12 @@ drawn from what its away view sends — the projection the link holds.
   menu and branches — is read there (`/api/disk`, an owner's route whose far half
   `wire/web-disk.ts` confines every path to the tree the side was drawn from, links followed) and
   opened in the very panels here (`wire/remote-disk.ts`), marked as that machine's
-  (`FilePanel.there`, `BranchPanel.there`) so no save, editor, comment or switch reaches this disk;
-  its menus are the menus here with what would change that disk off (`not from here`). Its ACTIONS
+  (`FilePanel.there`, `BranchPanel.there`, `ConfirmPanel.there`, `PromptPanel.there`). What those
+  panels write — a save, a discard, a switch, a new branch, a rename, a pull — is one ask of the
+  same route, done there by `checkout-write.ts` as here, a save only over the file as read: **a
+  panel marked `there` is carried out only by `Subject.submitsThere`/`promptsThere`**, never by the
+  handlers here, so nothing reaches this disk. What needs this machine's desktop or its agents
+  (editor, file manager, search, ask, patch) is off in its menus (`not from here`). Its ACTIONS
   tab is that machine's (`/api/side`'s `actions`, asked only while shown, kept under the carried
   id), and its shell tab is a terminal here to that lane (`/api/attach` with `lane`, `Place.tab`).
 - **A row there is a row here, and the machine is a value in its id** (`there.ts`). Its agents, its

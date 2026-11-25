@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { DISK_MOST, type DiskAsk, type WebDisk } from '../src/disk.ts'
+import { DISK_BODY_MAX, DISK_MOST, type DiskAsk, type WebDisk } from '../src/disk.ts'
 import { mintOwner } from '../src/owner.ts'
-import { CSRF_HEADER } from '../src/request.ts'
+import { BODY_MAX, CSRF_HEADER } from '../src/request.ts'
 import { OWNED } from '../src/routes.ts'
 import { ask, closeAll, pair, type Running, start } from './harness.ts'
 
@@ -158,6 +158,87 @@ describe('what is on this machine’s disk in one of its projects, asked from an
       what: 'branches',
     })
     expect(said.status).toBe(404)
+  })
+
+  it('carries a whole file to save, past the body every other route is held to, and answers what the write did', async () => {
+    const wrote = {
+      what: 'wrote' as const,
+      ok: false,
+      said: 'It changed on disk since you opened it.',
+    }
+    const { one, asked } = await machine(async (one) => {
+      asked.push(one)
+      return wrote
+    })
+    const text = 'x'.repeat(BODY_MAX * 2)
+    const save = {
+      project: 'tade',
+      agent: null,
+      what: 'save',
+      path: 'src/a.ts',
+      text,
+      was: { size: 12, mtimeMs: 1_700_000_000_000.5 },
+    }
+    const said = await asOwner(one, await owner(one), save)
+    expect(said.status, said.text).toBe(200)
+    expect(JSON.parse(said.text)).toEqual(wrote)
+    expect(asked).toEqual([save])
+  })
+
+  it('reads each write for its shape: what it expects, and a branch git would not read as an option', async () => {
+    const { one, asked } = await machine()
+    const made = await owner(one)
+    const at = { project: 'tade', agent: null }
+    for (const body of [
+      { ...at, what: 'save', path: 'a', text: 'x' },
+      {
+        ...at,
+        what: 'save',
+        path: 'a',
+        text: 'x'.repeat(DISK_MOST.file + 1),
+        was: { size: 1, mtimeMs: 1 },
+      },
+      { ...at, what: 'discard' },
+      { ...at, what: 'switch', name: '--orphan', create: true },
+      { ...at, what: 'switch', name: 'main' },
+      { ...at, what: 'rename', name: 'doorbell' },
+      { ...at, what: 'pull', path: '/' },
+    ]) {
+      const said = await asOwner(one, made, body)
+      expect(said.status, JSON.stringify(body).slice(0, 120)).toBe(400)
+    }
+    expect(asked).toEqual([])
+  })
+
+  it('refuses a write from a phone that is not the person’s own, and never asks the window', async () => {
+    const { one, asked } = await machine()
+    const phone = await pair(one)
+    const said = await ask(one, '/api/disk', {
+      method: 'POST',
+      headers: {
+        origin: one.origin,
+        cookie: phone.cookie,
+        'content-type': 'application/json',
+        [CSRF_HEADER]: phone.csrf,
+      },
+      body: JSON.stringify({ project: 'tade', agent: null, what: 'pull' }),
+    })
+    expect(said.status).toBe(403)
+    expect(asked).toEqual([])
+  })
+
+  it('refuses a body past even a save’s bound unread, and never asks the window', async () => {
+    const { one, asked } = await machine()
+    const said = await asOwner(one, await owner(one), {
+      project: 'tade',
+      agent: null,
+      what: 'save',
+      path: 'a',
+      text: 'x'.repeat(DISK_BODY_MAX),
+      was: { size: 1, mtimeMs: 1 },
+    })
+    expect(said.status).toBe(413)
+    expect(asked).toEqual([])
   })
 
   it('answers only on this machine’s own door', () => {

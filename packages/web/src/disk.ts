@@ -27,8 +27,18 @@ import { ownsOrTheirs, reachOf } from './surface.ts'
 // `404` of a file that is not there (`web-disk.ts`). The ask names a project
 // and an agent by name, never a root.
 //
-// **It reads, and changes nothing.** A file past `DISK_MOST.file` is cut and
-// says so, as the viewer here cuts one past what it reads.
+// **And it writes what the same panels write here**, to the same tree and
+// confined the same way: a file saved, one file's changes discarded, a branch
+// switched to, made, renamed or pulled (`checkout-write.ts`). Each ask names
+// what it expects, as every verb a device sends does (`verbs.ts`): a save the
+// size and the time the file was read at, refused where it has moved since; a
+// rename the branch it is renaming. Whoever may ask this may already change
+// the checkout over the same SSH, and the person's own device is one they
+// decided may do what they can — so nothing an owner can do here is held back
+// from there, and what is refused is said in git's words or the disk's.
+//
+// A file past `DISK_MOST.file` is cut and says so, as the viewer here cuts one
+// past what it reads, and a cut file is never one a save may write.
 
 /** How much of each kind one answer carries: past that, the rest are not sent. */
 export const DISK_MOST = {
@@ -39,6 +49,13 @@ export const DISK_MOST = {
   branches: 500,
 } as const
 
+/**
+ * The most a save's body may be: a whole file of `DISK_MOST.file` characters,
+ * with room for JSON's escaping of them. The one owner's route past
+ * `BODY_MAX`, and read only once the device is known to be an owner's.
+ */
+export const DISK_BODY_MAX = 4 * DISK_MOST.file
+
 const NAME = z.string().max(400)
 const TEXT = z.string().max(4000)
 /** A path as the side or a screen named it: no NUL, and nothing longer than a path is. */
@@ -48,17 +65,62 @@ const PATH = z
   .max(4000)
   .refine((path) => !path.includes('\0'), 'a path has no NUL in it')
 
-export const DiskAskSchema = z.strictObject({
+/**
+ * A branch as somebody typed or chose it: never one git would read as an
+ * option. Whether git takes the rest of it is git's to say, in its own words.
+ */
+const BRANCH = z
+  .string()
+  .min(1)
+  .max(250)
+  .refine((name) => !name.startsWith('-') && !name.includes('\0'), 'not a branch name')
+
+/** Where every ask is: the project, and the agent whose worktree is the tree. */
+const Where = {
   project: NAME,
   /** The agent in front of the asking screen, by its task id here: its worktree is the tree. */
   agent: NAME.nullable(),
-  /** A file, or the branches of the tree. */
-  what: z.enum(['file', 'branches']),
-  /** The file, relative to the tree or within it. */
-  path: PATH.optional(),
-  /** With the file, what git says changed in it, measured where its CHANGES are. */
-  diff: z.boolean().optional(),
-})
+}
+
+export const DiskAskSchema = z.discriminatedUnion('what', [
+  z.strictObject({
+    ...Where,
+    what: z.literal('file'),
+    /** The file, relative to the tree or within it. */
+    path: PATH,
+    /** With the file, what git says changed in it, measured where its CHANGES are. */
+    diff: z.boolean().optional(),
+  }),
+  z.strictObject({ ...Where, what: z.literal('branches') }),
+  z.strictObject({
+    ...Where,
+    what: z.literal('save'),
+    path: PATH,
+    /** The whole of what it should hold. */
+    text: z.string().max(DISK_MOST.file),
+    /** What it was when it was read: a file that is not that now is not written. */
+    was: z.strictObject({
+      size: z.number().int().nonnegative(),
+      mtimeMs: z.number().nonnegative(),
+    }),
+  }),
+  /** One file's uncommitted changes thrown away. */
+  z.strictObject({ ...Where, what: z.literal('discard'), path: PATH }),
+  /** Onto a branch, or onto a new one made where it stands. */
+  z.strictObject({ ...Where, what: z.literal('switch'), name: BRANCH, create: z.boolean() }),
+  /**
+   * The agent's branch renamed, or named where it has none yet: `from` is the
+   * one the asking screen showed, `''` for none.
+   */
+  z.strictObject({
+    ...Where,
+    what: z.literal('rename'),
+    name: BRANCH,
+    from: z.string().max(250),
+  }),
+  /** The checkout's branch fast-forwarded to its upstream. */
+  z.strictObject({ ...Where, what: z.literal('pull') }),
+])
 export type DiskAsk = z.infer<typeof DiskAskSchema>
 
 const FileSchema = z.object({
@@ -76,6 +138,12 @@ const FileSchema = z.object({
   error: TEXT.nullable(),
   /** What git says changed in it, where it was asked: null where git could not say. */
   diff: z.string().max(DISK_MOST.diff).nullable(),
+  /**
+   * When it was last written, as that disk says: what a save hands back, so a
+   * file that moved since is not written over. Absent from a Tade older than
+   * saving there.
+   */
+  mtimeMs: z.number().nonnegative().optional(),
 })
 
 const BranchesSchema = z.object({
@@ -85,14 +153,26 @@ const BranchesSchema = z.object({
     .max(DISK_MOST.branches),
 })
 
+/** A write that happened, or why not: git's words, or the disk's. A save that happened is the file, read again. */
+const WroteSchema = z.object({
+  what: z.literal('wrote'),
+  ok: z.boolean(),
+  /** What it is now (`on tade/x`), or why it is not. */
+  said: TEXT,
+})
+
 /** The answer, as this machine gives it and another reads it: every value bounded. */
-export const DiskAnswerSchema = z.discriminatedUnion('what', [FileSchema, BranchesSchema])
+export const DiskAnswerSchema = z.discriminatedUnion('what', [
+  FileSchema,
+  BranchesSchema,
+  WroteSchema,
+])
 export type DiskAnswer = z.infer<typeof DiskAnswerSchema>
 
 /**
  * The window's half: the file or the branches, as its own panels would read
- * them — or null where the project, the agent or the file is not there, or the
- * path leaves the tree.
+ * them, or what a write did — or null where the project, the agent or the
+ * file is not there, or the path leaves the tree.
  */
 export type WebDisk = (ask: DiskAsk) => Promise<DiskAnswer | null>
 
@@ -104,12 +184,10 @@ export async function diskHere(
 ): Promise<{ body: DiskAnswer } | { refusal: Refusal }> {
   if (disk === undefined) return { refusal: refuse('no_such') }
   if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
-  const got = await readBody(req)
+  const got = await readBody(req, DISK_BODY_MAX)
   if (!got.read) return { refusal: got.refusal }
   const ask = DiskAskSchema.safeParse(got.body)
   if (!ask.success) return { refusal: refuse('malformed') }
-  if (ask.data.what === 'file' && ask.data.path === undefined)
-    return { refusal: refuse('malformed') }
   // A project the window took back from this device is one that is not open here.
   if (!sees(reachOf(device), ask.data.project)) return { refusal: refuse('no_such') }
   const answer = await disk(ask.data)

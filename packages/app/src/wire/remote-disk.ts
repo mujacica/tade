@@ -1,10 +1,12 @@
 import { printable } from '@tade/core'
 import type { RemoteLink } from '@tade/remotes-core'
-import { type DiskAnswer, DiskAnswerSchema, type DiskAsk } from '@tade/web'
+import { DISK_MOST, type DiskAnswer, DiskAnswerSchema, type DiskAsk } from '@tade/web'
 import { type ParsedDiff, parseDiff } from '../diff.ts'
+import { acknowledge } from '../flash.ts'
 import { languageOf } from '../highlight.ts'
 import { elsewhereOf, type Place } from '../machines.ts'
 import { toggleFolder } from '../model.ts'
+import type { FilePanel } from '../panels/file/state.ts'
 import {
   branchMenuItems,
   changeMenuItems,
@@ -12,10 +14,20 @@ import {
   type MenuItem,
   type MenuSubject,
 } from '../panels/menu/state.ts'
-import type { BranchRow } from '../panels/small/state.ts'
+import { type BranchRow, promptPanel } from '../panels/small/state.ts'
 import type { SideThere } from '../side.ts'
 import type { ViewedFile } from '../viewer.ts'
-import { type Actions, type Menus, notify, type Subject, type Wiring, why } from './context.ts'
+import {
+  type Actions,
+  flash,
+  type Menus,
+  notify,
+  type Prompts,
+  type Subject,
+  type Submits,
+  type Wiring,
+  why,
+} from './context.ts'
 
 // What is on another machine's disk, opened from this window while you stand
 // in one of its projects: a file in its FILES, a change in its CHANGES and the
@@ -31,23 +43,25 @@ import { type Actions, type Menus, notify, type Subject, type Wiring, why } from
 // lands on a file or a checkout here that happens to have the same path.
 //
 // **Its menus are the menus here** (`fileMenuItems`, `changeMenuItems`,
-// `branchMenuItems`), with what would change that machine's disk or need this
-// one's desktop turned off and said: reading is carried, and nothing else is.
+// `branchMenuItems`), and what they change is changed there: a file typed into
+// in the viewer is saved there, a change discarded there, its checkout switched
+// to a branch, given a new one or pulled there, and the agent's branch renamed
+// there — each one ask of that machine's own half (`/api/disk`), which does
+// what the same press does here, in the same tree. The panels that ask are
+// marked as that machine's and carried out by this file alone
+// (`submitsThere`, `promptsThere`), so none of them can reach this machine's
+// checkout. What needs this machine's desktop or its agents — an editor, a
+// file manager, search, an agent asked — is turned off and said.
 
 type What = Extract<MenuSubject, { kind: 'disk-there' }>['what']
 
-/** The items here that change that machine's disk, or open what only this machine's desktop can. */
-const NOT_FROM_HERE: ReadonlySet<string> = new Set([
-  'editor',
-  'reveal',
-  'ask',
-  'search',
-  'discard',
-  'patch',
-  'new',
-  'rename',
-  'pull',
-])
+/** The items here that open what only this machine's desktop can, or ask this machine's agents. */
+const NOT_FROM_HERE: ReadonlySet<string> = new Set(['editor', 'reveal', 'ask', 'search', 'patch'])
+
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
+
+/** An ask of that machine's disk, without where: the place you stand in says that. */
+type Asked = DistributiveOmit<DiskAsk, 'project' | 'agent'>
 
 /** Said beside an item that is not carried to that machine. */
 export const ON_IT_ONLY = 'not from here'
@@ -70,7 +84,13 @@ export interface RemoteDiskDeps {
       },
     ): void
     branchesThere(machine: string, rows: readonly BranchRow[]): void
+    /** What a file there typed into would hold, and what it was when read: null where nothing is. */
+    editedThere(panel: FilePanel): { text: string; size: number; mtimeMs: number } | null
+    /** A file there saved and read again, held as what is on that disk now. */
+    savedThere(panel: FilePanel, file: ViewedFile, diff: ParsedDiff | null): void
   }
+  /** What a write there changed, asked of that machine's side again now rather than on its beat. */
+  soon(): void
   /** Something put on the clipboard, said in the strip. */
   copy(text: string): Promise<void>
   /** A terminal in that project there: where the folder under GIT opens, as one here opens in its app. */
@@ -185,6 +205,40 @@ export class RemoteDisk implements Subject {
         return
       case 'switch':
         return this.branches(place)
+      case 'new':
+        return this.prompt(place, 'new-branch', 'New branch', '')
+      case 'rename': {
+        const branch = side?.where?.branch ?? ''
+        return this.prompt(
+          place,
+          'rename-branch',
+          branch ? 'Rename branch' : 'Name the branch',
+          branch.replace(/^tade\//, ''),
+        )
+      }
+      case 'pull': {
+        const done = await this.write(place, { what: 'pull' })
+        if (done.ok) flash(this.wire, `pulled ${side?.where?.branch || 'the branch'} on ${machine}`)
+        else notify(this.wire, `pull failed on ${machine}: ${done.said}`)
+        this.wire.draw()
+        return
+      }
+      case 'discard':
+        this.wire.put({
+          ...this.wire.state,
+          panel: {
+            kind: 'confirm',
+            purpose: 'discard',
+            task: place.agent ?? null,
+            path,
+            field: 'keep',
+            busy: false,
+            error: null,
+            there: machine,
+          },
+        })
+        this.wire.draw()
+        return
       case 'copy':
         if (side?.where?.branch) await this.deps.copy(side.where.branch)
         return
@@ -199,6 +253,183 @@ export class RemoteDisk implements Subject {
       default:
         return this.say(`${item} on ${machine}'s ${what}: ${ON_IT_ONLY}`)
     }
+  }
+
+  /**
+   * The panels that are that machine's, carried out there: a branch switched
+   * to or made from Switch branch, a file's changes discarded, a file saved.
+   * Only these: the router hands a panel marked `there` to nothing else.
+   */
+  submitsThere(): Submits {
+    return {
+      branch: async (panel, choice) => {
+        const [verb, ...rest] = (choice ?? '').split(':')
+        const name = rest.join(':')
+        const place = this.placeOn(panel.there ?? '')
+        if (!name) return
+        if (place === null) return this.left(panel.there ?? '')
+        const done = await this.write(place, { what: 'switch', name, create: verb === 'create' })
+        const now = this.wire.state.panel
+        if (now?.kind !== 'branch') return
+        if (!done.ok) {
+          this.wire.put({ ...this.wire.state, panel: { ...now, busy: false, error: done.said } })
+          return
+        }
+        this.wire.put(
+          acknowledge(
+            { ...this.wire.state, panel: null },
+            `${done.said} on ${place.machine}`,
+            this.wire.now(),
+          ),
+        )
+      },
+      confirm: async (panel) => {
+        const place = this.placeOn(panel.there ?? '')
+        if (place === null) return this.left(panel.there ?? '')
+        const done = await this.write(place, { what: 'discard', path: panel.path })
+        const now = this.wire.state.panel
+        if (now?.kind !== 'confirm') return
+        if (!done.ok) {
+          this.wire.put({ ...this.wire.state, panel: { ...now, busy: false, error: done.said } })
+          return
+        }
+        this.wire.put(
+          acknowledge(
+            { ...this.wire.state, panel: null },
+            `${done.said} on ${place.machine}`,
+            this.wire.now(),
+          ),
+        )
+      },
+      file: async (panel, choice) => {
+        if (choice === 'save') return this.save(panel)
+        // Its path is that machine's: copying it is all this window does with it.
+        if (choice === 'copy-path') await this.deps.copy(panel.path)
+      },
+    }
+  }
+
+  /** A branch made or renamed on that machine's checkout, from a one-line panel marked as its. */
+  promptsThere(): Prompts {
+    return {
+      'new-branch': async (panel, text) => {
+        const done = await this.named(panel.there ?? '', {
+          what: 'switch',
+          name: text,
+          create: true,
+        })
+        this.wire.put(acknowledge({ ...this.wire.state, panel: null }, done, this.wire.now()))
+      },
+      'rename-branch': async (panel, text) => {
+        const place = this.placeOn(panel.there ?? '')
+        const from = (place && this.deps.shown(place)?.where?.branch) ?? ''
+        const done = await this.named(panel.there ?? '', { what: 'rename', name: text, from })
+        this.wire.put(acknowledge({ ...this.wire.state, panel: null }, done, this.wire.now()))
+      },
+    }
+  }
+
+  /** A one-line panel for a branch there, marked as that machine's. */
+  private prompt(
+    place: Place,
+    purpose: 'new-branch' | 'rename-branch',
+    title: string,
+    text: string,
+  ): void {
+    this.wire.put({
+      ...this.wire.state,
+      panel: {
+        ...promptPanel(purpose, `${title} on ${place.machine}`, 'BRANCH NAME', text),
+        there: place.machine,
+      },
+    })
+    this.wire.draw()
+  }
+
+  /**
+   * A branch switched to, made or renamed there, from a one-line panel: what it
+   * is on now, or a throw with why not, which the router leaves in the panel.
+   */
+  private async named(machine: string, ask: Extract<Asked, { name: string }>): Promise<string> {
+    const place = this.placeOn(machine)
+    if (place === null) throw new Error(`That is on ${machine}, and you have left it.`)
+    if (ask.name === '') throw new Error('Name the branch.')
+    if (ask.name.startsWith('-')) throw new Error('A branch name does not start with -.')
+    const done = await this.ask(place, ask)
+    this.deps.soon()
+    if (done.what !== 'wrote')
+      throw new Error(`${machine} answered with what this Tade cannot read`)
+    if (!done.ok) throw new Error(printable(done.said))
+    return `${printable(done.said)} on ${machine}`
+  }
+
+  /**
+   * One write there, as that machine answered it, or why it could not be
+   * asked. The side is asked again now, so what it changed is drawn without
+   * waiting for the beat.
+   */
+  private async write(
+    place: Place,
+    ask: Exclude<Asked, { what: 'file' | 'branches' | 'save' }>,
+  ): Promise<{ ok: boolean; said: string }> {
+    if ('name' in ask && ask.name.startsWith('-')) {
+      return { ok: false, said: 'A branch name does not start with -.' }
+    }
+    let read: DiskAnswer
+    try {
+      read = await this.ask(place, ask)
+    } catch (err) {
+      return { ok: false, said: printable(why(err)) }
+    }
+    this.deps.soon()
+    if (read.what !== 'wrote') {
+      return { ok: false, said: `${place.machine} answered with what this Tade cannot read` }
+    }
+    return { ok: read.ok, said: printable(read.said) }
+  }
+
+  /**
+   * What was typed into a file there, saved there — over the file as it was
+   * read, which that machine checks — and the file read again. Refused, the
+   * panel keeps everything typed and says why, as a save here does.
+   */
+  private async save(panel: FilePanel): Promise<void> {
+    const place = this.placeOn(panel.there ?? '')
+    if (place === null) return this.left(panel.there ?? '')
+    const files = this.deps.files()
+    const edited = files.editedThere(panel)
+    if (edited === null) return
+    const refuse = (said: string) => {
+      const now = this.wire.state.panel
+      if (now?.kind !== 'file' || now.path !== panel.path) return this.say(said)
+      this.wire.put({ ...this.wire.state, panel: { ...now, said, warned: true } })
+      this.wire.draw()
+    }
+    if (edited.text.length > DISK_MOST.file) {
+      return refuse(`It is too long to save on ${place.machine} from here.`)
+    }
+    let read: DiskAnswer
+    try {
+      read = await this.ask(place, {
+        what: 'save',
+        path: panel.path,
+        text: edited.text,
+        was: { size: edited.size, mtimeMs: edited.mtimeMs },
+      })
+    } catch (err) {
+      return refuse(printable(why(err)))
+    }
+    this.deps.soon()
+    if (read.what === 'wrote') return refuse(printable(read.said))
+    if (read.what !== 'file') {
+      return refuse(`${place.machine} answered with what this Tade cannot read`)
+    }
+    files.savedThere(panel, viewedThere(read), read.diff === null ? null : parseDiff(read.diff))
+  }
+
+  /** Said where a panel of that machine's outlived standing in it. */
+  private left(machine: string): void {
+    this.say(`That is on ${machine || 'another machine'}, and you have left it.`)
   }
 
   /** The first change the agent there made, opened as one here is from GIT's Show changes. */
@@ -254,7 +485,7 @@ export class RemoteDisk implements Subject {
   }
 
   /** One read of that machine's disk, as it answered; throws with the sentence where it did not. */
-  private async ask(place: Place, ask: Omit<DiskAsk, 'project' | 'agent'>): Promise<DiskAnswer> {
+  private async ask(place: Place, ask: Asked): Promise<DiskAnswer> {
     const reach = this.deps.reach(place.machine)
     if (reach === null || !reach.live) throw new Error(`${place.machine} is not linked right now`)
     const answer = await reach.link.request(place.machine, '/api/disk', {
@@ -266,6 +497,12 @@ export class RemoteDisk implements Subject {
     if (answer.status === 404) {
       throw new Error(
         `${place.machine} did not open ${place.project}'s files for this machine — update Tade there if it is older than this one`,
+      )
+    }
+    // A Tade there from before it took writes reads one as an ask it does not know.
+    if (answer.status === 400 && ask.what !== 'file' && ask.what !== 'branches') {
+      throw new Error(
+        `${place.machine} did not take that — update Tade there if it is older than this one`,
       )
     }
     if (answer.status !== 200) throw new Error(`${place.machine} answered ${answer.status}`)
@@ -294,7 +531,9 @@ export function viewedThere(read: Extract<DiskAnswer, { what: 'file' }>): Viewed
     truncated: read.truncated,
     language: languageOf(path),
     text: read.text,
-    mtimeMs: 0,
+    // What a save there hands back, for that machine to refuse one over a file
+    // that moved since; a Tade there too old to say is one that cannot be saved to.
+    mtimeMs: read.mtimeMs ?? 0,
     error: read.error === null ? null : printable(read.error),
   }
 }

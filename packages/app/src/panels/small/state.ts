@@ -120,6 +120,11 @@ export interface PromptPanel {
   everywhere: boolean
   busy: boolean
   error: string | null
+  /**
+   * The machine whose checkout a branch is made or renamed on, where it is
+   * another's (`wire/remote-disk.ts`): carried there, never done here.
+   */
+  there?: string
 }
 
 /** Finding text in a terminal's scrollback, from the bottom up. */
@@ -171,6 +176,8 @@ export interface ConfirmPanel {
   field: 'keep' | 'remove'
   busy: boolean
   error: string | null
+  /** The machine whose checkout the file is in, where it is another's: thrown away there. */
+  there?: string
 }
 
 /**

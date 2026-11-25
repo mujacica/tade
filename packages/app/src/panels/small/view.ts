@@ -424,7 +424,9 @@ export function branches(panel: BranchPanel, ctx: PanelContext): Drawn {
     },
     ctx,
   )
-  return box('Switch branch', drawn.rows, width, skin, { corner: 'esc' })
+  // Another machine's checkout is said to be, so a switch there is never taken for one here.
+  const title = panel.there === undefined ? 'Switch branch' : `Switch branch on ${panel.there}`
+  return box(printable(title), drawn.rows, width, skin, { corner: 'esc' })
 }
 
 /** Finding in a terminal: the box, how many, and older and newer. */
@@ -485,7 +487,9 @@ export function confirm(panel: ConfirmPanel, ctx: PanelContext): Drawn {
       )
       .build(),
   ]
-  return box('Discard changes?', rows, width, skin, { corner: 'esc' })
+  const title =
+    panel.there === undefined ? 'Discard changes?' : `Discard changes on ${panel.there}?`
+  return box(printable(title), rows, width, skin, { corner: 'esc' })
 }
 
 export function confirmRemove(panel: ConfirmRemovePanel, ctx: PanelContext): Drawn {
