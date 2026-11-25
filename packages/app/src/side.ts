@@ -311,10 +311,8 @@ export function seenThere(
   // A Tade there too old to answer for its side is drawn from what its
   // projection says — its agents, its queued work, its schedules — through
   // the same views, every other section as not looked at yet.
-  const side = answered ?? (found?.project ? fromProjection(found.machine, found.project) : null)
-  const panes = (side?.panes ?? []).map((pane) =>
-    pane.task === place.agent ? withLane(pane, place.lane) : pane,
-  )
+  const side = answered ?? (found?.project ? projected(found.machine, found.project) : null)
+  const panes = side === null ? [] : lanedPanes(side, place.agent, place.lane)
   const focused =
     place.agent !== undefined && panes.some((pane) => pane.task === place.agent)
       ? place.agent
@@ -380,6 +378,36 @@ export function seenThere(
     offers: agent?.offers ?? null,
   }
   return { state: seen, frame: seenFrame, place }
+}
+
+// What is derived here is drawn every frame, and a region is kept from the
+// last frame only where what it read is the same (`view/last-frame.ts`): a
+// side folded afresh each time, panes and all, is a sidebar drawn again from
+// nothing on every frame a lane prints. So the same inputs hand back the same
+// objects — keyed on what they are made of, which is never changed in place.
+
+const PROJECTED = new WeakMap<Machine, WeakMap<RemoteProject, SideThere>>()
+
+/** `fromProjection`, the same object for the same machine and project as folded. */
+function projected(machine: Machine, project: RemoteProject): SideThere {
+  const of = PROJECTED.get(machine) ?? new WeakMap<RemoteProject, SideThere>()
+  PROJECTED.set(machine, of)
+  const was = of.get(project)
+  if (was !== undefined) return was
+  const side = fromProjection(machine, project)
+  of.set(project, side)
+  return side
+}
+
+const LANED = new WeakMap<SideThere, { agent?: string; lane?: string; panes: AgentPane[] }>()
+
+/** The side's panes, the agent in front with its lane here, the same array for the same three. */
+function lanedPanes(side: SideThere, agent?: string, lane?: string): AgentPane[] {
+  const was = LANED.get(side)
+  if (was !== undefined && was.agent === agent && was.lane === lane) return was.panes
+  const panes = side.panes.map((pane) => (pane.task === agent ? withLane(pane, lane) : pane))
+  LANED.set(side, { agent, lane, panes })
+  return panes
 }
 
 /** A pane there with the terminal here that is its agent as its lane. */
