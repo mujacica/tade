@@ -181,6 +181,38 @@ describe('the one line a run is recorded with', () => {
     )
   })
 
+  // The batch `a3e7e72:tests:here:4`, under Ubuntu's own Node: recorded as
+  // `Node.js v22.22.1`, which is its last line and no reason at all.
+  const noStripping = [
+    'node:internal/modules/esm/get_format:219',
+    '  throw new ERR_UNKNOWN_FILE_EXTENSION(ext, filepath);',
+    '        ^',
+    '',
+    'TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".ts" for ~/.tade/projects/tade/batch/scripts/coverage.ts',
+    '    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:219:9)',
+    '    at defaultGetFormat (node:internal/modules/esm/get_format:245:36)',
+    '}',
+    '',
+    'Node.js v22.22.1',
+    '',
+  ].join('\n')
+
+  it('says a Node that cannot run .ts has no type stripping, naming the Node it printed', () => {
+    expect(summaryOf(noStripping)).toBe(
+      'Node v22.22.1 cannot run .ts files: it has no type stripping (process.features.typescript is false)',
+    )
+    expect(summaryOf(noStripping.replace('Node.js v22.22.1', ''))).toMatch(
+      /^This Node cannot run \.ts/,
+    )
+  })
+
+  it('reads another unknown extension, or the same error under counts, as it did before', () => {
+    expect(summaryOf(noStripping.replace('".ts"', '".vue"'))).toBe('Node.js v22.22.1')
+    // The commit hook's smoke run: one test spawned that Node, and vitest counted it.
+    const counted = `${noStripping}\n      Tests  1 failed | 1993 passed (1994)\n`
+    expect(summaryOf(counted)).toBe('1 failed · 1993 passed')
+  })
+
   it('is the counts alone where nothing below them is more than the suite’s own hint', () => {
     // A test's own output above the counts is not why they went red.
     const tail = ['stderr | packages/core/test/run.test.ts > logs', '', ...passedSuite].join('\n')
