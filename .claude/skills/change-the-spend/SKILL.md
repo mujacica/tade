@@ -123,6 +123,19 @@ Against an xAI key it prices each turn itself (`costUsdTicks`, ten billion to th
 in `why.limits`, never a bar at nought. xAI's rates are in `prices.ts` for `usdOnPlan`, held below
 200,000 prompt tokens (`promptsUpTo`), past which every token of a request costs double.
 
+OpenCode is the one harness whose turns are not all paid the same way by one sign-in: it routes, so
+one account reaches a ChatGPT plan, a Copilot subscription or OpenCode Go beside an API key, and it
+records a plan's step as costing nothing — exactly as it records a step it could not price. So the
+**turn says which it was** (`usage.plan`, journalled as `detail.plan`), decided by the adapter from
+the provider the step ran on and how `opencode auth list` says the account reaches it (`planPays`,
+`harnesses/opencode/src/plan.ts`), and `chargeOf` reads it **before** anything the account says —
+`plan: false` on an account written down as a subscription is still money. Its record keeps a
+plan's share apart (`HarnessSpend.plan`), and what was spent while Tade was closed goes in as two
+lines when both are missing (`planParts`, `workbench.ts`). Its own sign-in counts as a plan for the
+PLAN list because it can be asked about one whenever (`paysFor`): OpenCode Go's rolling, weekly and
+monthly meters, through `opencode api experimental.usage.limits` — and nothing at all for ChatGPT
+or Copilot, which OpenCode reads no limits of.
+
 ### What a plan's turns would have cost is a fourth figure, and is not a bill
 
 The money column being empty on a subscription is exactly the hole `ccusage` fills, and the answer is

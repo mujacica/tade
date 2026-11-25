@@ -22,6 +22,15 @@ the record the lane writes (`harnesses/acp/src/record.ts`), held to the same rul
 `null`/skipped on an unknown shape, a `v` that bumps, fixtures in
 `test/fixtures/transcripts/acp/<v>/` and "answers what reading from the start answers".
 
+**OpenCode has no parser here either, for the same reason.** V2 keeps every session in one SQLite
+database, event-sourced and unpromised, with nothing to fold line by line — and a process scan
+entry for it would only cost an `lsof` per process, since a running process only ever proves an
+*adopted* session alive. What it promises is `opencode session export <id>`, one JSON document,
+and that is OpenCode's transcript format to Tade: read by `harnesses/opencode/src/record.ts`
+(null on anything that is not one, a page an index into its messages), with real exports as
+fixtures in `test/fixtures/transcripts/opencode/<version>/`, paths made `/work`. Move them to a
+folder of the new version when OpenCode changes what it prints.
+
 ## Invariants (don't break these)
 
 - `end` **returns `null` on anything it doesn't recognise, and nothing throws.** `scanTranscripts`

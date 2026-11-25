@@ -283,6 +283,7 @@ describe('accounts', () => {
       'codex@paid',
       'acp',
       'grok',
+      'opencode',
     ])
     // What pays for each: the harness's own declaration, never the name. A
     // subscription is charged nothing per turn, which is the only kind of thing
@@ -295,6 +296,9 @@ describe('accounts', () => {
       'per-token',
       'per-token',
       // Grok's own sign-in is a SuperGrok or X Premium plan.
+      'plan',
+      // OpenCode can be asked about its Go plan whenever, and says turn by
+      // turn which a plan paid for: its window, or nothing, is what it has.
       'plan',
     ])
   })

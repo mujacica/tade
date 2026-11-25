@@ -69,6 +69,7 @@ import {
   type HarnessAccount,
   type HarnessModels,
   type HarnessSession,
+  type HarnessSpend,
   type HistoryAsk,
   type HistoryPage,
   modelsOffered,
@@ -670,24 +671,26 @@ export class Workbench {
       // session was trimmed or replaced, and inventing a negative charge to
       // make the two agree would corrupt every total that reads it.
       if (missing.tokens <= 0 && missing.usd <= 0) continue
-      await this.log.append({
-        type: 'usage',
-        task: lane.task,
-        detail: {
-          ...missing,
-          // What it last ran on, so the spend lands on a model rather than on
-          // the bucket for nothing recorded — written the one way every other
-          // writer writes it, or money found later would be a row of its own.
-          ...modelDetail(session.model),
-          priced: adapter?.capabilities.spend.usd ?? 'estimate',
-          // And whose it was: the lane says which harness and which sign-in,
-          // so money found later is filed exactly where the live turns were.
-          harness,
-          ...(lane.account ? { account: lane.account } : {}),
-          source: 'session',
-          reason: 'spent while Tade was closed',
-        },
-      })
+      for (const part of planParts(missing, session, known.tokensOnPlan)) {
+        await this.log.append({
+          type: 'usage',
+          task: lane.task,
+          detail: {
+            ...part,
+            // What it last ran on, so the spend lands on a model rather than on
+            // the bucket for nothing recorded — written the one way every other
+            // writer writes it, or money found later would be a row of its own.
+            ...modelDetail(session.model),
+            priced: adapter?.capabilities.spend.usd ?? 'estimate',
+            // And whose it was: the lane says which harness and which sign-in,
+            // so money found later is filed exactly where the live turns were.
+            harness,
+            ...(lane.account ? { account: lane.account } : {}),
+            source: 'session',
+            reason: 'spent while Tade was closed',
+          },
+        })
+      }
     }
   }
 
@@ -923,6 +926,11 @@ export class Workbench {
   /** Tell a lane what the pointer did, for a program that answers it itself. */
   point(lane: LaneId, report: PointerReport): Promise<void> {
     return this.registry.point(lane, report)
+  }
+
+  /** Paste into a lane as its program asked for pastes: bracketed only while it has that on. */
+  paste(lane: LaneId, text: string): Promise<void> {
+    return this.registry.paste(lane, text)
   }
 
   resize(lane: LaneId, cols: number, rows: number): Promise<void> {
@@ -2734,4 +2742,37 @@ function withTade(extras: WorkerExtras | undefined, told: string): WorkerExtras 
       .filter((part) => part.trim() !== '')
       .join('\n\n'),
   }
+}
+
+/**
+ * What a harness's record says was spent while Tade was closed, as the usage
+ * lines it is written down in: one, as it always was, unless the harness
+ * tells turn by turn what a plan paid for (`HarnessSpend.plan`, OpenCode's).
+ * Then the plan's share the journal has not heard of is a line of its own
+ * (`plan: true`) and the rest another (`plan: false`), so a plan's tokens are
+ * never priced at nought as money. The record keeps a plan's share as a total
+ * and not split from the rest by kind, so where both are missing the plan's
+ * line carries its tokens alone, and its list price is a floor rather than a
+ * figure (`tokensOnPlanUnrated`); where only a plan's are, it carries them all.
+ */
+export function planParts(
+  missing: {
+    input: number
+    output: number
+    cacheRead: number
+    cacheWrite: number
+    tokens: number
+    usd: number
+  },
+  session: HarnessSpend,
+  knownOnPlan: number,
+): Array<typeof missing & { plan?: boolean }> {
+  if (!session.plan) return [missing]
+  const onPlan = Math.min(missing.tokens, Math.max(0, session.plan.tokens - knownOnPlan))
+  if (onPlan <= 0) return [{ ...missing, plan: false }]
+  if (onPlan >= missing.tokens && missing.usd <= 0) return [{ ...missing, plan: true }]
+  return [
+    { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, tokens: onPlan, usd: 0, plan: true },
+    { ...missing, tokens: missing.tokens - onPlan, plan: false },
+  ]
 }

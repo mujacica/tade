@@ -201,7 +201,11 @@ export async function askPlans(
  *
  * A harness's own sign-in has only its own declaration to go on, and that is
  * the right answer there: `none` is a harness that cannot be charged per turn,
- * which is a plan, and pi pricing every turn is not one.
+ * which is a plan, and pi pricing every turn is not one. So is one that can be
+ * asked about its plan whenever (`limits: 'anytime'`): a router whose sign-in
+ * reaches plans and keys alike (OpenCode) prices the turns a key pays for and
+ * says turn by turn which a plan paid for, so its money is no answer here, and
+ * what it can be asked is a plan's window or nothing.
  */
 function paysFor(
   config: Config,
@@ -209,7 +213,8 @@ function paysFor(
   adapter: WorkerAdapter,
 ): 'plan' | 'per-token' {
   if (name) return config.accounts[name]?.kind === 'api-key' ? 'per-token' : 'plan'
-  return adapter.capabilities.spend.usd === 'none' ? 'plan' : 'per-token'
+  const { usd, limits } = adapter.capabilities.spend
+  return usd === 'none' || limits === 'anytime' ? 'plan' : 'per-token'
 }
 
 /**

@@ -647,6 +647,10 @@ export class WorkerSupervisor {
             cacheWrite: signal.cacheWrite,
             tokens: signal.tokens,
             usd: signal.usd,
+            // A plan paid for this turn — or did not — as the harness tells
+            // turn by turn where one sign-in reaches plans and keys alike:
+            // the fold reads it before anything the account says.
+            ...(signal.plan === undefined ? {} : { plan: signal.plan }),
             // Whether that money was priced, guessed, or is no money at all
             // because a plan pays — as the harness itself declares it. Written
             // down beside the figure rather than worked out when it is read:

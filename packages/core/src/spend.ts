@@ -307,6 +307,10 @@ export const HARNESS_FACTS: Readonly<Record<string, HarnessFacts>> = {
   // xAI, through Grok's own sign-in: a SuperGrok or X Premium plan, which
   // stamps no price on a turn. An API-key account beside it prices its own.
   grok: { provider: 'xai', usd: 'none' },
+  // A router, on whatever providers it is connected to: dollars are its own
+  // guess — what the endpoint reported, or its catalog's price — and a plan's
+  // turn (ChatGPT, Copilot, Go) says so on the turn itself (`plan`).
+  opencode: { provider: null, usd: 'estimate' },
 }
 
 /**
@@ -588,12 +592,17 @@ function chargeOf(
     return typeof value === 'number' && Number.isFinite(value) ? value : 0
   }
   const nothing = { usd: 0, kind: null, onPlan: 0, onPlanUnrated: false, plan: false } as const
+  // Whether a plan paid: the turn's own word where its harness said it — a
+  // router reaches a ChatGPT plan and an API key through one sign-in, and
+  // records a plan's turn as costing nothing — and the account's otherwise.
+  const told = event.detail.plan
+  const plan = typeof told === 'boolean' ? told : !isMoney(facts, accounts)
   // A subscription pays a flat fee, so its turns are effort and never money —
   // and the money side of this stops here, exactly where it always did. What
   // those same tokens would have cost at a published rate is still a fact worth
   // having, and is the one people leave for `ccusage`, so it is worked out and
   // handed back as its own figure, in no total (`Spend.usdOnPlan`).
-  if (!isMoney(facts, accounts)) {
+  if (plan) {
     const price = priceFor(model, over)
     const onPlan = (price && estimateUsd(tokensIn(event), price)) ?? 0
     return { ...nothing, priced: false, onPlan, onPlanUnrated: onPlan <= 0, plan: true }

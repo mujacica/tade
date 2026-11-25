@@ -21,6 +21,7 @@
     "@tade/harnesses-codex": "workspace:*",
     "@tade/harnesses-core": "workspace:*",
     "@tade/harnesses-grok": "workspace:*",
+    "@tade/harnesses-opencode": "workspace:*",
     "@tade/harnesses-pi": "workspace:*",
     "@tade/judge-jev": "workspace:*",
     "@tade/judge-scripted": "workspace:*",

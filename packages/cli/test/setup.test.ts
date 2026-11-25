@@ -76,6 +76,7 @@ it('proves a lane really opens, and says what is still missing', async () => {
     'claude-code',
     'codex',
     'grok',
+    'opencode',
     'pi',
   ])
   for (const harness of checked.harnesses) {

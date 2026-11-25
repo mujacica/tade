@@ -1,0 +1,136 @@
+{
+  "info": {
+    "id": "ses_tadea20eccef1e6ee46db3a091",
+    "projectID": "cbc3cd31e5c542eddf5871b122be269e62850dee",
+    "model": {
+      "id": "fake",
+      "providerID": "tade-test",
+      "variant": "default"
+    },
+    "cost": 0,
+    "tokens": {
+      "input": 1600,
+      "output": 100,
+      "reasoning": 0,
+      "cache": {
+        "read": 400,
+        "write": 0
+      }
+    },
+    "outcome": "succeeded",
+    "time": {
+      "created": 1795589251074,
+      "updated": 1795589252971,
+      "busy": 1795589252275,
+      "idle": 1795589252972
+    },
+    "title": "Fixture",
+    "location": {
+      "directory": "/private/work"
+    }
+  },
+  "messages": [
+    {
+      "id": "msg_21175a39d001jC9hGBPBA5aDSB",
+      "time": {
+        "created": 1795589252915
+      },
+      "text": "Write gated.txt",
+      "type": "user"
+    },
+    {
+      "id": "msg_21175a73c001bpn4cuw9m8vSHs",
+      "time": {
+        "created": 1795589252927,
+        "firstToken": 1795589252944,
+        "streamed": 1795589252948,
+        "completed": 1795589252958
+      },
+      "type": "assistant",
+      "agent": "build",
+      "model": {
+        "id": "fake",
+        "providerID": "tade-test",
+        "variant": "default"
+      },
+      "content": [
+        {
+          "type": "tool",
+          "id": "call_1",
+          "name": "shell",
+          "executed": false,
+          "state": {
+            "status": "error",
+            "input": {
+              "command": "echo hi > gated.txt",
+              "description": "Write a file"
+            },
+            "error": {
+              "type": "permission.rejected",
+              "message": "not today"
+            }
+          },
+          "time": {
+            "created": 1795589252945,
+            "ran": 1795589252947,
+            "completed": 1795589252956
+          }
+        }
+      ],
+      "finish": "tool-calls",
+      "rawFinish": "tool_calls",
+      "cost": 0,
+      "tokens": {
+        "input": 800,
+        "output": 50,
+        "reasoning": 0,
+        "cache": {
+          "read": 200,
+          "write": 0
+        }
+      }
+    },
+    {
+      "id": "msg_21175a762001dGMKeaoXQ8dGx5",
+      "time": {
+        "created": 1795589252964,
+        "firstToken": 1795589252969,
+        "streamed": 1795589252971,
+        "completed": 1795589252971
+      },
+      "type": "assistant",
+      "agent": "build",
+      "model": {
+        "id": "fake",
+        "providerID": "tade-test",
+        "variant": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Could not write it."
+        }
+      ],
+      "finish": "stop",
+      "rawFinish": "stop",
+      "cost": 0,
+      "tokens": {
+        "input": 800,
+        "output": 50,
+        "reasoning": 0,
+        "cache": {
+          "read": 200,
+          "write": 0
+        }
+      }
+    },
+    {
+      "id": "msg_21175a76c0017zWAC8WL5cXCGL",
+      "time": {
+        "created": 1795589252972
+      },
+      "type": "idle",
+      "outcome": "succeeded"
+    }
+  ]
+}

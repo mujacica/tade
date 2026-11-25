@@ -388,6 +388,35 @@ asks for a title on the side), which needs no sign-in: an account folder's own `
 - **A plan's usage is not readable from a lane**: `grok usage` without an id answers only on its
   shared-daemon route, so `limits` is `none` and says so.
 
+## What OpenCode taught (`packages/harnesses/opencode`)
+
+The fifth shape: pi's, again — something of Tade's inside the agent — reached through a harness
+that is a server with a TUI in front. Each line was seen in OpenCode 2.4.1 in a lane against
+`fake-model.ts`, through a provider in the account's own config folder, which needs no sign-in.
+
+- **A per-run setting must reach the process that reads it.** Every OpenCode client talks to one
+  shared background service, which keeps the environment it started with, so the lane runs
+  `opencode --standalone` — a private server, the TUI's child — and `OPENCODE_CONFIG_CONTENT`
+  (`config.ts`) carries the plugin, Tade's tool server (outside Code Mode, `codemode: false`), the
+  instructions and the skills. Everything Tade runs of it outside a lane says `--standalone` too,
+  or it would start that service and leave it running.
+- **The in-agent half is an OpenCode plugin** (`plugin/index.ts`, a folder, since OpenCode loads a
+  local plugin from no file): OpenCode's events become signals, `permission.hook('evaluate')` holds
+  each permission for Tade, and steer, queue, abort, rename and model go through the session API —
+  so a message lands as if typed and shows in the TUI, and no key is ever pressed. Under approvals
+  the config also makes every action ask, so a plugin that failed to load leaves OpenCode asking in
+  its own terminal: the gate fails closed even without its gatekeeper.
+- **A TUI on a session that does not exist yet is on no session.** It shows a blank one, and a
+  prompt it sends goes with whatever model it chose before its config loaded. So the line makes
+  the session first (`api session.create`, which leaves one that exists alone) with the task's
+  model and name, and hands the opening to the plugin (`--tade-opening`), which makes the session
+  itself if the line could not.
+- **An account folder must not move the agent's own world.** Its database — sessions and sign-ins
+  — follows `XDG_DATA_HOME`, which pnpm and others read too, so the plugin puts back what the
+  person's shell commands see (`TADE_OPENCODE_SHELL_ENV`, `shell.hook('create.before')`).
+- **The ledger is `opencode session export`**, never the database: a promised JSON document, an
+  `idle` line at every turn's end, which is also how a run taken back knows it is between turns.
+
 ## Being the thing you talk to
 
 A harness can run the orchestrator when three things are true, and it says so rather than being

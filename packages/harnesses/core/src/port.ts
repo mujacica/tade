@@ -245,6 +245,13 @@ export const WorkerSignal = z.discriminatedUnion('type', [
     tokens: z.number().default(0),
     /** US dollars, as the harness computed them. */
     usd: z.number().default(0),
+    /**
+     * A plan paid for this turn, whatever the account it ran as is paid by:
+     * for a harness that routes, where one sign-in reaches a ChatGPT plan and
+     * an API key side by side (OpenCode), so a plan's turn — which its harness
+     * records as costing nothing — is never read as money of nought.
+     */
+    plan: z.boolean().optional(),
   }),
   z.object({
     type: z.literal('exited'),
@@ -473,6 +480,19 @@ export interface HarnessSpend {
   messages: number
   /** The model its last reply ran on. */
   model: string | null
+  /**
+   * Of the above, what a plan paid for, where the harness can tell turn by
+   * turn (OpenCode): in `tokens`, and never in `usd`. Absent where it cannot,
+   * which is every harness whose account alone says whether a plan pays.
+   */
+  plan?: {
+    input: number
+    output: number
+    cacheRead: number
+    cacheWrite: number
+    tokens: number
+    messages: number
+  }
 }
 
 export function noHarnessSpend(): HarnessSpend {

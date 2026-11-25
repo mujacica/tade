@@ -1,0 +1,227 @@
+{
+  "info": {
+    "id": "ses_tadea20eccef1e6ee46db3a091",
+    "projectID": "33a58eef44ba26fcd090549db737b8e06cdd1b9f",
+    "model": {
+      "id": "fake",
+      "providerID": "tade-test",
+      "variant": "default"
+    },
+    "cost": 0,
+    "tokens": {
+      "input": 2400,
+      "output": 150,
+      "reasoning": 0,
+      "cache": {
+        "read": 600,
+        "write": 0
+      }
+    },
+    "outcome": "succeeded",
+    "time": {
+      "created": 1795589254396,
+      "updated": 1795589257811,
+      "busy": 1795589257799,
+      "idle": 1795589257812
+    },
+    "title": "Fixture",
+    "location": {
+      "directory": "/private/work"
+    }
+  },
+  "messages": [
+    {
+      "id": "msg_21175b02d001o116J9jQF3Bfhb",
+      "time": {
+        "created": 1795589256651
+      },
+      "text": "Write notes.txt",
+      "type": "user"
+    },
+    {
+      "id": "msg_21175b5cf001DClHFJpa7LPN9y",
+      "time": {
+        "created": 1795589256657,
+        "firstToken": 1795589256671,
+        "streamed": 1795589256673,
+        "completed": 1795589256680
+      },
+      "type": "assistant",
+      "agent": "build",
+      "model": {
+        "id": "fake",
+        "providerID": "tade-test",
+        "variant": "default"
+      },
+      "content": [
+        {
+          "type": "tool",
+          "id": "call_1",
+          "name": "write",
+          "executed": false,
+          "state": {
+            "status": "completed",
+            "input": {
+              "path": "notes.txt",
+              "content": "hello\n"
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Created file successfully: notes.txt"
+              }
+            ],
+            "metadata": {
+              "truncated": false
+            }
+          },
+          "time": {
+            "created": 1795589256671,
+            "ran": 1795589256673,
+            "completed": 1795589256679
+          }
+        }
+      ],
+      "finish": "tool-calls",
+      "rawFinish": "tool_calls",
+      "cost": 0,
+      "tokens": {
+        "input": 800,
+        "output": 50,
+        "reasoning": 0,
+        "cache": {
+          "read": 200,
+          "write": 0
+        }
+      }
+    },
+    {
+      "id": "msg_21175b5ec001THq256ZWvgu1PJ",
+      "time": {
+        "created": 1795589256686,
+        "firstToken": 1795589256693,
+        "streamed": 1795589256695,
+        "completed": 1795589256696
+      },
+      "type": "assistant",
+      "agent": "build",
+      "model": {
+        "id": "fake",
+        "providerID": "tade-test",
+        "variant": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Wrote notes.txt."
+        }
+      ],
+      "finish": "stop",
+      "rawFinish": "stop",
+      "cost": 0,
+      "tokens": {
+        "input": 800,
+        "output": 50,
+        "reasoning": 0,
+        "cache": {
+          "read": 200,
+          "write": 0
+        }
+      }
+    },
+    {
+      "id": "msg_21175b5f9001I10gHj8tcUA5ux",
+      "time": {
+        "created": 1795589256697
+      },
+      "type": "idle",
+      "outcome": "succeeded"
+    },
+    {
+      "id": "msg_21175b657001ei8WdJ0LqmLK8p",
+      "time": {
+        "created": 1795589256796
+      },
+      "text": "Think about it for a while",
+      "type": "user"
+    },
+    {
+      "id": "msg_21175b65e001aBL1vni08rkgo6",
+      "time": {
+        "created": 1795589256799,
+        "completed": 1795589257697
+      },
+      "type": "assistant",
+      "agent": "build",
+      "model": {
+        "id": "fake",
+        "providerID": "tade-test",
+        "variant": "default"
+      },
+      "content": [],
+      "finish": "error",
+      "error": {
+        "type": "aborted",
+        "message": "Step interrupted"
+      }
+    },
+    {
+      "id": "msg_21175b9e20019L0O8QIWyjbC3w",
+      "time": {
+        "created": 1795589257698
+      },
+      "type": "idle",
+      "outcome": "interrupted"
+    },
+    {
+      "id": "msg_21175ba46001OIIYRoUEw5cwqc",
+      "time": {
+        "created": 1795589257801
+      },
+      "text": "Say it again",
+      "type": "user"
+    },
+    {
+      "id": "msg_21175ba4b001Zh1CfgLCk2DxGf",
+      "time": {
+        "created": 1795589257805,
+        "firstToken": 1795589257809,
+        "streamed": 1795589257811,
+        "completed": 1795589257811
+      },
+      "type": "assistant",
+      "agent": "build",
+      "model": {
+        "id": "fake",
+        "providerID": "tade-test",
+        "variant": "default"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Wrote notes.txt."
+        }
+      ],
+      "finish": "stop",
+      "rawFinish": "stop",
+      "cost": 0,
+      "tokens": {
+        "input": 800,
+        "output": 50,
+        "reasoning": 0,
+        "cache": {
+          "read": 200,
+          "write": 0
+        }
+      }
+    },
+    {
+      "id": "msg_21175ba54001zEe8lQu20M3jlk",
+      "time": {
+        "created": 1795589257812
+      },
+      "type": "idle",
+      "outcome": "succeeded"
+    }
+  ]
+}

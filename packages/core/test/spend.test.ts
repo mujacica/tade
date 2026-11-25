@@ -687,6 +687,49 @@ describe('pricing what a harness will not', () => {
     expect(report.total.tokensOnPlanUnrated).toBeGreaterThan(0)
   })
 
+  it('reads an OpenCode turn a plan paid for as a plan’s, whatever its account, and never as $0.00', () => {
+    // OpenCode routes: one sign-in reaches a ChatGPT plan and an API key side
+    // by side, and records a plan's turn as costing nothing. The turn says
+    // which it was (`plan`), so its nought is a plan paying, not a bill of nought.
+    const turn = (detail: Record<string, unknown>) =>
+      usage({
+        detail: {
+          harness: 'opencode',
+          priced: 'estimate',
+          model: 'gpt-5.5',
+          provider: 'openai',
+          input: 100_000,
+          output: 10_000,
+          cacheRead: 0,
+          cacheWrite: 0,
+          tokens: 110_000,
+          usd: 0,
+          ...detail,
+        },
+      })
+    const planned = spendFrom([turn({ plan: true })], { since: 0 })
+    expect(planned.total.usd).toBe(0)
+    expect(planned.total.hasCost).toBe(false)
+    expect(planned.total.tokensOnPlan).toBe(110_000)
+    expect(planned.total.tokensUnpriced).toBe(110_000)
+    // Beside it, a turn on a key is the harness's own estimate, money.
+    const mixed = spendFrom(
+      [turn({ plan: true }), turn({ plan: false, model: 'claude-sonnet-5', usd: 0.3 })],
+      { since: 0 },
+    )
+    expect(mixed.total.usd).toBeCloseTo(0.3, 9)
+    expect(mixed.total.usdEstimated).toBeCloseTo(0.3, 9)
+    expect(mixed.total.tokensOnPlan).toBe(110_000)
+    // And the turn's word outranks what the account was written down as:
+    // a key's turn on an account called a subscription is still money.
+    const said = spendFrom([turn({ plan: false, account: 'oc', usd: 0.2 })], {
+      since: 0,
+      accounts: { oc: { kind: 'subscription' } },
+    })
+    expect(said.total.usd).toBeCloseTo(0.2, 9)
+    expect(said.total.tokensOnPlan).toBe(0)
+  })
+
   it('keeps what Grok priced itself on an API key as money, exactly', () => {
     const report = spendFrom(
       [usage({ detail: { harness: 'grok', account: 'xai', priced: 'exact', usd: 0.42 } })],

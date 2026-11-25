@@ -47,7 +47,7 @@ and setting up ends by actually opening a lane — because every other check is 
 | `packages/cli/src/node.ts` | `nodeTooOld`, and the two private halves `numbers` and `below` |
 | `packages/cli/src/version.ts` | `needsNode`, `version` — `engines.node`, read back |
 | `packages/drivers/{core,pty,tmux}` | `WorkspaceDriver.programs`; the pty driver's `helperAt`/`helperProblem` |
-| `packages/harnesses/{core,pi,claude,codex}` | `WorkerAdapter.programs` |
+| `packages/harnesses/{core,pi,claude,codex,grok,opencode}` | `WorkerAdapter.programs` |
 | `packages/forges/{core,github}` | `Forge.programs` |
 | `packages/app/src/wire/machine.ts` | the accounts, and `watched`: the terminal a command runs in, put in front first |
 | `packages/app/src/wire/updates.ts` | the Updates subject: the page's buttons, the check on a clock, the strip's chip, `run` (the one way an update runs), the reload offer, and `tools()` for the orchestrator |
@@ -292,8 +292,12 @@ same `tade setup`. What changes is decided by facts about *this process*, never 
   what every harness's `signIn(here)` is handed (its default, so `tade accounts sign-in` and
   Settings get it too): Claude Code runs the same `claude auth login` and says the link opens
   anywhere and the code comes back; Codex runs `codex login --device-auth`, which is what it says
-  to use "on a remote or headless machine"; pi is the same pi, said for pasting back. The
-  conformance suite holds all three spellings of `signIn`.
+  to use "on a remote or headless machine"; pi is the same pi, said for pasting back; OpenCode
+  runs the same `opencode auth login --standalone` and steers the person to Copilot's or ChatGPT's
+  device code. The conformance suite holds all three spellings of `signIn`.
+- **A program's name is not its version.** OpenCode 2 is `@opencode/cli`; `opencode-ai` is still
+  published and is V1, whose server and plugins its adapter does not speak, so `probe` says a
+  version 1 found on the PATH is the wrong one rather than reading a version as "installed".
 - **How long a sign-in lasts** is `AccountStatus.until`, the harness's own written-down end, drawn
   by `signInLasts`: days, a warning inside Claude Code's own three, and `cannot tell for how long`
   where it wrote none — never nothing, which would read as "for ever". Claude Code is the only one

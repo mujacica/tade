@@ -420,7 +420,7 @@ describe('the list a setting drops', () => {
       workers: { routes: { default: { harness: 'claude-code' } } },
     }),
     [],
-    { codex: CODEX, 'claude-code': CLAUDE, acp: [] },
+    { codex: CODEX, 'claude-code': CLAUDE, acp: [], opencode: [] },
   )
   const models = [
     { value: 'openai/gpt-5.5-codex', label: 'gpt-5.5-codex', group: 'openai', harness: 'codex' },
@@ -474,6 +474,8 @@ describe('the list a setting drops', () => {
       'workers.routes.default.harnesses.acp.model',
       'workers.routes.default.harnesses.grok.model',
       'workers.routes.default.harnesses.grok.thinking',
+      // Nor is OpenCode: how hard it thinks is its model's variant.
+      'workers.routes.default.harnesses.opencode.model',
     ])
     expect(offered('models', 'workers.routes.default.thinking', 0)).toEqual([...CLAUDE])
     expect(offered('models', 'workers.routes.default.model', 2)).toEqual([

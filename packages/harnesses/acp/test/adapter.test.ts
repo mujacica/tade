@@ -75,6 +75,11 @@ describe('the agents it drives', () => {
       npm: '@google/gemini-cli',
     })
     expect(programs.find((one) => one.command === 'goose')?.install?.npm).toBeUndefined()
+    // OpenCode 2 under the name its own docs give it: `opencode-ai` is V1.
+    expect(programs.find((one) => one.command === 'opencode')?.install).toEqual({
+      npm: '@opencode/cli',
+      instead: 'opencode.ai: curl -fsSL https://opencode.ai/v2/install | bash',
+    })
   })
 
   it('finds one by its id, its name or its program', () => {

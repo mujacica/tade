@@ -9,7 +9,8 @@ import type { RequiredProgram } from '@tade/core'
 //
 // Nothing here installs anything. Each is a `programs` declaration — what it
 // is, how to see its version and where to get it — and an install command only
-// where the registry names an npm package for it; the others say where to get
+// where the registry names an npm package for it, or the agent's own docs do
+// where the registry's is out of date (OpenCode 2); the others say where to get
 // them instead, because a command that installs something else under the same
 // name is worse than none. The registry's own adapters for agents Tade already
 // drives natively (`claude-acp`, `codex-acp`, `pi-acp`) are not here: those
@@ -43,8 +44,15 @@ export const ACP_AGENTS: readonly AcpAgent[] = [
     id: 'opencode',
     title: 'OpenCode',
     command: 'opencode',
+    // OpenCode 2, whose `acp` runs a private server of its own every time and
+    // never the shared background service. Its package is OpenCode's own
+    // word for V2 (opencode.ai/docs, 2.4.1, 2026-11-25): the registry's
+    // `opencode-ai` is V1, whose server and storage V2 replaced.
     args: ['acp'],
-    install: { instead: 'opencode.ai, or its releases on github.com/anomalyco/opencode' },
+    install: {
+      npm: '@opencode/cli',
+      instead: 'opencode.ai: curl -fsSL https://opencode.ai/v2/install | bash',
+    },
   },
   {
     id: 'goose',

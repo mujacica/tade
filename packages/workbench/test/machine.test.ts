@@ -265,6 +265,7 @@ describe('where each harness stands', () => {
       'claude-code',
       'codex',
       'grok',
+      'opencode',
       'pi',
     ])
     // pi is the default, and the only one anything is set to use.
