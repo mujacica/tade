@@ -145,16 +145,17 @@ export const STILL_MS = 10_000
  * (`run.ts`). While it does, it is not gone, but its kept place stopped
  * holding its turn `HELD_MS` after it was kept, and a suite that started after
  * it took the slot. The exception is a place behind it waiting from the same
- * `where`. That one may be whoever has the checkout, waiting for the machine
- * behind this place, and holding the turn would leave each waiting for the
- * other. Then the place is left as it is. Says whether it now holds its turn
- * for that long.
+ * `where` (any of them, given several). That one may be whoever has the
+ * checkout, waiting for the machine behind this place, and holding the turn
+ * would leave each waiting for the other. Then the place is left as it is.
+ * Says whether it now holds its turn for that long.
  */
 export async function holdKept(
   dir: string,
   as: string,
-  opts: { where: string; ms: number; now: () => number },
+  opts: { where: string | readonly string[]; ms: number; now: () => number },
 ): Promise<boolean> {
+  const wheres: readonly string[] = typeof opts.where === 'string' ? [opts.where] : opts.where
   const names = await readdir(dir).catch((err: unknown) => {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [] as string[]
     throw err
@@ -172,7 +173,8 @@ export async function holdKept(
       return at !== undefined && at > ticket
     })
     for (const other of behind) {
-      if ((await holderAt(join(dir, other)))?.where === opts.where) return false
+      const where = (await holderAt(join(dir, other)))?.where
+      if (where !== undefined && wheres.includes(where)) return false
     }
     const until = opts.now() + opts.ms
     // Held long enough already, it is not written again on every look.

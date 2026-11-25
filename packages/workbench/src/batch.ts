@@ -6,15 +6,19 @@ import {
   type CheckLog,
   type CheckRun,
   followRenames,
+  HELD_MS,
   type Holders,
+  holdKept,
   type LockHolder,
   planFor,
+  queueDir,
   RunnerError,
   readChecks,
   readOutcome,
   readRuns,
   rollup,
   SLOT_ENV,
+  STILL_MS,
   waitForMachineSlot,
   waitForRunLock,
 } from '@tade/checks-core'
@@ -249,13 +253,39 @@ function treeTurn(home: string, project: string): string {
   return join(projectDir(home, project), 'batch-turn')
 }
 
-/** The batch tree's turn, waited for up to `waitMs`, or who has it. */
-function takeTree(
-  opts: { home: string; project: string },
+/**
+ * The batch tree's turn, waited for up to `waitMs`, or who has it.
+ *
+ * A place `by` kept for the machine goes on holding its turn while they wait
+ * here, and for `HELD_MS` when they give up, as it does while a run waits for
+ * its checkout (`runChecks`): left alone it stopped `HELD_MS` after it was
+ * kept, and a suite that asked after them took the slot. It is left alone
+ * while somebody behind it waits from the tree or from the checkout: whoever
+ * has the tree may be waiting for the machine there, or for the checkout's
+ * lock, held by a run there that waits for the machine, and holding would
+ * leave each waiting for the other.
+ */
+async function takeTree(
+  opts: { home: string; project: string; root: string; by?: string; signal?: AbortSignal },
   what: string,
   waitMs: number,
 ): ReturnType<typeof waitForRunLock> {
-  return waitForRunLock(treeTurn(opts.home, opts.project), what, { waitMs })
+  const by = opts.by
+  const holding = by
+    ? (ms: number) =>
+        holdKept(queueDir(opts.home), by, {
+          where: [batchDir(opts.home, opts.project), opts.root],
+          ms,
+          now: Date.now,
+        })
+    : null
+  const turn = await waitForRunLock(treeTurn(opts.home, opts.project), what, {
+    waitMs,
+    ...(holding ? { meanwhile: () => holding(STILL_MS) } : {}),
+  })
+  // Gone because whoever asked has gone, there is nobody to hold it for.
+  if ('held' in turn && holding && !opts.signal?.aborted) await holding(HELD_MS)
+  return turn
 }
 
 function treeBusy(held: LockHolder, project: string): string {

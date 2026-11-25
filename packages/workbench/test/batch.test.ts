@@ -1,7 +1,17 @@
-import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { delimiter, join } from 'node:path'
-import { readRuns } from '@tade/checks-core'
-import { ConfigSchema, recordsDir } from '@tade/core'
+import {
+  queueDir,
+  type RunnerError,
+  readRuns,
+  runChecks,
+  runQueueDir,
+  takeMachineSlot,
+  takeRunLock,
+  waitForMachineSlot,
+} from '@tade/checks-core'
+import { makeScriptedRunner } from '@tade/checks-scripted'
+import { ConfigSchema, projectDir, recordsDir } from '@tade/core'
 import { describe, expect, it, vi } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { CI_WORKFLOW, ciWorkflow } from '../../../test/fixtures/workflow.ts'
@@ -129,6 +139,146 @@ describe('a batch', () => {
     // Let go, so the next one gets it.
     const next = await runBatch({ ...at, commit: later })
     expect('runs' in next && next.runs[0]?.state).toBe('passed')
+  })
+})
+
+describe('a place kept for the machine, while its run waits for the batch tree', () => {
+  // An agent's full run gave up at its deadline waiting for the machine and
+  // kept its place there. Asking again, it waits for the batch tree's turn
+  // first, and its kept place stopped holding its turn two minutes after it
+  // was kept: a suite that asked after it had the slot.
+
+  /** The machine held by somebody's shell suite, and a place `as` kept behind it, past its turn. */
+  async function keptPastItsTurn(home: string, as: string) {
+    const shell = await takeMachineSlot(home, 1, { what: 'vitest, 424 files', where: '/work/b' })
+    if ('held' in shell) throw new Error('the slot should have been free')
+    await waitForMachineSlot(
+      home,
+      1,
+      { what: 'tests', where: batchDir(home, 'shop') },
+      { waitMs: 40, everyMs: 10, as },
+    )
+    // The two minutes it held its turn for, gone by.
+    const kept = keptFile(home)
+    const raw = JSON.parse(readFileSync(kept, 'utf8')) as Record<string, unknown>
+    writeFileSync(kept, `${JSON.stringify({ ...raw, held: Date.now() - 1 })}\n`)
+    return shell
+  }
+
+  function keptFile(home: string): string {
+    const kept = readdirSync(queueDir(home)).find((name) => name.endsWith('.kept'))
+    if (!kept) throw new Error('nothing was kept')
+    return join(queueDir(home), kept)
+  }
+
+  const keptHeld = (home: string) => {
+    try {
+      return (JSON.parse(readFileSync(keptFile(home), 'utf8')) as { held: number }).held
+    } catch {
+      return 0
+    }
+  }
+
+  const waitsIn = (dir: string) => {
+    try {
+      return readdirSync(dir).some((name) => name.endsWith('.wait'))
+    } catch {
+      return false
+    }
+  }
+
+  const treeTurn = (home: string) => join(projectDir(home, 'shop'), 'batch-turn')
+
+  it('holds its turn for the machine while the run waits for the tree', async () => {
+    const { repo, at } = project()
+    const shell = await keptPastItsTurn(repo.home, 'shop/one')
+    const moving = await takeRunLock(treeTurn(repo.home), 'full checks at 0123abcd')
+    if ('held' in moving) throw new Error('the tree should have been free')
+    const waiting = runBatch({
+      ...at,
+      userHome: repo.home,
+      commit: repo.head(),
+      by: 'shop/one',
+      waitMs: 20_000,
+    })
+    await vi.waitFor(() => expect(keptHeld(repo.home)).toBeGreaterThan(Date.now()), {
+      timeout: 5_000,
+    })
+    await shell.release()
+    const newcomer = await takeMachineSlot(repo.home, 1, {
+      what: 'vitest, 424 files',
+      where: '/work/c',
+    })
+    if (!('held' in newcomer)) await newcomer.release()
+    expect('held' in newcomer).toBe(true)
+    await moving.release()
+    const done = await waiting
+    if (!('runs' in done)) throw new Error(done.problem)
+    expect(done.runs.map((run) => [run.state, run.by])).toEqual([['passed', 'shop/one']])
+  })
+
+  it('does not hold up the run that has the tree and waits for the machine behind it', async () => {
+    const { repo, at } = project()
+    const shell = await keptPastItsTurn(repo.home, 'shop/one')
+    const ran: string[] = []
+    const batch = (by: string, waitMs: number) =>
+      runBatch({ ...at, userHome: repo.home, commit: repo.head(), by, waitMs }).then((done) =>
+        ran.push('runs' in done ? by : `${by} gave up`),
+      )
+    const two = batch('shop/two', 5_000)
+    await vi.waitFor(() => expect(waitsIn(queueDir(repo.home))).toBe(true), { timeout: 5_000 })
+    const one = batch('shop/one', 20_000)
+    await vi.waitFor(() => expect(waitsIn(runQueueDir(treeTurn(repo.home)))).toBe(true), {
+      timeout: 5_000,
+    })
+    await shell.release()
+    await Promise.all([two, one])
+    expect(ran).toEqual(['shop/two', 'shop/one'])
+  })
+
+  it('does not hold up a run in the checkout that has its lock, while the tree waits for it', async () => {
+    // The tree's run waits for the checkout's lock, held by a run there that
+    // waits for the machine behind the kept place: held, all three wait. Let
+    // go, the place still holds its last few seconds (`STILL_MS`), which the
+    // tree's run waits out.
+    const { repo, at } = project()
+    const shell = await keptPastItsTurn(repo.home, 'shop/one')
+    const ran: string[] = []
+    const there = runChecks({
+      runner: makeScriptedRunner({}),
+      project: { name: 'shop', root: repo.root },
+      records: recordsDir(repo.home, 'shop', null),
+      checks: [
+        { id: 'related', title: 'related', run: 'true', alone: true, minutes: 1, required: true },
+      ],
+      commit: repo.head(),
+      by: 'shop/three',
+      waitMs: 5_000,
+      machine: { home: repo.home, most: 1 },
+    }).then(
+      () => ran.push('shop/three'),
+      (err: unknown) => {
+        if ((err as RunnerError).trouble !== 'busy') throw err
+        ran.push('shop/three gave up')
+      },
+    )
+    await vi.waitFor(() => expect(waitsIn(queueDir(repo.home))).toBe(true), { timeout: 5_000 })
+    const batch = (by: string, waitMs: number) =>
+      runBatch({ ...at, userHome: repo.home, commit: repo.head(), by, waitMs }).then((done) =>
+        ran.push('runs' in done ? by : `${by} gave up`),
+      )
+    const two = batch('shop/two', 30_000)
+    await vi.waitFor(
+      () => expect(waitsIn(runQueueDir(recordsDir(repo.home, 'shop', null)))).toBe(true),
+      { timeout: 10_000 },
+    )
+    const one = batch('shop/one', 60_000)
+    await vi.waitFor(() => expect(waitsIn(runQueueDir(treeTurn(repo.home)))).toBe(true), {
+      timeout: 5_000,
+    })
+    await shell.release()
+    await Promise.all([there, two, one])
+    expect(ran).toEqual(['shop/three', 'shop/two', 'shop/one'])
   })
 })
 
