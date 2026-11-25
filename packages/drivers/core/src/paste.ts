@@ -30,6 +30,15 @@ export function pasteBytes(text: string, bracketed: boolean): Uint8Array {
 }
 
 /**
+ * Pasted text for a driver whose terminal does the wrapping itself and turns
+ * every `\n` into Enter on the way (tmux's `paste-buffer`): the markers out,
+ * and each line break one `\n`, so a `\r\n` is not Enter twice.
+ */
+export function pastedText(text: string): string {
+  return text.replace(MARKERS, '').replace(BREAKS, '\n')
+}
+
+/**
  * Whether a program has bracketed paste on after this much of its output,
  * given whether it had before: the last `ESC [ ? … 2004 h` or `l` in it wins.
  * For a driver that reads its lanes' output on the way past.
