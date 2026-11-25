@@ -1,6 +1,7 @@
-import { mkdir, open, readFile, rm } from 'node:fs/promises'
+import { link, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { holdUntilExit, letGoOf } from './held.ts'
+import { joinQueue, type Place, waitingAhead } from './turn.ts'
 
 // One run at a time, per worktree.
 //
@@ -57,10 +58,21 @@ export function heldBy(records: string): Promise<LockHolder | null> {
   return holderAt(lockPath(records))
 }
 
+let claims = 0
+
 /**
  * Claim one lock file: made exclusively, with this process as its holder. One
  * whose holder is gone is taken over; one whose holder is alive is answered
  * with who it is.
+ *
+ * It is written aside and linked into place, never made empty and filled in.
+ * Made and then written, there was a moment in which it was empty, and an
+ * empty lock reads as nobody's (`holderAt`): a second taker in that moment
+ * removed it and took it too, and two runs went on in one checkout. Every
+ * release after that removed whoever's lock was there by then, so once two
+ * shared it nobody had it alone again. So a release takes back only the lock
+ * it wrote — every run in the window has the window's pid, so the pid alone
+ * cannot say whose it is, and each claim writes its own `claim`.
  */
 export async function claim(
   path: string,
@@ -69,27 +81,38 @@ export async function claim(
 ): Promise<RunLock | { held: LockHolder }> {
   await mkdir(dirname(path), { recursive: true })
   const at = new Date(now()).toISOString()
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const fh = await open(path, 'wx', 0o600)
-      await fh.write(`${JSON.stringify({ pid: process.pid, ...holder, at })}\n`)
-      await fh.close()
-      // Given back however this process ends, a reload included (`held.ts`).
-      holdUntilExit(path)
-      return {
-        release: () => {
-          letGoOf(path)
-          return rm(path, { force: true })
-        },
+  const mine = `${process.pid}-${claims++}`
+  const text = `${JSON.stringify({ pid: process.pid, ...holder, at, claim: mine })}\n`
+  const aside = `${path}.${mine}.writing`
+  await writeFile(aside, text, { mode: 0o600 })
+  try {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await link(aside, path)
+        // Given back however this process ends, a reload included (`held.ts`).
+        holdUntilExit(path)
+        return {
+          release: async () => {
+            letGoOf(path)
+            // Gone already is given back; a lock that cannot be read is thrown, not left.
+            const there = await readFile(path, 'utf8').catch((err: unknown) => {
+              if ((err as NodeJS.ErrnoException).code === 'ENOENT') return ''
+              throw err
+            })
+            if (there === text) await rm(path, { force: true })
+          },
+        }
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err
+        const held = await holderAt(path)
+        if (held) return { held }
+        await rm(path, { force: true })
       }
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err
-      const held = await holderAt(path)
-      if (held) return { held }
-      await rm(path, { force: true })
     }
+    return { held: { pid: 0, ...holder, at } }
+  } finally {
+    await rm(aside, { force: true })
   }
-  return { held: { pid: 0, ...holder, at } }
 }
 
 /** Who holds one lock file, or null. A dead pid is nobody, and so is a file nobody can read. */
@@ -118,23 +141,42 @@ export async function holderAt(path: string): Promise<LockHolder | null> {
   }
 }
 
+/** Where those waiting for this worktree hold their place, one ticket each (`turn.ts`). */
+export function runQueueDir(records: string): string {
+  return join(records, 'checks.queue')
+}
+
 /**
  * Wait for the worktree, up to a point, and then say who has it. Waiting is
  * the polite half of the same rule: a second asker queues rather than starting
- * a second suite.
+ * a second suite — and in turn, so a lock let go goes to whoever has waited
+ * longest rather than whoever looks next. Somebody ahead in the queue is who
+ * it is waiting for, while the lock itself is free for that moment.
  */
 export async function waitForRunLock(
   records: string,
   what: string,
   opts: { waitMs?: number; everyMs?: number; now?: () => number } = {},
 ): Promise<RunLock | { held: LockHolder }> {
-  const deadline = (opts.now ?? Date.now)() + (opts.waitMs ?? 0)
+  const now = opts.now ?? Date.now
+  const deadline = now() + (opts.waitMs ?? 0)
   const every = opts.everyMs ?? 250
-  for (;;) {
-    const got = await takeRunLock(records, what, opts.now)
-    if (!('held' in got)) return got
-    if ((opts.now ?? Date.now)() >= deadline) return got
-    await pause(every)
+  const queue = runQueueDir(records)
+  // Taken only once there is a wait, and given up however it ends.
+  let place: Place | null = null
+  try {
+    for (;;) {
+      const ahead = await waitingAhead(queue, place?.name ?? null)
+      const got = ahead[0]
+        ? { held: (await heldBy(records)) ?? ahead[0] }
+        : await takeRunLock(records, what, now)
+      if (!('held' in got)) return got
+      if (now() >= deadline) return got
+      place ??= await joinQueue(queue, { what }, now)
+      await pause(every)
+    }
+  } finally {
+    await place?.leave()
   }
 }
 

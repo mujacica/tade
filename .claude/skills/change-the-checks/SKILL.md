@@ -26,6 +26,7 @@ and that record.
 | `packages/checks/core/src/run.ts` | `runChecks`: the one way a run happens — the lock, the record, the row |
 | `packages/checks/core/src/lock.ts` | `takeRunLock`, `waitForRunLock`, `heldBy`, `claim`: one run at a time per worktree |
 | `packages/checks/core/src/machine.ts` | `takeMachineSlot`, `waitForMachineSlot`, `SLOT_ENV`, `insideHeldSlot`: `checks.suites` runs at a time on the machine |
+| `packages/checks/core/src/turn.ts` | `joinQueue`, `waitingAhead`: whoever waits longest for the worktree or the machine goes first |
 | `test/one-suite.ts` | the suite's `globalSetup`: a full vitest run from a shell takes the same machine slot |
 | `packages/checks/core/src/running.ts` | `writeRunning`, `clearRunning`, `runningIn`: what is going on *now*, in `checks.running.json` |
 | `packages/checks/core/src/records.ts` | `checks.jsonl`: `writeRun`, `readRuns`, `latestAt`, `rollup`, `relatedAt`, `At` |
@@ -123,7 +124,10 @@ and that record.
   the worktree lock, the record and the row in the window come with it. The lock's rule is
   `lockHome`'s: **a lock whose process is gone is not a lock**, so a stale one is taken over rather
   than reported, and nobody is ever told the checks passed because somebody else's run did
-  (`RunnerError('busy')`). Waiting is the polite half of the same rule.
+  (`RunnerError('busy')`). Waiting is the polite half of the same rule, and **in turn** (`turn.ts`):
+  a wait takes a ticket, so what comes free goes to whoever waited longest, not whoever looks next.
+  A lock is linked into place whole and taken back only by the claim that wrote it (`claim`) — an
+  empty one read as nobody's, and two runs shared one checkout from then on.
 - **A worktree is not the machine.** The worktree lock alone let six worktrees run six suites —
   sixty-seven vitest processes on one laptop — so a run with an `alone` check also takes one of the
   machine's slots (`machine.ts`, under Tade's home, `checks.suites` of them, the same stale-pid
