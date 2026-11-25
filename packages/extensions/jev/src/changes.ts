@@ -571,7 +571,16 @@ function plural(n: number, word: string): string {
  * work is in no unit at all, because a working tree four agents are writing in
  * belongs to none of them.
  */
-export async function unitsIn(ctx: ExtensionContext, project: ProjectRef): Promise<Unit[]> {
+export async function unitsIn(
+  ctx: ExtensionContext,
+  project: ProjectRef,
+  /**
+   * Filled with the tasks in a checkout that was only looked through as far
+   * back as `HISTORY_LIMIT`, so that one not found there is not told, bare,
+   * that it has nothing committed.
+   */
+  bounded?: Set<string>,
+): Promise<Unit[]> {
   const listed = await git(ctx, project.root, ['worktree', 'list', '--porcelain'])
   if (!listed.ok) throw new Error(`${project.root} is not a git repository: ${listed.said}`)
   const worktrees: { path: string; head: string; branch: string }[] = []
@@ -598,7 +607,9 @@ export async function unitsIn(ctx: ExtensionContext, project: ProjectRef): Promi
     if (tasks.length === 0 || !worktree.head) continue
     const shared = tasks.length > 1 || tasks.some((one) => one.shared)
     const whole = { project: project.name, root: worktree.path, branch: worktree.branch }
-    const mine = shared ? await perAgent(ctx, worktree, tasks, baseRef) : null
+    const oldest = shared ? await oldestBase(ctx, worktree, tasks, baseRef) : null
+    if (oldest?.bounded) for (const task of tasks) bounded?.add(task.id)
+    const mine = oldest ? await perAgent(ctx, worktree, tasks, oldest.base) : null
     if (mine) {
       units.push(...mine.map((unit) => ({ ...whole, ...unit })))
       continue
@@ -649,9 +660,8 @@ async function perAgent(
   ctx: ExtensionContext,
   worktree: { path: string; head: string },
   tasks: readonly TaskSaid[],
-  baseRef: string,
+  oldest: string,
 ): Promise<Omit<Unit, 'project' | 'root' | 'branch'>[] | null> {
-  const oldest = await oldestBase(ctx, worktree, tasks, baseRef)
   if (!oldest || oldest === worktree.head) return null
   const { byTask, signed, total } = await commitsByTask(
     ctx,
@@ -693,13 +703,15 @@ async function perAgent(
  * checkout one branch, which `jev_review` with `task:` then read under that one
  * task's name. So the bases git can place are used without it, and with none
  * of them, or a task file that recorded none, where the branch left the base.
+ * `bounded` is whether that was only the newest `HISTORY_LIMIT` commits.
  */
 async function oldestBase(
   ctx: ExtensionContext,
   worktree: { path: string; head: string },
   tasks: readonly TaskSaid[],
   baseRef: string,
-): Promise<string> {
+): Promise<{ base: string; bounded: boolean }> {
+  const at = (base: string) => ({ base, bounded: false })
   const bases = [...new Set(tasks.map((task) => task.base).filter(Boolean))]
   if (bases.length === 1 && bases[0]) {
     const ancestor = await git(ctx, worktree.path, [
@@ -708,10 +720,10 @@ async function oldestBase(
       bases[0],
       worktree.head,
     ])
-    if (ancestor.ok) return bases[0]
+    if (ancestor.ok) return at(bases[0])
   } else if (bases.length > 1) {
     const all = await git(ctx, worktree.path, ['merge-base', '--octopus', ...bases])
-    if (all.ok && all.out.trim()) return all.out.trim()
+    if (all.ok && all.out.trim()) return at(all.out.trim())
     const placed: string[] = []
     for (const said of bases) {
       const ancestor = await git(ctx, worktree.path, [
@@ -724,32 +736,32 @@ async function oldestBase(
     }
     if (placed.length > 0) {
       const some = await git(ctx, worktree.path, ['merge-base', '--octopus', ...placed])
-      if (some.ok && some.out.trim()) return some.out.trim()
+      if (some.ok && some.out.trim()) return at(some.out.trim())
     }
   }
   const found = await git(ctx, worktree.path, ['merge-base', baseRef, worktree.head])
   const left = found.ok ? found.out.trim() : ''
-  if (left && left !== worktree.head) return left
+  if (left && left !== worktree.head) return at(left)
   // On the base branch itself — a checkout with no remote, where the base is
   // the branch checked out — where it left the base is HEAD, and with no base
   // git can place there was no range at all: a task that had committed was
   // told it had nothing committed. Every commit read here is only ever read
   // as somebody's by its trailer, so the newest `HISTORY_LIMIT` commits are
   // looked through rather than none; own commits older than that, and the root
-  // commit, which is then the base, are not found.
+  // commit, which is then the base, are not found — and the answer says so.
   const back = await git(ctx, worktree.path, [
     'rev-parse',
     '--verify',
     '--quiet',
     `${worktree.head}~${HISTORY_LIMIT}^{commit}`,
   ])
-  if (back.ok && back.out.trim()) return back.out.trim()
+  if (back.ok && back.out.trim()) return { base: back.out.trim(), bounded: true }
   const roots = await git(ctx, worktree.path, ['rev-list', '--max-parents=0', worktree.head])
-  return roots.ok ? (roots.out.trim().split('\n').at(-1) ?? '') : left
+  return at(roots.ok ? (roots.out.trim().split('\n').at(-1) ?? '') : left)
 }
 
 /** How far back a shared checkout with no base anywhere is looked through for a task's own commits. */
-const HISTORY_LIMIT = 500
+export const HISTORY_LIMIT = 500
 
 /**
  * What a unit is measured from: the commit its task file says it branched at,

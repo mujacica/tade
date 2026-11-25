@@ -31,6 +31,7 @@ import {
 import {
   CHARS_PER_TOKEN,
   changesFor,
+  HISTORY_LIMIT,
   ownSaid,
   partSaid,
   unitFor,
@@ -521,16 +522,23 @@ export const jevExtension: TadeExtension = {
         const named = typeof input.task === 'string' ? input.task : ''
         const ref = typeof input.ref === 'string' ? input.ref : ''
         const asked = named || (ref ? '' : mine)
+        const bounded = new Set<string>()
         const unit = asked
-          ? ((await unitsIn(ctx, found)).find(
+          ? ((await unitsIn(ctx, found, bounded)).find(
               (one) => one.key === asked || one.tasks.includes(asked),
             ) ?? null)
           : await unitFor(ctx, found, { root, ref: ref || null })
         if (!unit) {
+          // With no base git can place, only the newest commits were looked
+          // through, and a task whose own are all older than that is not one
+          // that has nothing committed: it is one this could not see.
+          const only = bounded.has(asked)
+            ? ` in the newest ${HISTORY_LIMIT} commits, which is as far back as it was looked for with no base git can place`
+            : ''
           throw new Error(
             asked === mine
-              ? `${asked} has nothing committed in ${found.name} to read: commit what you have, and it is your change from then on`
-              : `${asked} has no branch in ${found.name} with work on it to read`,
+              ? `${asked} has nothing committed in ${found.name}${only} to read: commit what you have, and it is your change from then on`
+              : `${asked} has no branch in ${found.name} with work on it to read${only}`,
           )
         }
         // A range somebody named is whatever is in it, and in a checkout

@@ -1,8 +1,9 @@
+import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { mkrepo } from '../../../../test/fixtures/mkrepo.ts'
-import { ownSaid } from '../src/changes.ts'
+import { gitEnv, mkrepo } from '../../../../test/fixtures/mkrepo.ts'
+import { HISTORY_LIMIT, ownSaid } from '../src/changes.ts'
 import { readReviews } from '../src/reviews.ts'
 import { host, typesafe } from './harness.ts'
 
@@ -116,6 +117,27 @@ describe('jev_review of one task in a checkout two tasks commit to', () => {
       expect(readReviews(repo.home)[0]?.commits).toEqual([refunds])
     },
   )
+
+  it('says it looked only as far back as it does when a task’s own commits are older than that', async () => {
+    // With no base anywhere, only the newest HISTORY_LIMIT commits are looked
+    // through, and a task whose own commits are all older was told, bare, that
+    // it had nothing committed.
+    const { repo } = planMadeOnDayOne({ refunds: '', receipts: '' })
+    const tip = repo.head()
+    const stream = Array.from(
+      { length: HISTORY_LIMIT },
+      (_, n) =>
+        `commit refs/heads/main\ncommitter Hand <hand@example.com> ${1_700_000_000 + n} +0000\ndata 7\nby hand\n${n === 0 ? `from ${tip}\n` : ''}\n`,
+    ).join('')
+    execFileSync('git', ['fast-import', '--quiet'], {
+      cwd: repo.root,
+      env: gitEnv(),
+      input: stream,
+    })
+    await expect(review(repo, 'shop/add-refunds')).rejects.toThrow(
+      `in the newest ${HISTORY_LIMIT} commits, which is as far back as it was looked for`,
+    )
+  })
 
   it('reads the other task’s two commits as its own change, and not the one between', async () => {
     const { repo } = planMadeOnDayOne()
