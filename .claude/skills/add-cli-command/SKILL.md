@@ -55,6 +55,11 @@ program and exposes `run(argv, io)` which returns an exit code instead of callin
   spawns it with no terminal on any stream, waits on what it says rather than on a clock (a
   `systemd-notify` on PATH that writes down what it was told stands in for systemd), and opens the
   home after it has stopped: the lock let go is what says it closed.
+- **A command that writes while a window holds the home is refused, or hands its work to that
+  window** — never appends beside it, because `seq` is the holder's (`config-changes.ts`). A config
+  write spools its `config_changed` lines; `tade task create` spools the request and waits for the
+  answer (`task-requests.ts`, taken on the beat by `wire/task-requests.ts`), which is how a served
+  machine's own shell gives it work. A spool reads only what the command takes on its line.
 - **A command that puts something back writes over nothing** (`tade host restore`): refused while
   anything holds the home or it has a journal, a press — or `--yes`, said from a pipe — before
   anything moves, and whatever it moved aside or left unplaced said with where it is.

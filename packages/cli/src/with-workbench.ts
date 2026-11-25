@@ -14,13 +14,26 @@ export async function withWorkbench(
   io: Io,
   setExit: (code: number) => void,
   fn: (tade: Workbench) => Promise<void>,
-  /** Where to ask instead while a window holds the home, when "there" is not enough to go on. */
-  there = 'Ask it there',
+  /**
+   * Where to ask instead while a window holds the home, when "there" is not
+   * enough to go on — or what to do instead, for a command that can hand its
+   * work to that window (`tade task create`).
+   */
+  there: string | ((busy: HomeBusyError) => Promise<void>) = 'Ask it there',
 ): Promise<void> {
   let tade: Workbench
   try {
     tade = await Workbench.open({ home: tadeHome() })
   } catch (err) {
+    if (err instanceof HomeBusyError && typeof there === 'function') {
+      try {
+        await there(err)
+      } catch (instead) {
+        io.err(instead instanceof Error ? instead.message : String(instead))
+        setExit(Exit.error)
+      }
+      return
+    }
     io.err(
       err instanceof HomeBusyError
         ? `${err.message}. ${there}, or close it first.`

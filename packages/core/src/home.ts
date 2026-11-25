@@ -269,6 +269,15 @@ export function configChangesSpool(home: string): string {
 }
 
 /**
+ * The tasks a terminal asked for while a window held the journal, waiting for
+ * that window to make them (`@tade/workbench/task-requests`): one file per
+ * request, then its answer, each gone once read.
+ */
+export function taskRequestsSpool(home: string): string {
+  return join(home, 'task-requests')
+}
+
+/**
  * Where what Tade records *about a directory* goes — check runs, the run lock,
  * what is running now.
  *

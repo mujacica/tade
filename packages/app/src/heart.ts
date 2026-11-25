@@ -46,6 +46,7 @@ import { Projects, type ProjectsDeps, type ProjectTools } from './wire/projects.
 import { Queue, type QueueTools } from './wire/queue.ts'
 import { Schedules, type WatchTools } from './wire/schedules.ts'
 import { Settings, type SettingsDeps, type SettingTools } from './wire/settings.ts'
+import { TaskRequests } from './wire/task-requests.ts'
 import { Updates, type UpdateTools } from './wire/updates.ts'
 import { noTwins, type WatchTwinsHere } from './wire/watch-where.ts'
 import { Away, type AwayDeps } from './wire/web.ts'
@@ -355,6 +356,8 @@ export class Heart {
   readonly intake: Intake
   /** The full checks once a batch on HEAD, where a project batches them. */
   readonly batches: Batches
+  /** The tasks a terminal asked for while this holds the journal: `tade task create` beside it. */
+  readonly taskRequests: TaskRequests
   /** The one door a setting is written by, and the page a face draws for it. */
   readonly settings: Settings
   /** Opening, closing and naming projects. */
@@ -480,6 +483,7 @@ export class Heart {
       changeQueue: (task, change) => this.queue.change(task, change),
       closesWhenDone: (task) => this.closing.owes(task),
     })
+    this.taskRequests = new TaskRequests(this.wire)
     this.closing = new CloseWhenDone(this.wire, {
       orchestrator: this.orchestrator,
       close: (task) => this.agents.closeFinished(task),
@@ -637,6 +641,7 @@ export class Heart {
           face.draw()
         })
         void this.foldConfig()
+        void this.taskRequests.beat()
         face.beat(tasks, moved)
       },
       onEvent: (event) => {

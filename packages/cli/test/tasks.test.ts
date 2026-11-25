@@ -3,7 +3,8 @@ import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { taskDir } from '@tade/core'
-import { lockHome, Workbench } from '@tade/workbench'
+import { lockHome, readTaskFile, Workbench } from '@tade/workbench'
+import { takeTaskRequests } from '@tade/workbench/task-requests'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 
@@ -135,6 +136,37 @@ describe('tade task and run commands', () => {
       await held.release()
     }
   })
+
+  it('hands a task to the window holding the home, which makes it and answers', async () => {
+    // A window — `tade serve`, on a server — holds the home, and takes what a
+    // terminal asked for on its beat, as the heart does (`wire/task-requests.ts`).
+    const window = await Workbench.open({ home })
+    try {
+      let exited = false
+      const running = tade('task', 'create', 'app/hello', '--intent', INTENT, '--start').then(
+        (r) => {
+          exited = true
+          return r
+        },
+      )
+      while (!exited) {
+        await takeTaskRequests(home, (request) => window.createTask(request))
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+      const r = await running
+      expect(r.stderr).toBe('')
+      expect(r.code).toBe(0)
+      expect(r.stdout).toMatch(/^app\/hello\s+tade\/hello\s+\S+/)
+      expect(r.stdout).toContain('queued, ready now')
+      // Written down by the window, which numbers the journal, as yours.
+      const [created] = await window.events({ types: ['task_created'] })
+      expect(created?.task).toBe('app/hello')
+      expect(created?.detail).toMatchObject({ intent_spoken: INTENT, by: 'you' })
+      expect((await readTaskFile(home, 'app/hello'))?.start).toBeDefined()
+    } finally {
+      await window.close()
+    }
+  }, 30_000)
 
   it('reads what happened without taking the workbench', async () => {
     expect((await tade('task', 'create', 'app/refunds', '--intent', INTENT)).code).toBe(0)

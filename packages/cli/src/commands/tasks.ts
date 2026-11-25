@@ -1,4 +1,5 @@
 import { homedir } from 'node:os'
+import { resolve } from 'node:path'
 import {
   defaultConfigPath,
   type LaneId,
@@ -11,6 +12,13 @@ import {
 } from '@tade/core'
 import type { RunId } from '@tade/harnesses-core'
 import { collectStatus } from '@tade/status'
+import type { TaskWorktree } from '@tade/workbench'
+import {
+  awaitTask,
+  requestTask,
+  type TaskRequest,
+  taskCreated,
+} from '@tade/workbench/task-requests'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 import { withWorkbench } from '../with-workbench.ts'
@@ -18,35 +26,70 @@ import { withWorkbench } from '../with-workbench.ts'
 // Tasks and the agents working on them. Thin over the workbench: parse, call,
 // format.
 
+/** What `--start` made of it, said after where it lives. */
+const QUEUED = 'is queued, ready now: a window starts it by the queue’s rule.'
+
 export function registerTasks(program: Command, io: Io, setExit: (code: number) => void): void {
   const task = program.command('task').description('Create and remove tasks')
 
   task
     .command('create')
     .argument('<id>', 'task id: <project>/<name>')
-    .description('Create a task: a branch, a worktree, and your intent recorded verbatim')
+    .description(
+      'Create a task: a branch, a worktree, and your intent recorded verbatim. With a window or `tade serve` open on this home, it is made there',
+    )
     .requiredOption('--intent <text>', 'what you are trying to do, in your own words')
     .option('--root <path>', 'repository root (defaults to the project in config.yaml)')
+    .option('--start', 'make it queued work, ready now: a window starts it by the queue’s rule')
     .option('--json', 'machine-readable output')
-    .action(async (id: string, opts: { intent: string; root?: string; json?: boolean }) => {
-      const [project, slug, ...rest] = id.split('/')
-      if (!project || !slug || rest.length > 0) {
-        io.err(`invalid task id: ${id} (want <project>/<name>)`)
-        setExit(Exit.invalidInput)
-        return
-      }
-      await withWorkbench(io, setExit, async (client) => {
-        const created = await client.createTask({
+    .action(
+      async (
+        id: string,
+        opts: { intent: string; root?: string; start?: boolean; json?: boolean },
+      ) => {
+        const [project, slug, ...rest] = id.split('/')
+        if (!project || !slug || rest.length > 0) {
+          io.err(`invalid task id: ${id} (want <project>/<name>)`)
+          setExit(Exit.invalidInput)
+          return
+        }
+        const request: TaskRequest = {
           project,
           slug,
           intent: opts.intent,
-          ...(opts.root ? { root: opts.root } : {}),
-          by: 'you',
-        })
-        if (opts.json) io.out(JSON.stringify(created, null, 2))
-        else io.out(`${created.id}  ${created.branch}  ${created.worktree}`)
-      })
-    })
+          // Whole, because a window that makes it was not started in this directory.
+          ...(opts.root ? { root: resolve(opts.root) } : {}),
+          ...(opts.start ? { start: true } : {}),
+        }
+        const made = (created: TaskWorktree) => {
+          if (opts.json) io.out(JSON.stringify(created, null, 2))
+          else io.out(`${created.id}  ${created.branch}  ${created.worktree}`)
+          if (opts.start && !opts.json) io.out(`${created.id} ${QUEUED}`)
+        }
+        await withWorkbench(
+          io,
+          setExit,
+          async (client) => made(await client.createTask(taskCreated(request))),
+          // A window holds the journal, so it makes the task (`task-requests.ts`).
+          async (busy) => {
+            const home = tadeHome()
+            const answer = await awaitTask(home, await requestTask(home, request))
+            if (answer === 'untaken') {
+              throw new Error(
+                `${busy.message}, and it did not take the request in time, so nothing was made. Ask it there, or close it first.`,
+              )
+            }
+            if (answer === 'making') {
+              io.out(`${id} is being made there; \`tade status\` shows it once it is.`)
+              return
+            }
+            if (!answer.ok) throw new Error(answer.error)
+            const { ok: _, ...created } = answer
+            made(created)
+          },
+        )
+      },
+    )
 
   task
     .command('remove')

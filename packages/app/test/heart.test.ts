@@ -10,6 +10,7 @@ import { fetchMirror, makeCollector, type StatusCollector } from '@tade/status'
 import { AUTH_BYTES, appendPush, generateVapid, P256DH_BYTES, scriptedPusher } from '@tade/web'
 import { BATCH_BY, readTaskFile, Workbench } from '@tade/workbench'
 import { recordConfigChanges } from '@tade/workbench/config-changes'
+import { awaitTask, requestTask } from '@tade/workbench/task-requests'
 import { afterEach, beforeEach, describe, expect, it, onTestFinished } from 'vitest'
 import { parse, stringify } from 'yaml'
 import { mkrepo, runGit, tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -434,6 +435,27 @@ describe('the heart, with no screen', () => {
     await until('the workbench told', () => client.config.agents.workspace === 'worktree')
     const lines = (await client.events({ types: ['config_changed'] })).map(({ detail }) => detail)
     expect(lines).toContainEqual(expect.objectContaining(change))
+  })
+
+  // `tade task create --start` on the server: the beat makes it, numbered by
+  // the journal's one writer, answers the terminal, and the queue starts it.
+  it('makes a task a terminal asked for, on its next beat, and the queue starts it', async () => {
+    await alone()
+    const id = await requestTask(home, {
+      project: 'app',
+      slug: 'hello',
+      intent: 'say hello from the server',
+      start: true,
+    })
+    const answer = await awaitTask(home, id, { takeMs: 20_000, makeMs: 20_000, everyMs: 50 })
+    expect(answer).toMatchObject({ ok: true, id: 'app/hello' })
+    const [created] = await client.events({ types: ['task_created'] })
+    expect(created?.detail).toMatchObject({ intent_spoken: 'say hello from the server', by: 'you' })
+    await until(
+      'the queue started it',
+      () => client.runs().some((run) => run.task === 'app/hello'),
+      SPAWNING_MS,
+    )
   })
 
   // What Connect Linear hands over (`/connect`, `web-connect.ts`) is held by
