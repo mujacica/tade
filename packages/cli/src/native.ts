@@ -105,7 +105,7 @@ function advice(module: string, said: string, native: boolean, from: string): st
       : [
           '  npm    npm install -g tade-sh',
           '  pnpm   pnpm add -g tade-sh',
-          '  bun    bun add -g tade-sh',
+          '  bun    bun add -g --ignore-scripts tade-sh',
         ]
   if (native)
     lines.push(

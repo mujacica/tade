@@ -72,7 +72,7 @@ export function helperProblem(helper: string | null): string | null {
         : [
             '  npm    npm install -g tade-sh',
             '  pnpm   pnpm add -g tade-sh',
-            '  bun    bun add -g tade-sh',
+            '  bun    bun add -g --ignore-scripts tade-sh',
           ]
     return [
       "node-pty's spawn-helper is not executable, so every terminal Tade opens fails with",

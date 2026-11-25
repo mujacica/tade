@@ -65,6 +65,8 @@ describe('a dependency that did not load', () => {
     expect(said).not.toContain('--allow-scripts')
     expect(said).not.toContain('npm 11')
     expect(said).toContain('npm install -g tade-sh')
+    // bun builds better-sqlite3 over its prebuilds unless told to run nothing.
+    expect(said).toContain('bun add -g --ignore-scripts tade-sh')
   })
 
   it("answers @lydell/node-pty's own error for a platform package that is not there", () => {

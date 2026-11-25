@@ -80,6 +80,13 @@ usage() {
 # needs built — esbuild's binary comes from its own platform package and
 # transforms fine with its postinstall skipped (measured, 0.28.2, 2026-10-05).
 # A flag added to quiet a warning approves somebody else's code for no reason.
+#
+# bun is the one that needs a word, and it is a refusal, not an approval: bun
+# ignores better-sqlite3's `"gypfile": false` and trusts better-sqlite3 by
+# default, so it runs `node-gyp rebuild` over the prebuilds that are already
+# there — and on a machine with no Python or compiler, a fresh VPS, that fails
+# and `bun add -g` exits 1 (measured, bun 1.3.14 on Debian 12, 2026-11-25).
+# `--ignore-scripts` runs nothing, which is all Tade needs.
 
 # Where npm is to put it, where its own global folder is not this user's.
 #
@@ -208,7 +215,7 @@ nodejs.org or a version manager: mise, nvm, volta."
   case "$manager" in
     npm) place="$(npm_place)" && set -- npm install --global ${place:+"$place"} "$spec" ;;
     pnpm) set -- pnpm add --global "$spec" ;;
-    bun) set -- bun add --global "$spec" ;;
+    bun) set -- bun add --global --ignore-scripts "$spec" ;;
   esac
 
   say "Tade installs from npm: the package \`$PACKAGE\`, which puts the command \`$COMMAND\` on your PATH."

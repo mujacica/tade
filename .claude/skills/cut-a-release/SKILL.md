@@ -227,7 +227,7 @@ anywhere that can be a different Tade than npm has.
 npx tade-sh                                   # run, never installed: straight into setup
 npm install -g tade-sh
 pnpm add -g tade-sh
-bun add -g tade-sh
+bun add -g --ignore-scripts tade-sh
 curl -fsSL https://tade.sh/install.sh | sh
 ```
 
@@ -245,6 +245,15 @@ and arm64 — **not musl**, so not Alpine. It is a beta of a third party's repub
 an exact version: moving it is reading the new one, then the drivers' conformance suite on macOS and
 in a `node:22` container on linux arm64 and amd64, then a real `npx` on npm 12 against a packed
 tarball in a throwaway cache and `HOME` — the three things that proved this one.
+
+**bun's `--ignore-scripts` is the one flag, and it refuses rather than approves.** bun ignores
+`gypfile: false` and trusts better-sqlite3 by default, so it runs `node-gyp rebuild` over the
+prebuilds that are already there: slower on a Mac with a compiler, and on a machine without Python
+or one — a fresh VPS — `bun add -g tade-sh` exits 1 (bun 1.3.14, Debian 12 slim, arm64 and amd64).
+With the flag it installs and runs, and so the curl installer, `tade update` (`updateWith`) and
+both reinstall messages pass it for bun. pnpm holds `@google/genai` and `protobufjs` and says so;
+neither is anything Tade needs built. Moving either native module is also `pnpm add -g` and
+`bun add -g --ignore-scripts` of the packed tarball, here and in that container, with no compiler.
 
 ### `scripts/install.sh` is the curl one-liner, and it installs from npm like everything else
 

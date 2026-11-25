@@ -273,7 +273,10 @@ describe('what it will not touch', () => {
 describe('a dry run', () => {
   // The three install lines in full, and the same short forms the README and
   // the site quote: nothing Tade installs has an install script, so there is
-  // nothing to approve and no flag to pass on a person's behalf.
+  // nothing to approve and no flag to pass on a person's behalf — except
+  // bun's `--ignore-scripts`, a refusal: bun runs `node-gyp rebuild` for
+  // better-sqlite3 whatever its `gypfile: false` says, and exits 1 where
+  // there is no compiler (bun 1.3.14 on Debian 12 slim, arm64 and amd64).
   //
   // Every one of them runs against a PATH of this file's own making rather
   // than the machine's, so each line is a fact about the script — see
@@ -282,7 +285,7 @@ describe('a dry run', () => {
   const expected: Record<string, string> = {
     npm: `npm install --global ${PUBLISHED}`,
     pnpm: `pnpm add --global ${PUBLISHED}`,
-    bun: `bun add --global ${PUBLISHED}`,
+    bun: `bun add --global --ignore-scripts ${PUBLISHED}`,
   }
 
   for (const [manager, line] of Object.entries(expected)) {

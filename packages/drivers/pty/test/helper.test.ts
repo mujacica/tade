@@ -34,6 +34,8 @@ describe('node-pty’s spawn-helper', () => {
     expect(said).toContain(`chmod +x ${path}`)
     expect(said).toContain('npm install -g tade-sh')
     expect(said).toContain('pnpm add -g tade-sh')
+    // bun builds better-sqlite3 over its prebuilds unless told to run nothing.
+    expect(said).toContain('bun add -g --ignore-scripts tade-sh')
     // Nothing holds an install script any more, so nothing approves one.
     expect(said).not.toContain('approve-builds')
     expect(said).not.toContain('--allow-scripts')
