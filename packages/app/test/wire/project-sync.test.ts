@@ -352,7 +352,7 @@ describe('keeping a project in step', () => {
     expect(kinds()).toEqual(['tade', 'tade'])
   })
 
-  it('proposes the merge of one pair of heads once, however it was put away, and again once a head moves', async () => {
+  it('proposes the merge of one far head once, however it was put away, whatever is committed here, and again once it moves', async () => {
     const { here, there } = twoMachines()
     const mirror = mirrorDir(here.home, 'app')
     runGit(here.home, 'init', '-q', '--bare', mirror)
@@ -367,13 +367,15 @@ describe('keeping a project in step', () => {
     const one = syncing(here)
     await one.sync.beat()
     expect(one.proposed).toHaveLength(1)
-    // Declined: the orchestrator removed it. The same two heads are not proposed again, here or after a reopen.
+    // Declined: the orchestrator removed it. The same far head is not proposed again, here or after a reopen,
+    // however often the agents here commit to main.
     one.created.push({
       ...(one.created[0] as TadeEvent),
       seq: one.created.length,
       type: 'task_removed',
     } as TadeEvent)
-    for (const _look of [1, 2, 3]) {
+    for (const look of [1, 2, 3]) {
+      here.commit(`more here ${look}`, { [`mine-${look}.ts`]: `${look}\n` })
       one.later(SYNC_EVERY_MS)
       await one.sync.beat()
       expect(one.proposed).toHaveLength(1)
@@ -384,13 +386,11 @@ describe('keeping a project in step', () => {
     await reopened.sync.beat()
     expect(reopened.proposed).toEqual([])
     expect(reopened.noticed).toEqual([
-      expect.stringContaining(
-        `app/${one.proposed[0]?.slug} was proposed for these two heads already`,
-      ),
+      expect.stringContaining(`app/${one.proposed[0]?.slug} was proposed for ipax's`),
     ])
     expect(one.noticed).toHaveLength(2)
 
-    // One of them moved: a merge of the new pair, under a name of its own.
+    // The far head moved: a merge of it, under a name of its own.
     commitThere('theirs-2.ts')
     one.later(SYNC_EVERY_MS)
     await one.sync.beat()

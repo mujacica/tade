@@ -50,11 +50,12 @@ import { putToOrchestrator } from './proposals.ts'
 // said in the strip once for as long as they stay the same, and a refusal or a
 // parted branch is written once as `project_sync_held`. A parted branch is one
 // proposal at a time: while the last merge proposed for that branch is neither
-// finished nor removed, no other is made. **And one per pair of heads**: a
-// merge proposed for this head here and that head there — and finished,
-// declined or still open — is never proposed again until one of them moves,
-// which the journal answers (`proposedIn`), so a window opened again does not
-// propose it again either.
+// finished nor removed, no other is made. **And one per far head**: a merge
+// proposed of that head there — and finished, declined or still open — is
+// never proposed again until it moves, which the journal answers
+// (`proposedIn`), so a window opened again does not propose it again either.
+// This head is not in the key: agents here commit to it all the time, and a
+// declined merge of the same far commits would come back after every one.
 //
 // **Looked at again before proposing.** What another machine's branch is, is
 // what this home's mirror last fetched (`mirrors.ts`), which a far branch
@@ -106,10 +107,10 @@ export interface ProjectSyncDeps {
   /** A merge for this branch already proposed under any of these names and still open, by its task id, or null. */
   openProposal(project: string, stems: readonly string[]): Promise<string | null>
   /**
-   * The merge already proposed for this branch at this pair of heads, open or
-   * not, by its task id, or null: the journal's `project_sync_held` (`proposedIn`).
+   * The merge already proposed for this branch of this far head, open or not,
+   * by its task id, or null: the journal's `project_sync_held` (`proposedIn`).
    */
-  proposedFor?(pair: ProposedPair): Promise<string | null>
+  proposedFor?(merge: ProposedMerge): Promise<string | null>
   /** Whether agents in the project may push at all: its `push`, or `agents.push`, is not `never`. */
   pushes(project: string): boolean
   /** The merge a parted branch needs, made parked and put to the orchestrator: the task's id. */
@@ -152,12 +153,11 @@ export interface ProjectSyncDeps {
   lookAgain?: (project: string, machines: readonly string[]) => Promise<void>
 }
 
-/** One parting, by what it is between: the branch, the source, and the head on each side. */
-export interface ProposedPair {
+/** One merge proposed, by what it would bring in: the branch, the source, and the source's head. */
+export interface ProposedMerge {
   project: string
   branch: string
   from: string
-  head: string
   target: string
 }
 
@@ -543,16 +543,10 @@ export class ProjectSync {
     }
     let proposal = open
     if (open === null) {
-      const pair: ProposedPair = {
-        project: name,
-        branch,
-        from,
-        head: facts.head ?? '',
-        target: verdict.target,
-      }
-      const before = (await this.deps.proposedFor?.(pair)) ?? null
+      const merge: ProposedMerge = { project: name, branch, from, target: verdict.target }
+      const before = (await this.deps.proposedFor?.(merge)) ?? null
       if (before !== null) {
-        const said = `${parted}. ${before} was proposed for these two heads already (${shortSha(pair.head)} here, ${shortSha(pair.target)} there), so no other merge is proposed until either moves.`
+        const said = `${parted}. ${before} was proposed for ${from}'s ${shortSha(merge.target)} already, so no other merge is proposed until ${from}'s ${branch} moves.`
         await this.holdOnce(name, `diverged:${branch}:${from}:had:${before}`, said, {
           project: name,
           branch,
@@ -591,7 +585,7 @@ export class ProjectSync {
       why: verdict.why,
       from: joinedNames(verdict.from),
       ...(proposal ? { proposal } : {}),
-      // The pair a merge was made for, read back by `proposedIn`.
+      // What a merge was made for, read back by `proposedIn` (by source and target; head is a record).
       ...(open === null ? { source: from, head: facts.head ?? '', target: verdict.target } : {}),
     })
     return { verdict, said }
@@ -665,22 +659,22 @@ export function openProposalIn(
 }
 
 /**
- * The merge proposed for one parting, at one pair of heads, by its task id —
- * the newest, whatever became of it — or null: out of the `project_sync_held`
- * lines written when one was made.
+ * The merge proposed of one far head onto one branch, by its task id — the
+ * newest, whatever became of it — or null: out of the `project_sync_held`
+ * lines written when one was made. This side's head is not compared, so a
+ * commit here does not bring a declined merge back.
  */
-export function proposedIn(events: readonly TadeEvent[], pair: ProposedPair): string | null {
+export function proposedIn(events: readonly TadeEvent[], merge: ProposedMerge): string | null {
   let found: string | null = null
   for (const event of events) {
     if (event.type !== 'project_sync_held') continue
     const detail = event.detail as Record<string, unknown>
     if (
       typeof detail.proposal === 'string' &&
-      detail.project === pair.project &&
-      detail.branch === pair.branch &&
-      detail.source === pair.from &&
-      detail.head === pair.head &&
-      detail.target === pair.target
+      detail.project === merge.project &&
+      detail.branch === merge.branch &&
+      detail.source === merge.from &&
+      detail.target === merge.target
     ) {
       found = detail.proposal
     }
@@ -722,8 +716,8 @@ export function projectSyncFor(
         project,
         stems,
       ),
-    proposedFor: async (pair) =>
-      proposedIn(await client.log.read({ types: ['project_sync_held'] }), pair),
+    proposedFor: async (merge) =>
+      proposedIn(await client.log.read({ types: ['project_sync_held'] }), merge),
     pushes: (project) => mergePushes(wire.opts.config, project),
     propose: async (req) => {
       const task = await freshName(req.slug, (slug) =>
