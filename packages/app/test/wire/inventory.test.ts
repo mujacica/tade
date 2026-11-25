@@ -162,6 +162,30 @@ describe('what this machine has, as the window holds it', () => {
     ).toEqual(mac)
   })
 
+  it('calls a machine that told it under its host name by that name no more once it says another', async () => {
+    const { wire, home } = wired()
+    const inventories = new Inventories(wire, { news: () => {} })
+    const id = '47329b67-eb7a-46a7-a144-b01e34b9e3bb'
+    const as = (machine: string): Inventory => ({
+      machine,
+      id,
+      at: new Date(NOW).toISOString(),
+      shell: 'zsh',
+      service: false,
+      items: [],
+    })
+    expect(await inventories.heard(as('LAPTOP-A1B2C3.home.lan'), 'device-1')).toBe(true)
+    expect(await inventories.heard(as('laptop'), 'device-1')).toBe(true)
+    const columns = inventories.columns().map((one) => one.machine)
+    expect(columns).toContain('laptop')
+    expect(columns).not.toContain('laptop-a1b2c3-home-lan')
+    const { readInventory, keptInventoryPath } = await import('@tade/workbench/inventory')
+    expect(await readInventory(keptInventoryPath(home, 'laptop-a1b2c3-home-lan') ?? '')).toBeNull()
+    expect((await readInventory(keptInventoryPath(home, 'laptop') ?? ''))?.inventory).toEqual(
+      as('laptop'),
+    )
+  })
+
   it('draws where a machine that links here stands under its column, though the column is its folder name', async () => {
     const { wire } = wired()
     const label = 'Build_Box.example-company-lab'

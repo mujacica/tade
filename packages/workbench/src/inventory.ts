@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, rm, rmdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import {
   type Config,
@@ -569,6 +569,51 @@ export function ownInventoryPath(home: string): string {
 /** Where another machine's last inventory is kept, by its name here; null for a name no folder has. */
 export function keptInventoryPath(home: string, name: string): string | null {
   return /^[a-z0-9][a-z0-9-]{0,23}$/.test(name) ? join(machineDir(home, name), KEPT) : null
+}
+
+/**
+ * Take back what was kept of machine `id` under any name but `name`: one that
+ * told this machine under its host name and now says another (its
+ * `machine.name`, or a Tade that stopped sending it) left a folder named by the
+ * host name, which nothing reads again and nothing else would ever remove. Only
+ * a copy that says this id goes, only the copy — a remote's own folder, named
+ * in `keep`, holds more than it and is left — and the folder once it is empty.
+ * One that cannot be read throws. Returns the names it took back.
+ */
+export async function forgetFormerNames(
+  home: string,
+  name: string,
+  id: string,
+  keep: readonly string[] = [],
+): Promise<string[]> {
+  const root = join(home, 'machines')
+  let names: string[]
+  try {
+    names = (await readdir(root, { withFileTypes: true }))
+      .filter((one) => one.isDirectory())
+      .map((one) => one.name)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return []
+    throw err
+  }
+  const gone: string[] = []
+  for (const other of names) {
+    if (other === name || keep.includes(other)) continue
+    const path = keptInventoryPath(home, other)
+    if (path === null) continue
+    // A copy there that cannot be read throws, as `readInventory` does: said, not passed over.
+    const kept = await readInventory(path)
+    if (kept?.inventory.id !== id) continue
+    await rm(path, { force: true })
+    try {
+      await rmdir(dirname(path))
+    } catch (err) {
+      // Something else is kept there too: the folder is that's, and stays.
+      if ((err as NodeJS.ErrnoException).code !== 'ENOTEMPTY') throw err
+    }
+    gone.push(other)
+  }
+  return gone
 }
 
 /**

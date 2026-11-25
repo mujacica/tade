@@ -24,6 +24,7 @@ import {
 } from '@tade/workbench/consolidate'
 import { scanEnv } from '@tade/workbench/env-scan'
 import {
+  forgetFormerNames,
   inventoryHere,
   keepInventory,
   keptInventoryPath,
@@ -396,6 +397,20 @@ export class Inventories implements Subject {
     } catch (err) {
       notify(this.wire, `What ${name} has could not be kept here: ${why(err)}`)
       return false
+    }
+    // The same machine heard before under another name — its host name, until
+    // it had one of its own — is this one, and is called by that name no more.
+    const id = inventory.id
+    if (id !== undefined) {
+      for (const [other, one] of this.told)
+        if (other !== name && one.inventory.id === id) this.told.delete(other)
+      const keep = (this.deps.remotes?.() ?? []).map((one) => one.name)
+      await forgetFormerNames(this.wire.opts.home, name, id, keep).catch((err: unknown) =>
+        notify(
+          this.wire,
+          `What ${name} had under an earlier name could not be taken back: ${why(err)}`,
+        ),
+      )
     }
     void this.findings()
     this.wire.draw()

@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ConfigSchema, type Inventory, inventoryChanges, keyDigest, runProgram } from '@tade/core'
 import { about } from '@tade/telemetry'
@@ -7,9 +7,11 @@ import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { scanEnv } from '../src/env-scan.ts'
 import {
   emailIn,
+  forgetFormerNames,
   ghStatusIn,
   inventoryHere,
   keepInventory,
+  keptInventoryPath,
   type Look,
   machineFolder,
   pushCheck,
@@ -272,6 +274,46 @@ describe('keeping another machine’s', () => {
     expect(await readInventory(path)).toBeNull()
     expect(machineFolder('Amirs-MacBook-Pro.local')).toBe('amirs-macbook-pro-local')
     expect(machineFolder('…')).toBeNull()
+  })
+
+  it('takes back what one machine left under its host name once it says another, and only that', async () => {
+    const home = tmp('tade-inv-renamed-')
+    const MAC = '47329b67-eb7a-46a7-a144-b01e34b9e3bb'
+    const of = (machine: string, id?: string): Inventory => ({
+      machine,
+      ...(id === undefined ? {} : { id }),
+      at: '2026-11-25T09:48:09.296Z',
+      items: [],
+      shell: null,
+      service: false,
+    })
+    const at = (name: string) => {
+      const path = keptInventoryPath(home, name)
+      if (path === null) throw new Error(`${name} has no folder`)
+      return path
+    }
+    // The Mac told this machine twice under its host name, then under its own.
+    await keepInventory(at('laptop-a1b2c3'), of('LAPTOP-A1B2C3', MAC), 1)
+    await keepInventory(at('laptop-a1b2c3-home-lan'), of('LAPTOP-A1B2C3.home.lan', MAC), 2)
+    await keepInventory(at('laptop'), of('laptop', MAC), 3)
+    // Another machine, one that never said who it is, and a remote linked
+    // here whose folder holds its projection beside its copy.
+    await keepInventory(at('desk'), of('desk', '11111111-2222-4333-8444-555555555555'), 4)
+    await keepInventory(at('older'), of('older'), 5)
+    await keepInventory(at('vps'), of('vps', MAC), 6)
+    writeFileSync(join(home, 'machines', 'vps', 'projection.json'), '{}')
+
+    expect((await forgetFormerNames(home, 'laptop', MAC, ['vps'])).sort()).toEqual([
+      'laptop-a1b2c3',
+      'laptop-a1b2c3-home-lan',
+    ])
+    expect(existsSync(join(home, 'machines', 'laptop-a1b2c3'))).toBe(false)
+    expect(existsSync(join(home, 'machines', 'laptop-a1b2c3-home-lan'))).toBe(false)
+    for (const kept of ['laptop', 'desk', 'older', 'vps'])
+      expect(await readInventory(at(kept))).not.toBeNull()
+    expect(existsSync(join(home, 'machines', 'vps', 'projection.json'))).toBe(true)
+    // A home that has heard from nobody has nothing to take back.
+    expect(await forgetFormerNames(tmp('tade-inv-none-'), 'laptop', MAC)).toEqual([])
   })
 })
 
