@@ -1,8 +1,22 @@
-import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { type HomeParts, readyHome, withOurTables, withTrusted } from '../src/home.ts'
+import {
+  fromTomlString,
+  type HomeParts,
+  readyHome,
+  withOurTables,
+  withTrusted,
+} from '../src/home.ts'
 
 // An account's GROK_HOME: what Tade writes there, and that it touches nothing
 // else of what is in it — Grok's own /settings writes the same config.
@@ -54,6 +68,12 @@ describe('the config Tade keeps two tables of', () => {
     expect(withOurTables(was, parts).theirStatusLine).toBe('~/bin/my line.sh')
     expect(withOurTables(withOurTables(was, parts).text, parts).theirStatusLine).toBeNull()
   })
+
+  it('reads a status line written with escapes TOML has and JSON does not, without stopping', () => {
+    const was = '[ui.status_line]\ntype = "command"\ncommand = "printf \\e[1m\\U0001F600 \\q"\n'
+    expect(withOurTables(was, parts).theirStatusLine).toBe('printf \u001b[1m😀 \\q')
+    expect(fromTomlString('a\\"b\\\\c\\u0041\\UFFFFFFFF')).toBe('a"b\\cA\\UFFFFFFFF')
+  })
 })
 
 describe('the folders it trusts', () => {
@@ -68,6 +88,23 @@ describe('the folders it trusts', () => {
 })
 
 describe('an account folder made ready', () => {
+  it('is narrowed to private when Grok made it first, readable by anybody', () => {
+    const home = join(tmp('tade-grok-acct-'), 'grok')
+    mkdirSync(home, { mode: 0o755 })
+    chmodSync(home, 0o755)
+    readyHome(home, parts)
+    expect(statSync(home).mode & 0o777).toBe(0o700)
+  })
+
+  it('leaves a file that would be written the same as it was', () => {
+    const home = join(tmp('tade-grok-acct-'), 'grok')
+    readyHome(home, parts)
+    const hooks = join(home, 'hooks', 'tade.json')
+    const before = statSync(hooks).ino
+    readyHome(home, parts)
+    expect(statSync(hooks).ino).toBe(before)
+  })
+
   it('is private, holds Tade’s hooks, and is given your own skills the first time when shared', () => {
     const mine = tmp('tade-grok-mine-')
     mkdirSync(join(mine, 'skills'))

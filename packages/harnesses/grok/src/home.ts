@@ -81,6 +81,29 @@ export function shellWord(text: string): string {
   return `'${text.replace(/'/g, `'\\''`)}'`
 }
 
+/**
+ * What a TOML basic string's body says, its escapes read: never throws, since
+ * TOML has escapes JSON does not (`\e`, `\U0001F600`), and one it does not
+ * know is kept as written rather than taken for the end of the file's reading.
+ */
+export function fromTomlString(body: string): string {
+  const simple: Record<string, string> = {
+    b: '\b',
+    t: '\t',
+    n: '\n',
+    f: '\f',
+    r: '\r',
+    e: '\u001b',
+    '"': '"',
+    '\\': '\\',
+  }
+  return body.replace(/\\(u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|.)/g, (whole, code: string) => {
+    if (code.length === 1) return simple[code] ?? whole
+    const point = Number.parseInt(code.slice(1), 16)
+    return point <= 0x10ffff ? String.fromCodePoint(point) : whole
+  })
+}
+
 /** A TOML basic string: the six escapes it defines, and nothing else raw. */
 export function tomlString(said: string): string {
   let out = '"'
@@ -183,7 +206,7 @@ export function withOurTables(
     if (skipping) {
       if (table === 'ui.status_line') {
         const command = /^\s*command\s*=\s*"((?:[^"\\]|\\.)*)"/.exec(line)?.[1]
-        if (command && !command.includes('statusline.ts')) theirs = JSON.parse(`"${command}"`)
+        if (command && !command.includes('statusline.ts')) theirs = fromTomlString(command)
       }
       continue
     }

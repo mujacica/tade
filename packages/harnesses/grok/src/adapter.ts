@@ -618,7 +618,11 @@ export class GrokAdapter implements WorkerAdapter {
   async start(spec: WorkerSpec): Promise<WorkerHandle> {
     if (this.runs.has(spec.run)) throw new Error(`run already started: ${spec.run}`)
     this.ready()
-    await trustIn(this.opts.grokHome, spec.cwd).catch(() => {})
+    await trustIn(this.opts.grokHome, spec.cwd).catch((err: unknown) =>
+      this.opts.onWarning(
+        `could not mark ${spec.cwd} as trusted for Grok, so it will not load its hooks there: ${(err as Error).message}`,
+      ),
+    )
     const run = this.runFor(spec, null, true)
     run.spent = await spentOn(spec.task, this.opts.grokHome)
     this.runs.set(spec.run, run)
