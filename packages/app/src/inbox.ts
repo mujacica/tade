@@ -188,6 +188,11 @@ export function eventNews(event: TadeEvent): string | null {
     const slept = typeof event.detail.slept === 'string' ? event.detail.slept : 'a while'
     return `${event.task} was cut off mid-turn while this machine slept for ${slept}, and has been told to carry on where it stopped. Nobody needs to start it again.`
   }
+  // Mended already, so news: what its calls said meanwhile — "Tade isn't
+  // open" — is what it may still be acting on, and its report may need asking for.
+  if (event.type === 'agent_unheard' && typeof event.detail.mended === 'string') {
+    return `${event.task}'s agent could not reach Tade — ${unheardWhy(event)} — so every Tade call it made, tade_done and checks_run included, was refused as "Tade isn't open". It was ${event.detail.mended}, and can reach Tade now; anything it said it could not report, it can be asked for again.`
+  }
   // A person decided about a document at the machine, so the orchestrator
   // stops being told it is unread — and hears what they decided, in their
   // words, because the next thing they say may well assume it.
@@ -242,6 +247,12 @@ export function eventNews(event: TadeEvent): string | null {
  */
 export function eventTell(event: TadeEvent, journal: readonly TadeEvent[]): string | null {
   if (!event.task) return null
+  // Not mended, so it needs somebody now: an agent working on that can report
+  // nothing, finish nothing and run no check, and looks busy while it does.
+  if (event.type === 'agent_unheard' && typeof event.detail.mended !== 'string') {
+    const error = typeof event.detail.error === 'string' ? ` (${event.detail.error})` : ''
+    return `${event.task}'s agent cannot reach Tade — ${unheardWhy(event)} — so every Tade call it makes is refused as "Tade isn't open", and Tade could not mend it${error}. Stop it and start it again with tade_run_stop and tade_run_start, and tell the person.`
+  }
   const path = typeof event.detail.produces === 'string' ? event.detail.produces.trim() : ''
   if (!path || event.detail.missing === true) return null
   if (event.type === 'task_done') {
@@ -262,6 +273,17 @@ export function eventTell(event: TadeEvent, journal: readonly TadeEvent[]): stri
       ? ' It is carrying on while you read it.'
       : ' It has stopped until the person answers: when they do, give it their answer with tade_steer.'
   return `${head}, and is not finished.${question}${waits} ${READ_IT_AND_ASK}`
+}
+
+/** Why an agent was unheard, from its `agent_unheard` line, in a clause. */
+function unheardWhy(event: TadeEvent): string {
+  const why =
+    event.detail.why === 'socket-gone'
+      ? 'the socket its tool calls go to was gone'
+      : 'its lane was working with nobody listening for it'
+  return event.detail.missed === true
+    ? `${why}, and its hooks were dropping what they had to say`
+    : why
 }
 
 /** What the orchestrator does with a document it was just handed: the rule, at the moment. */

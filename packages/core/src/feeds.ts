@@ -92,6 +92,7 @@ export const FEED_TYPES: readonly EventType[] = [
   'turn_done',
   'failed',
   'agent_continued',
+  'agent_unheard',
   'usage',
   'plan_said',
   'check_ran',

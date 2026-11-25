@@ -89,6 +89,28 @@ const PER_PROJECT = 3
 const PER_MACHINE = 8
 /** How many of one other machine's queued tasks are named, before the rest are counted. */
 const QUEUED_PER_MACHINE = 4
+/**
+ * The agents whose last word on being heard is an `agent_unheard` nothing
+ * mended: started again, stopped, or mended since, and it is not. Oldest first.
+ */
+export function stillUnheardIn(events: readonly TadeEvent[]): TadeEvent[] {
+  const latest = new Map<string, TadeEvent>()
+  for (const event of events) {
+    if (!event.task) continue
+    if (
+      event.type === 'agent_unheard' ||
+      event.type === 'run_started' ||
+      event.type === 'run_exited' ||
+      event.type === 'task_removed'
+    ) {
+      latest.set(event.task, event)
+    }
+  }
+  return [...latest.values()].filter(
+    (event) => event.type === 'agent_unheard' && typeof event.detail.mended !== 'string',
+  )
+}
+
 /** What finished long enough ago to be history rather than news. */
 const STALE = 3 * 86_400_000
 
@@ -122,6 +144,20 @@ export function composeBriefing(input: BriefingInput): string | null {
         'Agents that were still running when Tade last closed, and that it reopens where they left off:',
         ...running.kept.map((run) => `- ${run.task}, started ${since(run.ts)}`),
         ...leftOut(running.left),
+      ].join('\n'),
+    )
+  }
+
+  // An agent that could not reach Tade and was not mended is working on and
+  // can report nothing: the four that sat like that for four hours on
+  // 2026-11-25 were said nowhere, and this is where the orchestrator looks first.
+  const unheard = perProject(stillUnheardIn(events), (one) => one.task ?? '', most)
+  if (unheard.kept.length > 0) {
+    sections.push(
+      [
+        'Agents that could not reach Tade when it last looked, and that Tade could not mend — every Tade call they make is refused, so stop and start each with tade_run_stop and tade_run_start:',
+        ...unheard.kept.map((one) => `- ${one.task}, found ${since(one.ts)}`),
+        ...leftOut(unheard.left),
       ].join('\n'),
     )
   }

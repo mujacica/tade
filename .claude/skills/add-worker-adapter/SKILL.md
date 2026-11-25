@@ -196,6 +196,16 @@ what keeps the two apart — an agent somebody ended must never come back. The m
 keeps the evidence: `forgettable` never forgets a lane marked `lost`, so there is still a spec to
 relaunch from.
 
+**A run id is its lane's, so a restart starts the same id again — and a lane's exit may only end the
+start it followed.** Moving an agent to another account or harness stops its run and starts the same
+id; under `pty` the closed lane says it ended *after* `close()` returns, and on 2026-11-25 that late
+exit ended four moved agents' new runs, closing the sockets their lanes dialled: every Tade call was
+"Tade isn't open" for four hours, unsaid. So `followExit` carries `startOf(run)` and `gone` ignores
+another start's exit (`RunState.start`), and since the socket path is a hash of the run id and libuv
+unlinks a server's path on close, nothing in the channel can guard it instead. Whatever still leaves
+a lane unheard — unsupervised, or its socket gone — is found on two looks a minute apart and mended
+(`mendChannels`, `workbench/src/unheard.ts`), written as `agent_unheard` and told.
+
 ## What is kept about a running agent
 
 - **What an agent has been doing is a reading, and is never journalled.** The supervisor keeps the

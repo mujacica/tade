@@ -165,6 +165,7 @@ import {
   type TerminalInfo,
   terminalsFrom,
 } from './terminals.ts'
+import { keyOf, stillUnheard, unheardLanes, unheardSaid } from './unheard.ts'
 import {
   type ExtensionCall,
   type PendingApproval,
@@ -352,6 +353,14 @@ export class Workbench {
   private lookingAtCommits: Promise<void> | null = null
   /** The look at check runs still going, which a second caller joins (`lookAtChecks`). */
   private lookingAtChecks: Promise<void> | null = null
+  /** The look for agents nobody hears, which a second caller joins (`mendChannels`). */
+  private mending: Promise<void> | null = null
+  /** What the last look for unheard agents found, to be found again before it is mended. */
+  private unheardBefore = new Set<string>()
+  /** The agents that look could not mend, by task, in their rows' words. */
+  private unheardNow: ReadonlyMap<string, string> = new Map()
+  /** The lanes already written down as not mended, so each is said once. */
+  private readonly unheardTold = new Set<string>()
 
   private constructor(opts: {
     home: string
@@ -587,24 +596,98 @@ export class Workbench {
   private async resupervise(): Promise<void> {
     for (const lane of this.registry.list()) {
       if (lane.kind !== 'agent' || !lane.alive) continue
-      // By the harness it was started in: another adapter would listen on a
-      // channel its agent never dials.
-      const harness = lane.harness ?? (await this.harnessOf(lane.task))
-      // And the account it was started on, whose adapter is made again here.
-      const resumed = await Promise.resolve()
-        .then(() => this.adapterFor(harness, lane.account))
-        .then(() =>
-          this.workers.resume({
-            task: lane.task as never,
-            run: lane.id as RunId,
-            cwd: lane.spec.cwd,
-            prompt: '',
-            harness: adapterKey(harness, lane.account),
-          }),
-        )
-        .catch(() => null)
-      if (resumed) this.followExit(lane.id as LaneId)
+      await this.resuperviseLane(lane)
     }
+  }
+
+  /** Listen again for one agent lane that is working; whether it is listened to now. */
+  private async resuperviseLane(lane: LaneRecord): Promise<boolean> {
+    // By the harness it was started in: another adapter would listen on a
+    // channel its agent never dials.
+    const harness = lane.harness ?? (await this.harnessOf(lane.task))
+    // And the account it was started on, whose adapter is made again here.
+    const resumed = await Promise.resolve()
+      .then(() => this.adapterFor(harness, lane.account))
+      .then(() =>
+        this.workers.resume({
+          task: lane.task as never,
+          run: lane.id as RunId,
+          cwd: lane.spec.cwd,
+          prompt: '',
+          harness: adapterKey(harness, lane.account),
+        }),
+      )
+      .catch(() => null)
+    if (resumed) this.followExit(lane.id as LaneId)
+    return resumed !== null
+  }
+
+  /**
+   * The agents whose lane is working with nobody listening for their Tade
+   * calls, as the last look found them, by task: what their rows say instead
+   * of what status would. Empty when every one is heard (`unheard.ts`).
+   */
+  unheard(): ReadonlyMap<string, string> {
+    return this.unheardNow
+  }
+
+  /**
+   * Look for agents nobody is listening to, and listen again: supervised
+   * again where nothing supervises a working lane, started again where the
+   * socket it dials is gone. Each one mended or not is written down
+   * (`agent_unheard`), which is how the orchestrator and the window are told.
+   * Only what two looks in a row found is mended (`stillUnheard`), and one a
+   * caller joins while it runs, like `lookAtChecks`.
+   */
+  mendChannels(): Promise<void> {
+    this.mending ??= this.mendChannelsOnce().finally(() => {
+      this.mending = null
+    })
+    return this.mending
+  }
+
+  private async mendChannelsOnce(): Promise<void> {
+    const found = await unheardLanes(this.registry.list(), (run) => this.workers.has(run as RunId))
+    const { mend, seen } = stillUnheard(found, this.unheardBefore)
+    this.unheardBefore = seen
+    const still = new Map<string, string>()
+    for (const one of mend) {
+      const key = keyOf(one)
+      let mended: 'listened again' | 'started again' | null = null
+      let error: string | null = null
+      try {
+        if (one.why === 'unsupervised' && (await this.resuperviseLane(one.lane))) {
+          mended = 'listened again'
+        } else {
+          // Its socket gone from under a run that is supervised, or one that
+          // would not be taken back: started again, which carries its
+          // conversation and binds the socket afresh — what a person's stop
+          // and start did for the four on 2026-11-25.
+          await this.stopAgent(one.task)
+          await this.startAgent({ task: one.task as TaskId, cwd: one.lane.spec.cwd, prompt: '' })
+          mended = 'started again'
+        }
+      } catch (err) {
+        error = err instanceof Error ? err.message : String(err)
+      }
+      if (!mended) still.set(one.task, unheardSaid(one.why, one.missed))
+      // Said once per lane that could not be mended: tried again every look,
+      // and a line a minute about the same agent is a journal nobody reads.
+      if (!mended && this.unheardTold.has(key)) continue
+      if (!mended) this.unheardTold.add(key)
+      await this.log.append({
+        type: 'agent_unheard',
+        task: one.task,
+        lane: one.lane.id,
+        detail: {
+          why: one.why,
+          missed: one.missed,
+          mended,
+          ...(error ? { error } : {}),
+        },
+      })
+    }
+    this.unheardNow = still
   }
 
   /**
@@ -613,9 +696,13 @@ export class Workbench {
    * it, so it never gets to say it exited.
    */
   private followExit(lane: LaneId): void {
+    // The start being followed, so this lane's exit can only ever end it: one
+    // said after the lane was closed for a restart under the same id — moving
+    // an agent to another account — is not the new run's (`RunState.start`).
+    const start = this.workers.startOf(lane as unknown as RunId) ?? undefined
     const stop = this.registry.onExit(lane, ({ code }) => {
       stop()
-      void this.workers.gone(lane as unknown as RunId, code)
+      void this.workers.gone(lane as unknown as RunId, code, start)
     })
   }
 

@@ -342,6 +342,15 @@ export const EventType = z.enum([
    * somebody at the keyboard.
    */
   'agent_continued',
+  /**
+   * An agent's lane was working with nobody listening for its Tade calls —
+   * not supervised at all, or the socket it dials gone from the disk — and
+   * what was done about it: listened to again, started again, or neither and
+   * why (`workbench/src/unheard.ts`). Until it is mended every call it makes
+   * is refused as "Tade isn't open", which from inside the agent looks like
+   * Tade being closed and from outside like an agent at work.
+   */
+  'agent_unheard',
   /** What a turn consumed, in tokens and money. */
   'usage',
   /**
@@ -789,6 +798,9 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // anybody goes for lunch — and never blocking, since nothing is waiting on
   // a person: the agent has already been put back to work.
   agent_continued: 'notable',
+  // Notable, not blocking: the window has already mended it, or tried to and
+  // tells the orchestrator now (`eventTell`) — nothing waits on a person.
+  agent_unheard: 'notable',
   // Routine rather than trace: spend is read back out of the journal, and
   // trace is the first thing dropped when a subscriber falls behind.
   usage: 'routine',

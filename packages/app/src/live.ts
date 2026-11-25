@@ -1200,7 +1200,14 @@ export class Live {
       // what the last found keeps `revision`, so every answer kept on it stays
       // kept, and is drawn by nobody: it was ~0.7 frames a second on a window
       // nobody touched. `generatedAt` is the one part of a look that always moves.
-      const snapshots = snapshotsFrom(workspace, pending, lanes, this.finished, queued)
+      const snapshots = snapshotsFrom(
+        workspace,
+        pending,
+        lanes,
+        this.finished,
+        queued,
+        this.opts.client.unheard?.() ?? new Map(),
+      )
       const said = JSON.stringify([
         { ...workspace, generatedAt: '' },
         pending,
@@ -1260,6 +1267,15 @@ export class Live {
     await Promise.resolve()
       .then(() => this.opts.client.lookAtChecks())
       .catch(() => {})
+    // An agent working with nobody listening for its calls, found and mended
+    // on the same minute: a `stat` per agent lane (`unheard.ts`).
+    await Promise.resolve()
+      .then(() => this.opts.client.mendChannels())
+      .catch((err: unknown) =>
+        this.opts.onWarning?.(
+          `Could not look for agents nobody is listening to, so one cut off from Tade would not be found or mended: ${err instanceof Error ? err.message : String(err)}`,
+        ),
+      )
   }
 
   private record(event: TadeEvent): void {

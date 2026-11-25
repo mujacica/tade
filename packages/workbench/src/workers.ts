@@ -165,7 +165,20 @@ interface RunState {
    */
   model: string | null
   stop: () => void
+  /**
+   * Which start of this run id it is (`startOf`). A run id is its lane's, so
+   * moving an agent to another account starts the same id again — and the lane
+   * that was closed for it says it ended only after `close()` has returned
+   * (the pty driver), by which time the new start may hold the id. On
+   * 2026-11-25 that late exit ended four moved agents' new runs: the window let
+   * go of them and closed their sockets while their lanes worked on, and every
+   * Tade call they made for four hours was "Tade isn't open".
+   */
+  start: number
 }
+
+/** Counted across every supervisor, so a start is never mistaken for another's. */
+let starts = 0
 
 export type { Doing, TurnEnd } from './doing.ts'
 
@@ -307,6 +320,7 @@ export class WorkerSupervisor {
         facts: factsOf(request, adapter),
         model: modelAsked(request),
         stop,
+        start: ++starts,
       })
       return handle
     } catch {
@@ -352,6 +366,7 @@ export class WorkerSupervisor {
       facts,
       model: modelAsked(request),
       stop,
+      start: ++starts,
     })
     await this.log.append({
       type: 'run_started',
@@ -474,10 +489,22 @@ export class WorkerSupervisor {
    * channel dies with it — so whoever watches the lane reports it here.
    * Nothing to do for a run already stopped or never seen.
    */
-  async gone(run: RunId, code: number | null): Promise<void> {
+  async gone(run: RunId, code: number | null, start?: number): Promise<void> {
     const state = this.runs.get(run)
     if (!state) return
+    // The lane that ended was another start's: this one's lane is still there.
+    if (start !== undefined && state.start !== start) return
     await this.ended(run, state.task, code)
+  }
+
+  /** Which start of a run is supervised now, for whoever follows its lane; null when none is. */
+  startOf(run: RunId): number | null {
+    return this.runs.get(run)?.start ?? null
+  }
+
+  /** Whether a run is being supervised: listened to, gated, its tools answered. */
+  has(run: RunId): boolean {
+    return this.runs.has(run)
   }
 
   private async ended(run: RunId, task: TaskId | null, code: number | null): Promise<void> {

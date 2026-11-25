@@ -44,6 +44,8 @@ export interface WorkSummary {
    * failed and was retried by hand looks like too.
    */
   interrupted: string | null
+  /** That it could not reach Tade, and what was done about it, the last time it was found so. */
+  unheard?: string | null
   /** Why it failed, if it did. */
   failed: string | null
   /** What it found and did not fix, as the parked tasks each was made into. */
@@ -73,6 +75,7 @@ export function summariseWork(
     notable: [],
     waiting: null,
     interrupted: null,
+    unheard: null,
     failed: null,
     left: [],
     moved: null,
@@ -107,6 +110,12 @@ export function summariseWork(
         break
       case 'failed':
         summary.failed = String(event.detail.error ?? 'no reason given')
+        break
+      case 'agent_unheard':
+        // The last one wins: what was done about it most recently is what is true.
+        summary.unheard = event.detail.mended
+          ? `It could not reach Tade for a while — every Tade call it made was refused — until it was ${String(event.detail.mended)}.`
+          : 'It cannot reach Tade: every Tade call it makes is refused, and it could not be mended.'
         break
       case 'agent_continued':
         // The last one wins: two naps in an afternoon is one gap worth
@@ -195,6 +204,7 @@ export function describeWork(summary: WorkSummary, now: number): string {
     sentences.push(
       `This machine slept for ${summary.interrupted} part way through, and it was told to carry on.`,
     )
+  if (summary.unheard) sentences.push(summary.unheard)
   if (summary.failed) sentences.push(`It failed: ${summary.failed}.`)
   if (summary.moved) sentences.push(summary.moved)
   if (summary.closed)

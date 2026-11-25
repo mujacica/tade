@@ -260,6 +260,10 @@ export function describeEvent(event: TadeEvent): string {
       return 'started'
     case 'agent_continued':
       return 'was told to carry on after the machine slept'
+    case 'agent_unheard':
+      return event.detail.mended
+        ? `could not reach Tade, and was ${String(event.detail.mended)}`
+        : 'cannot reach Tade, and could not be mended'
     case 'proposal_decided':
       return `was proposed, and the decision was ${String(event.detail.decision ?? 'made')}`
     case 'leftovers_reported': {

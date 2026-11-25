@@ -21,11 +21,23 @@ import { offerLeftovers } from './leftovers.ts'
  * (`offerLeftovers`). Whether it was, so the rest can wait as news.
  */
 export function tellNow(wire: Wiring, orchestrator: Tellable, event: TadeEvent): boolean {
+  // An agent that could not reach Tade is said on screen too, mended or not:
+  // it is the one thing that went wrong without a word for four hours.
+  if (event.type === 'agent_unheard') sayUnheard(wire, event)
   const told = eventTell(event, wire.live?.queueFacts().events ?? [])
   if (told) tellOrKeep(wire, orchestrator, told)
   else if (event.type === 'leftovers_reported') offerLeftovers(wire, orchestrator, event)
   else return false
   return true
+}
+
+/** An agent that could not reach Tade, in the window's transcript, in Tade's own words. */
+function sayUnheard(wire: Wiring, event: TadeEvent): void {
+  const mended = typeof event.detail.mended === 'string' ? event.detail.mended : null
+  const said = mended
+    ? `${event.task} could not reach Tade — every Tade call it made was refused — so it was ${mended}.`
+    : `${event.task} cannot reach Tade: every Tade call it makes is refused, and it could not be mended${typeof event.detail.error === 'string' ? ` (${event.detail.error})` : ''}. Stop it and start it again.`
+  wire.put(withTranscript(wire.state, tadeDid(wire.state.transcript, said, wire.now())))
 }
 
 /** What telling needs of the orchestrator: whether it is there, and its two channels. */

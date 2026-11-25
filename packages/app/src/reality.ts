@@ -68,6 +68,8 @@ export function snapshotsFrom(
   lanes: readonly LaneRecord[],
   finished: ReadonlyMap<string, Finished> = new Map(),
   queued: ReadonlyMap<string, QueuedView> = new Map(),
+  /** Agents working that cannot reach Tade, in their rows' words (`Workbench.unheard`). */
+  unheard: ReadonlyMap<string, string> = new Map(),
 ): TaskSnapshot[] {
   const snapshots: TaskSnapshot[] = []
   for (const project of workspace.projects) {
@@ -84,7 +86,9 @@ export function snapshotsFrom(
       snapshots.push({
         task: task.id,
         state: task.state,
-        reason: task.reason,
+        // Over status's own: a lane at work with nobody listening reads as an
+        // agent at work, and that is the four hours nobody was told about.
+        reason: unheard.get(task.id) ?? task.reason,
         ...(done ? { finished: { by: done.by, summary: done.summary } } : {}),
         ...(task.done ? { done: task.done } : {}),
         ...(task.by ? { by: task.by } : {}),
