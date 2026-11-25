@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process'
 import {
+  appendFileSync,
   chmodSync,
   copyFileSync,
   existsSync,
@@ -21,6 +22,7 @@ import {
   travels,
   writeSetting,
 } from '@tade/core'
+import { ExtensionHost } from '@tade/extensions-core'
 import { heldIn } from '@tade/workbench/config-changes'
 import {
   keptInventoryPath,
@@ -31,6 +33,7 @@ import {
 import { readTaskFile } from '@tade/workbench/tasks'
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { mkrepo, runGit, tmp } from '../../../../test/fixtures/mkrepo.ts'
+import rehearsalIntake from '../../../../test/fixtures/rehearsal/extension.ts'
 import {
   STAND_IN,
   startStandIn,
@@ -77,6 +80,12 @@ import { type FakeTerminal, SPAWNING_MS, screenOf, until, windowUnderTest } from
 // there, and started once its `task_done` has come back over the link; and a
 // plan's work for later placed on the box, the hub, and started there with
 // this Mac shut.
+//
+// And one repository open on both, watched from exactly one of them
+// (`duties.ts`): the Mac, whose setting says here, looking while it is linked;
+// the box taking the watch over within the lease once the cable is cut, with
+// what the Mac had found; the Mac taking it back once the cable is in again,
+// with what the box had found — and every request found once, on one machine.
 
 const bin = fileURLToPath(new URL('../../../cli/src/bin.ts', import.meta.url))
 const sshd = await startSshd()
@@ -124,6 +133,8 @@ async function box(
   from?: string,
   standIn = model.url,
   sync?: 'ff',
+  /** What else is in its home before its `tade serve` starts. */
+  prepare?: (home: string) => void,
 ): Promise<Box> {
   const repo = mkrepo()
   repo.commit('first')
@@ -154,6 +165,7 @@ async function box(
       '',
     ].join('\n'),
   )
+  prepare?.(repo.home)
   const env = { TADE_HOME: repo.home, HOME: repo.home, PI_CODING_AGENT_DIR: pi }
   const tade = join(dir, `tade-${name}`)
   const exported = Object.entries(env)
@@ -791,6 +803,133 @@ describe.skipIf(cannot !== null)(
         await slow.close()
       }
     }, 600_000)
+
+    it('watches the repository both have from one of them, hands it over when the cable is cut and back when it is in, and finds each request once', async () => {
+      if (typeof sshd === 'string') return
+      runGit(wired.repo.root, 'remote', 'add', 'origin', 'git@github.com:acme/app.git')
+      const fixture = fileURLToPath(
+        new URL('../../../../test/fixtures/rehearsal/extension.ts', import.meta.url),
+      )
+      const schedule = {
+        id: 'rehearsal-requests',
+        name: 'Rehearsal requests',
+        project: 'app',
+        said: 'watch the rehearsal requests',
+        when: { every: '1h' },
+        does: {
+          kind: 'watch',
+          watch: 'rehearsal-intake.requests',
+          input: {},
+          found: 'ask',
+          most: 5,
+        },
+        missed: 'once',
+        by: 'you',
+        created: new Date().toISOString(),
+      }
+      const vps = await box(
+        'vps',
+        'app',
+        sshd.dir,
+        wired.repo.root,
+        model.url,
+        undefined,
+        (home) => {
+          // The scripted source in the box's own extensions, on, with its watch turned on.
+          const folder = join(home, 'extensions', 'rehearsal-intake')
+          mkdirSync(folder, { recursive: true })
+          copyFileSync(fixture, join(folder, 'extension.ts'))
+          appendFileSync(
+            join(home, 'config.yaml'),
+            'extensions:\n  rehearsal-intake:\n    enabled: true\n',
+          )
+          writeFileSync(
+            join(home, 'schedules.jsonl'),
+            `${JSON.stringify({ op: 'set', schedule, by: 'you', at: schedule.created })}\n`,
+          )
+        },
+      )
+      const remotes = pair(sshd, [vps])
+      const cable = join(wired.home, 'ssh_config')
+      copyFileSync(sshd.config, cable)
+      const requests = (root: string, ids: readonly string[]) =>
+        writeFileSync(
+          join(root, 'REQUESTS.json'),
+          JSON.stringify(ids.map((id) => ({ id, title: `request ${id}` }))),
+        )
+      requests(wired.repo.root, ['req-1'])
+      const app = { root: wired.repo.root, watches: 'here' }
+      const extensions = await ExtensionHost.load({
+        builtin: [rehearsalIntake as never],
+        config: { extensions: {}, projects: { app } },
+        home: wired.home,
+      })
+      const window = await wired.start({
+        config: ConfigSchema.parse({ projects: { app }, remotes }),
+        remoteLinks: { ssh: (options) => makeSshLink({ ...options, args: ['-F', cable] }) },
+        extensions,
+        thinker: { ask: async () => 'ok', tell: async () => {} },
+      })
+      const foundIn = (journal: string) =>
+        journal
+          .split('\n')
+          .filter((line) => line.includes('"type":"watch_found"'))
+          .map((line) => (JSON.parse(line) as { detail: { key: string } }).detail.key)
+      const foundHere = async () =>
+        (await wired.client.events({ types: ['watch_found'] })).map((one) => one.detail.key)
+      const duties = () =>
+        (
+          window as unknown as {
+            heart: { duties: { standing(): { duty: string; mine: boolean }[] } }
+          }
+        ).heart.duties.standing()
+      const watchDuty = (mine: boolean) =>
+        duties().some(
+          (one) => one.duty.startsWith('watch github.com/acme/app') && one.mine === mine,
+        )
+
+      // Linked: the Mac's setting says here, so the watch is the Mac's, granted by the box.
+      const tools = window.queueTools()
+      await tools.schedule({
+        name: 'Rehearsal requests',
+        project: 'app',
+        said: 'watch the rehearsal requests',
+        watch: 'rehearsal-intake.requests',
+        by: 'you',
+      })
+      await tools.change({ schedule: 'rehearsal-requests', change: 'start', by: 'you' })
+      await until('req-1 found here', async () => (await foundHere()).includes('req-1'), 60_000)
+      await until('the box granted the watch to this Mac', () => watchDuty(true), 120_000)
+
+      // The cable cut: the box takes it over within the lease, with what the Mac found.
+      requests(vps.root, ['req-1', 'req-2'])
+      writeFileSync(
+        cable,
+        readFileSync(sshd.config, 'utf8').replace(/Port \d+/, `Port ${await freePort()}`),
+      )
+      const ended = spawnSync(
+        'ssh',
+        ['-F', cable, '-S', pathsFor(wired.home, 'vps', 0).control, '-O', 'exit', 'far'],
+        { encoding: 'utf8', timeout: 15_000 },
+      )
+      expect(ended.status, ended.stderr).toBe(0)
+      await until('the Mac let go of it', () => watchDuty(false), 120_000)
+      await until('req-2 found on the box', () => foundIn(vps.journal()).includes('req-2'), 240_000)
+      expect(foundIn(vps.journal())).toEqual(['req-2'])
+      expect(vps.journal()).toMatch(/"type":"watch_checked"[^\n]*"handed":\["req-1"\]/)
+
+      // The cable in again: the Mac takes it back once the box lets go, with what the box found.
+      requests(wired.repo.root, ['req-1', 'req-2', 'req-3'])
+      copyFileSync(sshd.config, cable)
+      await until('req-3 found here', async () => (await foundHere()).includes('req-3'), 240_000)
+      expect(await foundHere()).toEqual(['req-1', 'req-3'])
+      expect(foundIn(vps.journal())).toEqual(['req-2'])
+      const handedBack = (await wired.client.events({ types: ['watch_checked'] })).filter(
+        (one) => Array.isArray(one.detail.handed) && one.detail.handed.includes('req-2'),
+      )
+      expect(handedBack).toHaveLength(1)
+      await window.stop()
+    }, 900_000)
 
     it('places a plan’s work for later on the box, the hub, and the box starts it with this Mac shut', async () => {
       if (typeof sshd === 'string') return

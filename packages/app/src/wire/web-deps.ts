@@ -2,6 +2,7 @@ import type { InboxRow } from '@tade/core'
 import type { MachineActs } from './acts.ts'
 import type { FleetConversation } from './conversation.ts'
 import type { Waking } from './doorbell.ts'
+import type { FleetDuties } from './duties.ts'
 import type { FleetFeeds } from './feeds.ts'
 import type { Inventories } from './inventory.ts'
 import type { LinearTokens } from './linear-tokens.ts'
@@ -57,6 +58,12 @@ export interface AwayDeps {
    * wired.
    */
   conversation?: Pick<FleetConversation, 'web'>
+  /**
+   * Whose each duty is, where one repository is a project on several machines
+   * (`duties.ts`): the far half of `/api/duties`, the board this machine keeps
+   * as the hub. Absent, the route is the `404` of a path nobody wired.
+   */
+  duties?: Pick<FleetDuties, 'door'>
   /**
    * Another machine of the person's acting here through this machine's own
    * gate (`acts.ts`): `/api/acts`, and the outbox a machine that links here

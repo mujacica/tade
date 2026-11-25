@@ -241,6 +241,7 @@ export async function start(
       | 'inventoryTold'
       | 'seen'
       | 'watchSeen'
+      | 'duties'
       | 'document'
       | 'tool'
       | 'records'

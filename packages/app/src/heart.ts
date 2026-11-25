@@ -30,6 +30,7 @@ import {
   wiringFor,
 } from './wire/context.ts'
 import { type ConversationPlace, FleetConversation } from './wire/conversation.ts'
+import { FleetDuties } from './wire/duties.ts'
 import { Earlier } from './wire/earlier.ts'
 import { type FleetFeeds, fleetFeedsFor } from './wire/feeds.ts'
 import { type Tellable, tellNow, tellOrKeep } from './wire/handed.ts'
@@ -394,6 +395,8 @@ export class Heart {
   readonly waitingThere = new WaitingThere()
   /** The orchestrator's conversation, one on every machine (`conversation.ts`). */
   readonly conversation: FleetConversation
+  /** Whose each duty is where one repository is a project on several machines (`duties.ts`). */
+  readonly duties: FleetDuties
   /** Its tool calls run on another machine through that machine's own gate, and theirs here (`acts.ts`). */
   readonly acts: MachineActs
   /**
@@ -458,8 +461,16 @@ export class Heart {
         runNow: (id, asked) => this.schedules.runNow(id, asked),
       },
     })
+    this.duties = new FleetDuties(this.wire, {
+      seen: () => this.machinesSeen?.all() ?? [],
+      say: (said) => {
+        this.put(notice(this.current, said, this.now()))
+        face.draw()
+      },
+    })
     this.schedules = new Schedules(this.wire, {
       news: (words) => this.told.note(words),
+      duties: this.duties,
       orchestrator: () => this.told,
       advanceQueue: () => void this.advanceQueue(),
       twins: (project) => face.twins(project),
@@ -469,7 +480,7 @@ export class Heart {
       }),
     })
     this.intake = new Intake(this.wire, { advanceQueue: () => void this.advanceQueue() })
-    this.batches = new Batches(this.wire, () => this.told)
+    this.batches = new Batches(this.wire, () => this.told, this.duties)
     this.projects = new Projects(this.wire, {
       ...face.projects,
       useConfig: (loaded) => this.settings.use(loaded),
@@ -499,7 +510,7 @@ export class Heart {
     this.wire.opts.extensions?.useConnected(lending(this.linear))
     this.earlier = new Earlier(this.wire)
     this.machinesSeen = machinesSeenFor(this.wire)
-    this.sync = projectSyncFor(this.wire, () => this.told)
+    this.sync = projectSyncFor(this.wire, () => this.told, this.duties)
     this.inventory = new Inventories(this.wire, {
       news: (words) => this.told.note(words),
       synced: () => this.feeds.synced(),
@@ -531,6 +542,7 @@ export class Heart {
       waiting: this.waitingThere,
       feeds: this.feeds,
       conversation: this.conversation,
+      duties: this.duties,
       earlier: () => this.earlier.more(),
       ...face.away,
       decided: (allow) => this.agents.decide(allow),
@@ -607,6 +619,8 @@ export class Heart {
     this.put(withProjects(this.current, Object.keys(config.projects), titlesOf(config)))
     // Which machines were up when this one last looked, read back before anything links.
     void this.machinesSeen.seed()
+    // Which repository each project is, for whose each duty is (`duties.ts`).
+    void this.duties.begin()
     // What Tade's own checkout is as it starts, before an agent can commit to it.
     void this.ownCode.begin()
     const live = await Live.start({
@@ -632,6 +646,7 @@ export class Heart {
         void this.sync.beat()
         this.inventory.beat()
         this.conversation.beat(this.orchestrator.busy())
+        this.duties.beat()
         this.acts.beat(Object.keys(this.wire.opts.config.remotes))
         this.away.beat()
         // Once a minute at most, and never again once owed: the strip, the

@@ -308,6 +308,7 @@ export class Away implements Subject {
       orchestratorSignIn: this.signIn,
       ...(this.deps.feeds && { feeds: this.deps.feeds.web() }),
       ...(this.deps.conversation && { conversation: this.deps.conversation.web() }),
+      ...(this.deps.duties && { duties: this.deps.duties.door() }),
       ...(this.deps.acts && {
         acts: {
           take: (act, _device, label) =>

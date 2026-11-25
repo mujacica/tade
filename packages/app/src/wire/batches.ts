@@ -14,6 +14,7 @@ import {
   runBatch,
 } from '@tade/workbench'
 import { notify, type Wiring } from './context.ts'
+import type { FleetDuties } from './duties.ts'
 import type { Tellable } from './handed.ts'
 import { putToOrchestrator } from './proposals.ts'
 
@@ -33,6 +34,11 @@ import { putToOrchestrator } from './proposals.ts'
 // trailer says it is. Never one agent per covered task: the orchestrator
 // decides, and steering the agent whose commit it was is the first thing it is
 // offered. Nothing here starts an agent, holds anything or skips a check.
+//
+// **One machine per commit**, where one repository is a project on several of
+// the person's machines (`duties.ts`): the batch at a commit is a duty, so two
+// machines at one HEAD run the full checks once between them, and a red one is
+// one proposal, on the machine that ran it. The other says once whose it is.
 
 /** Who a red batch's proposal is made by, as `taskOrigin` reads it. */
 const BY = 'extension:checks'
@@ -57,10 +63,18 @@ export class Batches {
   private readonly said = new Map<string, string>()
   private looking = false
   private lookedAt = Number.NEGATIVE_INFINITY
+  private readonly duties: Pick<FleetDuties, 'batch' | 'began' | 'done' | 'letGo'> | null
+  /** Whose each project's batch at its HEAD was last said to be, so it is said once. */
+  private readonly theirs = new Map<string, string>()
 
-  constructor(wire: Wiring, orchestrator: () => Tellable) {
+  constructor(
+    wire: Wiring,
+    orchestrator: () => Tellable,
+    duties: Pick<FleetDuties, 'batch' | 'began' | 'done' | 'letGo'> | null = null,
+  ) {
     this.wire = wire
     this.orchestrator = orchestrator
+    this.duties = duties
   }
 
   /**
@@ -132,17 +146,40 @@ export class Batches {
       now,
     })
     if (!answer.run || !head) return
+    const duty = this.duties?.batch(project, head) ?? null
+    if (duty !== null && !duty.mine) {
+      const said = `The full checks of ${project} at ${head.slice(0, 8)} are not run here: ${duty.said}.`
+      if (this.theirs.get(project) !== said) {
+        this.theirs.set(project, said)
+        notify(this.wire, said)
+        this.wire.draw()
+      }
+      return
+    }
+    this.theirs.delete(project)
     this.going.set(project, head)
+    if (duty !== null) this.duties?.began(duty.duty)
     // Not awaited: a batch takes minutes, and the next look at the tasks must
     // not wait on it. `going` is what stops a second one starting meanwhile.
     void this.run(project, root, head)
-      .catch((err: unknown) =>
-        this.sayOnce(project, err instanceof Error ? err.message : String(err)),
+      .then(
+        // Answered, red or green, is done for good; one that could not run is let go.
+        (ran) =>
+          duty === null
+            ? undefined
+            : ran
+              ? this.duties?.done(duty.duty)
+              : this.duties?.letGo(duty.duty),
+        (err: unknown) => {
+          if (duty !== null) this.duties?.letGo(duty.duty)
+          this.sayOnce(project, err instanceof Error ? err.message : String(err))
+        },
       )
       .finally(() => this.going.delete(project))
   }
 
-  private async run(project: string, root: string, head: string): Promise<void> {
+  /** One batch at HEAD: whether it answered it, red or green. */
+  private async run(project: string, root: string, head: string): Promise<boolean> {
     const config = this.wire.opts.config
     const home = this.wire.opts.home
     const batch = await runBatch({ config, home, userHome: homedir(), project, root, commit: head })
@@ -151,13 +188,14 @@ export class Batches {
       // Busy is the ordinary case — somebody's run has the machine — and the
       // next look tries again. Anything else is said, once per reason.
       if (!batch.busy) this.sayOnce(project, batch.problem)
-      return
+      return false
     }
     this.said.delete(project)
     const failed = batch.runs.filter(
       (run) => run.required && (run.state === 'failed' || run.state === 'timed out'),
     )
     if (failed.length > 0) await this.red(project, root, head, failed)
+    return true
   }
 
   /** A red batch: narrowed to whose commit it was, and made one proposal. */

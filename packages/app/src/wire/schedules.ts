@@ -38,11 +38,12 @@ import {
   whenShort,
   why,
 } from './context.ts'
+import type { FleetDuties, Hand } from './duties.ts'
 import { type Tellable, tellOrKeep } from './handed.ts'
 import { Kept } from './kept.ts'
 import { mayRun, type Network, networkOf, wasOffline } from './network.ts'
 import { actOnFound, offerRun } from './proposals.ts'
-import { type FoundThere, foundThereOf } from './watch-seen.ts'
+import { type FoundThere, foundThereOf, inputDigest } from './watch-seen.ts'
 import { mayWatch, type WatchTools, watchTools } from './watch-tools.ts'
 import { noTwins, notLooking, type WatchTwinsHere, whereNow } from './watch-where.ts'
 
@@ -106,6 +107,12 @@ export interface SchedulesDeps {
   twins?(project: string): WatchTwinsHere
   /** What another machine a watch is left to has already found with it (`watch-seen.ts`). */
   watchThere?(machine: string, project: string, watch: string): Promise<unknown>
+  /**
+   * Whose a watch on the repository is, where one repository is a project on
+   * several machines (`duties.ts`): asked before the older rule, which answers
+   * only where this says nothing.
+   */
+  duties?: Pick<FleetDuties, 'watch' | 'began' | 'ended'>
 }
 
 export class Schedules implements Subject {
@@ -276,8 +283,58 @@ export class Schedules implements Subject {
     }
   }
 
-  where(project: string, watch: string, id: string, watched?: Watched): WatchWhere {
+  /**
+   * A watch handed here by the hub (`duties.ts`), before its first look:
+   * what the machine that had it found is written as seen — a line like any
+   * look left elsewhere (`handed`) — and its cursor taken where both watches
+   * look at the same thing; otherwise this look starts from the moment that
+   * machine was last heard, so nothing it did not see is skipped.
+   */
+  private async takenOver(
+    id: string,
+    hand: Hand,
+    input: Readonly<Record<string, unknown>>,
+    watched: Watched,
+  ): Promise<Watched> {
+    const same = hand.since !== null && hand.input === inputDigest(input)
+    const keys = hand.found.filter((key) => !watched.seen.has(key))
+    const since = same ? hand.since : null
+    await this.wire.opts.client.watchChecked(id, {
+      found: 0,
+      fresh: [],
+      left: 0,
+      since,
+      said: `taken over from ${hand.from}`,
+      on: hand.from,
+      ...(keys.length > 0 ? { handed: keys } : {}),
+    })
+    return {
+      ...watched,
+      seen: new Set([...watched.seen, ...keys]),
+      since,
+      ...(same ? {} : { elsewhereAt: new Date(this.wire.now() - hand.agoMs).toISOString() }),
+    }
+  }
+
+  where(
+    project: string,
+    watch: string,
+    id: string,
+    watched?: Watched,
+  ): WatchWhere & { duty?: string; hand?: Hand } {
     const looks = () => watched ?? this.wire.live?.watchedOf(id) ?? null
+    const one = this.wire.opts.client.schedules().find((each) => each.id === id)
+    const outside =
+      this.wire.opts.extensions?.watches().find((each) => each.id === watch)?.about === 'repository'
+    if (outside && this.deps.duties && one?.does.kind === 'watch') {
+      const decided = this.deps.duties.watch(
+        { id, project, watch, input: one.does.input },
+        looks() ?? watchedFrom([], id),
+        !one.paused,
+        { wake: () => this.wake(id), looking: () => this.lookingWith.has(id) },
+      )
+      if (decided !== null) return decided
+    }
     return whereNow(this.wire, project, watch, looks, this.deps.twins?.(project) ?? noTwins())
   }
 
@@ -375,10 +432,26 @@ export class Schedules implements Subject {
    * while none was. One pass at a time, so nothing runs twice.
    */
   runDue(): Promise<void> {
+    this.claimWatches()
     this.pass ??= this.doRunDue().finally(() => {
       this.pass = null
     })
     return this.pass
+  }
+
+  /**
+   * Every watch that is on keeps its claim on its duty fresh on every beat,
+   * due or not (`duties.ts`): a watch that looks once an hour would otherwise
+   * claim once an hour, and its claim lapse in between — and one whose holder
+   * has gone is taken over within the lease, not at its next turn.
+   */
+  private claimWatches(): void {
+    if (!this.deps.duties) return
+    const projects = this.wire.opts.config.projects
+    for (const one of this.wire.opts.client.schedules()) {
+      if (one.paused || one.does.kind !== 'watch' || !Object.hasOwn(projects, one.project)) continue
+      this.where(one.project, one.does.watch, one.id)
+    }
   }
 
   /**
@@ -565,7 +638,7 @@ export class Schedules implements Subject {
     const does = one.does
     if (does.kind !== 'watch') return ''
     const client = this.wire.opts.client
-    const watched = this.wire.live?.watchedOf(one.id) ?? watchedFrom([], one.id)
+    let watched = this.wire.live?.watchedOf(one.id) ?? watchedFrom([], one.id)
     const say = (said: string, bad = false) => {
       this.deps.news(said)
       this.wire.put(
@@ -583,10 +656,16 @@ export class Schedules implements Subject {
     // as the quiet look it is rather than thrown as trouble, and said once
     // rather than a line every ten minutes (`watch-where.ts`).
     const where = this.where(one.project, does.watch, one.id, watched)
+    // Whose it is was the hub's word (`duties.ts`): what the machine that had
+    // it found comes with the grant, never by asking it.
     const quiet = await notLooking(this.wire, one, watched, where, asked, (machine) =>
-      this.foundThere(machine, one.project, does.watch, does.input, watched),
+      where.duty === undefined
+        ? this.foundThere(machine, one.project, does.watch, does.input, watched)
+        : Promise.resolve(null),
     )
     if (quiet) return quiet.news ? say(quiet.said) : quiet.said
+    if (where.hand) watched = await this.takenOver(one.id, where.hand, does.input, watched)
+    if (where.duty) this.deps.duties?.began(where.duty)
     let looked: Awaited<ReturnType<ExtensionHost['look']>>
     // What deliveries named that no look has read: the fold's, out of the
     // journal, and what came with a wake whose line it may not have read yet.
@@ -632,6 +711,12 @@ export class Schedules implements Subject {
     this.wire.put(unhush(this.wire.state, one.id))
     for (const item of given) handed.delete(item)
     const { fresh, acting, left } = newFindings(looked.found, watched.seen, does.most)
+    // What it acts on goes to the hub at once, before anything could take it over.
+    if (where.duty)
+      this.deps.duties?.ended(
+        where.duty,
+        acting.map((finding) => finding.key),
+      )
     await client.watchChecked(one.id, {
       found: looked.found.length,
       fresh: fresh.map((finding) => finding.key),

@@ -108,6 +108,10 @@ wrong if nobody thinks about them.
   fetches the branch first and refuses one whose found head is not on it (a fork's branch of the
   same name, or one rewritten since), and the key is the head alone, so the merge it pushes is a new
   finding only if the base moved again — `attempts` in `FIXING_HOURS` bound that.
+- **One repository open on two machines is one finding, not two.** A watch about the
+  repository is a duty the hub grants to one machine (`change-the-queue`, `duties.ts`): never make
+  a review watch `about: 'machine'` to get it looking everywhere, and never dedupe across machines
+  by name after the fact — the key handed over with the duty is what keeps a finding single.
 - **Ask the cheap question first.** `branchChecks` reads the checks of the commit each branch is on;
   only once one of them is red does it spend a second request asking whether that branch has a
   review, and only then does it read the schedules. A log is fetched in `agent()` and never in

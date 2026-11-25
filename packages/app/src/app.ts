@@ -333,6 +333,8 @@ export class App {
     })
     // The orchestrator's conversation reaches the hub over the same links.
     this.heart.conversation.withReach((name) => this.remotes.reachFor(name))
+    // And whose each duty is, asked of the hub over them too (`duties.ts`).
+    this.heart.duties.withReach((name) => this.remotes.reachFor(name))
     // And so do acts on another machine (`tade_remote_act`).
     this.heart.acts.withReach((name) => this.remotes.reachFor(name))
     this.voice = new Voice(this.wire, {
