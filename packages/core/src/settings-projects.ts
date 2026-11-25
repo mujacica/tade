@@ -6,6 +6,7 @@ import {
   type HarnessId,
   OWN_SIGN_IN,
 } from './config.ts'
+import { BATCH_WAIT_MS } from './duties.ts'
 import { typedHome } from './home.ts'
 import { HARNESS_CHOICES } from './model.ts'
 import { PREPARE_DEADLINE_MINUTES } from './prepare.ts'
@@ -214,6 +215,23 @@ export function projectGroups(config: Config): SettingGroup[] {
           } as const,
           live: true,
           keywords: [name, 'watch', 'watches', 'remote', 'vps', 'machine', 'duplicate'],
+          scope: name,
+        },
+        {
+          // Read at every claim of a batch (`wire/duties.ts`), so it is live.
+          // A rank and never a hand-over: a machine without the commit is never
+          // given the batch, so the hub runs one only it has whatever this says.
+          path: `projects.${name}.batches`,
+          title: 'Full checks run on',
+          means: `which machine runs ${name}'s batched full checks at a commit it has: here at once, or another machine before this one; unset, the hub, and another machine only once the hub has not had the commit for ${BATCH_WAIT_MS / 60_000} minutes`,
+          value: project.batches ?? '',
+          fallback: 'the hub',
+          type: {
+            kind: 'choice',
+            options: ['', WATCHES_HERE, ...Object.keys(config.remotes)],
+          } as const,
+          live: true,
+          keywords: [name, 'batch', 'batches', 'full checks', 'suite', 'remote', 'vps', 'machine'],
           scope: name,
         },
         {

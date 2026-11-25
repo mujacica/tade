@@ -187,6 +187,8 @@ describe('what no words reach', () => {
     // Which machine's clock looks with its watches: one per repository, and a
     // remote already looking holds this one whatever the key says.
     expect(settingReach('projects.checkout.watches').reach).toBe('asked')
+    // Which machine runs the batched full checks: a rank among those with the commit.
+    expect(settingReach('projects.checkout.batches').reach).toBe('asked')
     expect(settingReach('checks.suites').reach).toBe('asked')
   })
 

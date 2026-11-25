@@ -59,7 +59,9 @@ export const DONE_MS = 12 * 3_600_000
  * How long a batch claimed by a machine other than the hub waits for the hub
  * to claim it too — to have the commit — before it is granted where it was
  * asked: the hub runs the full checks wherever it can, and a commit only
- * another machine has is still checked, a little later.
+ * another machine has is still checked, a little later. Never waited where
+ * the machine claiming it says `batches: here`, or where the hub's own
+ * setting names another machine (`DutyBoard`'s `hubBatches`).
  */
 export const BATCH_WAIT_MS = 10 * 60_000
 /** How many of its newest keys a claim carries; one look acts on far fewer. */
@@ -157,13 +159,17 @@ export interface Rank {
 }
 
 /**
- * What every machine claims a batch at one commit with: the same rank on each,
- * so the tie-break decides — the hub, the machine that never closes and is
- * built to run the full checks, before any other. `watches` says where a
- * repository is watched from, not where its suites run. Only a machine whose
- * HEAD is that commit claims it, so it is never granted to one without it.
+ * What a machine claims a batch at one commit with: `projects.<name>.batches`
+ * there, and nothing else — `watches` says where a repository is watched from,
+ * not where its suites run, and when it was opened is no reason to run them.
+ * Unsaid on every machine, the tie-break decides: the hub, the machine that
+ * never closes and is built to run the full checks, before any other. Only a
+ * machine whose HEAD is that commit claims it, so it is never granted to one
+ * without it.
  */
-export const BATCH_RANK: Rank = { said: 'unsaid', opened: null }
+export function batchRank(said: WatchesSaid): Rank {
+  return { said, opened: null }
+}
 
 /** `watches` as a rank reads it: `here`, unsaid, or a remote by name. */
 export function watchesSaid(setting: string | undefined, here: string): WatchesSaid {
@@ -254,16 +260,25 @@ export class DutyBoard {
   private readonly me: MachineNamed
   private readonly born: number
   private readonly heardAll: () => boolean
+  private readonly hubBatches: (duty: string) => boolean
 
   /**
    * `heardAll` says every machine that links here and did not say goodbye has
    * claimed since this board began: the grace is over then, since nobody can
-   * be standing in unheard.
+   * be standing in unheard. `hubBatches` says the hub would run a batch itself
+   * once it has the commit — false where its `projects.<name>.batches` names
+   * another machine, so that one is not kept waiting for a hub that gives way.
    */
-  constructor(me: MachineNamed, now: number, heardAll: () => boolean = () => false) {
+  constructor(
+    me: MachineNamed,
+    now: number,
+    heardAll: () => boolean = () => false,
+    hubBatches: (duty: string) => boolean = () => true,
+  ) {
     this.me = me
     this.born = now
     this.heardAll = heardAll
+    this.hubBatches = hubBatches
   }
 
   /**
@@ -388,11 +403,14 @@ export class DutyBoard {
       const doing = ranked.find((one) => one.doing)
       const best = ranked[0]
       const grace = now - this.born < GRACE_MS && !this.heardAll()
-      // A batch waits a while for the hub, which has not got the commit yet.
+      // A batch waits a while for the hub, which has not got the commit yet —
+      // unless the best claimant was named to run it, or the hub gives way.
       const waits =
         duty.startsWith('batch ') &&
         best !== undefined &&
         best.id !== this.me.id &&
+        best.rank.said !== 'here' &&
+        this.hubBatches(duty) &&
         now - board.first < BATCH_WAIT_MS
       const next = doing ?? (grace || waits ? undefined : best)
       if (next) board.holder = { id: next.id, name: next.name }

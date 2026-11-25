@@ -40,7 +40,7 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | `packages/app/src/wire/queue-holds.ts` | what holds work as it starts besides the rule: `planHold`, `intakeSays`, `plansFor` (asking first), `probingNow`, `standsFor` |
 | `packages/app/src/wire/watch-tools.ts` | the orchestrator's `tade_watches` and `tade_watch_change`, held to `WATCH_REACH` (`mayWatch`) |
 | `packages/core/src/watch-where.ts`, `app/src/wire/watch-where.ts` | one machine per repository: `watchWhere`, `watchingIn`; `whereNow`, `notLooking` |
-| `packages/core/src/duties.ts`, `app/src/wire/duties.ts`, `web/src/duties.ts` | whose each duty is across machines: `DutyBoard` (the hub's, beside the turn `Lease`), `compareRank`, `BATCH_RANK`, `standsIn`, `grantedUntil`; `FleetDuties`, `/api/duties` |
+| `packages/core/src/duties.ts`, `app/src/wire/duties.ts`, `web/src/duties.ts` | whose each duty is across machines: `DutyBoard` (the hub's, beside the turn `Lease`), `compareRank`, `batchRank`, `standsIn`, `grantedUntil`; `FleetDuties`, `/api/duties` |
 | `packages/app/src/wire/proposals.ts` | what a look's findings become, and a decision carried out: `actOnFound`, `offerProposals`, `putToOrchestrator`, `workNow`, `decideProposal` |
 | `packages/app/src/wire/leftovers.ts` | what an agent left, told to the orchestrator the moment it is written down: `offerLeftovers` (from `tellNow`, `wire/handed.ts`) |
 | `packages/app/src/wire/batches.ts`, `core/src/batches.ts` | the full checks once a batch, and a red batch made one proposal (`change-the-checks`) |
@@ -538,8 +538,9 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   hub's `DutyBoard` (in memory, beside the turn lease, which is the same `Lease`) grants it to one:
   ranked by `projects.<name>.watches` (`here` › unsaid › a remote), then the machine the project
   was opened on first (its folder in the home's birth time), then the hub, then the id. A batch is
-  ranked alike everywhere (`BATCH_RANK`), so the hub runs it wherever it has the commit, and another
-  machine only after `BATCH_WAIT_MS`. **Never two, never none**: a better-ranked machine is given a
+  ranked by `projects.<name>.batches` alone (`batchRank`), so unsaid everywhere the hub runs it
+  wherever it has the commit, and another machine only after `BATCH_WAIT_MS` — at once where that
+  machine says `here`, or the hub's own setting names another (`hubBatches`). **Never two, never none**: a better-ranked machine is given a
   watch only once the holder `yield`s after its look and lets go, with what it found and its cursor
   (`handed`, written as seen by `takenOver` before the first look); a batch or a merge is never
   handed on mid-way; a holder that goes quiet lapses after `LEASE_MS`, one that said goodbye at

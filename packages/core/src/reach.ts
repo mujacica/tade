@@ -254,6 +254,9 @@ const NEVER: readonly (readonly [string, string])[] = [
  * the key says. What it can do is turn this machine's watches off for the
  * project, which `WATCH_REACH` already lets the person's own words do one
  * watch at a time — so `asked`, like turning one off, and not `never`.
+ * `batches` is the same shape for the batched full checks: a rank among the
+ * machines that already have the commit, which sends nobody anything new and
+ * starts no second run, since a batch is granted to one machine at a time.
  *
  * A route is the same shape: its model, how hard it thinks and which harness
  * it opens are ordinary settings, and `provider` is the one left that a
@@ -336,6 +339,7 @@ const ALLOWED_UNDER: readonly RegExp[] = [
   /^projects\.[a-z0-9-]+\.max_parallel$/,
   /^projects\.[a-z0-9-]+\.close_when_done$/,
   /^projects\.[a-z0-9-]+\.watches$/,
+  /^projects\.[a-z0-9-]+\.batches$/,
   /^projects\.[a-z0-9-]+\.sync$/,
   /^projects\.[a-z0-9-]+\.accounts\.[a-z0-9-]+$/,
   /^workers\.routes\.[a-z0-9-]+\.(model|thinking|harness)$/,

@@ -31,6 +31,7 @@ describe('the Projects page, which is one project at a time', () => {
       'projects.checkout.max_parallel',
       'projects.checkout.close_when_done',
       'projects.checkout.watches',
+      'projects.checkout.batches',
       'projects.checkout.sync',
       'projects.checkout.budget.usd_per_day',
       'projects.checkout.checks.before',

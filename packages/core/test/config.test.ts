@@ -224,6 +224,17 @@ projects:
     expect(bad.issues[0]?.path).toBe('projects.demo.checks.on_red')
   })
 
+  it('lets one project say which machine runs its batched full checks', () => {
+    const none = parseConfig('projects:\n  demo:\n    root: /tmp/demo\n')
+    expect(none.ok && none.config.projects.demo?.batches).toBe(undefined)
+    const here = parseConfig('projects:\n  demo:\n    root: /tmp/demo\n    batches: here\n')
+    expect(here.ok && here.config.projects.demo?.batches).toBe(WATCHES_HERE)
+    const bad = parseConfig('projects:\n  demo:\n    root: /tmp/demo\n    batches: Not A Name\n')
+    expect(bad.ok).toBe(false)
+    if (bad.ok) return
+    expect(bad.issues[0]?.path).toBe('projects.demo.batches')
+  })
+
   it('names a bad enum value by its dotted key', () => {
     const r = parseConfig('workspace:\n  driver: screen\n')
     expect(r.ok).toBe(false)

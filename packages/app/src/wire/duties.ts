@@ -1,7 +1,7 @@
 import { stat } from 'node:fs/promises'
 import {
-  BATCH_RANK,
   BATCH_WAIT_MS,
+  batchRank,
   type DutiesAnswer,
   DutiesReply,
   DutyBoard,
@@ -170,7 +170,12 @@ export class FleetDuties {
 
   /** The board this machine keeps as the hub, made on first use. */
   private boardHere(): DutyBoard {
-    this.board ??= new DutyBoard(this.me(), this.wire.now(), () => this.heardAll())
+    this.board ??= new DutyBoard(
+      this.me(),
+      this.wire.now(),
+      () => this.heardAll(),
+      (duty) => this.hubBatches(duty),
+    )
     return this.board
   }
 
@@ -266,8 +271,9 @@ export class FleetDuties {
   batch(project: string, head: string): DutyVerdict | null {
     const named = this.repositoryOf(project)
     if (!named) return null
-    // Ranked alike on every machine, so the hub runs it wherever it has the commit.
-    return this.want(dutyOf('batch', named, head), project, {}, BATCH_RANK)
+    // Ranked by `batches` alone, so unsaid everywhere the hub runs it wherever it has the commit.
+    const said = watchesSaid(this.wire.opts.config.projects[project]?.batches, WATCHES_HERE)
+    return this.want(dutyOf('batch', named, head), project, {}, batchRank(said))
   }
 
   /** Whose proposing the merge of one parting is; null where nothing is asked. */
@@ -527,7 +533,7 @@ export class FleetDuties {
   private notMine(held: Held): string {
     const holder = held.holder
     if (holder === null && held.claim.duty.startsWith('batch ')) {
-      return `${this.hubName() ?? 'the hub'} runs the full checks wherever it has the commit, so this machine runs them only if it has not got it within ${BATCH_WAIT_MS / 60_000} minutes`
+      return `${this.hubName() ?? 'the hub'} runs the full checks wherever it has the commit, so this machine runs them only if it has not got it within ${BATCH_WAIT_MS / 60_000} minutes — or at once with projects.<name>.batches: here`
     }
     if (holder === null) {
       return `nobody has it yet: ${this.hubName() ?? 'this machine'} grants it once it has heard from every machine that may be doing it`
@@ -564,6 +570,21 @@ export class FleetDuties {
     // never since the window opened, which would make a blip a long silence.
     const said = seen && seen.state !== 'up' ? (seen.since ?? seen.at) : null
     return { name, id, state: 'silent', since: said ?? this.downAt }
+  }
+
+  /**
+   * Whether this machine, as the hub, would run a batch itself once it has the
+   * commit: not where a project here of that repository names another machine
+   * in `batches`, so the one claiming it is not kept waiting for nothing.
+   */
+  private hubBatches(duty: string): boolean {
+    const repository = duty.split(' ')[1]
+    const projects = this.wire.opts.config.projects
+    for (const [project, named] of this.named) {
+      if (named.repository !== repository) continue
+      if (watchesSaid(projects[project]?.batches, WATCHES_HERE) === 'elsewhere') return false
+    }
+    return true
   }
 
   private rankOf(project: string): Rank {

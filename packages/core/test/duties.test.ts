@@ -1,6 +1,6 @@
 import {
-  BATCH_RANK,
   BATCH_WAIT_MS,
+  batchRank,
   compareRank,
   DONE_MS,
   DutiesBody,
@@ -160,13 +160,43 @@ describe('the hub’s board', () => {
   it('gives a batch to the hub where it has the commit, and to another machine only after BATCH_WAIT_MS', () => {
     const { board, now } = settled()
     const batch = dutyOf('batch', 'github.com/acme/app', 'b'.repeat(40))
-    const asked = { duty: batch, rank: BATCH_RANK, doing: false }
+    const asked = { duty: batch, rank: batchRank('unsaid'), doing: false }
     expect(board.ask(mac, [asked], [], now)[0]?.yours).toBe(false)
     expect(board.ask(hub, [asked], [], now + 1)[0]?.yours).toBe(true)
     const other = dutyOf('batch', 'github.com/acme/app', 'c'.repeat(40))
-    const only = { duty: other, rank: BATCH_RANK, doing: false }
+    const only = { duty: other, rank: batchRank('unsaid'), doing: false }
     expect(board.ask(mac, [only], [], now)[0]?.yours).toBe(false)
     expect(board.ask(mac, [only], [], now + BATCH_WAIT_MS)[0]?.yours).toBe(true)
+  })
+
+  it('gives a batch at once to a machine whose batches setting says here, ahead of the hub', () => {
+    const { board, now } = settled()
+    const batch = dutyOf('batch', 'github.com/acme/app', 'd'.repeat(40))
+    const named = { duty: batch, rank: batchRank('here'), doing: false }
+    expect(board.ask(mac, [named], [], now)[0]?.yours).toBe(true)
+    const late = board.ask(
+      hub,
+      [{ duty: batch, rank: batchRank('unsaid'), doing: false }],
+      [],
+      now + 1,
+    )
+    expect(late[0]?.yours).toBe(false)
+    expect(late[0]?.holder?.name).toBe('mac')
+  })
+
+  it('does not keep a batch waiting for a hub whose own batches setting names another machine', () => {
+    const batch = dutyOf('batch', 'github.com/acme/app', 'e'.repeat(40))
+    const board = new DutyBoard(
+      hub,
+      0,
+      () => false,
+      (one) => one !== batch,
+    )
+    const asked = { duty: batch, rank: batchRank('unsaid'), doing: false }
+    expect(board.ask(mac, [asked], [], GRACE_MS)[0]?.yours).toBe(true)
+    // Any other batch still waits for the hub as before.
+    const other = dutyOf('batch', 'github.com/acme/app', 'f'.repeat(40))
+    expect(board.ask(mac, [{ ...asked, duty: other }], [], GRACE_MS)[0]?.yours).toBe(false)
   })
 
   it('keeps at most FOUND_KEPT keys for a duty, newest first', () => {

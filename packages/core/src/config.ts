@@ -228,6 +228,12 @@ export const ProjectConfigSchema = z.strictObject({
   /** Which machine looks with its watches on outside sources: `here` or a remote (`watch-where.ts`). */
   watches: WatchesOn.optional(),
   /**
+   * Which machine runs the batched full checks at a commit it has (`checks.full`,
+   * `duties.ts`): `here` or a remote; unset, the hub. Read as a rank only, like
+   * `watches`, so a machine without the commit is never handed the batch.
+   */
+  batches: WatchesOn.optional(),
+  /**
    * Whether this checkout is kept in step with origin and the person's other
    * machines (`sync.ts`): fast-forwarded by itself when every rule passes,
    * asked first, or never. This checkout's own answer, so never carried.

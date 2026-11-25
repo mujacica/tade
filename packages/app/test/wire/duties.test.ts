@@ -46,7 +46,12 @@ interface Side {
 }
 
 /** One machine with the project, its origin the shared repository, and the window's half over a wiring. */
-function side(clock: { now: number }, remotes: Record<string, unknown>, watches?: 'here'): Side {
+function side(
+  clock: { now: number },
+  remotes: Record<string, unknown>,
+  watches?: 'here',
+  batches?: string,
+): Side {
   const repo = mkrepo()
   repo.commit('first')
   runGit(repo.root, 'remote', 'add', 'origin', 'git@github.com:acme/app.git')
@@ -58,7 +63,13 @@ function side(clock: { now: number }, remotes: Record<string, unknown>, watches?
     opts: {
       home: repo.home,
       config: ConfigSchema.parse({
-        projects: { app: { root: repo.root, ...(watches ? { watches } : {}) } },
+        projects: {
+          app: {
+            root: repo.root,
+            ...(watches ? { watches } : {}),
+            ...(batches ? { batches } : {}),
+          },
+        },
         remotes,
       }),
       client: { machine: { id } },
@@ -311,5 +322,48 @@ describe('whose each duty is, between a Mac and its hub', () => {
     const after = mac.duties.batch('app', head)
     expect(after?.mine).toBe(false)
     expect(after?.said).toContain('done already')
+  })
+
+  it('runs a batch on the machine whose batches setting says here, and the hub is told whose it is', async () => {
+    const clock = { now: 5_000_000 }
+    const hub = side(clock, {})
+    hub.seen.push({
+      machine: seenName(machineLabel()),
+      way: 'from',
+      state: 'up',
+      at: 0,
+      since: null,
+    })
+    const mac = side(clock, { ipax: REMOTE }, undefined, 'here')
+    mac.duties.withReach(cable(hub).reach)
+    await named(hub, mac)
+    clock.now += GRACE_MS
+    const head = 'b'.repeat(40)
+    mac.duties.batch('app', head)
+    await beat(clock, 1, mac)
+    // No BATCH_WAIT_MS: the Mac was named, so it has it at once.
+    expect(mac.duties.batch('app', head)?.mine).toBe(true)
+    expect(hub.duties.batch('app', head)?.mine).toBe(false)
+  })
+
+  it('does not keep a batch waiting where the hub says another machine runs them', async () => {
+    const clock = { now: 5_000_000 }
+    // The hub's own config gives the batches to the Mac, which it calls north.
+    const hub = side(clock, {}, undefined, 'north')
+    hub.seen.push({
+      machine: seenName(machineLabel()),
+      way: 'from',
+      state: 'up',
+      at: 0,
+      since: null,
+    })
+    const mac = side(clock, { ipax: REMOTE })
+    mac.duties.withReach(cable(hub).reach)
+    await named(hub, mac)
+    clock.now += GRACE_MS
+    const head = 'c'.repeat(40)
+    mac.duties.batch('app', head)
+    await beat(clock, 1, mac)
+    expect(mac.duties.batch('app', head)?.mine).toBe(true)
   })
 })
