@@ -452,6 +452,24 @@ describe('what Tade is built on', () => {
     // And the screen does not close over the explanation.
     expect(ui.paused).toHaveLength(1)
   })
+
+  it('says a Node with no type stripping as itself, not as a native module to rebuild', async () => {
+    const ui = recorder({})
+    await sayNativeTrouble(ui, [
+      {
+        module: 'node',
+        clause: 'Node v22.22.1 has no type stripping',
+        fix: 'Node v22.22.1 cannot run .ts files: process.features.typescript is false.',
+        blocking: false,
+      },
+    ])
+    const all = ui.said.join('\n')
+    expect(all).toContain('process.features.typescript is false')
+    expect(all).not.toContain('native modules')
+    expect(all).not.toContain('opening one is the part that is broken')
+    expect(ui.ran).toEqual([])
+    expect(ui.paused).toEqual(['Nothing else waits on it: setting up carries on.'])
+  })
 })
 
 describe('signing in', () => {

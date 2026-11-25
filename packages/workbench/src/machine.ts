@@ -216,7 +216,9 @@ export interface NativeProblem {
  * is what Tade opens every lane with whichever driver is configured, and the
  * driver is the one thing that can say whether its helper can actually be run.
  * better-sqlite3 is only loaded, because loading is all it has to do; the
- * journal is a file and works without the index it builds.
+ * journal is a file and works without the index it builds. Then the Node
+ * they all run on, whose version the door has read but not whether it can
+ * strip types (`strippingProblem`).
  */
 export async function nativeProblems(home: string): Promise<NativeProblem[]> {
   const found: NativeProblem[] = []
@@ -246,7 +248,43 @@ export async function nativeProblems(home: string): Promise<NativeProblem[]> {
       error: err,
     })
   }
+  const stripping = strippingProblem(process.features.typescript, process.version, process.execPath)
+  if (stripping) found.push(stripping)
   return found
+}
+
+/**
+ * The Node Tade is running on, where it cannot strip types, or null.
+ *
+ * The version is not the whole answer: a distribution may build a Node above
+ * the floor with type stripping left out — Ubuntu's nodejs 22.22.1 has
+ * `process.features.typescript` false — and the door (`nodeTooOld`) reads
+ * only the version. It is not a refusal there, because the published package
+ * has its types taken off and runs; what cannot run is what Tade loads as
+ * TypeScript, your extensions, and a project's check that is `node x.ts`,
+ * which dies on `ERR_UNKNOWN_FILE_EXTENSION`. So it is never blocking.
+ */
+export function strippingProblem(
+  typescript: 'strip' | 'transform' | false | undefined,
+  version: string,
+  execPath: string,
+): NativeProblem | null {
+  if (typescript) return null
+  return {
+    module: 'node',
+    blocking: false,
+    clause: `Node ${version} has no type stripping, so your extensions and a project’s .ts scripts cannot run on it`,
+    said: [
+      `Node ${version} cannot run .ts files: process.features.typescript is false.`,
+      '',
+      `  ${execPath}`,
+      '',
+      'A distribution’s own build can leave type stripping out, whatever its version. Tade',
+      'loads your extensions in ~/.tade/extensions as TypeScript, and a project script run as',
+      '`node x.ts` needs it too. A Node from nodejs.org or a version manager — mise, nvm,',
+      'fnm, volta — has it.',
+    ].join('\n'),
+  }
 }
 
 function message(err: unknown): string {

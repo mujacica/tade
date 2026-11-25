@@ -16,7 +16,7 @@ release does not add one: the types come off at publish and the repository still
 | `scripts/release/changelog.ts` | `releases`, `changelogFor`, `notesFor`, `tags`, `today`, `RELEASE_COMMIT` |
 | `scripts/release/release.ts` | the command: `parse`, `refusals`, `smoke`, and the four writes |
 | `scripts/install-hooks.mjs` | `prepare`, and the one install script that does **not** ship |
-| `packages/cli/src/bin.ts` | the door: `nodeTooOld` before anything is imported, then `nativeTrouble` |
+| `packages/cli/src/bin.ts` | the door: `nodeTooOld` before anything is imported, `builtForAnotherNode`, then `nativeTrouble` |
 | `packages/cli/src/version.ts` | `version`, `needsNode` — the root manifest, three levels up in both layouts |
 | `packages/cli/src/native.ts` | `nativeTrouble`: a dependency that did not load, said in words |
 | `packages/drivers/pty/src/helper.ts` | `helperAt`, `helperProblem`: node-pty's `spawn-helper`, and what to type |

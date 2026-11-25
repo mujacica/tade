@@ -78,12 +78,22 @@ export async function offerInstall(
  * to prevent.
  */
 export async function sayNativeTrouble(ui: Ui, troubles: readonly NativeTrouble[]): Promise<void> {
-  ui.say(
-    'Tade is built on two native modules: node-pty, which is every terminal it opens, and better-sqlite3, which indexes the journal. One of them cannot be run here.',
-  )
-  ui.say('')
+  // The Node itself (`strippingProblem`) is what Tade is built on too, but it
+  // is no native module and its fix is no command run through a lane, so the
+  // two sentences about those are said only where one of those is the trouble.
+  const modules = troubles.some((one) => one.module !== 'node')
+  if (modules) {
+    ui.say(
+      'Tade is built on two native modules: node-pty, which is every terminal it opens, and better-sqlite3, which indexes the journal. One of them cannot be run here.',
+    )
+    ui.say('')
+  }
   for (const trouble of troubles) {
     for (const line of trouble.fix.split('\n')) ui.say(line)
+  }
+  if (!modules) {
+    await ui.pause('Nothing else waits on it: setting up carries on.')
+    return
   }
   ui.say(
     'Tade cannot do this for itself: the command that fixes it has to run in a terminal, and opening one is the part that is broken.',
