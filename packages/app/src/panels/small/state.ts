@@ -97,6 +97,11 @@ export interface PromptPanel {
      * is told first. `target` is the machine and its project there, joined by a NUL.
      */
     | 'new-there'
+    /**
+     * A note about a project on another machine, told there: `target` is the
+     * machine and its project there, joined by a NUL.
+     */
+    | 'note-there'
   /**
    * The terminal or agent it is about, for renaming one or running a command
    * in it; for a note being changed, when it was said and what it said, joined

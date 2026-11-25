@@ -3,7 +3,6 @@ import { type FileEntry, folderMark } from '../files.ts'
 import type { Change, Frame, ListSectionView, NoteShown } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, sameTarget, type Target } from '../hits.ts'
 import { inboxHere } from '../intake-view.ts'
-import { elsewhereOf } from '../machines.ts'
 import {
   type AppState,
   agentsHere,
@@ -18,7 +17,6 @@ import { BAR, barAcross } from '../scrollbar.ts'
 import type { Band, Look, Skin } from '../skin.ts'
 import { blank, type Drawn, NO_POINTER, type Pointer, Row, stack } from '../ui.ts'
 import { widthOf } from '../width.ts'
-import { elsewhereSections } from './elsewhere.ts'
 import { intakeSection } from './intake.ts'
 import { listItem, rowsHere } from './list.ts'
 import { type QueueTree, queueSection, queueSpread, queueStems, thereHere } from './queue.ts'
@@ -72,10 +70,7 @@ export function renderSidebar(
   // The project's standing rules, read once: the section is handed them, the way
   // the queue is handed its count, because the side draws four times a second.
   const clocks = schedulesShown(frame.schedules ?? [], state)
-  // A project on another machine in front of you: its own sections, and none of this one's.
-  const away = elsewhereOf(state)
-  const spread =
-    queueOpen && away === null ? queueSpread(queueStems(entries), width) : { wide: 0, shown: 0 }
+  const spread = queueOpen ? queueSpread(queueStems(entries), width) : { wide: 0, shown: 0 }
   const sideways = Math.max(0, spread.wide - spread.shown)
   const across = Math.min(Math.max(0, state.across), sideways)
   const tree: QueueTree = { ...spread, across }
@@ -295,8 +290,7 @@ export function renderSidebar(
   const make = () => new Row(width, skin, pointer)
   let previousOpen = false
   let previousBanded = false
-  const drawn = away ? elsewhereSections(state, frame, away, width, skin, pointer) : sections
-  drawn.forEach((section, i) => {
+  sections.forEach((section, i) => {
     // A section of tabs already ends on the room below its last one.
     if (i > 0 && previousOpen && !previousBanded) out.push(blank(width))
     const open = sectionOpen(state, section.id, section.quiet === true)

@@ -42,13 +42,15 @@ describe('another machine’s project tabs along the top', () => {
       () => wired.sidebar().includes('Doorbell'),
       20_000,
     )
-    expect(wired.sidebar()).toContain('on ipax')
+    // Drawn as a project here is: no word of its own saying whose it is — the tab says that.
+    expect(wired.sidebar()).not.toContain('on ipax')
+    expect(wired.sidebar()).toContain('SMART QUEUE')
   })
 
   it('has a × and a ≡ on a tab there, and the ≡ says what cannot cross the link', async () => {
     await linked()
     wired.click(onTop(' hello ') + 2, 0)
-    await until(said('standing in hello'), () => rows().some((row) => row.includes('none there')))
+    await until(said('standing in hello'), () => wired.sidebar().includes('none yet'))
     // The tab you are in keeps its controls on every rung of the ladder.
     await until(said('its ≡'), () => onTop('≡') > onTop(' hello '))
     wired.click(onTop('≡'), 0)
@@ -62,7 +64,7 @@ describe('another machine’s project tabs along the top', () => {
   it('closes the project there when its × is pressed, and stands back here', async () => {
     const far = await linked()
     wired.click(onTop(' hello ') + 2, 0)
-    await until(said('standing in hello'), () => rows().some((row) => row.includes('none there')))
+    await until(said('standing in hello'), () => wired.sidebar().includes('none yet'))
     await until(said('its ×'), () => onTop('×') > onTop(' hello '))
     wired.click(onTop('×'), 0)
     await until(
@@ -72,6 +74,6 @@ describe('another machine’s project tabs along the top', () => {
     )
     expect(far.acted.find((one) => one.verb === 'close')?.call).toMatchObject({ project: 'hello' })
     await until(said('the close said'), () => rows().some((row) => row.includes('ipax:')), 20_000)
-    await until(said('back here'), () => !rows().some((row) => row.includes('none there')))
+    await until(said('back here'), () => !wired.sidebar().includes('none yet'))
   })
 })

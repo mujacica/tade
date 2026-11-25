@@ -115,8 +115,8 @@ describe('an agent there, as a row here', () => {
     expect(off('open')).toBeUndefined()
     // What it says not, with its own sentence.
     expect(off('mark-done')).toBe('the journal already says it is finished')
-    // What it says nothing about, said rather than pressed into a refusal.
-    expect(off('rename')).toBe('vps does not offer it now')
+    // What it says nothing about is offered as it is here, and that machine answers the press.
+    expect(off('rename')).toBeUndefined()
     // What no link carries.
     expect(off('changes')).toBe('read on vps')
     expect(off('editor')).toBe('files on vps')

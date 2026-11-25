@@ -11,7 +11,7 @@ import {
 } from '../hits.ts'
 import { textOf } from '../input.ts'
 import { resolveLayout } from '../layout.ts'
-import { goElsewhere } from '../machines.ts'
+import { elsewhereOf, goElsewhere } from '../machines.ts'
 import {
   type AppState,
   dragAgent,
@@ -154,6 +154,9 @@ export interface MouseDeps {
   /** Clicking a task that is not running opens its agent again. */
   openAgent(): void
 }
+
+/** What a press opens on the disk it is on: another machine's, while you stand in one of its projects. */
+const THERE_ON_DISK: ReadonlySet<Target['kind']> = new Set(['file', 'place', 'change', 'branch'])
 
 export class Mouse {
   private readonly wire: Wiring
@@ -577,6 +580,13 @@ export class Mouse {
         return
       }
     }
+    // Standing in a project on another machine, what is on that machine's
+    // disk is pressed there (`remote-there:`): its subject answers, in words
+    // where a press cannot cross yet, and nothing here is opened in its place.
+    if (elsewhereOf(this.wire.state) !== null && THERE_ON_DISK.has(target.kind)) {
+      this.deps.run(`remote-there:${target.kind}\0${'path' in target ? target.path : ''}`)
+      return
+    }
     switch (target.kind) {
       case 'task': {
         // A row of another machine's is looked at, as one here is focused: its
@@ -599,6 +609,11 @@ export class Mouse {
         break
       }
       case 'lane': {
+        // An agent there's own tab is that agent, looked at as a row of it is.
+        if (isThere(target.task)) {
+          this.deps.run(`remote-look:${target.task}`)
+          return
+        }
         // The tab of the half beside it gives that half the keyboard; any other shows it in front.
         const split = this.wire.state.splits[target.task]
         this.wire.put(

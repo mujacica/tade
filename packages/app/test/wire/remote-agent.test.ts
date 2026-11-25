@@ -5,11 +5,11 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
 import { pressRow, standingThere } from './standing-there.ts'
 
-// An agent on another machine, opened from this window
-// — the whole of it through the window: its row pressed down the side,
-// its screen read from that machine while it is looked at, a sentence sent as
-// its `steer`, a press that parks it or answers what it is held on, and a
-// terminal here that is the agent there. The far end is a real away view
+// An agent on another machine, opened from this window — the whole of it
+// through the window, drawn as an agent here is: its row pressed down the
+// side, its screen read from that machine while it is looked at, a park from
+// its menu and an answer from its card, and a terminal here that is the agent
+// there, typed into as its lane. The far end is a real away view
 // (`far.ts`) and the link the scripted one, which opens a terminal there by
 // running that machine's own line in a shell here, where it is.
 
@@ -58,6 +58,9 @@ describe('an agent on another machine, from this window', () => {
   }
 
   const row = (label: string) => pressRow(wired, label)
+  /** The pane's one header, as an agent here has it: its name, then its tabs. */
+  const header = (name: string) =>
+    rows().some((one) => one.includes(`│ ${name}`) && one.includes('actions'))
 
   /** The window, linked to a far end called `vps` with these agents, standing in its project. */
   async function linkedTo(agents: readonly FarAgent[]): Promise<FarEnd> {
@@ -73,15 +76,24 @@ describe('an agent on another machine, from this window', () => {
     return far
   }
 
-  it('shows the screen of the agent pressed, as that machine reads it, and lets go of it', async () => {
+  /** Right-click a row down the side: its menu, as a right-click on an agent here opens it. */
+  function menuOf(label: string): void {
+    const at = wired.find(label)
+    terminal.press(`\x1b[<2;${at.col + 2};${at.row + 1}M`)
+    terminal.press(`\x1b[<2;${at.col + 2};${at.row + 1}m`)
+  }
+
+  it('shows the agent pressed as an agent here is: its header, its screen as that machine reads it, its card', async () => {
     await linkedTo([INTAKE, LINK])
     row('Doorbell')
     // Its newest rows: the card over it takes the room its command needs first.
     await until('its screen there', () => shown('Do you want to proceed?'), 20_000)
-    expect(shown('its screen on vps · read-only')).toBe(true)
+    // The one header an agent here has, and nothing of a pane of its own.
+    expect(header('Doorbell')).toBe(true)
+    expect(shown('its screen on vps')).toBe(false)
     // What it waits to run, whole, as that machine sent it: both of its lines.
     expect(shown('wants approval')).toBe(true)
-    expect(shown('Bash  gh api repos/acme/x/hooks --method POST')).toBe(true)
+    expect(shown('gh api repos/acme/x/hooks --method POST')).toBe(true)
     expect(shown('./scripts/ring.sh ~/.tade/doorbell')).toBe(true)
     // Another row is another agent's screen.
     row('Linking')
@@ -89,27 +101,17 @@ describe('an agent on another machine, from this window', () => {
     expect(shown('Do you want to proceed?')).toBe(false)
     // The one in front, pressed again, is let go of: the project as it was.
     row('Linking')
-    await until('the project again', () => !shown('its screen on vps'), 20_000)
+    await until('the project again', () => !header('Linking'), 20_000)
   })
 
-  it('carries a sentence, a park and an answer there, each with what this window last saw', async () => {
+  it('carries a park from its menu and an answer from its card there, each with what this window last saw', async () => {
     const far = await linkedTo([INTAKE])
     row('Doorbell')
-    await until('its controls', () => shown('steer…'), 20_000)
+    await until('its card', () => shown('Allow once'), 20_000)
 
-    await press('steer…')
-    await until('the line to say it on', () => shown('Tell Doorbell on vps'))
-    terminal.press('check the signature first')
-    terminal.press('\r')
-    await until('the sentence there', () => far.acted.some((one) => one.verb === 'steer'), 20_000)
-    expect(far.acted.find((one) => one.verb === 'steer')?.call).toMatchObject({
-      task: 'tade/intake-door',
-      said: 'check the signature first',
-    })
-    // The line goes once that machine has answered, and what it said is said here.
-    await until('what came of it', () => shown('vps: steer done there'), 20_000)
-
-    await press('[ park ]')
+    menuOf('Doorbell')
+    await until('its menu', () => shown('Remove agent…'), 20_000)
+    await press('Park')
     await until('the park there', () => far.acted.some((one) => one.verb === 'park'), 20_000)
     await until('what came of that', () => shown('vps: park done there'), 20_000)
     expect(far.acted.find((one) => one.verb === 'park')?.call).toMatchObject({
@@ -117,7 +119,7 @@ describe('an agent on another machine, from this window', () => {
       parked: true,
     })
 
-    await press('[ allow ]')
+    await press('Allow once')
     await until('the answer there', () => far.acted.some((one) => one.verb === 'answer'), 20_000)
     expect(far.acted.find((one) => one.verb === 'answer')?.call).toMatchObject({
       task: 'tade/intake-door',
@@ -143,14 +145,14 @@ describe('an agent on another machine, from this window', () => {
       () => client.lanes().some((lane) => lane.id === 'remotes/vps/1' && lane.alive),
       20_000,
     )
-    // In the pane, in place of the screen read over the link: its lane, live.
-    await until('its lane, in the pane', () => shown('its lane on vps · live'), 20_000)
+    // In the pane, in place of the screen read over the link: its lane, live,
+    // under the one header an agent here has.
     await until('what it printed', () => shown('attached-to-the-door'), 20_000)
-    expect(shown('its screen on vps · read-only')).toBe(false)
-    expect(shown('type into it')).toBe(false)
-    // Its tab is still there below, and it is no terminal of a project's: the
-    // orchestrator's tools never type into it.
-    expect(shown('vps · intake-door')).toBe(true)
+    expect(header('Doorbell')).toBe(true)
+    expect(shown('its lane on vps')).toBe(false)
+    // An agent's lane, as one here is: never a tab below, and no terminal of
+    // a project's — the orchestrator's tools never type into it.
+    expect(shown('vps · intake-door')).toBe(false)
     expect(client.terminals().map((one) => one.id)).not.toContain('remotes/vps/1')
     // The keyboard is in it: what is typed is that lane's, echoed back into the pane.
     terminal.press('ring-the-bell')
@@ -160,9 +162,9 @@ describe('an agent on another machine, from this window', () => {
     expect(shown('Ask Tade anything')).toBe(true)
     // Let go of, and pressed again: the same one, live, and no second opened.
     row('Doorbell')
-    await until('the project again', () => !shown('its lane on vps'), 20_000)
+    await until('the project again', () => !header('Doorbell'), 20_000)
     row('Doorbell')
-    await until('the same terminal, live', () => shown('its lane on vps · live'), 20_000)
+    await until('the same terminal, live', () => header('Doorbell'), 20_000)
     await until('what it had', () => shown('ring-the-bell'), 20_000)
     expect(client.lanes().filter((lane) => lane.id.startsWith('remotes/'))).toHaveLength(1)
   })
@@ -188,11 +190,7 @@ describe('an agent on another machine, from this window', () => {
     // Pressed, it is asked for and refused: said, and its screen read stays.
     row('Doorbell')
     await until('why not', () => shown('its agent is not running there'), 20_000)
-    await until('its screen there', () => shown('its screen on vps · read-only'), 20_000)
-    expect(client.lanes().some((lane) => lane.id.startsWith('remotes/'))).toBe(false)
-    // Its control asks again, and is told the same.
-    await press('type into it')
-    await until('why not, again', () => shown('its agent is not running there'), 20_000)
+    await until('its screen there', () => shown('Do you want to proceed?'), 20_000)
     expect(client.lanes().some((lane) => lane.id.startsWith('remotes/'))).toBe(false)
   })
 })

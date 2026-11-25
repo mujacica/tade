@@ -10,9 +10,10 @@ import { saidOf } from './remote-agent.ts'
 // (`/api/act/close`, the window's own Close there, which deletes nothing and
 // stops none of its agents), with what this window last saw of the project
 // (`was`, its row's `rev`) and of the machine (`rev`), so a press against a
-// screen gone stale is that machine's to refuse. Offered only where its row
-// says close may be asked now (`can`); where it says not, its sentence is the
-// reason. What it answered is said, in its words, as text.
+// screen gone stale is that machine's to refuse. Offered as a tab here offers
+// it; where its row says it cannot be closed now (`cannot`), its sentence is
+// the reason, and whether this machine may ask is that machine's to answer.
+// What it answered is said, in its words, as text.
 
 /** The link holding a machine, and whether it is up. */
 export type ReachThere = (machine: string) => { link: RemoteLink; live: boolean } | null
@@ -25,8 +26,10 @@ export function closingThere(
   if (machine.link !== 'live') return { ok: false, why: `${machine.name} is not linked right now` }
   const no = project.cannot.find((one) => one.verb === 'close')
   if (no) return { ok: false, why: no.why }
-  if (!project.can.includes('close') || project.rev === null || machine.rev === null) {
-    return { ok: false, why: `${machine.name} has not said it may be closed from here` }
+  // Whether this machine may ask is that machine's to say at the act; what no
+  // act can be made without is a revision to echo, which an older Tade sends none of.
+  if (project.rev === null || machine.rev === null) {
+    return { ok: false, why: `${machine.name} has not said enough about it to close it from here` }
   }
   return { ok: true }
 }

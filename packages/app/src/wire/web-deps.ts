@@ -13,6 +13,7 @@ import type { Talking } from './web-asking.ts'
 import type { FactoryHeld } from './web-beat.ts'
 import type { Lifecycle } from './web-lifecycle.ts'
 import type { MachinesHeld } from './web-machines.ts'
+import type { SideDeps } from './web-side.ts'
 
 // What the away subject (`web.ts`) needs of the rest of the window, in a file
 // of its own so the list can be read without the subject: each one a method or
@@ -153,6 +154,13 @@ export interface AwayDeps {
    * Absent, every delivery is the `404` of a path nobody wired.
    */
   doorbell?: Waking
+  /**
+   * One project as this window draws it, for another of the person's machines
+   * to draw it from (`/api/side`, `web-side.ts`): the schedules and the
+   * requests, which are the heart's subjects' to say. Absent, the route is the
+   * `404` of a path nobody wired.
+   */
+  side?: SideDeps
   /**
    * The Linear app's tokens as the window holds them (`linear-tokens.ts`), for
    * connecting Linear to hand a new one to. Absent, the connect page holds one

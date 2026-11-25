@@ -2,7 +2,6 @@ import { printable } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, type ScrollArea, sameTarget, type Target } from '../hits.ts'
 import { linkedRow } from '../links.ts'
-import { elsewhereOf } from '../machines.ts'
 import {
   type AgentPane,
   type AppState,
@@ -19,7 +18,6 @@ import { blank, box, type Drawn, overlay, type Pointer, Row, stack } from '../ui
 import { widthOf } from '../width.ts'
 import { actionRows } from './actions.ts'
 import { type Approval, approvalRows, cardWidth, mostOver } from './approval.ts'
-import { renderElsewhere } from './elsewhere.ts'
 import { renderEmpty } from './empty.ts'
 import {
   carded,
@@ -53,8 +51,6 @@ export function renderMain(
   skin: Skin,
   pointer: Pointer,
 ): Drawn {
-  const away = elsewhereOf(state)
-  if (away !== null) return renderElsewhere(state, frame, away, width, height, skin, pointer)
   const pane = state.panes.find((p) => p.task === state.focused)
   if (!pane && state.showingPlan) return renderPlan(state, frame, width, height, skin, pointer)
   if (!pane && state.plans !== null) return renderPlans(state, frame, width, height, skin, pointer)

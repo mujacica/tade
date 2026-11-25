@@ -751,6 +751,19 @@ export const OWNED: readonly Route[] = [
     here: true,
     theirs: true,
   },
+  // One project as this machine's window draws it (`side.ts`): its agents,
+  // its queued work, its schedules and requests, what changed in its checkout,
+  // its files, its notes and where it is — what another of the person's
+  // machines draws that project from, as its own. A read, with paths in it.
+  {
+    method: 'POST',
+    path: '/api/side',
+    name: 'side',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
   // What this machine is, for another of the person's that links to it
   // (`machine.ts`): its version, its public name's health, its own problems,
   // its schedules' looks and its documents. One of its documents, as text

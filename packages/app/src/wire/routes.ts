@@ -29,6 +29,7 @@ import {
 } from '../panels/models/state.ts'
 import type { AccountShown } from '../panels/settings/accounts.ts'
 import type { Choice } from '../panels/settings/state.ts'
+import { isThere } from '../there.ts'
 import { reloaded, writeRecorded } from './config-written.ts'
 import {
   type Actions,
@@ -40,6 +41,7 @@ import {
   type Wiring,
   why,
 } from './context.ts'
+import type { ThereDoor } from './remote-agent.ts'
 
 // What an agent runs on, and who pays for it: its harness, the account of that
 // harness it runs as, its model, and how hard it thinks.
@@ -80,6 +82,8 @@ function atControl(from: Pressed | undefined): MenuPanel['anchor'] {
 
 /** What this subject needs from the rest of the window. */
 export interface RoutesDeps {
+  /** Another machine's agents, as their rows' ids name them (`there.ts`): their header and their acts. */
+  there?(): ThereDoor | null
   /** How big the terminal is, for putting a menu where there is room for it. */
   size(): { columns: number; rows: number }
   /** The config was written by somebody else's hand: read it back. */
@@ -215,7 +219,11 @@ export class Routes implements Subject {
 
   actions(): Actions {
     return {
-      'model:': (target) => this.openModels(target),
+      // An agent there's model is chosen from what that machine runs, as its own menu's is.
+      'model:': (target) => {
+        const door = isThere(target) ? this.deps.there?.() : null
+        return door ? door.fromTaskMenu(target, 'model') : this.openModels(target)
+      },
       'thinking:': (task, from) => this.openThinking(task, from),
       'harness:': (task, from) => {
         this.wire.put({
@@ -264,11 +272,14 @@ export class Routes implements Subject {
   private openThinking(task: string, from?: Pressed): void {
     const project = task.split('/')[0]
     const orchestrator = task === ORCHESTRATOR_TAB
+    const header = isThere(task) ? (this.deps.there?.()?.header(task) ?? null) : null
     const current = orchestrator
       ? (this.wire.opts.config.orchestrator.thinking ?? null)
-      : (this.wire.live?.vitals(task)?.thinking ??
-        resolveRoute(this.wire.opts.config, project ? { project } : {}).thinking ??
-        null)
+      : header !== null
+        ? (header.vitals?.thinking ?? header.route.thinking ?? null)
+        : (this.wire.live?.vitals(task)?.thinking ??
+          resolveRoute(this.wire.opts.config, project ? { project } : {}).thinking ??
+          null)
     // At the control it belongs to: under it in the pane's header, over it in
     // the strip at the foot of the window.
     const menu = menuPanel({ kind: 'thinking', task, current }, 'Thinking', atControl(from))
@@ -285,6 +296,7 @@ export class Routes implements Subject {
    * them all, as the window always did.
    */
   private levelsFor(task: string): readonly string[] | undefined {
+    if (isThere(task)) return this.deps.there?.()?.header(task)?.offers?.levels
     return task === ORCHESTRATOR_TAB
       ? this.wire.opts.thinker?.offers?.levels
       : this.offersFor(task)?.levels
@@ -420,6 +432,8 @@ export class Routes implements Subject {
   /** How hard an agent thinks from its next turn: that agent's, and nobody else's. */
   async chooseThinking(task: string, level: string): Promise<void> {
     if (task === ORCHESTRATOR_TAB) return this.deps.chooseThinkerThinking(level)
+    const door = isThere(task) ? this.deps.there?.() : null
+    if (door) return door.pressThere(task, 'worker/thinking', { level })
     try {
       const chosen = await this.wire.opts.client.setAgentThinking(task, level)
       notify(this.wire, `${task} thinks at ${chosen.level} from its next turn${ALONE}`)
@@ -431,6 +445,8 @@ export class Routes implements Subject {
 
   /** The harness a task's agent is shown as running in: its own, else its route's. */
   harnessShown(task: string): string {
+    const header = isThere(task) ? this.deps.there?.()?.header(task) : null
+    if (header) return header.offers?.harness ?? header.route.harness
     return (
       this.offersByTask.get(task)?.harness ??
       resolveRoute(this.wire.opts.config, { project: task.split('/')[0] ?? '' }).harness
@@ -509,6 +525,8 @@ export class Routes implements Subject {
 
   /** Run an agent in another harness, starting it again there if it is running. */
   async chooseHarness(task: string, harness: string): Promise<void> {
+    const door = isThere(task) ? this.deps.there?.() : null
+    if (door) return door.pressThere(task, 'worker/harness', { harness })
     const worktree = this.wire.live?.worktreeOf(task)
     if (!worktree) {
       notify(this.wire, `I cannot find where ${task} works`)

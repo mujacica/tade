@@ -1,7 +1,8 @@
 import { resolve } from 'node:path'
 import { devServerPorts, expandHome } from '@tade/core'
 import type { Frame } from '../frame.ts'
-import { sectionOpen } from '../model.ts'
+import type { Live } from '../live.ts'
+import { type AppState, sectionOpen } from '../model.ts'
 import { tilde, type Wiring } from './context.ts'
 
 // What the side shows of the checkout here: the FILES tree and git's marks on
@@ -35,54 +36,82 @@ export class Here {
   facts(): Partial<Frame> {
     const live = this.wire.live
     const state = this.wire.state
-    const focused = state.panes.find((pane) => pane.task === state.focused)
-    const configured = state.project ? this.wire.opts.config.projects[state.project] : null
-    const repo = configured ? expandHome(configured.root) : null
-    const worktree = focused ? (live?.worktreeOf(focused.task) ?? null) : null
-    const facts = focused ? live?.factsOf(focused.task) : null
-    // What the changes are measured from: where the agent branched when one is
-    // in front of you, and nowhere — so, `git status` — when none is.
-    const base = live?.baseOf(state.focused) ?? null
     // Asked again on every beat, frame or none (`keepAsking`); the tree only while FILES is open.
     live?.keepAsking('files', () => this.facts())
-    const tree = sectionOpen(state, 'files', false) ? (worktree ?? repo) : null
-    const files = live ? live.files(tree, state.expanded) : null
-    // The same "here" the tree and the marks are read at, rather than the
-    // focused task: a change in this checkout is a change whoever made it, and
-    // with no agent in front of you there is still a checkout to ask about.
-    const changes = live ? live.changesAt(worktree ?? repo, base) : null
+    const configured = state.project ? this.wire.opts.config.projects[state.project] : null
+    const here = hereOf(state, live, configured ? expandHome(configured.root) : null, {
+      files: sectionOpen(state, 'files', false),
+    })
+    const { changes, files } = here
     // Replaced, never written into: nothing handed to a frame changes in place.
     this.room = {
-      changes: changes === null ? this.room.changes : Math.max(1, changes.length),
-      files: files === null ? this.room.files : Math.max(1, files.length),
+      changes: changes == null ? this.room.changes : Math.max(1, changes.length),
+      files: files == null ? this.room.files : Math.max(1, files.length),
     }
-    return {
-      files,
-      fileMarks: live?.marksAt(tree) ?? {},
-      where: repo
-        ? {
-            repo: tilde(repo),
-            branch: facts?.branch ?? live?.branchAt(repo) ?? null,
-            base: focused ? (live?.baseOf(focused.task) ?? null) : null,
-            // Only a worktree of its own is worth a line: one sharing the
-            // checkout works in `repo`.
-            worktree: worktree && resolve(worktree) !== resolve(repo) ? tilde(worktree) : null,
-            path: worktree ?? repo,
-            shownPath: tilde(worktree ?? repo),
-            links: facts?.links ?? [],
-            // Its agent's dev servers, or with none in front of you every one in the project.
-            servers: focused
-              ? (focused.servers ?? [])
-              : devServerPorts(
-                  state.panes
-                    .filter((pane) => pane.project === state.project)
-                    .flatMap((pane) => pane.servers ?? []),
-                ),
-          }
-        : null,
-      changes,
-      base,
-      roomHeld: this.room,
-    }
+    return { ...here, roomHeld: this.room }
+  }
+}
+
+/** What of `Live` the side reads of a checkout: answers already held, never a look. */
+export type HereLive = Pick<
+  Live,
+  'worktreeOf' | 'factsOf' | 'baseOf' | 'files' | 'marksAt' | 'branchAt' | 'changesAt'
+>
+
+/**
+ * What is on disk for the project and the agent a state stands in: the tree
+ * beside the agent, what git says about it, and where the work is. The
+ * worktree when an agent is in front of you and the project's own checkout
+ * otherwise, which is the same rule `hereOnDisk` follows — one answer to
+ * "here", read two ways. The window's own side reads it (`Here`), and so does
+ * another machine's, asking what this one would draw (`web-side.ts`).
+ *
+ * `files` and `changes` are `null` until they have been looked at: no `Live`
+ * yet is not looked at either, and never an empty checkout.
+ */
+export function hereOf(
+  state: Pick<AppState, 'panes' | 'focused' | 'project' | 'expanded'>,
+  live: HereLive | null,
+  repo: string | null,
+  open: { files: boolean },
+): Pick<Frame, 'files' | 'fileMarks' | 'where' | 'changes' | 'base'> {
+  const focused = state.panes.find((pane) => pane.task === state.focused)
+  const worktree = focused ? (live?.worktreeOf(focused.task) ?? null) : null
+  const facts = focused ? live?.factsOf(focused.task) : null
+  // What the changes are measured from: where the agent branched when one is
+  // in front of you, and nowhere — so, `git status` — when none is.
+  const base = live?.baseOf(state.focused) ?? null
+  const tree = open.files ? (worktree ?? repo) : null
+  const files = live ? live.files(tree, state.expanded) : null
+  // The same "here" the tree and the marks are read at, rather than the
+  // focused task: a change in this checkout is a change whoever made it, and
+  // with no agent in front of you there is still a checkout to ask about.
+  const changes = live ? live.changesAt(worktree ?? repo, base) : null
+  return {
+    files,
+    fileMarks: live?.marksAt(tree) ?? {},
+    where: repo
+      ? {
+          repo: tilde(repo),
+          branch: facts?.branch ?? live?.branchAt(repo) ?? null,
+          base: focused ? (live?.baseOf(focused.task) ?? null) : null,
+          // Only a worktree of its own is worth a line: one sharing the
+          // checkout works in `repo`.
+          worktree: worktree && resolve(worktree) !== resolve(repo) ? tilde(worktree) : null,
+          path: worktree ?? repo,
+          shownPath: tilde(worktree ?? repo),
+          links: facts?.links ?? [],
+          // Its agent's dev servers, or with none in front of you every one in the project.
+          servers: focused
+            ? (focused.servers ?? [])
+            : devServerPorts(
+                state.panes
+                  .filter((pane) => pane.project === state.project)
+                  .flatMap((pane) => pane.servers ?? []),
+              ),
+        }
+      : null,
+    changes,
+    base,
   }
 }

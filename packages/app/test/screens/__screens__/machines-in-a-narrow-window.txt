@@ -1,20 +1,20 @@
  ▄▀   T A D E      checkout    search      +      vps ⋯1 !    web     lab ⋯1     ctrl   +   space   
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  1      on vps ▕│                                                                         
+ ▾ AGENTS  H  X     +    █│                                                                         
+                         █│                                                                         
+   ✓ og-images           █│                 ████████   ▄████▄   ██████▄   ████████                  
+     finished            █│                    ██     ██▀  ▀██  ██   ▀██  ██                        
+                         █│                    ██     ████████  ██    ██  ██████                    
+ ▸ SMART QUEUE      none █│                    ██     ██    ██  ██   ▄██  ██                        
+ ▸ SCHEDULES        none █│                    ██     ██    ██  ██████▀   ████████                  
+ ▸ INTAKE           none █│                                                                         
+ ▾ CHANGES               █│                             said, and done.                             
+   no checkout here      █│                                                                         
+                         █│                 + New agent      Open project     in web                
+ ▾ FILES                 █│                                                                         
+   …                     █│                                                                         
                          ▕│                                                                         
-   ✓ og-images           ▕│                                                                         
-     finished            ▕│                                                                         
-                         ▕│                                   web                                   
- ▸ SMART QUEUE      none ▕│                                                                         
- ▸ SCHEDULES           … ▕│                                 on vps                                  
- ▸ INTAKE                ▕│                                                                         
- ▸ CHECKS                ▕│                  everything asked of it there is done                   
- ▸ DOCUMENTS             ▕│                                                                         
-                         ▕│                                                                         
-                         ▕│                                                                         
-                         ▕│                                                                         
-                         ▕│                                                                         
-                         ▕│                                                                         
+ ▸ NOTES            +    ▕│                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
                                                                                                     
                                                                                                    ▕

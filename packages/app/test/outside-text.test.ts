@@ -466,7 +466,7 @@ describe('notes, which are kept word for word', () => {
 })
 
 describe('an agent on another machine, opened here', () => {
-  it('draws its title, what it is doing, what it waits on and its screen there as text', () => {
+  it('draws its title, what it waits on and its screen there as text', () => {
     const held = {
       ...heldFor('vps'),
       link: { kind: 'live' as const, since: NOW },
@@ -503,13 +503,9 @@ describe('an agent on another machine, opened here', () => {
       project: 'tade',
       agent: 'tade/door',
     })
-    expectOnlyText(
-      see(looking, { machines, remoteScreen }),
-      'doortitle',
-      'waitsthere',
-      'ghapi',
-      'screenrow',
-    )
+    // Drawn as an agent here is: its row says the approval it waits on rather
+    // than its clause, and its screen is where its lane would be.
+    expectOnlyText(see(looking, { machines, remoteScreen }), 'doortitle', 'ghapi', 'screenrow')
   })
 
   it('draws the command an approval there is for whole, and as text', () => {
@@ -555,7 +551,7 @@ describe('an agent on another machine, opened here', () => {
 })
 
 describe('everything else another machine says, drawn here', () => {
-  it('draws its requests, doors, checks, watches, documents, problems and plans as text', () => {
+  it('draws its requests, watches, documents, problems and plans as text', () => {
     const at = new Date(NOW).toISOString()
     const held = {
       ...heldFor('vps'),
@@ -746,15 +742,10 @@ describe('everything else another machine says, drawn here', () => {
       machine: 'vps',
       project: 'tade',
     })
-    expectOnlyText(
-      see(standing, { machines }),
-      'requesttitle',
-      'filer',
-      'doorshut',
-      'suitename',
-      'watchname',
-      'lookfailed',
-    )
+    // The side there is the side here: its requests in INTAKE by what their
+    // source calls them, its watches in SCHEDULES — and its doors and checks
+    // are read where they are read here, never as sections of their own.
+    expectOnlyText(see(standing, { machines }), 'requestid', 'watchname', 'lookfailed')
     // What a watch there found is on its card, as one here's is: drawn as text there too.
     expectOnlyText(
       see({ ...standing, schedule: there('vps', 'w') }, { machines }),

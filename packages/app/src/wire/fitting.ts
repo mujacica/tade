@@ -4,7 +4,6 @@ import { laneShown, laneThere, terminalsOf } from '../model.ts'
 import { BAR } from '../scrollbar.ts'
 import { splitShown, terminalSplitShown } from '../split.ts'
 import { carded, rowsRead } from '../view/lane.ts'
-import { THERE_TOP } from '../view/remote-agent.ts'
 import type { Wiring } from './context.ts'
 
 // How big each lane is made, and when it is told.
@@ -147,16 +146,12 @@ export class Fitting {
   }
 
   /**
-   * The terminal that is an agent on another machine, in the pane: the pane
-   * less the four rows above it that say what it is and what may be asked of
-   * it there (`THERE_TOP`), and the scrollbar's column, as an agent here is made.
+   * The terminal that is an agent on another machine, in the pane: the size an
+   * agent's lane here is made (`paneSize`), because it is drawn under the same
+   * header and rule as one here is.
    */
   thereSize(grown = false): Size {
-    const layout = this.resolved(grown)
-    return {
-      cols: Math.max(20, layout.mainWidth - BAR),
-      rows: Math.max(4, layout.bodyHeight - THERE_TOP),
-    }
+    return this.paneSize(false, grown)
   }
 
   /**

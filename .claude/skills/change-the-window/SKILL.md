@@ -1068,8 +1068,21 @@ drawn from what its away view sends — the projection the link holds.
 - **Standing in one is `state.elsewhere`, never `state.project`**, which stays the local project
   every subject acts on. It is in front only while no agent here is (`elsewhereOf`); `goElsewhere`
   keeps where you were, `whereYouWere` and `refocus` leave the spot and the focus alone while it
-  is, and a beat with an agent here in front lets go of it. The side is `elsewhereSections` and the
-  pane `renderElsewhere` (`view/elsewhere.ts`).
+  is, and a beat with an agent here in front lets go of it.
+- **There is no remote layout: the side and the pane there are `renderSidebar` and `renderMain`**,
+  drawn out of a state and a frame in which that project is the one here (`seenThere`, `side.ts`).
+  That machine answers what its own window draws the project from (`/api/side`, `@tade/web`'s
+  `side.ts`, built by `wire/web-side.ts` with `hereOf` — the very reader of FILES, CHANGES and GIT
+  here — and asked every `SIDE_MS` while you stand there, `wire/remote-side.ts`): its `AgentPane`s,
+  spend, schedules, requests, checkout, notes and the focused agent's route, vitals and offers. The
+  drawing is handed that machine's ids as they are there (they are its text too), and every target
+  in the two regions is carried to the machine on the way out (`thereTarget`, `carriedTo`) and back
+  for the pointer (`hereTarget`). `test/same-there.test.ts` is the definition: the same project
+  local and through the scripted link draws the same rows below the tabs. A Tade there too old to
+  answer is drawn from its projection through the same views (`fromProjection`), said once. A
+  control whose action means *this project* (`+`, add a note, a shell, `X`, all/next) is that
+  machine's while you stand there (`Subject.elsewhere`, looked up before `actions`), and what is on
+  its disk (a file, a change, its branch) is said rather than opened here (`remote-there:`).
 - **A row there is a row here, and the machine is a value in its id** (`there.ts`). Its agents, its
   queued work and its schedules are folded into `AgentPane`, `QueuedView` and `ScheduleView` with ids
   `@machine␟id` (`there`, `refOf`) and drawn by `taskRow`, `queueRow` and `schedulesSection` — so
@@ -1078,33 +1091,29 @@ drawn from what its away view sends — the projection the link holds.
   hands one there to `ThereDoor` (`wire/remote-agent.ts`), the one carrier: an agent's acts are that
   machine's away verbs (`/api/act/<verb>`, keyed, `was` echoed), a schedule's and a retell are its own
   tool calls (`MachineActs.pressed`, `queue/change`). Its menu is the same builder's (`thereItems`),
-  each item off with that machine's `cannot`, its link being down, or why no link carries it — never
-  a press that does nothing. A view or a handler with a second branch for another machine is the bug
-  this replaced. Under them the side goes on with that project's INTAKE (and the machine's doors),
-  CHECKS and DOCUMENTS there (`thereSections`, `view/elsewhere-more.ts`), each out of
-  `Machine.detail` and saying as of when while the link is down; a document's row is a press (`remote-document:<machine> <task> <name>`)
+  each item off with that machine's `cannot`, its link being down, or why no link carries it — and
+  never off because its `can` did not list it: whether this machine may ask is that machine's to
+  answer at the act. A view or a handler with a second branch for another machine is the bug
+  this replaced. A document's row is a press (`remote-document:<machine> <task> <name>`)
   that copies it here over the link and opens the copy in the viewer, offered only while linked.
-  A request's row is a press too (`remote-request:<machine> <item>`, a name the router hands the
+  A request's row in INTAKE there is a press too (`remote-request:<machine> <item>`, a name the router hands the
   rest of only because it ends in `:`), into a page that only reads (`panels/intake/there.ts`):
   labelled with its machine, its own words under this machine's `MATERIAL_LABEL`, and approving it
   said to be that machine's — on its tab, or Tade asked to tell it — with no act on the page.
   What another machine's judge flagged is on /evals' Judge tab under `ON <MACHINE>` (counts out of
   verdicts, open ones oldest first, the probability grey — `panels/evaluations/elsewhere.ts`); its
   plan windows are under its row on Spend (`plansThere`), never in this machine's PLAN list.
-- **A remote agent is opened by its row** (a `task` target carrying its machine, `Place.agent`), and the pane is
-  `view/remote-agent.ts`: its screen there, read-only (`/api/agent`, asked every `LOOK_MS` while
-  you look and only then, read through `screenOf`) — until a terminal here is it (a press on one
-  whose lane runs there, or enter, `Place.lane`; one opening at a time per agent):
-  then the pane draws that lane live, as an agent here is drawn, sized under its four rows
-  (`THERE_TOP`, `Fitting.thereSize`) and typed into there (`laneThere` in `paneLane` and
-  `laneWithKeyboard`), and nothing is read over the link; with its tab in front below, the pane
-  reads it over the link again, because one lane is drawn in one place — and a control only for what that machine's row
-  says it `can` — a verb each (`/api/act/<verb>`, with `was` and `rev` echoed, so a stale press is
-  that machine's to refuse), `steer…` a prompt (`remote-steer`), nothing at all while the link is
-  down. An approval it is held on is drawn as the card here draws one (`approvalRows`): the whole
-  command that machine sent (`approval.command`, its paths already shortened there by `commandOut`,
-  read `'whole'` by `machines.ts`), what it did not send counted with what did not fit, and where
-  an older Tade sent none, that said beside the tool. `wire/remote-agent.ts` is the subject, owned by `Remotes` so `app.ts` never heard of it;
+- **A remote agent is opened by its row** (a `task` target carrying its machine, `Place.agent`), and
+  the pane is the agent pane here: the one header (`project › Task [agent] actions +`, the harness,
+  model and thinking pickers, ctx and `×`, carried there — `worker/harness` and `worker/thinking`
+  as that machine's own tool calls, the model from its menu) over its lane, which is a terminal
+  here that is the agent there (a press on one whose lane runs there, or enter, `Place.lane`; one
+  opening at a time per agent), sized as an agent's lane here (`Fitting.thereSize` is `paneSize`),
+  typed into there (`laneThere` in `paneLane` and `laneWithKeyboard`) and, like an agent's lane
+  here, never a tab below (`TerminalTab.agentThere`). Until it runs, its screen read over the link
+  (`/api/agent`, every `LOOK_MS`, `screenOf`). The approval card's answers and *Open its agent* are
+  that machine's (`FOCUSED_THERE`: `remote-allow`, `remote-deny`, `remote-attach`).
+  `wire/remote-agent.ts` is the subject, owned by `Remotes` so `app.ts` never heard of it;
   everything rides `link.request`, the held connection, never one of its own.
 - **With another machine linked, the `+` asks where first** (`wire/new-where.ts`, the `new-where`
   menu): this machine's row first, so enter does what the `+` did before there was a second —

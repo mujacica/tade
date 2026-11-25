@@ -23,6 +23,7 @@ import type { PanelContext } from './panels/context.ts'
 import type { AgentOffers, ThinkerOffers } from './panels/menu/state.ts'
 import type { PlanRow } from './plans.ts'
 import type { HeldLines } from './scroll.ts'
+import type { SideShown } from './side.ts'
 import type { Skin } from './skin.ts'
 import type { SpendView } from './spend.ts'
 import type { TalkShown, TalkTab } from './talk-tab.ts'
@@ -479,6 +480,13 @@ export interface Frame {
    * is configured, which draws the window as it always was.
    */
   machines?: Machines
+  /**
+   * The project on another machine you are standing in, as that machine's own
+   * window would draw it (`side.ts`): the side and the pane are drawn from it
+   * by the views a project here is drawn by. Asked while you stand there
+   * (`wire/remote-side.ts`).
+   */
+  side?: SideShown
   /**
    * The screen of the agent on another machine you are looking at, as its
    * away view last answered — read only while you look (`wire/remote-agent.ts`).

@@ -70,6 +70,7 @@ import { PublicHealth } from './web-public.ts'
 import { pushFor, type WebPush } from './web-push.ts'
 import { orchestratorRestartFrom, restartingFrom } from './web-restart.ts'
 import { letGoOfRevoked, revokeEvery, revokeOne, type Sessions } from './web-sessions.ts'
+import { sideFrom } from './web-side.ts'
 import { OrchestratorSignIn } from './web-sign-in.ts'
 import { heard, toldTo } from './web-told.ts'
 
@@ -295,6 +296,7 @@ export class Away implements Subject {
       ...(this.deps.doorbell && {
         hooks: hooksFor(this.wire, () => this.config(), this.deps.doorbell),
       }),
+      ...(this.deps.side && { side: sideFrom(this.wire, this.deps.side) }),
       ...ownedFor(
         this.wire,
         () => this.panelFacts(),

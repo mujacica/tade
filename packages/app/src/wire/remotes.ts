@@ -324,6 +324,11 @@ export class Remotes implements Subject {
    * What an agent there may be asked from here — looked at, typed into, told,
    * stopped, parked — and one of a machine's documents read here.
    */
+  /** What is that machine's while you stand in one of its projects (`RemoteAgents.elsewhere`). */
+  elsewhere(): Actions {
+    return this.agents?.elsewhere() ?? {}
+  }
+
   actions(): Actions {
     return {
       ...this.agents?.actions(),

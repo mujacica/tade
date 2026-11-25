@@ -79,6 +79,9 @@ export interface RemoteAgent {
   can: readonly string[]
   /** The ones it says may not, each with its sentence why, as text (its `cannot`). */
   cannot: readonly { verb: string; why: string }[]
+  /** The harness and the model its last run was on, as its row says; null where it did not. */
+  harness?: string | null
+  model?: string | null
 }
 
 export interface RemoteProject {
@@ -405,6 +408,8 @@ function agentOf(
     lane: LANES.find((one) => one === row.lane) ?? 'none',
     can: verbsIn(row.can),
     cannot: cannotIn(row.cannot),
+    harness: text(row.harness, NAME_MOST) || null,
+    model: text(row.model, NAME_MOST) || null,
   }
 }
 

@@ -1,20 +1,15 @@
-import { isText } from '@tade/core'
 import { type Held, heldFor } from '@tade/remotes-core'
 import type { Snapshot } from '@tade/web'
 import { describe, expect, it } from 'vitest'
-import type { Frame } from '../src/frame.ts'
 import { whereYouAre } from '../src/inbox.ts'
-import { goElsewhere, type Machines, machineOf, screenOf } from '../src/machines.ts'
+import { goElsewhere, machineOf, screenOf } from '../src/machines.ts'
 import { initialState, laneThere, laneWithKeyboard, withProjects } from '../src/model.ts'
-import { PLAIN } from '../src/skin.ts'
-import { refOf, there } from '../src/there.ts'
-import { controlsOf } from '../src/view/remote-agent.ts'
-import { draw } from '../src/view.ts'
-import { frame, NOW } from './screens/scenarios/fixtures.ts'
+import { NOW } from './screens/scenarios/fixtures.ts'
 
 // An agent on another machine, opened in this window: what the fold keeps of
-// its row for acting on it, its screen there read as text, and the pane that
-// draws both — with a control only for what that machine says may be asked.
+// its row for acting on it, its screen there read as text, and the terminal
+// here that is it. How it is drawn is an agent here's drawing, held equal to
+// one by `same-there.test.ts`.
 
 const ESCAPES = '\x1b]0;pwned\x07\x1b[2J\x1b[31mred\x1b[0m\u009b6n\x1b]52;c;eA==\x07'
 
@@ -61,22 +56,12 @@ function held(tasks: Record<string, unknown>[], over: Partial<Held> = {}): Held 
   }
 }
 
-const machines = (one: Held): Machines => ({ here: 'this Mac', remotes: [machineOf(one, 0)] })
-
 const looking = (agent = 'tade/intake-door') =>
   goElsewhere(withProjects(initialState(), ['checkout']), {
     machine: 'vps',
     project: 'tade',
     agent,
   })
-
-/** A screen as that machine sends one, read the one way the window reads it. */
-const screen = (lines: string[]): NonNullable<Frame['remoteScreen']> =>
-  screenOf(
-    'tade/intake-door',
-    { screen: { lines, at: new Date(NOW - 2_000).toISOString(), above: 0 } },
-    0,
-  )
 
 describe('what is kept of a row there, for acting on it', () => {
   it('keeps what an act echoes and names, and the verbs that machine offers', () => {
@@ -143,39 +128,6 @@ describe('the command an approval there is for', () => {
     ).projects[0]?.agents[0]?.approval?.command
     expect(counted).toEqual({ text: 'ls', notShown: 0 })
   })
-
-  it('draws the whole command on the card, wrapped under itself, with what was not sent counted', () => {
-    const command = {
-      text: `gh api repos/acme/checkout/hooks --method POST -f name=web -f config[url]=https://vps.example.com/hooks/github ${ESCAPES}\n./scripts/after.sh`,
-      notShown: 40,
-    }
-    const one = held([row({ approval: { id: 'call-7', tool: 'Bash', command } })])
-    const text = draw(
-      looking(),
-      frame({ skin: PLAIN, width: 90, machines: machines(one), remoteScreen: screen(['>']) }),
-    ).rows.join('\n')
-    expect(text).toContain('wants approval')
-    expect(text).toContain('Bash  gh api repos/acme/checkout/hooks')
-    // Its second line is a line of its own, and nothing of it is dropped before the count.
-    expect(text).toContain('./scripts/after.sh')
-    // Wrapped under itself where the pane runs out, never cut at its edge.
-    expect(text).toContain('config[url]=https://vps.example.com/hooks/')
-    expect(text).toMatch(/\n[^\n]*│ {8}github /)
-    expect(text).toContain('… 40 characters not shown')
-    expect(text).not.toContain('pwned\x07')
-    const plain = text.replaceAll('\x1b[0m', '').replaceAll('\x1b]8;;\x07', '')
-    expect(plain).not.toContain('\x1b')
-  })
-
-  it('says that machine sent no command, rather than asking for a yes on the tool’s name alone', () => {
-    const text = draw(
-      looking(),
-      frame({ skin: PLAIN, width: 120, machines: machines(held([row()])) }),
-    ).rows.join('\n')
-    expect(text).toContain('wants approval')
-    expect(text).toContain('Bash  vps did not send the command')
-    expect(text).toContain('allow')
-  })
 })
 
 describe('an agent’s screen there, read as text', () => {
@@ -220,116 +172,7 @@ describe('an agent’s screen there, read as text', () => {
   })
 })
 
-describe('the pane, looking at an agent there', () => {
-  it('draws its screen, read-only, with a control for each thing that machine says may be asked', () => {
-    const one = held([row()])
-    const drawn = draw(
-      looking(),
-      frame({
-        skin: PLAIN,
-        width: 140,
-        machines: machines(one),
-        remoteScreen: screen(['> fixing the intake door', `  ${ESCAPES}`]),
-      }),
-    )
-    const text = drawn.rows.join('\n')
-    expect(text).toContain('The intake door')
-    expect(text).toContain('> fixing the intake door')
-    expect(text).toContain('its screen on vps · read-only')
-    for (const label of ['type into it', 'steer…', 'park', 'stop', 'allow', 'deny']) {
-      expect(text).toContain(label)
-    }
-    expect(text).not.toContain('open again')
-    const actions = drawn.hits.flatMap((hit) =>
-      hit.target.kind === 'action' ? [hit.target.name] : [],
-    )
-    for (const name of [
-      'remote-attach',
-      'remote-steer',
-      'remote-park',
-      'remote-stop',
-      'remote-allow',
-      'remote-deny',
-    ]) {
-      expect(actions).toContain(name)
-    }
-    // Its row down the side is a row of this machine's, carrying its machine in its id.
-    expect(drawn.hits.map((hit) => hit.target)).toContainEqual({
-      kind: 'task',
-      task: there('vps', 'tade/intake-door'),
-    })
-    // Nothing that machine's agent printed reaches this terminal as anything but text.
-    const plain = text.replaceAll('\x1b[0m', '').replaceAll('\x1b]8;;\x07', '')
-    expect(plain).not.toContain('\x1b')
-    expect(plain).not.toContain('pwned')
-    expect([...plain.replaceAll('\n', '')].every((char) => isText(char.codePointAt(0) ?? 0))).toBe(
-      true,
-    )
-  })
-
-  it('offers nothing while its link is down, and says so, keeping what it last read', () => {
-    const down = held([row()], {
-      link: { kind: 'down', since: NOW, tries: 1, problem: 'timed out', said: 'gone quiet' },
-    })
-    const text = draw(
-      looking(),
-      frame({
-        skin: PLAIN,
-        width: 140,
-        machines: machines(down),
-        remoteScreen: screen(['> last thing it said']),
-      }),
-    ).rows.join('\n')
-    expect(text).toContain('vps is not linked: nothing can be asked of it until it is')
-    expect(text).toContain('> last thing it said')
-    expect(text).not.toContain('type into it')
-    expect(controlsOf(machineOf(down, 0).projects[0]!.agents[0]!, machineOf(down, 0))).toEqual([])
-  })
-
-  it('offers what a stopped, parked or queued agent can be asked, and nothing it cannot', () => {
-    const offered = (over: Record<string, unknown>) => {
-      const machine = machineOf(held([row(over)]), 0)
-      return controlsOf(machine.projects[0]!.agents[0]!, machine).map((one) => one.action)
-    }
-    expect(
-      offered({ lane: 'stopped', approval: null, can: [{ verb: 'reopen' }, { verb: 'park' }] }),
-    ).toEqual(['remote-reopen', 'remote-park'])
-    expect(offered({ parked: true, can: [{ verb: 'park' }] })).toEqual([
-      'remote-attach',
-      'remote-unpark',
-    ])
-    expect(
-      offered({ state: 'queued', lane: 'none', approval: null, can: [{ verb: 'queue' }] }),
-    ).toEqual(['remote-start'])
-  })
-
-  it('says why there is no screen yet rather than drawing an empty one', () => {
-    const text = draw(
-      looking(),
-      frame({
-        skin: PLAIN,
-        width: 140,
-        machines: machines(held([row()])),
-        remoteScreen: { ...screen([]), why: 'reading its screen…' },
-      }),
-    ).rows.join('\n')
-    expect(text).toContain('reading its screen…')
-  })
-
-  it('draws its agents down the side as rows of this machine, each a press carrying its machine', () => {
-    const one = held([row(), row({ id: 'tade/other', name: 'other', title: null })])
-    const drawn = draw(looking(), frame({ skin: PLAIN, width: 140, machines: machines(one) }))
-    const presses = drawn.hits.flatMap((hit) =>
-      hit.target.kind === 'task' ? [refOf(hit.target.task)] : [],
-    )
-    expect(presses).toContainEqual({ machine: 'vps', id: 'tade/intake-door' })
-    expect(presses).toContainEqual({ machine: 'vps', id: 'tade/other' })
-    // Nothing on the side of a project there is a row of this machine's own.
-    expect(presses.every((one) => one.machine === 'vps')).toBe(true)
-  })
-})
-
-describe('the pane, once a terminal here is the agent there', () => {
+describe('a terminal here that is the agent there', () => {
   const LANE = 'remotes/vps/1'
   const attached = (over: Partial<ReturnType<typeof looking>> = {}) => {
     const state = looking()
@@ -340,26 +183,6 @@ describe('the pane, once a terminal here is the agent there', () => {
       ...over,
     }
   }
-
-  it('draws that lane live in place of the screen read, with no control to type into it', () => {
-    const text = draw(
-      attached(),
-      frame({
-        skin: PLAIN,
-        width: 140,
-        machines: machines(held([row()])),
-        remoteScreen: screen(['> what the link last read']),
-        screen: '$ live from the lane here',
-      }),
-    ).rows.join('\n')
-    expect(text).toContain('its lane on vps · live')
-    expect(text).toContain('$ live from the lane here')
-    expect(text).not.toContain('what the link last read')
-    expect(text).not.toContain('read-only')
-    expect(text).not.toContain('type into it')
-    // What may still be asked of it there is still offered above it.
-    expect(text).toContain('steer…')
-  })
 
   it('is the pane’s and has its keyboard — but not while the panel below has it, or it has gone', () => {
     expect(laneThere(attached())).toBe(LANE)

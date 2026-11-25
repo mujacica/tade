@@ -1,26 +1,26 @@
  ▄▀   T A D E      checkout !⠋    search ●      +      ○ vps    tade !⠋◌   ×  ≡   web ✓     lab    firmware       ! 1  in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  4   ○ vps · as of 13:52 █│                                                                                                                           
+ ▾ AGENTS  4         H  X     +    █│                                                                                                                           
                                    █│                                                                                                                           
    ! Webhooks ring the d…          █│                                                                                                                           
      wants you to approve repos…   █│                                                                                                                           
                                    █│                                                                                                                           
-   ⠋ remote-link                   █│                                                           tade                                                            
-     working · running the suite   █│                                                                                                                           
-                                   █│                                                on vps · down · as of 13:52                                                
-   ⠋ mirror-branches               █│                                                                                                                           
-     working                       █│                                            1 wants you · 2 working · 1 queued                                             
+   ⠋ remote-link                   █│                                          ████████   ▄████▄   ██████▄   ████████                                           
+     working · running the suite   █│                                             ██     ██▀  ▀██  ██   ▀██  ██                                                 
+                                   █│                                             ██     ████████  ██    ██  ██████                                             
+   ⠋ mirror-branches               █│                                             ██     ██    ██  ██   ▄██  ██                                                 
+     working                       █│                                             ██     ██    ██  ██████▀   ████████                                           
                                    █│                                                                                                                           
-   ✓ Notes are shared bo…          █│                                            timed out: nothing answered in 30s                                             
+   ✓ Notes are shared bo…          █│                                                      said, and done.                                                      
      finished: set union, tombs…   █│                                                                                                                           
-                                   █│                                                                                                                           
- ▾ SMART QUEUE  1                  █│                                                                                                                           
-                                   █│                                                                                                                           
-   ◌ linear-door                   █│                                                                                                                           
-     waits on intake-webhooks      █│                                                                                                                           
+                                   █│                                          + New agent      Open project     in tade                                        
+ ▾ SMART QUEUE  1                  ▕│                                                                                                                           
                                    ▕│                                                                                                                           
- ▸ SCHEDULES          not said yet ▕│                                                                                                                           
- ▸ INTAKE              as of 13:52 ▕│                                                                                                                           
+   ◌ linear-door                   ▕│                                                                                                                           
+     ❯ after                       ▕│                                                                                                                           
+                                   ▕│                                                                                                                           
+ ▸ SCHEDULES    nothing on a clock ▕│                                                                                                                           
+ ▸ INTAKE                     none ▕│                                                                                                                           
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
                                                                                                                                                                 
                                                                                                                                                                ▕

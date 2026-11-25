@@ -8,7 +8,7 @@ import { elsewhere, onThisMac } from './machines.ts'
 // The rest of a project on another machine, down the side under its agents:
 // the requests handed to it there and its doors, its checks, its schedules and
 // watches with their last looks, and the documents its work produced
-// (`view/elsewhere-more.ts`) — each the VPS's, as of when it last said.
+// — each the VPS's, as of when it last said.
 
 const MINUTE = 60_000
 

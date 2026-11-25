@@ -19,6 +19,7 @@ import {
   type RepositoryHere,
   reachOf,
   readDevices,
+  type SideAsk,
   type SignInHere,
   type SnapshotInput,
   Streams,
@@ -30,6 +31,7 @@ import {
   type WatchSeenAnswer,
   type WebConnecting,
   type WebServer,
+  type WebSide,
   webServer,
 } from '@tade/web'
 import { type FarAct, type FarAgent, farActing, farLane, farMenus, farTask } from './far-agents.ts'
@@ -121,6 +123,13 @@ export interface FarEnd {
    * it has no project anybody could fetch.
    */
   repositories: RepositoryHere[]
+  /**
+   * One project as its window draws it, as its window answers an owner
+   * (`/api/side`), by the ask. A test sets it; unset, no project is answered.
+   */
+  side: WebSide | null
+  /** Every ask of `/api/side` it was answered, oldest first. */
+  readonly sideAsked: SideAsk[]
   /**
    * The outside watches its window says it looks with, by project, as its
    * projection carries them (`ProjectRow.watching`). A test sets it; a project
@@ -233,6 +242,8 @@ class Far implements FarEnd {
   talking = true
   readonly attachable = new Map<string, string>()
   repositories: RepositoryHere[] = []
+  side: WebSide | null = null
+  readonly sideAsked: SideAsk[] = []
   readonly watching = new Map<string, readonly string[]>()
   machine: MachineAnswer | null = null
   machineAsked = 0
@@ -376,6 +387,10 @@ class Far implements FarEnd {
           : { command: line }
       },
       repositories: async () => this.repositories,
+      side: async (ask) => {
+        this.sideAsked.push(ask)
+        return this.side === null ? null : this.side(ask)
+      },
       seen: (device, word) => {
         this.seen.push({ label: device.label, word })
       },

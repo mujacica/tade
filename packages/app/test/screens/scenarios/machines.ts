@@ -375,7 +375,7 @@ export const MACHINE_SCREENS: Scenario[] = [
       'never the agent.',
     state: {
       ...withTerminals(looking(), [
-        { id: 'remotes/vps/1', project: '', name: 'vps · intake-webhooks' },
+        { id: 'remotes/vps/1', project: '', name: 'vps · intake-webhooks', agentThere: true },
       ]),
       bottom: 'remotes/vps/1',
       keyboard: 'terminal',

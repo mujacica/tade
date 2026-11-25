@@ -15,9 +15,19 @@ import {
   type RemoteScreen,
   screenOf,
 } from '../machines.ts'
-import { laneThere, leaveLine, ORCHESTRATOR_TAB, type ScheduleView } from '../model.ts'
+import {
+  doneTasks,
+  laneThere,
+  leaveLine,
+  notice,
+  ORCHESTRATOR_TAB,
+  type ScheduleView,
+  showQueue,
+} from '../model.ts'
 import { type MenuItem, menuPanel } from '../panels/menu/state.ts'
-import { confirmRemovePanel, promptPanel } from '../panels/small/state.ts'
+import { closeDonePanel, confirmRemovePanel, promptPanel } from '../panels/small/state.ts'
+import { QUEUE_SCOPES } from '../queue-view.ts'
+import type { SideThere } from '../side.ts'
 import { refOf, scheduleThere, there, thereItems, thereScheduleItems } from '../there.ts'
 import {
   type Actions,
@@ -29,6 +39,7 @@ import {
   type Wiring,
   why,
 } from './context.ts'
+import { RemoteSide } from './remote-side.ts'
 import { RemoteTerminals } from './remote-terminals.ts'
 
 // An agent on another machine, opened from this window:
@@ -108,6 +119,14 @@ export interface ThereDoor {
   rename(id: string, title: string): Promise<string>
   /** Told what to do when it starts, there (`queue-retell`'s prompt). */
   retell(id: string, prompt: string): Promise<string>
+  /**
+   * What the header of an agent there says it runs on, as that machine's
+   * window does (`/api/side`): its route, its vitals and what its harness
+   * offers — or null where that machine has not said.
+   */
+  header(id: string): SideThere['agent']
+  /** One of that machine's own tool calls about an agent there (`worker/thinking`…), said in the strip. */
+  pressThere(id: string, method: string, params: Record<string, unknown>): Promise<void>
   /** A schedule there, as this machine's views are, or null where it has gone. */
   schedule(id: string): ScheduleView | null
   /** Its menu. */
@@ -143,17 +162,21 @@ export class RemoteAgents implements Subject, ThereDoor {
   private readonly terminals: RemoteTerminals
   /** The agents there a terminal here is being opened to, by machine and task. */
   private readonly opening = new Set<string>()
+  /** The project there you stand in, as that machine's window draws it. */
+  private readonly side: RemoteSide
 
   constructor(wire: Wiring, deps: RemoteAgentDeps) {
     this.wire = wire
     this.deps = deps
     this.terminals = new RemoteTerminals(wire, { reach: (machine) => deps.reach(machine) })
+    this.side = new RemoteSide(wire, { reach: (machine) => deps.reach(machine) })
   }
 
   facts(): Partial<Frame> {
+    const side = this.side.facts()
     const looked = this.looked()
-    if (looked === null || this.screen?.of !== keyOf(looked.place)) return {}
-    return { remoteScreen: this.screen.screen }
+    if (looked === null || this.screen?.of !== keyOf(looked.place)) return side
+    return { ...side, remoteScreen: this.screen.screen }
   }
 
   /** A shell in one of that machine's projects, in a lane here (`RemoteTerminals.shell`). */
@@ -169,6 +192,7 @@ export class RemoteAgents implements Subject, ThereDoor {
   /** The window's beat: the screen asked for again, while somebody looks at one. */
   beat(): void {
     this.terminals.beat()
+    this.side.beat()
     const looked = this.looked()
     if (looked === null || this.asking !== null) return
     // Its lane is in the pane, live: there is nothing to read over the link.
@@ -206,8 +230,108 @@ export class RemoteAgents implements Subject, ThereDoor {
     }
   }
 
+  /**
+   * What the side and the pane's controls do while you stand in a project
+   * there: the same controls as here, done to that project on that machine —
+   * a new agent, a note, a shell, the finished ones closed, how much of the
+   * queue is shown — and what is on its disk said rather than opened here.
+   */
+  elsewhere(): Actions {
+    const place = elsewhereOf(this.wire.state)
+    if (place === null) return {}
+    const { machine, project } = place
+    return {
+      'new-agent-where': () => {
+        this.wire.put({
+          ...this.wire.state,
+          panel: {
+            ...promptPanel('new-there', `New agent on ${machine} in ${project}`, 'For'),
+            target: `${machine}\0${project}`,
+          },
+        })
+        this.wire.draw()
+      },
+      'add-note': () => {
+        this.wire.put({
+          ...this.wire.state,
+          panel: {
+            ...promptPanel('note-there', 'New note', `NOTE ABOUT ${project.toUpperCase()}`),
+            target: `${machine}\0${project}`,
+          },
+        })
+        this.wire.draw()
+      },
+      'new-shell': async () => {
+        try {
+          await this.shell(machine, project)
+        } catch (err) {
+          notify(this.wire, `${machine}: ${why(err)}`)
+          this.wire.draw()
+        }
+      },
+      'close-done': () => {
+        const side = this.side.shownFor(place)
+        const done = doneTasks({
+          ...this.wire.state,
+          panes: [...(side?.panes ?? [])],
+          project,
+        })
+        this.wire.put(
+          done.length === 0
+            ? notice(
+                this.wire.state,
+                `no agent in ${project} on ${machine} has finished yet`,
+                this.wire.now(),
+              )
+            : {
+                ...this.wire.state,
+                panel: closeDonePanel(done.map((pane) => there(machine, pane.task))),
+              },
+        )
+        this.wire.draw()
+      },
+      // How much of its queue is shown is this window's to remember, for the project there.
+      'queue-scope:': (name) => {
+        const scope = QUEUE_SCOPES.find((one) => one === name)
+        const state = this.wire.state
+        if (scope) {
+          const shown = showQueue({ ...state, project }, { scope })
+          this.wire.put({ ...shown, project: state.project })
+        }
+        this.wire.draw()
+      },
+      'remote-there:': (said) => this.onDisk(machine, said),
+    }
+  }
+
+  /**
+   * A press on what is on that machine's disk — a file, a change, its branch —
+   * named as `<kind>\0<path>` by the mouse: said, since reading it from here
+   * is not built yet, and never opened from this machine's disk in its place.
+   */
+  private onDisk(machine: string, said: string): void {
+    const [kind = '', path = ''] = said.split('\0')
+    const what = kind === 'branch' || path === '' ? 'its branch' : printable(path)
+    this.say(
+      `${what} is on ${machine}: reading it from here is not built yet — open a terminal there with + below`,
+    )
+  }
+
   prompts(): Prompts {
     return {
+      'note-there': async (panel, text) => {
+        const [machine = '', project = ''] = (panel.target ?? '').split('\0')
+        if (text === '') throw new Error('say what to note')
+        const said = await this.pressedOn(machine, 'memory/remember', {
+          text,
+          scope: project,
+          by: 'window',
+        })
+        this.wire.put({ ...this.wire.state, panel: null })
+        this.side.soon()
+        flash(this.wire, said)
+        this.wire.draw()
+      },
       'model-there': async (panel, text) => {
         await this.named(panel.target ?? '', 'model', { model: text })
       },
@@ -435,6 +559,34 @@ export class RemoteAgents implements Subject, ThereDoor {
   renameSchedule(id: string, name: string): Promise<string> {
     const { machine, id: schedule } = refOf(id)
     return this.pressedOn(machine ?? '', 'queue/change', { schedule, change: 'rename', name })
+  }
+
+  header(id: string): SideThere['agent'] {
+    const { machine, id: task } = refOf(id)
+    const place = elsewhereOf(this.wire.state)
+    if (place === null || place.machine !== machine) return null
+    const agent = this.side.shownFor(place)?.agent ?? null
+    return agent?.task === task ? agent : null
+  }
+
+  async pressThere(id: string, method: string, params: Record<string, unknown>): Promise<void> {
+    const { machine, id: task } = refOf(id)
+    try {
+      const where =
+        this.header(id) === null ? null : this.side.worktreeFor(elsewhereOf(this.wire.state))
+      flash(
+        this.wire,
+        await this.pressedOn(machine ?? '', method, {
+          task,
+          ...(where === null ? {} : { worktree: where }),
+          ...params,
+        }),
+      )
+      this.side.soon()
+    } catch (err) {
+      notify(this.wire, why(err))
+    }
+    this.wire.draw()
   }
 
   /** The machine, its project and the agent an id there names, as the frame has them now. */

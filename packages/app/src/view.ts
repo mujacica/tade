@@ -5,6 +5,7 @@ import { type AppState, conversing } from './model.ts'
 import { drawPanel } from './panels/context.ts'
 import type { MenuPanel } from './panels/menu/state.ts'
 import type { Regions } from './selection.ts'
+import { carriedTo, seenThere } from './side.ts'
 import { PLAIN } from './skin.ts'
 import { type Drawn, overlay, type Pointer, shiftRegions } from './ui.ts'
 import { renderFoot } from './view/foot.ts'
@@ -70,7 +71,21 @@ export function draw(state: AppState, given: Frame, last: LastFrame | null = nul
     name: RegionName,
     args: readonly unknown[],
     paint: (state: AppState, frame: Frame) => Drawn,
-  ): Drawn => (last ? last.region(name, [...args, skin], state, frame, paint) : paint(state, frame))
+    seen: { state: AppState; frame: Frame } = { state, frame },
+  ): Drawn =>
+    last
+      ? last.region(name, [...args, skin], seen.state, seen.frame, paint)
+      : paint(seen.state, seen.frame)
+  // A project on another machine is drawn by the same side and pane as one
+  // here, out of a state and frame in which it is the one here (`side.ts`);
+  // what is pressed in them is carried to that machine on the way out.
+  const elsewhere = seenThere(state, frame)
+  const seen = elsewhere ?? { state, frame }
+  const seenPointer: Pointer = elsewhere
+    ? { hover: seen.state.hover, pressed: seen.state.pressed, busy: state.busy }
+    : pointer
+  const carry = (drawn: Drawn): Drawn =>
+    elsewhere ? carriedTo(drawn, elsewhere.place.machine) : drawn
 
   const rows: string[] = []
   const hits: Hit[] = []
@@ -88,11 +103,21 @@ export function draw(state: AppState, given: Frame, last: LastFrame | null = nul
 
   add(region('top', [width], (s, f) => renderTop(s, f, width, skin, pointer)))
 
-  const left = region('sidebar', [sidebarWidth, bodyHeight], (s, f) =>
-    renderSidebar(s, f, sidebarWidth, bodyHeight, skin, pointer),
+  const left = carry(
+    region(
+      'sidebar',
+      [sidebarWidth, bodyHeight],
+      (s, f) => renderSidebar(s, f, sidebarWidth, bodyHeight, skin, seenPointer),
+      seen,
+    ),
   )
-  const right = region('main', [mainWidth, bodyHeight], (s, f) =>
-    renderMain(s, f, mainWidth, bodyHeight, skin, pointer),
+  const right = carry(
+    region(
+      'main',
+      [mainWidth, bodyHeight],
+      (s, f) => renderMain(s, f, mainWidth, bodyHeight, skin, seenPointer),
+      seen,
+    ),
   )
   // The line between them is a handle: it lights up under the pointer, and
   // dragging it moves it.

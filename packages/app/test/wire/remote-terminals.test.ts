@@ -5,6 +5,7 @@ import type { LaneId } from '@tade/core'
 import { type FarAgent, type FarEnd, startFarEnd } from '@tade/remotes-core/far'
 import type { ScriptedOptions } from '@tade/remotes-scripted'
 import type { Workbench } from '@tade/workbench'
+import { attachedFrom } from '@tade/workbench/attached'
 import { afterEach, describe, expect, it } from 'vitest'
 import { endedOf } from '../../src/wire/remote-terminals.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
@@ -152,7 +153,8 @@ describe('a terminal to an agent on another machine, kept up', () => {
       client.lanes().filter((lane) => lane.id.startsWith('remotes/') && lane.alive),
     ).toHaveLength(1)
     expect(after?.spec.rows).toBe(before?.spec.rows)
-    expect(shown('vps · intake-door')).toBe(true)
+    // Its agent's lane, as one here is: never a tab below.
+    expect(shown('vps · intake-door')).toBe(false)
     expect(await door.runs()).toBe(2)
     // Another lane under the same name, watched afresh: the old one's watch
     // hears nothing the new one prints.
@@ -213,7 +215,7 @@ describe('a terminal to an agent on another machine, kept up', () => {
     expect(front()).not.toContain('[ vps · intake-door ]')
   })
 
-  it('keeps a terminal run again where its tab was, before one opened after it', async () => {
+  it('keeps a terminal run again where it was, before one opened after it', async () => {
     const far = await linkedTo([DOOR, LINK])
     const door = await dropping('door')
     far.attachable.set(DOOR.task, door.line)
@@ -241,14 +243,11 @@ describe('a terminal to an agent on another machine, kept up', () => {
     expect(after?.startedAt).not.toBe(before?.startedAt)
     await until('it ran again', async () => (await door.runs()) === 2)
 
-    // A start of its own, and its tab where it was along the row.
-    const tabs = rows().find(
-      (one) => one.includes('vps · intake-door') && one.includes('vps · remote-link'),
-    )
-    expect(tabs).toBeDefined()
-    expect(tabs?.indexOf('vps · intake-door')).toBeLessThan(
-      tabs?.indexOf('vps · remote-link') ?? -1,
-    )
+    // A start of its own, and still the first opened, before the one opened after it.
+    expect(attachedFrom(client.lanes()).map((one) => one.id)).toEqual([
+      'remotes/vps/1',
+      'remotes/vps/2',
+    ])
   })
 
   it('leaves one the person closed, one that ended there and one whose agent has gone as they are', async () => {

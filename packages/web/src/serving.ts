@@ -30,6 +30,7 @@ import type { WebActs } from './shared-acts.ts'
 import type { WebConversation } from './shared-conversation.ts'
 import type { WebFeeds } from './shared-feeds.ts'
 import type { WebNotes } from './shared-notes.ts'
+import type { WebSide } from './side.ts'
 import type { WebSigningIn } from './signing-in.ts'
 import type { WebSince } from './since.ts'
 import type { Listener, Scope, Surface } from './surface.ts'
@@ -299,6 +300,11 @@ export interface ServerOptions {
    * Absent, the route is the `404` of a path nobody wired.
    */
   repositories?: WebRepositories
+  /**
+   * One project as the window draws it, for an owner's window on another
+   * machine to draw it from as its own (`side.ts`).
+   */
+  side?: WebSide
   /**
    * What this machine is, one of its documents, and one of its tools that only
    * reads, for an owner's window on another machine (`machine.ts`,

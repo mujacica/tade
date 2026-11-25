@@ -26,6 +26,7 @@ import { type ActBody, type ActDone, actHere, outboxHere } from './shared-acts.t
 import { type ConversationShareAnswer, conversationHere } from './shared-conversation.ts'
 import { type FeedsShareAnswer, feedsHere } from './shared-feeds.ts'
 import { type NotesShareAnswer, shareHere } from './shared-notes.ts'
+import { type SideAnswer, sideHere } from './side.ts'
 import { type SignInStanding, signInHere } from './signing-in.ts'
 import { type SinceAnswer, sinceHereFor } from './since.ts'
 import { type TakeAnswer, takeHere } from './taken.ts'
@@ -39,7 +40,8 @@ import { type WatchSeenAnswer, watchSeenHere } from './watch-seen.ts'
 // while they were away (`since.ts`), their notes shared with another of their
 // machines (`shared-notes.ts`), every machine's journal kept on every other
 // (`shared-feeds.ts`), where each project's work is, for a fetch
-// over the same SSH (`repositories.ts`), and what this machine is, one of its
+// over the same SSH (`repositories.ts`), one project as its window draws it
+// (`side.ts`), and what this machine is, one of its
 // documents and one of its tools that only reads (`machine.ts`, `document.ts`,
 // `tool-read.ts`), every machine's inventory and the press that moves the keys
 // into one file (`machines.ts`), Tade started again on the code on disk now
@@ -70,6 +72,7 @@ export const OWNED_DOOR: ReadonlySet<string> = new Set([
   'acts',
   'acts outbox',
   'repositories',
+  'side',
   'carry',
   'machine',
   'machines',
@@ -107,6 +110,7 @@ export async function carryOwned(
     | 'conversation'
     | 'acts'
     | 'repositories'
+    | 'side'
     | 'machine'
     | 'machines'
     | 'restarting'
@@ -133,6 +137,7 @@ export async function carryOwned(
         | ActDone
         | { acts: ActBody[] }
         | RepositoriesAnswer
+        | SideAnswer
         | MachineAnswer
         | MachinesAnswer
         | RestartAnswer
@@ -158,6 +163,7 @@ export async function carryOwned(
   if (route === 'acts') return actHere(req, device, opts.acts)
   if (route === 'acts outbox') return outboxHere(req, device, opts.acts)
   if (route === 'repositories') return repositoriesHere(req, device, opts.repositories)
+  if (route === 'side') return sideHere(req, device, opts.side)
   if (route === 'machine') return machineHere(req, device, opts.machine)
   if (route === 'machines') return machinesHere(req, device, opts.machines)
   if (route === 'machines press') return machinesPressHere(req, device, opts.machines)

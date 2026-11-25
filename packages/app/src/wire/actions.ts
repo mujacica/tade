@@ -1,5 +1,6 @@
 import { matchActions, parseCommand } from '../commands.ts'
 import { sameTarget, type Target } from '../hits.ts'
+import { elsewhereOf } from '../machines.ts'
 import { focusTask } from '../model.ts'
 import type { ExtensionViewPanel } from '../panels/extensions/setup.ts'
 import { type MenuSubject, menuPanel } from '../panels/menu/state.ts'
@@ -301,17 +302,31 @@ export class Router {
     return table
   }
 
+  /** The actions that are another machine's while you stand in one of its projects. */
+  private elsewhere(): Actions {
+    if (elsewhereOf(this.wire.state) === null) return {}
+    let table: Actions = {}
+    for (const subject of this.deps.subjects()) {
+      if (subject.elsewhere) table = { ...table, ...subject.elsewhere() }
+    }
+    return table
+  }
+
   /** The handler for an action, and what is left of the name after its prefix. */
   private lookUp(action: string): { does: Actions[string]; rest: string } | null {
-    const table = this.table()
-    const exact = table[action]
-    if (exact) return { does: exact, rest: '' }
-    let best: string | null = null
-    for (const name of Object.keys(table)) {
-      if (!name.endsWith(':') || !action.startsWith(name)) continue
-      if (best === null || name.length > best.length) best = name
-    }
-    const does = best === null ? undefined : table[best]
-    return does && best !== null ? { does, rest: action.slice(best.length) } : null
+    return found(this.elsewhere(), action) ?? found(this.table(), action)
   }
+}
+
+/** The handler for an action in one table, and what is left of the name after its prefix. */
+function found(table: Actions, action: string): { does: Actions[string]; rest: string } | null {
+  const exact = table[action]
+  if (exact) return { does: exact, rest: '' }
+  let best: string | null = null
+  for (const name of Object.keys(table)) {
+    if (!name.endsWith(':') || !action.startsWith(name)) continue
+    if (best === null || name.length > best.length) best = name
+  }
+  const does = best === null ? undefined : table[best]
+  return does && best !== null ? { does, rest: action.slice(best.length) } : null
 }

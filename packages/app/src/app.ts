@@ -423,6 +423,7 @@ export class App {
       credential: (provider) => this.machine.credential(provider),
       paidBy: (provider) => this.machine.paidBy(provider),
       accounts: () => this.machine.accounts,
+      there: () => this.remotes.there(),
     })
     this.files = new Files(this.wire, {
       size: () => this.room(),

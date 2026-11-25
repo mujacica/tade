@@ -1,26 +1,26 @@
  ▄▀   T A D E      checkout !⠋    search ●      +      vps    tade !⠋◌   ×  ≡   web ✓     lab    firmware   ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  4                on vps █│ ! Webhooks ring the doorbell                                                                                    vps · 12m 
-                                   █│   wants approval: gh api                                                                                                  
+ ▾ AGENTS  4         H  X     +    █│ tade › Webhooks ring the doorbell    agent    actions     +        agent ▾     its default model ▾     thinking ▾     ×   
+                                   █│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ▌ ! Webhooks ring the d…          █│                                                                                                                           
- ▌   wants you to approve repos…   █│   ⏎ type into it     steer…     park     stop                                                                             
-                                   █│ wants approval                                                                                                            
-   ⠋ remote-link                   █│  gh api  repos/acme/checkout/hooks --method POST -f name=web -f events[]=push -f                                          
-     working · running the suite   █│          config[url]=https://vps.example.com/hooks/github -f config[secret]=•••                                           
-                                   █│   allow     deny                                                                                                          
-   ⠋ mirror-branches               █│                                                                                                                           
-     working                       █│── its screen on vps · read-only · as of 14:00 ────────────────────────────────────────────────────────────────────────────
+ ▌   wants you to approve repos…   █│                                                                                                                           
                                    █│> wire the GitHub webhook to the doorbell, then prove a delivery wakes the watch                                           
-   ✓ Notes are shared bo…          █│                                                                                                                           
-     finished: set union, tombs…   █│● I will register the hook on acme/checkout and send a test delivery.                                                      
+   ⠋ remote-link                   █│                                                                                                                           
+     working · running the suite   █│● I will register the hook on acme/checkout and send a test delivery.                                                      
                                    █│                                                                                                                           
- ▾ SMART QUEUE  1                  █│● Bash(gh api repos/acme/checkout/hooks --method POST -f name=web …)                                                       
-                                   █│                                                                                                                           
-   ◌ linear-door                   █│  Do you want to proceed?                                                                                                  
-     waits on intake-webhooks      █│  ❯ 1. Yes                                                                                                                 
-                                   ▕│    2. Yes, and don’t ask again for gh api commands                                                                        
- ▸ SCHEDULES          not said yet ▕│    3. No, and tell Claude what to do differently                                                                          
- ▸ INTAKE                          ▕│                                                                                                                           
+   ⠋ mirror-branches               █│● Bash(gh api repos/acme/checkout/hooks --method POST -f name=web …)                                                       
+     working                       █│                                                                                                                           
+                                   █│  Do you want to proceed?                                                                                                  
+   ✓ Notes are shared bo…          █│  ❯ 1. Yes                                                                                                                 
+     finished: set union, tombs…   █│    2. Yes, and don’t ask again for gh api commands                                                                        
+                                   █│    3. No, and tell Claude what to do differently                                                                          
+ ▾ SMART QUEUE  1                  ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                                                         
+                                   ▕│  │ gh api  repos/acme/checkout/hooks --method POST -f name=web  │                                                         
+   ◌ linear-door                   ▕│  │         -f events[]=push -f config[url]=https://vps.example.c│                                                         
+     ❯ after                       ▕│  │         om/hooks/github -f config[secret]=•••                │                                                         
+                                   ▕│  │   Allow once     Deny                                        │                                                         
+ ▸ SCHEDULES    nothing on a clock ▕│  ╰──────────────────────────────────────────────────────────────╯                                                         
+ ▸ INTAKE                     none ▕│                                                                                                                           
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
                                                                                                                                                                 
                                                                                                                                                                ▕

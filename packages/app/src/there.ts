@@ -64,8 +64,17 @@ function asMarked(agent: RemoteAgent): Pick<AgentPane, 'state' | 'waiting' | 're
 
 /** An agent there, as a pane here: its id carries its machine (`there`). */
 export function paneThere(agent: RemoteAgent, project: RemoteProject, machine: Machine): AgentPane {
+  return { ...paneOf(agent, project), task: there(machine.name, agent.id) }
+}
+
+/**
+ * An agent there, as a pane drawn standing in its project (`side.ts`): its id
+ * as it is there, which the drawing names it by — the machine goes into what
+ * is pressed on the way out (`thereTarget`).
+ */
+export function paneOf(agent: RemoteAgent, project: RemoteProject): AgentPane {
   return {
-    task: there(machine.name, agent.id),
+    task: agent.id,
     project: project.name,
     name: agent.name,
     title: agent.title,
@@ -95,6 +104,14 @@ export function queuedThere(
   project: RemoteProject,
   machine: Machine,
 ): AgentPane & { queued: QueuedView } {
+  return { ...queuedOf(agent, project), task: there(machine.name, agent.id) }
+}
+
+/** Queued work there, as `paneOf` draws an agent there: by its id there. */
+export function queuedOf(
+  agent: RemoteAgent,
+  project: RemoteProject,
+): AgentPane & { queued: QueuedView } {
   const state: QueueState =
     agent.mark === 'needs-you'
       ? { kind: 'held', on: null, because: agent.reason }
@@ -102,7 +119,7 @@ export function queuedThere(
         ? { kind: 'paused', all: false, parked: true }
         : { kind: 'waiting', on: [] }
   return {
-    ...paneThere(agent, project, machine),
+    ...paneOf(agent, project),
     state: 'queued',
     queued: { state, after: [], prompt: '', touches: [], at: null },
   }
@@ -121,8 +138,13 @@ const DOES: Readonly<Record<ScheduleThere['kind'], string>> = {
  * next run where it named one.
  */
 export function scheduleThere(one: ScheduleThere, machine: string): ScheduleView {
+  return { ...scheduleOf(one, machine), id: there(machine, one.id) }
+}
+
+/** A schedule there, as `paneOf` draws an agent there: by its id there. */
+export function scheduleOf(one: ScheduleThere, machine: string): ScheduleView {
   return {
-    id: there(machine, one.id),
+    id: one.id,
     name: one.name,
     project: one.project,
     said: '',
@@ -223,8 +245,8 @@ function notAcross(item: string, machine: string): string | null {
 /**
  * An agent there's menu: the menu an agent here has, item for item
  * (`menuItems`, or `queueMenuItems` for queued work), each carried to that
- * machine — and off, saying why, where its link is down, where it says it may
- * not be asked now (its `cannot`), or where the act cannot cross a link at all.
+ * machine — and off, saying why, where its link is down, where it says it
+ * cannot be done to it now (its `cannot`), or where the act cannot cross a link at all.
  */
 export function thereItems(
   agent: RemoteAgent,
@@ -248,10 +270,13 @@ export function thereItems(
     if (across !== null) return { ...item, off: across }
     if (item.off) return item
     if (down !== null) return { ...item, off: down }
+    // What it says cannot be done to it now is off with its sentence, as an
+    // item here is off by what is true of the agent. Everything else is
+    // offered as it is here, and that machine answers the press — whether it
+    // lets this one ask is its to say at the act, never guessed here.
     const verb = VERB_OF[item.id]
-    if (verb === undefined || agent.can.includes(verb)) return item
-    const why = agent.cannot.find((one) => one.verb === verb)?.why
-    return { ...item, off: why ?? `${machine.name} does not offer it now` }
+    const why = verb === undefined ? undefined : agent.cannot.find((one) => one.verb === verb)?.why
+    return why === undefined ? item : { ...item, off: why }
   })
 }
 

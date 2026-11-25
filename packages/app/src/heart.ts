@@ -570,6 +570,8 @@ export class Heart {
         menus: () => agentMenuDoors(this.wire, this.agents),
       },
       doorbell: { wake: (id, item) => this.schedules.wake(id, item) },
+      // One project as this window draws it, for another of the person's machines.
+      side: { schedules: () => this.schedules.views(), intake: () => this.intake.facts() },
       linear: this.linear,
       // A sign-in made here from another machine's `/login`, once any turn is over.
       restartOrchestrator: () => this.orchestrator.moveAccount(true),

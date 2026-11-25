@@ -22,6 +22,7 @@ import type { WebActs } from '../src/shared-acts.ts'
 import type { WebConversation } from '../src/shared-conversation.ts'
 import type { WebFeeds } from '../src/shared-feeds.ts'
 import type { WebNotes } from '../src/shared-notes.ts'
+import type { WebSide } from '../src/side.ts'
 import type { WebSince } from '../src/since.ts'
 import type { Surface } from '../src/surface.ts'
 import { Tickets } from '../src/tickets.ts'
@@ -230,6 +231,7 @@ export async function start(
     acts?: WebActs
     /** The window's projects and branches, for a test of an owner asking where they are. */
     repositories?: WebRepositories
+    side?: WebSide
     /** What the window says this machine is, a document, a tool that reads, work it takes, and a carry. */
     owned?: Pick<
       ServerOptions,
@@ -306,6 +308,7 @@ export async function start(
     ...(opts.conversation === undefined ? {} : { conversation: opts.conversation }),
     ...(opts.acts === undefined ? {} : { acts: opts.acts }),
     ...(opts.repositories === undefined ? {} : { repositories: opts.repositories }),
+    ...(opts.side === undefined ? {} : { side: opts.side }),
     ...(opts.hooks === undefined ? {} : { hooks: opts.hooks }),
     ...(opts.connecting === undefined ? {} : { connecting: opts.connecting }),
     ...(opts.interfaces === undefined ? {} : { interfaces: opts.interfaces }),

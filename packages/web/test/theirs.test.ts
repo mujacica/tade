@@ -33,6 +33,7 @@ const THEIRS = [
   'acts',
   'acts outbox',
   'repositories',
+  'side',
   'machine',
   'machines',
   'machines press',
@@ -309,6 +310,7 @@ async function wired(): Promise<{ one: Running; asked: string[] }> {
       conversation: heard('conversation'),
       acts: { take: heard('acts'), outbox: heard('acts outbox') },
       repositories: heard('repositories'),
+      side: heard('side'),
       owned: {
         machine: heard('machine'),
         machines: {

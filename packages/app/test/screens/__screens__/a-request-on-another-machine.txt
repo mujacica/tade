@@ -1,6 +1,6 @@
  ▄▀   T A D E      checkout !⠋    search ●      +      vps    tade !⠋◌   ×  ≡   web ✓     lab    firmware   ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  4                on v╭─ acme/checkout#412 on vps ───────────────────────────────────────────────────────────── esc ─╮                                
+ ▾ AGENTS  4         H  X     + ╭─ acme/checkout#412 on vps ───────────────────────────────────────────────────────────── esc ─╮                                
                                 │                                                                                             ▕│                                
    ! Webhooks ring the d…       │ ! proposed  waiting for you to approve it                                                   ▕│                                
      wants you to approve repos…│                                                                                             ▕│                                
@@ -17,7 +17,7 @@
  ▾ SMART QUEUE  1               │ its work          tade/webhook-load · parked                                                ▕│                                
                                 │                                                                                             ▕│                                
    ◌ linear-door                │ WHAT APPROVING IT STARTS THERE ──────────────────────────────────────────────────────────── ▕│                                
-     waits on intake-webhooks   │  tade/webhook-load  worktree  done: review                                                  ▕│                                
+     ❯ after                    │  tade/webhook-load  worktree  done: review                                                  ▕│                                
                                 │  intake.grants.github-issues lets acme/checkout issues in, and approves none                ▕│                                
  ▾ SCHEDULES  2                 │  $5.00 a day for this project, $1.20 spent today                                            ▕│                                
                                 │                                                                                             ▕│                                
@@ -28,25 +28,25 @@
    ‖ Nightly dependency … paused│ │ Under load the webhook endpoint drops deliveries: GitHub shows 502s for about one in      ▕│                                
      every day at 03:00   agents│ │ twenty during a burst of pushes.                                                          ▕│                                
                                 │ │                                                                                           ▕│                                
- ▾ INTAKE  2                    │ │ Steps: push ten commits in a minute and watch the                                         ▕│                                
- ! Webhook deliveries …   propos│ │ deliveries page.                                                                          ▕│                                
-   @kim · github · waiting for y│                                                                                             ▕│                                
- ⠋ Can the VPS watch Li…   start│                                                                                             ▕│                                
-   @amir · slack · an agent is o│                                                                                             ▕│                                
-   github: found · found 1 new  │                                                                                             ▕│                                
-   linear: trouble · Linear said│                                                                                             ▕│                                
+ ▾ INTAKE  2             1 waiti│ │ Steps: push ten commits in a minute and watch the                                         ▕│                                
+                                │ │ deliveries page.                                                                          ▕│                                
+   ! acme/checkout#412  proposed│                                                                                             ▕│                                
+     @kim · github · triage@3   │                                                                                             ▕│                                
                                 │                                                                                             ▕│                                
- ▾ CHECKS  2                    │                                                                                             ▕│                                
- ✗ tests                        │                                                                                             ▕│                                
-   failing since 13:25 · 2 runs │                                                                                             ▕│                                
- ✓ types                        │                                                                                             ▕│                                
-   passing since 12:00 · 14 runs│                                                                                             ▕│                                
-   and runs in 1 worktree there │                                                                                             ▕│                                
+   ⠋ C04/1712            started│                                                                                             ▕│                                
+     @amir · slack · one task   │                                                                                             ▕│                                
                                 │                                                                                             ▕│                                
- ▾ DOCUMENTS  2                 │                                                                                             ▕│                                
- ▤ REMOTE-TADE.md               │                                                                                             ▕│                                
-   tade/research · press to read│                                                                                             ▕│                                
- ▤ AUDIT.md                     │                                                                                             ▕│                                
+ ▾ CHANGES                      │                                                                                             ▕│                                
+   no checkout here             │                                                                                             ▕│                                
+                                │                                                                                             ▕│                                
+ ▾ FILES                        │                                                                                             ▕│                                
+   …                            │                                                                                             ▕│                                
+                                │                                                                                             ▕│                                
+ ▸ NOTES                      + │                                                                                             ▕│                                
+ ▾ GIT                          │                                                                                             ▕│                                
+   —                            │                                                                                             ▕│                                
+                                │                                                                                             ▕│                                
+                                │                                                                                             ▕│                                
 ━   orchestrator     +   ━━━━━━━│                                                                                             ▕│━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
                                 │                                                                                             ▕│                                
                                 │                                                                                             ▕│                               ▕

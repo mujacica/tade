@@ -392,6 +392,12 @@ export interface TerminalTab {
   id: string
   project: string
   name: string
+  /**
+   * It is an agent on another machine, typed into here (`remotes/<machine>/<n>`):
+   * that agent's own lane, drawn in the pane when you press the agent, as an
+   * agent here is — and so, like an agent's lane here, never a tab below.
+   */
+  agentThere?: true
 }
 
 /** The orchestrator's tab in the bottom panel, which cannot be closed. */
@@ -1276,7 +1282,9 @@ export function withTerminals(state: AppState, terminals: readonly TerminalTab[]
 /** This project's terminals and every chat (`project: ''`), in the order their tabs opened. */
 export function terminalsOf(state: AppState): TerminalTab[] {
   return state.terminals.filter(
-    (tab) => tab.project === '' || tab.project === (state.project ?? tab.project),
+    (tab) =>
+      tab.agentThere !== true &&
+      (tab.project === '' || tab.project === (state.project ?? tab.project)),
   )
 }
 

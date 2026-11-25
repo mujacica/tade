@@ -478,6 +478,13 @@ export interface Subject {
   inputs?(): PanelInputs
   /** The actions it answers, by name. */
   actions?(): Actions
+  /**
+   * Actions that, while you stand in a project on another machine, are that
+   * machine's: looked up before `actions` (`Router.lookUp`), so a control the
+   * side or the pane draws the same there as here does what it does here, to
+   * the project there — a new agent, a note, a shell, the finished ones closed.
+   */
+  elsewhere?(): Actions
   /** The menus it answers, by the kind of thing each is about. */
   menus?(): Menus
   /** The panels it carries out, by kind. */
