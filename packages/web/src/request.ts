@@ -162,6 +162,27 @@ export async function readBody(req: IncomingMessage): Promise<Read> {
 }
 
 /**
+ * Whether a request failed because the one asking went away mid-request — a
+ * page closed, a phone that lost signal, the other machine's Tade stopping —
+ * rather than because of anything here. Node rejects the body being read with
+ * `aborted` (`ECONNRESET`) and the socket is gone, so nobody is left to answer.
+ *
+ * **Not Tade's trouble, so never a `warning`**, which is reported (TADE-C).
+ * Narrow on purpose: the error must be the request's own and its socket gone,
+ * so an `ECONNRESET` from something a route itself asked of another machine is
+ * still said.
+ */
+export function wentAway(error: unknown, req: IncomingMessage): boolean {
+  const code = (error as { code?: unknown } | null)?.code
+  return (
+    error instanceof Error &&
+    error.message === 'aborted' &&
+    code === 'ECONNRESET' &&
+    req.socket.destroyed
+  )
+}
+
+/**
  * A promise with a deadline, and the deadline is an answer rather than a hang.
  *
  * The same shape as the window's own `inTime`: every wait here has a deadline,

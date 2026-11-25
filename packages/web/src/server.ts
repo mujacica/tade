@@ -39,7 +39,7 @@ import { type Sink, Streams } from './peers.ts'
 import { carryPush } from './pushed.ts'
 import { Receipts } from './receipts.ts'
 import { fromSource, isServerCode, SETTLE_MS, serverDir, watchFolder } from './reloading.ts'
-import { askingOf, header, pathOf, queryOf, readBody } from './request.ts'
+import { askingOf, header, pathOf, queryOf, readBody, wentAway } from './request.ts'
 import { type Route, routeFor, routesFor } from './routes.ts'
 import {
   CONFIRM_MS,
@@ -169,6 +169,11 @@ export function webServer(opts: ServerOptions): WebServer {
     try {
       await route(req, res, request, listener)
     } catch (error) {
+      // Nobody is left to answer, and nothing here went wrong.
+      if (wentAway(error, req)) {
+        res.destroy()
+        return
+      }
       // The detail goes in a `warning` where a person at the machine can read
       // it. The browser gets a sentence and an id, and no stack trace ever.
       tell({
