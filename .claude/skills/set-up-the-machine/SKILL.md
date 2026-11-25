@@ -693,6 +693,12 @@ run it. Everything else is reached through a dynamic `import()` inside `load()`.
   not a preference (Tade runs TypeScript with no build step, which is how
   `~/.tade/extensions` are loaded), and four ways to get a newer one.
 
+**The version is not whether it strips types.** Ubuntu's own nodejs 22.22.1 is above the floor with
+`process.features.typescript` false. The door does not refuse it — the published package has its
+types off and runs — but your extensions and a project's `node x.ts` check cannot, so `nativeProblems`
+says it as a non-blocking `node` row under *What Tade is built on* (`strippingProblem`), which
+`tade setup --check` prints.
+
 A dependency that did not load at all is the other half of the same door and is `nativeTrouble`'s;
 what it says and why is in `cut-a-release`, under what a user's install runs.
 

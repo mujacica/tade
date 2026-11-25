@@ -11,6 +11,7 @@ import {
   missingFrom,
   nativeProblems,
   serviceUnitPath,
+  strippingProblem,
   unattendedHere,
 } from '../src/machine.ts'
 import type { ProgramLook } from '../src/programs.ts'
@@ -218,6 +219,22 @@ describe('the native modules Tade is built on', () => {
       expect(problem.clause.length).toBeGreaterThan(0)
       expect(problem.said.length).toBeGreaterThan(0)
     }
+    // The suite runs .ts, so the Node under it strips types and says nothing.
+    expect(problems.map((one) => one.module)).not.toContain('node')
+  })
+
+  it('says a Node above the floor that cannot strip types, and never stops on it', () => {
+    // Ubuntu's nodejs 22.22.1: the door reads the version and lets it in, and
+    // the published package runs on it; what Tade loads as TypeScript does not.
+    const problem = strippingProblem(false, 'v22.22.1', '/usr/bin/node')
+    expect(problem).toMatchObject({ module: 'node', blocking: false })
+    expect(problem?.clause).toContain('Node v22.22.1 has no type stripping')
+    expect(problem?.said).toContain('process.features.typescript is false')
+    expect(problem?.said).toContain('/usr/bin/node')
+    // A Node too old to say at all is the door's to refuse, and reads the same.
+    expect(strippingProblem(undefined, 'v22.5.0', '/x/node')?.module).toBe('node')
+    expect(strippingProblem('strip', 'v22.23.5', '/x/node')).toBeNull()
+    expect(strippingProblem('transform', 'v24.0.0', '/x/node')).toBeNull()
   })
 })
 

@@ -39,7 +39,7 @@ export type StepId =
  * the words are made where the trouble is and carried here whole.
  */
 export interface NativeTrouble {
-  /** The module: `node-pty`, `better-sqlite3`. */
+  /** The module: `node-pty`, `better-sqlite3` — or `node`, a Node with no type stripping. */
   module: string
   /** What is wrong, as a clause a checklist can hold. */
   clause: string
