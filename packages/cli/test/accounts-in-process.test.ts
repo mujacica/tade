@@ -77,6 +77,7 @@ describe('tade accounts, listing', () => {
       ['claude-code', 'work'],
       ['codex', null],
       ['acp', null],
+      ['grok', null],
     ])
     const claude = views[1] as View
     const work = views[2] as View
@@ -138,7 +139,7 @@ describe('tade accounts, refusing', () => {
     const where = home('')
     const said = await tade(where, ['accounts', 'sign-in', 'cursor', '-c', where.config])
     expect(said.code).toBe(2)
-    expect(said.err).toBe('no harness called cursor: there are pi, claude-code, codex, acp')
+    expect(said.err).toBe('no harness called cursor: there are pi, claude-code, codex, acp, grok')
   }, 60_000)
 
   it('says which account it does not know, and one of another harness is not this one', async () => {

@@ -801,8 +801,12 @@ describe('the window, and its settings', () => {
     const model = field('Model')
     const thinking = field('Thinking')
 
-    // Clicking a radio leaves the keyboard on the Harness row, where the
+    // Choosing a harness leaves the keyboard on the Harness row, where the
     // category put it: the list each field below dropped was that row's.
+    // Five harnesses can orchestrate, so the row is a list to open, not radios.
+    const harness = find('[pi ')
+    click(harness.col + 1, harness.row)
+    await until('the harnesses', () => shown().some((row) => row.includes('codex')))
     const codex = find('codex')
     click(codex.col + 1, codex.row)
     await until('saved', () => shown().some((row) => row.includes('applies when Tade next starts')))

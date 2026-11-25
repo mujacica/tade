@@ -628,6 +628,25 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
 
+  packages/harnesses/grok:
+    dependencies:
+      '@tade/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@tade/harnesses-core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@tade/drivers-core':
+        specifier: workspace:*
+        version: link:../../drivers/core
+      '@tade/drivers-pty':
+        specifier: workspace:*
+        version: link:../../drivers/pty
+      vitest:
+        specifier: ^5.1.1
+        version: 5.1.1(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.1)(vite@8.3.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+
   packages/harnesses/pi:
     dependencies:
       '@earendil-works/pi-coding-agent':
@@ -944,6 +963,9 @@ importers:
       '@tade/harnesses-core':
         specifier: workspace:*
         version: link:../harnesses/core
+      '@tade/harnesses-grok':
+        specifier: workspace:*
+        version: link:../harnesses/grok
       '@tade/harnesses-pi':
         specifier: workspace:*
         version: link:../harnesses/pi

@@ -351,6 +351,43 @@ every agent that speaks the Agent Client Protocol (pinned in `protocol.ts`: vers
   and `path` for the policy beside the agent's own; `effectOf` maps the kinds, so the policy never
   learns any one agent's tool names.
 
+## What Grok Build taught (`packages/harnesses/grok`)
+
+The fourth shape: Claude Code's dialect on purpose — its hooks carry the same fields, `-s` takes a
+UUID we choose — with nothing handed over for one run. Each line below was seen in Grok 1.0.92 in a
+lane, against a scripted model (`fake-model.ts`'s `main` and `usage`, since Grok lists models and
+asks for a title on the side), which needs no sign-in: an account folder's own `[model.<id>]`.
+
+- **A harness that reads only its home gets a home of Tade's.** No `--settings`, no
+  `--mcp-config`, and its overlay (`GROK_CONFIG`) refuses hooks and servers by design, so every
+  account — its own sign-in too — is a `GROK_HOME` Tade makes (`home.ts`): `hooks/tade.json`, Tade's
+  own file; `[mcp_servers.tade]` and `[ui.status_line]`, the two tables it owns in a `config.toml`
+  Grok's `/settings` also writes, replaced in place; a `trusted_folders.toml` entry per folder. All
+  of it inert without `TADE_RUN_SOCKET`, and the person signs in once there (`grok login`). Grok
+  makes a missing folder `0755`; `readyHome` narrows it to `0700` before anything runs `grok`.
+- **Hooks and servers inherit the lane's environment**, so the run's socket reaches them without
+  being written into the static config. One entry serves the headless run too: `TADE_GROK_MCP`
+  names the orchestrator's tool server and `mcp.ts` becomes it.
+- **What another tool's settings bring in is switched off per launch** — `GROK_CLAUDE_HOOKS_ENABLED`,
+  `GROK_CLAUDE_MCPS_ENABLED` and Cursor's, which outrank any config — or the person's Claude Code
+  hooks fire inside a Grok lane and their MCP servers attach. Its `~/.claude` permission rules are
+  still read, with no switch: they only ever narrow.
+- **Every hook fails open, so the gate says where.** `failClosed` under `policy` closes a crash or a
+  timeout, but a hook switched off in Grok's `/hooks`, or skipped by `allow_managed_hooks_only`,
+  lets a call run unasked — `why.permissionGate`.
+- **Three hooks end a turn, and one `Stop` is not a turn.** `Stop` (`reason: end_turn`),
+  `StopFailure`, `StopCancelled`; a `Stop` also fires as the session closes (`shutdown`) and a
+  cancelled turn's report can arrive after the next prompt, so ends are matched by `promptId`.
+- **Escape never stops a turn; Ctrl+C does, and puts the prompt back on the line**, where the next
+  paste would be joined onto it — so `abort` is Ctrl+C, a pause, and Ctrl+C again to clear it, and
+  says the turn's end itself: a stop before anything was answered fires no hook.
+- **What is typed during a turn is queued by Grok**, so `steer` is `idle` and nothing waits in Tade.
+- **The record is ACP session updates** (`updates.jsonl`): a reply is a line per streamed chunk
+  (`joinReplies`), usage is `turn_completed`'s, written just after the Stop hook (count a moment
+  later), and `inputTokens` holds the cached ones. `grok usage <id>` is the promised reading.
+- **A plan's usage is not readable from a lane**: `grok usage` without an id answers only on its
+  shared-daemon route, so `limits` is `none` and says so.
+
 ## Being the thing you talk to
 
 A harness can run the orchestrator when three things are true, and it says so rather than being

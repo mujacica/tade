@@ -15,6 +15,7 @@ import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import {
   claudeCode,
   codex,
+  grok,
   newTranscriptReads,
   parseTranscript,
   scanTranscripts,
@@ -117,6 +118,59 @@ describe('codex parser', () => {
 
   it('rejects files without a session uuid in the name', async () => {
     expect(await parseTranscript(codex, fx('claude-code/2.1/idle.jsonl'))).toBeNull()
+  })
+})
+
+/** Grok files a session under its directory URL-encoded, which a file URL may not hold: joined, not resolved. */
+const GROK_SESSIONS = join(fx('grok/1.0'), '%2Fwork%2Fsearch')
+const GROK_IDLE = `${GROK_SESSIONS}/01a2fa11-0000-7000-8000-0000000000a1/updates.jsonl`
+const GROK_RETRYING = `${GROK_SESSIONS}/01a2fa11-0000-7000-8000-0000000000b2/updates.jsonl`
+const GROK_GATED = `${GROK_SESSIONS}/11111111-2222-4333-8444-555555555558/updates.jsonl`
+
+describe('grok parser', () => {
+  it('reads a finished turn, with the folder it was filed under as its directory', async () => {
+    const s = await parseTranscript(grok, GROK_IDLE)
+    expect(s).toMatchObject({
+      provider: 'grok',
+      sessionId: '01a2fa11-0000-7000-8000-0000000000a1',
+      cwd: '/work/search',
+      turn: 'idle',
+      pendingPermissions: [],
+      consecutiveFailures: 0,
+    })
+    expect(s?.lastActivityAt).toBeGreaterThan(Date.parse('2026-01-01'))
+  })
+
+  it('reads a turn still waiting on a model it is retrying as running, and counts the retries', async () => {
+    const s = await parseTranscript(grok, GROK_RETRYING)
+    expect(s).toMatchObject({ turn: 'running', consecutiveFailures: 1 })
+  })
+
+  it('reads a session a lane ran, hooks and a refused call among its lines', async () => {
+    const s = await parseTranscript(grok, GROK_GATED)
+    expect(s).toMatchObject({ sessionId: '11111111-2222-4333-8444-555555555558', turn: 'idle' })
+  })
+
+  it('returns null for a file that is not a session record', async () => {
+    expect(await parseTranscript(grok, fx('claude-code/2.1/idle.jsonl'))).toBeNull()
+  })
+
+  it('reads only the record in a session folder, never what Grok keeps beside it', async () => {
+    const home = tmp('tade-home-')
+    const now = Date.now()
+    const folder = join(
+      home,
+      '.grok/sessions/%2Fwork%2Fsearch/01a2fa11-0000-7000-8000-0000000000a1',
+    )
+    mkdirSync(folder, { recursive: true })
+    cpSync(GROK_IDLE, join(folder, 'updates.jsonl'))
+    // Beside it, as Grok writes them: none of these is a transcript.
+    writeFileSync(join(folder, 'chat_history.jsonl'), '{"type":"system","content":"hi"}\n')
+    writeFileSync(join(folder, 'events.jsonl'), '{"type":"turn_started"}\n')
+    writeFileSync(join(home, '.grok/sessions/%2Fwork%2Fsearch/prompt_history.jsonl'), '{}\n')
+    const r = await scanTranscripts({ home, now, windowMs: 86_400_000, parsers: [grok] })
+    expect(r.sessions.map((one) => one.sessionId)).toEqual(['01a2fa11-0000-7000-8000-0000000000a1'])
+    expect(r.warnings).toEqual([])
   })
 })
 

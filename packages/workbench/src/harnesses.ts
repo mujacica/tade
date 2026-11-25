@@ -2,6 +2,7 @@ import { AcpAdapter } from '@tade/harnesses-acp'
 import { ClaudeAdapter } from '@tade/harnesses-claude'
 import { CodexAdapter } from '@tade/harnesses-codex'
 import type { HarnessAccount, RunId, WorkerAdapter } from '@tade/harnesses-core'
+import { GrokAdapter } from '@tade/harnesses-grok'
 import { PiAdapter } from '@tade/harnesses-pi'
 
 // The harnesses agents can run in, by name: the one registry every call site
@@ -63,4 +64,5 @@ export const HARNESS_ADAPTERS: Readonly<Record<string, (opts: HarnessOptions) =>
   'claude-code': (opts) => new ClaudeAdapter(opts),
   codex: (opts) => new CodexAdapter(opts),
   acp: (opts) => new AcpAdapter(opts),
+  grok: (opts) => new GrokAdapter(opts),
 }

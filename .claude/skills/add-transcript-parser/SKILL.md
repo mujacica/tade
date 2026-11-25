@@ -6,8 +6,14 @@ description: Teach Tade to adopt sessions from a new agent provider, or fix adop
 # Adding or fixing a transcript parser
 
 Adoption lives in `packages/status/src/adoption.ts`. Each provider is one `TranscriptParser`
-object in the `parsers` array: `{ provider, version, dir, depth, begin, read, end }` — a fold over
-the file's lines.
+object in the `parsers` array: `{ provider, version, dir, depth, named?, begin, read, end }` — a fold
+over the file's lines. `named` is for a provider whose session folders hold other `.jsonl` files
+beside the record: Grok keeps `sessions/<url-encoded cwd>/<uuid>/updates.jsonl` with its chat
+history, events and rewind points next to it, and each would otherwise be read, and warned about,
+as a transcript in an unrecognised format. Its lines say no working directory, so the folder above
+the session's is decoded for it, and a turn cut short writes no `turn_completed` — the
+`hook_execution` line of the hook that said so (`stop_cancelled`, `session_end`) is the end marker.
+Its fixtures sit under that encoded folder name, which a file URL may not hold: join the path.
 
 **ACP agents have no parser here, on purpose.** The protocol keeps no transcript a client can read,
 and each agent's own (Gemini CLI's chats, opencode's database) is private and unpromised, so a

@@ -472,6 +472,8 @@ describe('the list a setting drops', () => {
       'workers.routes.default.harnesses.codex.thinking',
       // ACP is told no thinking level, so it has no row asking for one.
       'workers.routes.default.harnesses.acp.model',
+      'workers.routes.default.harnesses.grok.model',
+      'workers.routes.default.harnesses.grok.thinking',
     ])
     expect(offered('models', 'workers.routes.default.thinking', 0)).toEqual([...CLAUDE])
     expect(offered('models', 'workers.routes.default.model', 2)).toEqual([

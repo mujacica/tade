@@ -44,7 +44,7 @@ import { z } from 'zod'
  * on a different day from the rest: whoever adds one reads every other row
  * off the same pages that day and moves this.
  */
-export const PRICES_TAKEN = '2026-11-16'
+export const PRICES_TAKEN = '2026-11-25'
 
 /**
  * What one model costs, in US dollars per million tokens, exactly as the
@@ -102,6 +102,21 @@ const openai = (input: number, output: number, cacheRead: number): ModelPrice =>
 })
 
 /**
+ * xAI's published rates. A cached prompt costs a quarter of a fresh one on
+ * Grok 4.6 and 4.7 and less on 4.5, and there is no charge for writing the
+ * cache, which is automatic: a write is billed at the input rate. Every token
+ * of a request whose prompt reaches 200,000 is billed at twice these, so they
+ * hold for prompts below that.
+ */
+const xai = (input: number, output: number, cacheRead: number): ModelPrice => ({
+  input,
+  output,
+  cacheRead,
+  cacheWrite: input,
+  promptsUpTo: 199_999,
+})
+
+/**
  * What a million tokens costs, per model, as of `PRICES_TAKEN`.
  *
  * Keyed by the model's **own name** and nothing in front of it, because that
@@ -142,6 +157,11 @@ export const PRICES: PriceTable = {
   'gpt-5-nano': openai(0.05, 0.4, 0.005),
   // No cached rate is published for it, so a cache read costs what input does.
   'gpt-5-pro': openai(15, 120, 15),
+  // xAI, https://docs.x.ai/docs/pricing. Grok Build's own "Grok 4.7 Fast" is
+  // billed through a plan and has no API price; it is not here.
+  'grok-4.7': xai(2, 6, 0.5),
+  'grok-4.6': xai(2, 6, 0.5),
+  'grok-4.5': xai(2, 6, 0.3),
 }
 
 /**

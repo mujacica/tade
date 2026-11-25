@@ -20,6 +20,20 @@ export interface FakeModelOptions {
    * scripted model that answers instantly can never be.
    */
   hold?: () => Promise<void>
+  /**
+   * Which requests are the agent's own turn, for an agent that also asks the
+   * model things on the side — a title, a summary — and lists its models
+   * first: Grok does both. The tool call answers the first request this says
+   * yes to, and every request still counts in `requests`. Absent: the first
+   * request of all.
+   */
+  main?: (request: Record<string, unknown>) => boolean
+  /**
+   * What each streamed reply says it used, as a last chunk with no choices —
+   * the shape an endpoint sends when asked for `stream_options.include_usage`.
+   * Absent: streamed replies say nothing of it.
+   */
+  usage?: { prompt: number; completion: number; cached?: number }
 }
 
 export interface FakeModel {
@@ -32,6 +46,8 @@ export interface FakeModel {
 export async function startFakeModel(opts: FakeModelOptions = {}): Promise<FakeModel> {
   const requests: Array<Record<string, unknown>> = []
   const finalText = opts.finalText ?? 'All done.'
+  /** How many of the agent's own turns have been asked for so far (`main`). */
+  let mains = 0
 
   const server: Server = createServer((req, res) => {
     let body = ''
@@ -46,11 +62,15 @@ export async function startFakeModel(opts: FakeModelOptions = {}): Promise<FakeM
     })
 
     async function answer(): Promise<void> {
+      let request: Record<string, unknown>
       try {
-        requests.push(JSON.parse(body) as Record<string, unknown>)
+        request = JSON.parse(body) as Record<string, unknown>
       } catch {
-        requests.push({ unparseable: body })
+        request = { unparseable: body }
       }
+      requests.push(request)
+      const own = opts.main ? opts.main(request) : true
+      if (own) mains += 1
       if (opts.hold) {
         await opts.hold()
         // Whoever was waiting has gone: there is nobody to answer.
@@ -61,7 +81,8 @@ export async function startFakeModel(opts: FakeModelOptions = {}): Promise<FakeM
         res.end(JSON.stringify(opts.refuse.body))
         return
       }
-      const first = requests.length === 1 && opts.tool !== undefined
+      const first =
+        opts.tool !== undefined && (opts.main ? own && mains === 1 : requests.length === 1)
       const toolCall = opts.tool
         ? [
             {
@@ -98,7 +119,7 @@ export async function startFakeModel(opts: FakeModelOptions = {}): Promise<FakeM
         return
       }
 
-      const chunks = first
+      const chunks: Record<string, unknown>[] = first
         ? [
             { choices: [{ index: 0, delta: { role: 'assistant', tool_calls: toolCall } }] },
             { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] },
@@ -107,6 +128,18 @@ export async function startFakeModel(opts: FakeModelOptions = {}): Promise<FakeM
             { choices: [{ index: 0, delta: { role: 'assistant', content: finalText } }] },
             { choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] },
           ]
+      if (opts.usage) {
+        const { prompt, completion, cached = 0 } = opts.usage
+        chunks.push({
+          choices: [],
+          usage: {
+            prompt_tokens: prompt,
+            completion_tokens: completion,
+            total_tokens: prompt + completion,
+            prompt_tokens_details: { cached_tokens: cached },
+          },
+        })
+      }
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
       for (const chunk of chunks) {
         res.write(

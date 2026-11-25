@@ -1,0 +1,95 @@
+import { connect } from 'node:net'
+
+// How the pieces that run inside a Grok Build agent — its hooks, its status
+// line, the server that lends it Tade's tools — ask Tade something: one JSON
+// line to the run's socket, one JSON line back.
+//
+// Loaded by Grok's own processes, so it uses Node's built-ins and
+// nothing of ours: no workspace imports, nothing that has to be resolved.
+
+/** Where Tade is listening for this run, when it launched it at all. */
+export const SOCKET = process.env.TADE_RUN_SOCKET
+
+/**
+ * What a window answers for a run it does not have — one it has let go of, or
+ * has not taken back yet — or for a request newer than it is, so that nobody
+ * there to hear it is not taken for having been heard.
+ */
+export const UNHEARD = { unheard: true } as const
+
+/**
+ * Tade's answer, or null when it cannot be asked — no Tade, a window that
+ * closed, an answer that never came. `wait` is how long an answer may take:
+ * a tool call held for a person waits for as long as they take.
+ */
+export async function ask(request: unknown, wait = 5_000): Promise<unknown> {
+  return (await reach(request, wait)).reply
+}
+
+/**
+ * The same, and whether the question reached Tade at all. Only nobody
+ * listening, or a window saying it has nobody to hear it (`UNHEARD`), says it
+ * was never heard: a window that took it and then said nothing, or nothing
+ * readable, may have heard every word.
+ */
+export function reach(
+  request: unknown,
+  wait = 5_000,
+): Promise<{ reply: unknown; reached: boolean }> {
+  const path = SOCKET
+  if (!path) return Promise.resolve({ reply: null, reached: false })
+  return new Promise((resolve) => {
+    let settled = false
+    let reached = false
+    let buffer = ''
+    const done = (value: unknown) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      socket.destroy()
+      resolve({ reply: value, reached })
+    }
+    const socket = connect(path)
+    const timer = setTimeout(() => done(null), wait)
+    socket.on('connect', () => {
+      reached = true
+      socket.write(`${JSON.stringify(request)}\n`)
+    })
+    // Decoded by the stream, so a character cut between two pieces of a long
+    // answer stays one character rather than two U+FFFDs.
+    socket.setEncoding('utf8')
+    socket.on('data', (chunk: string) => {
+      buffer += chunk
+      const end = buffer.indexOf('\n')
+      if (end < 0) return
+      let reply: unknown
+      try {
+        reply = JSON.parse(buffer.slice(0, end))
+      } catch {
+        done(null)
+        return
+      }
+      if ((reply as { unheard?: unknown } | null)?.unheard === true) reached = false
+      done(reached ? reply : null)
+    })
+    socket.on('error', () => done(null))
+    socket.on('close', () => done(null))
+  })
+}
+
+/** Everything on standard input, as JSON; null when it is not. */
+export async function readInput(): Promise<Record<string, unknown> | null> {
+  const chunks: Buffer[] = []
+  for await (const chunk of process.stdin) chunks.push(chunk as Buffer)
+  try {
+    const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown
+    // An array is an object and is not an event: everything downstream reads
+    // `event.hook_event_name`, so a list would arrive as an event with every
+    // field missing rather than as nothing at all.
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null
+  } catch {
+    return null
+  }
+}

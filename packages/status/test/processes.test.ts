@@ -151,6 +151,10 @@ describe('scanning for agents', () => {
     expect(matchProvider('/usr/local/bin/claude --resume')).toBe('claude-code')
     expect(matchProvider('node /x/codex')).toBe('codex')
     expect(matchProvider('vim claudette.ts')).toBeNull()
+    expect(matchProvider('grok -r 0a1b2c3d-0000-5000-8000-000000000000')).toBe('grok')
+    expect(matchProvider('/Users/me/.grok/downloads/grok-macos-aarch64 -s x')).toBe('grok')
+    expect(matchProvider('claude --name Grok harness')).toBe('claude-code')
+    expect(matchProvider('node /x/harnesses/grok/src/mcp.ts')).toBeNull()
   })
 })
 

@@ -67,6 +67,7 @@ describe('the agents it drives', () => {
       'kiro-cli',
       'cursor-agent',
       'qwen',
+      'grok',
     ])
     expect(programs.every((one) => one.optional === true)).toBe(true)
     // An install command only where the registry names the package.
@@ -80,6 +81,7 @@ describe('the agents it drives', () => {
     expect(agentNamed(ACP_AGENTS, 'Gemini CLI')?.id).toBe('gemini')
     expect(agentNamed(ACP_AGENTS, 'copilot')?.id).toBe('github-copilot-cli')
     expect(agentNamed(ACP_AGENTS, ' opencode ')?.id).toBe('opencode')
+    expect(agentNamed(ACP_AGENTS, 'Grok Build')?.args).toEqual(['agent', '--no-leader', 'stdio'])
     expect(agentNamed(ACP_AGENTS, '')).toBeNull()
     expect(agentNamed(ACP_AGENTS, 'nobody')).toBeNull()
   })

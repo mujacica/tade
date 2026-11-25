@@ -304,6 +304,9 @@ export const HARNESS_FACTS: Readonly<Record<string, HarnessFacts>> = {
   // Whichever agent it drives, on that agent's own sign-in; dollars only where
   // the agent priced its session itself.
   acp: { provider: null, usd: 'estimate' },
+  // xAI, through Grok's own sign-in: a SuperGrok or X Premium plan, which
+  // stamps no price on a turn. An API-key account beside it prices its own.
+  grok: { provider: 'xai', usd: 'none' },
 }
 
 /**

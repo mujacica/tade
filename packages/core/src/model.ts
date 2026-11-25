@@ -262,6 +262,13 @@ export const HARNESS_CHOICES: readonly {
     ready: true,
     orchestrates: false,
   },
+  {
+    id: 'grok',
+    title: 'Grok Build',
+    about: 'the official grok from xAI, signed in with your own account, supervised by Tade',
+    ready: true,
+    orchestrates: true,
+  },
 ]
 
 /**

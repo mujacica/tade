@@ -44,6 +44,13 @@ export interface TranscriptParser<Known = unknown> {
   dir: string
   /** How deep below `dir` transcript files sit. */
   depth: number
+  /**
+   * The name its transcript files have, where the folder they sit in holds
+   * other `.jsonl` files too: Grok keeps a session's chat history, events and
+   * rewind points beside its record, and each would otherwise be read, and
+   * warned about, as a transcript in an unrecognised format.
+   */
+  named?: string
   /** What is known before a line is read: the file's path, and its first bytes (which may end mid-line). */
   begin(file: string, head: string): Known
   /** Fold whole lines, oldest first, into what is known. */
@@ -266,7 +273,102 @@ function describeCodexApproval(p: Json): string {
   return str(p.type) ?? 'approval'
 }
 
-export const parsers: TranscriptParser[] = [claudeCode, codex]
+// --- Grok Build ------------------------------------------------------------------
+// ~/.grok/sessions/<url-encoded cwd>/<session-uuid>/updates.jsonl
+// One ACP session update per line: {timestamp, timestamp_us, method, params: {sessionId, update}}.
+// `session/update` carries the conversation (user_message_chunk, agent_message_chunk,
+// tool_call, tool_call_update); `_x.ai/session/update` carries Grok's own: a turn that
+// completed (turn_completed), a request it is retrying (retry_state), a hook that ran.
+// Neither says the working directory: the folder above the session's is its path, encoded.
+
+/** A session's folder and the directory it was filed under, out of the record's path. */
+const GROK_SESSION =
+  /\/([^/]+)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/updates\.jsonl$/
+
+interface GrokKnown {
+  sessionId: string | null
+  cwd: string | null
+  turn: TurnState
+  failures: number
+  /** Whether any update of Grok's shape has been read. */
+  records: boolean
+  lastActivityAt: number | null
+}
+
+/** The hooks Grok records running that say no turn is under way any more. */
+const GROK_ENDS = new Set(['stop_cancelled', 'stop_failure', 'session_end'])
+
+function grokMoment(e: Json): number | null {
+  if (typeof e.timestamp_us === 'number') return Math.round(e.timestamp_us / 1000)
+  if (typeof e.timestamp === 'number') return e.timestamp * 1000
+  return null
+}
+
+export const grok: TranscriptParser<GrokKnown> = {
+  provider: 'grok',
+  version: 1,
+  dir: '.grok/sessions',
+  depth: 3,
+  named: 'updates.jsonl',
+  begin(file) {
+    const found = GROK_SESSION.exec(file)
+    // Decoded only where it is an encoding at all: a `%` with no two hex
+    // digits after it is not a folder Grok named, and would throw.
+    const named = found?.[1]
+    const cwd = named && !/%(?![0-9A-Fa-f]{2})/.test(named) ? decodeURIComponent(named) : null
+    return {
+      sessionId: found?.[2] ?? null,
+      cwd: cwd?.startsWith('/') ? cwd : null,
+      turn: 'unknown',
+      failures: 0,
+      records: false,
+      lastActivityAt: null,
+    }
+  },
+  read(known, lines) {
+    let { turn, failures, records, lastActivityAt } = known
+    for (const e of lines) {
+      if (e.method !== 'session/update' && e.method !== '_x.ai/session/update') continue
+      const update = obj(obj(e.params)?.update)
+      const kind = update?.sessionUpdate
+      if (typeof kind !== 'string') continue
+      records = true
+      const at = grokMoment(e)
+      if (at !== null && (lastActivityAt === null || at > lastActivityAt)) lastActivityAt = at
+      if (kind === 'user_message_chunk' || kind === 'tool_call' || kind === 'tool_call_update') {
+        turn = 'running'
+      } else if (kind === 'agent_message_chunk') {
+        turn = 'running'
+        failures = 0
+      } else if (kind === 'turn_completed') {
+        turn = 'idle'
+      } else if (kind === 'hook_execution' && GROK_ENDS.has(String(update?.event_name))) {
+        // A turn cut short writes no `turn_completed`; the hook that said so
+        // does write a line, and so does the session ending under it.
+        turn = 'idle'
+      } else if (kind === 'retry_state') {
+        failures++
+      }
+    }
+    return { ...known, turn, failures, records, lastActivityAt }
+  },
+  end(known) {
+    if (!known.sessionId || !known.cwd || !known.records) return null
+    return {
+      sessionId: known.sessionId,
+      cwd: known.cwd,
+      lastActivityAt: known.lastActivityAt,
+      turn: known.turn,
+      // Grok asks for permission in its own terminal, and nothing of it is in
+      // the record. Never guess: a false "blocked" is worse than none.
+      pendingPermissions: [],
+      consecutiveFailures: known.failures,
+      title: null,
+    }
+  },
+}
+
+export const parsers: TranscriptParser[] = [claudeCode, codex, grok]
 
 // --- reading -------------------------------------------------------------------
 //
@@ -505,6 +607,7 @@ async function walk(
   since: number,
   out: Found[],
   failed: Map<string, string>,
+  named?: string,
 ): Promise<void> {
   let names: string[]
   try {
@@ -516,8 +619,8 @@ async function walk(
   for (const name of names) {
     const full = join(dir, name)
     if (depth > 1) {
-      await walk(full, depth - 1, since, out, failed)
-    } else if (name.endsWith('.jsonl')) {
+      await walk(full, depth - 1, since, out, failed, named)
+    } else if (named ? name === named : name.endsWith('.jsonl')) {
       try {
         const st = await stat(full)
         if (st.mtimeMs >= since) {
@@ -550,7 +653,7 @@ export async function scanTranscripts(
   for (const parser of opts.parsers ?? parsers) {
     const files: Found[] = []
     const failed = new Map<string, string>()
-    await walk(join(opts.home, parser.dir), parser.depth, since, files, failed)
+    await walk(join(opts.home, parser.dir), parser.depth, since, files, failed, parser.named)
     const held = reads.held.get(parser.provider) ?? new Map<string, Held>()
     const kept = new Map<string, Held>()
     for (const found of files) {

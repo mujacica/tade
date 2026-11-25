@@ -653,6 +653,50 @@ describe('pricing what a harness will not', () => {
     expect(plan.total.tokensOnPlanUnrated).toBe(10_000_000)
   })
 
+  it('prices a Grok plan’s turn at xAI’s list rate apart from any money, and never as $0.00', () => {
+    // Grok stamps no price on a SuperGrok or X Premium plan's turn — a missing
+    // cost is unknown, not free — so its own sign-in is a plan, like Claude
+    // Code's and Codex's.
+    const report = spendFrom(
+      [
+        onPlan({
+          model: 'grok-4.6',
+          harness: 'grok',
+          input: 100_000,
+          output: 10_000,
+          cacheRead: 50_000,
+          cacheWrite: 0,
+          tokens: 160_000,
+        }),
+      ],
+      { since: 0 },
+    )
+    expect(report.total.usd).toBe(0)
+    expect(report.total.hasCost).toBe(false)
+    // $2 a million in, $6 out, $0.50 for a cache read.
+    expect(report.total.usdOnPlan).toBeCloseTo((100_000 * 2 + 10_000 * 6 + 50_000 * 0.5) / 1e6, 9)
+    expect(onPlanOf(report.total)).toBe('listed')
+  })
+
+  it('leaves a Grok turn whose prompts reached 200,000 tokens unrated, since every token may have cost double', () => {
+    const report = spendFrom(
+      [onPlan({ model: 'grok-4.6', harness: 'grok', input: 150_000, cacheRead: 50_000 })],
+      { since: 0 },
+    )
+    expect(report.total.usdOnPlan).toBe(0)
+    expect(report.total.tokensOnPlanUnrated).toBeGreaterThan(0)
+  })
+
+  it('keeps what Grok priced itself on an API key as money, exactly', () => {
+    const report = spendFrom(
+      [usage({ detail: { harness: 'grok', account: 'xai', priced: 'exact', usd: 0.42 } })],
+      { since: 0, accounts: { xai: { kind: 'api-key' } } },
+    )
+    expect(report.total.usd).toBeCloseTo(0.42, 9)
+    expect(report.total.usdExact).toBeCloseTo(0.42, 9)
+    expect(report.total.usdOnPlan).toBe(0)
+  })
+
   it('leaves an API-key run’s own figure alone, and estimates nothing beside it', () => {
     // Claude Code against an API key declares `estimate`: somebody is billed,
     // the harness is the thing that knows, and a second figure beside its own
@@ -820,6 +864,19 @@ describe('the price table', () => {
       9,
     )
     expect(estimateUsd({ ...under, cacheRead: 50_001 }, price)).toBeNull()
+  })
+
+  it('prices xAI’s Grok models as its page states them, a cache write at the input rate', () => {
+    expect(priceFor('grok-4.6')).toEqual({
+      input: 2,
+      output: 6,
+      cacheRead: 0.5,
+      cacheWrite: 2,
+      promptsUpTo: 199_999,
+    })
+    expect(priceFor('grok-4.7')).toEqual(priceFor('grok-4.6'))
+    expect(priceFor('grok-4.5')?.cacheRead).toBe(0.3)
+    expect(priceFor('grok-build-0.1')).toBeNull()
   })
 
   it('costs nothing for no tokens', () => {

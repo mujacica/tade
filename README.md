@@ -27,8 +27,8 @@ the middle, the orchestrator along the bottom. One terminal, no browser, no daem
 
 ## Agents, together or apart
 
-pi, Claude Code, Codex, or any Agent Client Protocol agent, each in a lane of its own — all in the
-project's checkout, or a worktree and branch each. What each one *is* — working, waiting on you,
+pi, Claude Code, Codex, Grok Build, or any Agent Client Protocol agent, each in a lane of its own —
+all in the project's checkout, or a worktree and branch each. What each one *is* — working, waiting on you,
 failed, finished — is read back from git and the processes every time you look.
 
 ![Agents down the side, one of each kind: working, idle, waiting for approval, failed, finished, queued, paused](https://raw.githubusercontent.com/mujacica/tade/main/images/agents.svg)
@@ -161,8 +161,9 @@ you can at the machine; **Sign out** or `tade web revoke` takes it back.
 
 ## Models and accounts
 
-Pick the model for the orchestrator and for new agents. Claude Code and Codex sign in as themselves,
-and can run as more than one account — your subscription and your company's — chosen per project.
+Pick the model for the orchestrator and for new agents. Claude Code, Codex and Grok Build sign in as
+themselves, and can run as more than one account — your subscription and your company's — chosen per
+project.
 
 ![Accounts: each harness's own sign-in, a second Claude Code account one project runs as, and how much of each plan is used](https://raw.githubusercontent.com/mujacica/tade/main/images/accounts.svg)
 

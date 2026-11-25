@@ -4,7 +4,8 @@ import type { RequiredProgram } from '@tade/core'
 // this machine that speaks the Agent Client Protocol when started with the
 // arguments below. Read from the ACP registry (github.com/agentclientprotocol/
 // registry, each agent's `agent.json`, 2026-10-16) and, for Kiro CLI, which is
-// not in it, from its own documentation (kiro.dev/docs/cli/acp).
+// not in it, from its own documentation (kiro.dev/docs/cli/acp). Grok Build's
+// is its own binary's (`grok agent stdio`, Grok 1.0.92, 2026-11-25).
 //
 // Nothing here installs anything. Each is a `programs` declaration — what it
 // is, how to see its version and where to get it — and an install command only
@@ -12,7 +13,10 @@ import type { RequiredProgram } from '@tade/core'
 // them instead, because a command that installs something else under the same
 // name is worse than none. The registry's own adapters for agents Tade already
 // drives natively (`claude-acp`, `codex-acp`, `pi-acp`) are not here: those
-// have adapters of their own, which see more than ACP carries.
+// have adapters of their own, which see more than ACP carries. Grok is here
+// although it has one too (`harnesses/grok`), because its ACP is not a bridge
+// somebody else wrote but the agent itself, signed in the same way: the second
+// road to the same program, for whoever would rather take it.
 
 export interface AcpAgent {
   /** Tade's name for it, the registry's id: what a model's provider says. */
@@ -76,6 +80,15 @@ export const ACP_AGENTS: readonly AcpAgent[] = [
     command: 'qwen',
     args: ['--acp'],
     install: { npm: '@qwen-code/qwen-code' },
+  },
+  {
+    id: 'grok',
+    title: 'Grok Build',
+    command: 'grok',
+    // `--no-leader`, so the agent is the lane's own child and dies with it,
+    // rather than a client of a shared process that outlives the lane.
+    args: ['agent', '--no-leader', 'stdio'],
+    install: { instead: 'x.ai/cli: curl -fsSL https://x.ai/cli/install.sh | bash' },
   },
 ]
 

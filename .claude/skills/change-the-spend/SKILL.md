@@ -116,6 +116,13 @@ type, their own list, their own bar, and in no total (`PlanWindow`).
 
 Tokens and hours stay: unpriced effort is still effort, and is still where it went.
 
+Grok Build is the same on its own sign-in (`HARNESS_FACTS.grok`, `usd: 'none'`): on a SuperGrok or
+X Premium plan it stamps no price on a turn, and its docs say a missing cost is unknown, not free.
+Against an xAI key it prices each turn itself (`costUsdTicks`, ten billion to the dollar), which is
+`exact`. Its plan's windows are only in its own `/usage`, so `limits` is `none` — no plan bar, said
+in `why.limits`, never a bar at nought. xAI's rates are in `prices.ts` for `usdOnPlan`, held below
+200,000 prompt tokens (`promptsUpTo`), past which every token of a request costs double.
+
 ### What a plan's turns would have cost is a fourth figure, and is not a bill
 
 The money column being empty on a subscription is exactly the hole `ccusage` fills, and the answer is

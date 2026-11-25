@@ -63,6 +63,10 @@ const PROBE_MS = 10_000
 const PROVIDERS: Array<{ provider: string; re: RegExp }> = [
   { provider: 'claude-code', re: /(^|\/)claude(\s|$)/ },
   { provider: 'codex', re: /(^|\/)codex(\s|$)/ },
+  // Grok's installer links `grok` to a binary named for its platform
+  // (`grok-macos-aarch64`), which is what a process started through the link
+  // may be listed as.
+  { provider: 'grok', re: /(^|\/)grok(-(macos|linux)-[a-z0-9_]+)?(\s|$)/ },
 ]
 
 export function matchProvider(args: string): string | null {

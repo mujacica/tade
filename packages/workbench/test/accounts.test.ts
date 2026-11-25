@@ -282,6 +282,7 @@ describe('accounts', () => {
       'codex',
       'codex@paid',
       'acp',
+      'grok',
     ])
     // What pays for each: the harness's own declaration, never the name. A
     // subscription is charged nothing per turn, which is the only kind of thing
@@ -293,6 +294,8 @@ describe('accounts', () => {
       'plan',
       'per-token',
       'per-token',
+      // Grok's own sign-in is a SuperGrok or X Premium plan.
+      'plan',
     ])
   })
 
