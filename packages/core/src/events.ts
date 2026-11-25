@@ -371,6 +371,14 @@ export const EventType = z.enum([
    * pins it (`changed`). With what it was told then, which it now holds.
    */
   'orchestrator_compacted',
+  /**
+   * Tade began starting the orchestrator: as a window opened, or again inside
+   * one — a model chosen, an account moved, its tools missing (`again`).
+   * Written as the start begins, so what that start finds is said after it,
+   * and what an earlier start said of its orchestrator is superseded by it
+   * (`standingWarnings`) rather than listed until the next window opens.
+   */
+  'orchestrator_started',
   // what was verified, and what was written
   /**
    * A check finished, against the commit it checked. The run itself is kept in
@@ -791,6 +799,9 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   reflected: 'trace',
   orchestrator_told: 'routine',
   orchestrator_compacted: 'routine',
+  // Routine: kept for the record and read back, never news — the window
+  // already says the orchestrator is starting.
+  orchestrator_started: 'routine',
   // Routine rather than trace, for the same reason `usage` is: both are read
   // back out of the journal to be added up, and trace is the first thing
   // dropped when a subscriber falls behind. A statistic with holes in it that

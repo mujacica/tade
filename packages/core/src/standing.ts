@@ -13,12 +13,16 @@ import type { TadeEvent } from './events.ts'
 //   (`WINDOW_SAID`): what starting the orchestrator found, a request the
 //   listener could not answer. Both die with that window, and the next one
 //   starts its orchestrator and its listener again and says again whatever
-//   still holds — so a later `tade_opened` supersedes it.
+//   still holds — so a later `tade_opened` supersedes it. What a start said
+//   of its orchestrator is superseded sooner, by the next start of it
+//   (`orchestrator_started`), inside the window too: a model chosen or an
+//   account moved starts it again, and that start says again what holds.
 // - **The same words said again**: the newest line says it, once.
 //
 // Everything else stands: a warning nothing here can tell has been put right
 // is listed, and never dropped for being old. With no `tade_opened` read, every
-// line is from the window that is open, and nothing is superseded.
+// line is from the window that is open, and nothing is superseded; with no
+// `orchestrator_started`, the orchestrator's lines go with the window's.
 
 /** How every warning about what the orchestrator's start or restart found begins. */
 export const ORCHESTRATOR_SAID = 'the orchestrator: '
@@ -29,11 +33,16 @@ export const AWAY_REQUEST_SAID = 'the away view could not answer a request: '
 /** The warnings about a window's own run, which the next window says again where they still hold. */
 const WINDOW_SAID = [ORCHESTRATOR_SAID, AWAY_REQUEST_SAID] as const
 
-/** The journal's warnings that still stand, newest first: `events` holds them and the `tade_opened` lines. */
+/** What `standingWarnings` folds: the warnings, and the lines that supersede some of them. */
+export const STANDING_READS = ['warning', 'tade_opened', 'orchestrator_started'] as const
+
+/** The journal's warnings that still stand, newest first: `events` holds them and the `STANDING_READS` lines. */
 export function standingWarnings(events: readonly TadeEvent[]): TadeEvent[] {
   let opened = Number.NEGATIVE_INFINITY
+  let started = Number.NEGATIVE_INFINITY
   for (const event of events) {
     if (event.type === 'tade_opened' && event.seq > opened) opened = event.seq
+    if (event.type === 'orchestrator_started' && event.seq > started) started = event.seq
   }
   const said = new Set<string>()
   const standing: TadeEvent[] = []
@@ -42,6 +51,7 @@ export function standingWarnings(events: readonly TadeEvent[]): TadeEvent[] {
     const message = event.detail.message
     if (typeof message !== 'string' || message === '') continue
     if (event.seq < opened && WINDOW_SAID.some((start) => message.startsWith(start))) continue
+    if (event.seq < started && message.startsWith(ORCHESTRATOR_SAID)) continue
     if (said.has(message)) continue
     said.add(message)
     standing.push(event)
