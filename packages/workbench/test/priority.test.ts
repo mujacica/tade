@@ -19,6 +19,7 @@ import { PtyDriver } from '@tade/drivers-pty'
 import { TmuxDriver } from '@tade/drivers-tmux'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
+import { loweredFrom } from '../../../test/fixtures/nice.ts'
 import { EventLog } from '../src/events.ts'
 import { LaneRegistry } from '../src/registry.ts'
 
@@ -102,9 +103,8 @@ describe('what gives way to the window', () => {
 
   // Against this process rather than against nought, because a suite may
   // itself be running niced — which is the whole point of the feature — and
-  // what is under test is the step down. Clamped at 19, where the kernel
-  // clamps it.
-  const below = (steps: number) => Math.min(19, getPriority() + steps)
+  // what is under test is the step down. Clamped where the kernel clamps it.
+  const below = (steps: number) => loweredFrom(getPriority(), steps)
 
   it('starts an agent below the window when the config asks it to', async () => {
     const { said } = await nicenessOf('app/one/agent', 'agent', 3)
@@ -308,7 +308,7 @@ describe.each(DRIVERS)('what an agent and its children are started at, under %s'
   it('lowers an agent and everything it starts, by the default', async () => {
     const tree = await treeOf('app/tree/agent', 'agent', GIVE_WAY_DEFAULT)
     try {
-      const nice = Math.min(19, own.nice + GIVE_WAY_DEFAULT)
+      const nice = loweredFrom(own.nice, GIVE_WAY_DEFAULT)
       expect(tree.lane.nice).toBe(nice)
       expect(tree.child.nice).toBe(nice)
       if (here(QOS)) {

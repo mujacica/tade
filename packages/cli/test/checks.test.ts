@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { GIVE_WAY_DEFAULT } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
+import { loweredFrom } from '../../../test/fixtures/nice.ts'
 import { CI_WORKFLOW, ciWorkflow } from '../../../test/fixtures/workflow.ts'
 
 const bin = fileURLToPath(new URL('../src/bin.ts', import.meta.url))
@@ -90,11 +91,11 @@ describe('tade checks', () => {
       return Number.parseInt(await readFile(out, 'utf8'), 10)
     }
     // Against this process rather than against nought: a suite may itself be
-    // running niced, and what is under test is the step down. Clamped at 19,
-    // where the kernel clamps it.
-    expect(await of(3)).toBe(Math.min(19, getPriority() + 3))
+    // running niced, and what is under test is the step down. Clamped where
+    // the kernel clamps it.
+    expect(await of(3)).toBe(loweredFrom(getPriority(), 3))
     // A config that says nothing lowers by the default; one that says 0 does not.
-    expect(await of(null)).toBe(Math.min(19, getPriority() + GIVE_WAY_DEFAULT))
+    expect(await of(null)).toBe(loweredFrom(getPriority(), GIVE_WAY_DEFAULT))
     expect(await of(0)).toBe(getPriority())
   })
 

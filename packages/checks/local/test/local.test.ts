@@ -4,6 +4,7 @@ import { type Check, SLEPT, sleptThrough } from '@tade/checks-core'
 import { testRunner } from '@tade/checks-core/conformance'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
+import { loweredFrom } from '../../../../test/fixtures/nice.ts'
 import { CI_WORKFLOW, ciWorkflow } from '../../../../test/fixtures/workflow.ts'
 import { makeLocalRunner } from '../src/index.ts'
 
@@ -214,9 +215,9 @@ describe('the local runner', () => {
     expect(lowered?.state).toBe('passed')
     // Against this process rather than against nought: a suite may itself be
     // running niced — which is the whole point of the feature — and what is
-    // under test is the step down, not the absolute number. Clamped at 19,
-    // because that is where the kernel clamps it.
-    expect(niceness(lowered?.tail)).toBe(Math.min(19, niceness(base?.tail) + 3))
+    // under test is the step down, not the absolute number. Clamped where
+    // the kernel clamps it.
+    expect(niceness(lowered?.tail)).toBe(loweredFrom(niceness(base?.tail), 3))
   })
 
   it('runs the line the project wrote, and nothing else, when nobody asked', async () => {
