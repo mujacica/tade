@@ -124,6 +124,57 @@ describe('reading what OpenCode exported', () => {
     expect(spentIn(record, noPlan).plan).toBeUndefined()
   })
 
+  it('counts what a compaction used, done or failed, as OpenCode files it on the compaction', () => {
+    const record = fixture('refused')
+    const compacted: Exported = {
+      ...record,
+      messages: [
+        ...record.messages,
+        {
+          id: 'msg_c1',
+          type: 'compaction',
+          status: 'completed',
+          summary: '## Objective',
+          model: { providerID: 'openai', id: 'gpt-5.5-mini' },
+          cost: 0.02,
+          tokens: { input: 3000, output: 200, reasoning: 50, cache: { read: 1000, write: 0 } },
+        },
+        // OpenCode names no model on a failed one.
+        {
+          id: 'msg_c2',
+          type: 'compaction',
+          status: 'failed',
+          error: { type: 'compaction.failed' },
+          cost: 0.01,
+          tokens: { input: 500, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+        },
+        // One still running has used nothing yet.
+        { id: 'msg_c3', type: 'compaction', status: 'running', summary: '' },
+      ],
+    }
+    const spent = spentIn(compacted, noPlan)
+    expect(spent).toMatchObject({
+      input: 1600 + 3000 + 500,
+      output: 100 + 250,
+      cacheRead: 400 + 1000,
+      tokens: 2100 + 4250 + 500,
+      usd: 0.03,
+      messages: 4,
+    })
+    // A summary is not a reply: the model is still the one the conversation ran on.
+    expect(spent.model).toBe('tade-test/fake')
+    // What a plan paid for a compaction is the plan's, like a step's.
+    const onPlan = spentIn(
+      {
+        ...compacted,
+        messages: compacted.messages.map((m) => (m.id === 'msg_c1' ? { ...m, cost: 0 } : m)),
+      },
+      (provider) => provider === 'openai',
+    )
+    expect(onPlan.usd).toBe(0.01)
+    expect(onPlan.plan).toMatchObject({ tokens: 4250, messages: 1 })
+  })
+
   it('says a turn is under way only after something sent that no idle line closed', () => {
     expect(turnIn(fixture('refused'))).toBeNull()
     expect(turnIn(fixture('stopped'))).toBeNull()

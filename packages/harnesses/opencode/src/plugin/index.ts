@@ -448,6 +448,29 @@ export default {
       })
     }
 
+    /**
+     * What one call to a model used, as OpenCode says on its ending — a step's
+     * or a compaction's, which share a shape: input apart from what was read
+     * from the cache, and reasoning paid for as output.
+     */
+    const sayUsage = (
+      data: Json,
+      on: string | null,
+    ): { input: number; cacheRead: number; cacheWrite: number } => {
+      const tokens = obj(data.tokens)
+      const cache = obj(tokens?.cache)
+      const input = count(tokens?.input)
+      const output = count(tokens?.output) + count(tokens?.reasoning)
+      const cacheRead = count(cache?.read)
+      const cacheWrite = count(cache?.write)
+      const total = input + output + cacheRead + cacheWrite
+      const usd = count(data.cost)
+      if (total > 0 || usd > 0) {
+        send({ type: 'usage', model: on, input, output, cacheRead, cacheWrite, tokens: total, usd })
+      }
+      return { input, cacheRead, cacheWrite }
+    }
+
     /** A turn is over: said now, or kept for when Tade is back. */
     const ended = (status: 'ok' | 'error' | 'aborted', reason?: string): void => {
       busy = false
@@ -479,7 +502,13 @@ export default {
         case 'session.execution.interrupted':
           if (own) ended('aborted')
           return
+        case 'session.compaction.failed':
+          // What a compaction used is its own call's, said on its ending and
+          // never on a step: a failed one may still have paid for some.
+          sayUsage(data, modelName(data.model) ?? (own ? model : null))
+          return
         case 'session.compaction.ended':
+          sayUsage(data, modelName(data.model) ?? (own ? model : null))
           if (own && ctx.session.context) {
             const held = tokensHeld(await ctx.session.context({ sessionID: session }))
             await sayContext(held, modelName(data.model) ?? model)
@@ -550,26 +579,7 @@ export default {
           const id = str(data.assistantMessageID) ?? ''
           const on = steps.get(id) ?? (own ? model : null)
           steps.delete(id)
-          const tokens = obj(data.tokens)
-          const cache = obj(tokens?.cache)
-          const input = count(tokens?.input)
-          const output = count(tokens?.output) + count(tokens?.reasoning)
-          const cacheRead = count(cache?.read)
-          const cacheWrite = count(cache?.write)
-          const total = input + output + cacheRead + cacheWrite
-          const usd = count(data.cost)
-          if (total > 0 || usd > 0) {
-            send({
-              type: 'usage',
-              model: on,
-              input,
-              output,
-              cacheRead,
-              cacheWrite,
-              tokens: total,
-              usd,
-            })
-          }
+          const { input, cacheRead, cacheWrite } = sayUsage(data, on)
           if (own) await sayContext(input + cacheRead + cacheWrite, on)
           return
         }

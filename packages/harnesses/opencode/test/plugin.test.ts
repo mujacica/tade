@@ -237,6 +237,52 @@ describe('Tade’s plugin inside OpenCode', () => {
     ])
   })
 
+  it('says what a compaction used, done or failed, a subagent’s too', async () => {
+    const { signals, stand } = await supervised()
+    const model = { providerID: 'openai', id: 'gpt-5.5-mini' }
+    stand.emit('session.compaction.ended', {
+      sessionID: 'ses_child',
+      model,
+      text: 's',
+      cost: 0.02,
+      tokens: { input: 900, output: 80, reasoning: 10, cache: { read: 100, write: 0 } },
+    })
+    // A failed one names no model: it is said on the one the session is on.
+    stand.emit('session.compaction.failed', {
+      error: { type: 'compaction.failed', message: 'too long' },
+      cost: 0.01,
+      tokens: { input: 500, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+    })
+    // One that failed before its model answered used nothing.
+    stand.emit('session.compaction.failed', { error: { type: 'aborted', message: 'cancelled' } })
+    stand.emit('session.execution.started', {})
+    await until(() => signals.some((s) => s.type === 'turn_started'), { timeout: 5_000 })
+    expect(
+      signals.filter((s) => s.type === 'usage').map(({ run: _run, at: _at, ...rest }) => rest),
+    ).toEqual([
+      {
+        type: 'usage',
+        model: 'openai/gpt-5.5-mini',
+        input: 900,
+        output: 90,
+        cacheRead: 100,
+        cacheWrite: 0,
+        tokens: 1090,
+        usd: 0.02,
+      },
+      {
+        type: 'usage',
+        model: 'openai/gpt-5.5',
+        input: 500,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        tokens: 500,
+        usd: 0.01,
+      },
+    ])
+  })
+
   it('says a turn that failed or was stopped, and a server OpenCode gave up on, once', async () => {
     const { signals, stand } = await supervised()
     stand.emit('session.execution.started', {})

@@ -134,16 +134,19 @@ export function stepSpend(message: Json): {
 export type PlanOf = (provider: string | null, usd: number) => boolean
 
 /**
- * What a record has spent: the sum of every step that used something. The
- * dollars are only the steps nobody's plan paid for, and what a plan paid for
- * is counted apart (`plan`), so a plan's `cost: 0` is never money of nought.
+ * What a record has spent: the sum of every step that used something, and of
+ * every compaction — a call to a model of its own, which OpenCode files on the
+ * `compaction` message it leaves, done or failed, and never on a step. The
+ * dollars are only what nobody's plan paid for, and what a plan paid for is
+ * counted apart (`plan`), so a plan's `cost: 0` is never money of nought.
  */
 export function spentIn(exported: Exported | null, planOf: PlanOf): HarnessSpend {
   const total = noHarnessSpend()
   if (!exported) return total
   const onPlan = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, tokens: 0, messages: 0 }
   for (const message of exported.messages) {
-    if (message.type !== 'assistant') continue
+    const reply = message.type === 'assistant'
+    if (!reply && message.type !== 'compaction') continue
     const step = stepSpend(message)
     if (step.tokens <= 0 && step.usd <= 0) continue
     const plan = planOf(providerOfStep(message), step.usd)
@@ -154,7 +157,8 @@ export function spentIn(exported: Exported | null, planOf: PlanOf): HarnessSpend
     total.tokens += step.tokens
     if (!plan) total.usd += step.usd
     total.messages += 1
-    total.model = modelOfStep(message) ?? total.model
+    // A summary is not a reply: the model it ran on may be one set aside for compacting.
+    if (reply) total.model = modelOfStep(message) ?? total.model
     if (plan) {
       onPlan.input += step.input
       onPlan.output += step.output
