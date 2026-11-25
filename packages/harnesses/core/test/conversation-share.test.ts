@@ -371,6 +371,31 @@ describe('the files kept beside the record', () => {
     expect(asked).toHaveLength(2)
   })
 
+  it('takes two exchanges from one machine at once one after the other: each file once, each entry once (TADE-G)', async () => {
+    // A turn's exchange starts while the beat's is still going, so the far side
+    // answers two of one machine's requests at once, each giving the same piece.
+    const mac = machine('mac', BESIDE_TOY)
+    const vps = machine('vps', BESIDE_TOY)
+    const fromMac = result(mac, 'bt1l7fef2.txt', 1_000, '2026-11-23T10:00:00.000Z')
+    const fromVps = result(vps, 'toolu_vps.json', 1_000, '2026-11-23T10:05:00.000Z')
+    const both = await Promise.all([mac.shared.exchange(door(vps)), mac.shared.exchange(door(vps))])
+    expect(both.some((done) => done.complete)).toBe(true)
+    expect(
+      readFileSync(join(conversationFilesPath(vps.home, mac.id), 'tool-results', 'bt1l7fef2.txt')),
+    ).toEqual(fromMac)
+    expect(
+      readFileSync(join(conversationFilesPath(mac.home, vps.id), 'tool-results', 'toolu_vps.json')),
+    ).toEqual(fromVps)
+    for (const copy of [
+      conversationCopyPath(vps.home, mac.id),
+      conversationCopyPath(mac.home, vps.id),
+    ]) {
+      const ids = idsOf(copy)
+      expect(ids).toEqual([...new Set(ids)])
+    }
+    expect(idsOf(conversationCopyPath(vps.home, mac.id))).toHaveLength(3)
+  })
+
   it('takes no more of another machine’s files than the room every machine’s gifts share here, and says so', async () => {
     const warned: string[] = []
     // A ceiling well under the file, walked at every take, so the test counts bytes.

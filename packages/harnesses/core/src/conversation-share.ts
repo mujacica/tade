@@ -242,6 +242,15 @@ export class SharedConversation {
   private readonly warned = new Set<string>()
   /** How much more of what other machines give fits here. */
   private readonly room: PeerRoom
+  /**
+   * The end of what changes the copies, so each change starts after the last
+   * has finished (`serially`). Requests from one machine overlap — a turn's
+   * exchange starts while the beat's is still going, or a request the link
+   * gave up on is still being answered when the next arrives — and two that
+   * give the same piece each wrote the `.part` and renamed it, the second
+   * from nothing (TADE-G), as two giving the same lines appended them twice.
+   */
+  private tail: Promise<unknown> = Promise.resolve()
 
   constructor(opts: SharedConversationOptions) {
     this.opts = opts
@@ -250,6 +259,17 @@ export class SharedConversation {
     this.harness = opts.harness
     this.own = new ConversationRecord(opts.record, opts.format)
     this.beside = opts.format.besideOf?.(opts.record) ?? null
+  }
+
+  /**
+   * `change` once every change to the copies before it has finished, however
+   * that one ended: its failure is its caller's, from `run`, and the next
+   * change waits only for it to settle.
+   */
+  private serially<T>(change: () => Promise<T>): Promise<T> {
+    const run = this.tail.then(change)
+    this.tail = Promise.allSettled([run])
+    return run
   }
 
   /** The copy of one machine's, looked at now. */
@@ -284,7 +304,11 @@ export class SharedConversation {
   // ── The far half ──────────────────────────────────────────────────────────
 
   /** Take what one request gives, and answer with what the asker lacks. The lease is the caller's. */
-  async answer(ask: ConversationAsk): Promise<ConversationAnswer> {
+  answer(ask: ConversationAsk): Promise<ConversationAnswer> {
+    return this.serially(() => this.answerNow(ask))
+  }
+
+  private async answerNow(ask: ConversationAsk): Promise<ConversationAnswer> {
     await this.own.look()
     const nothing = { after: 0, lines: [], more: false, entries: this.own.entries }
     if (ask.harness !== this.harness) {
@@ -479,18 +503,23 @@ export class SharedConversation {
       this.hold.set(there, { ...answer.held, piece: answer.held.piece ?? 0 })
       const said = this.saidOf(answer, copy.name)
       this.lacking.set(there, said.lacks)
-      if (said.piece) await this.takeFile(copy, said.piece)
-      for (const name of said.gone) copy.gone.add(name)
-      const before = copy.record.entries
-      const refused = await this.taken(copy, {
-        after: answer.after,
-        h:
-          answer.after === 0 ? CONVERSATION_CHAIN_START : (copy.record.chainAt(answer.after) ?? ''),
-        lines: answer.lines,
-        ...(answer.piece ? { piece: answer.piece } : {}),
+      const { refused, grew } = await this.serially(async () => {
+        if (said.piece) await this.takeFile(copy, said.piece)
+        for (const name of said.gone) copy.gone.add(name)
+        const before = copy.record.entries
+        const refused = await this.taken(copy, {
+          after: answer.after,
+          h:
+            answer.after === 0
+              ? CONVERSATION_CHAIN_START
+              : (copy.record.chainAt(answer.after) ?? ''),
+          lines: answer.lines,
+          ...(answer.piece ? { piece: answer.piece } : {}),
+        })
+        return { refused, grew: copy.record.entries - before }
       })
       if (refused) throw new Error(refused)
-      took += Math.max(0, copy.record.entries - before)
+      took += Math.max(0, grew)
       const theyHold =
         answer.held.after === this.own.entries &&
         answer.held.h === this.own.chainAt(this.own.entries) &&
@@ -757,7 +786,11 @@ export class SharedConversation {
    * where `merging` says the caller holds the lease. Appends through `take`;
    * the harness reading it again is the caller's, between turns.
    */
-  async settle(merging: boolean): Promise<Settled[]> {
+  settle(merging: boolean): Promise<Settled[]> {
+    return this.serially(() => this.settleNow(merging))
+  }
+
+  private async settleNow(merging: boolean): Promise<Settled[]> {
     const out: Settled[] = []
     for (const copy of this.copies.values()) {
       await this.own.look()
