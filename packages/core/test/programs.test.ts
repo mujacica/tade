@@ -7,6 +7,7 @@ import {
   installWith,
   isBehind,
   neededPrograms,
+  npxKeyOf,
   parseVersion,
   type RequiredProgram,
   TADE_PROGRAMS,
@@ -150,6 +151,23 @@ describe('how a program got onto this machine', () => {
     })
     expect(install.manager).toBe('volta')
     expect(updateWith(install, undefined, MAC)).toEqual({ command: 'volta install pi@latest' })
+  })
+
+  // npx's cache is a folder under npm's own, and a global npm command there
+  // would install a second copy that the next `npx` never runs.
+  it('tells npx’s cache from a global npm package, and gives nothing to type', () => {
+    const install = installOf({
+      path: '/Users/x/.npm/_npx/3f2a9c1d0e8b7a65/node_modules/.bin/tade',
+      realPath: '/Users/x/.npm/_npx/3f2a9c1d0e8b7a65/node_modules/tade-sh/packages/cli/src/bin.js',
+      package: { name: 'tade-sh', version: '0.4.2', dir: '/y' },
+    })
+    expect(install).toMatchObject({ manager: 'npx', said: 'run with npx, out of its cache' })
+    expect(updateWith(install, undefined, MAC)).toEqual({
+      cannot:
+        'you ran it with npx: `npx tade-sh@latest` runs the newest, or install it with `npm install --global tade-sh`',
+    })
+    expect(npxKeyOf(install.where)).toBe('3f2a9c1d0e8b7a65')
+    expect(npxKeyOf('/usr/local/lib/node_modules/tade-sh/x.js')).toBeNull()
   })
 
   it('calls what came with the system the system’s, and says who updates it there', () => {

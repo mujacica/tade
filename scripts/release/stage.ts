@@ -56,17 +56,6 @@ export function notShipped(name: string): boolean {
 /** Files taken from the root of the repository as they are. */
 const AT_ROOT = ['README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'CHANGELOG.md']
 
-/**
- * The scripts a user's install runs, which are the only ones that ship.
- *
- * Both are node-pty's: it is compiled where there is no prebuild for the
- * machine, which is every Linux, and its prebuilt `spawn-helper` can come out
- * of an extraction without its executable bit. `manifestFor` names them as
- * `preinstall` and `postinstall` in that order, which is the order npm runs
- * them in around the dependency build.
- */
-const ON_INSTALL = ['check-build-tools.mjs', 'fix-pty-permissions.mjs']
-
 export interface Staged {
   /** Absolute path of the staged directory. */
   out: string
@@ -112,14 +101,6 @@ export function stage(opts: { out?: string; version: string; changelog?: string 
   const manifest = manifestFor(root, packages, dependencies, opts.version)
   writeFileSync(join(out, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
   files++
-  // The scripts an installed Tade runs, and the only ones: `install-hooks`
-  // points git at this repository's own hooks, which is a contributor's
-  // business and nobody else's. Both of these are about node-pty, which is the
-  // one thing in the tarball that is a binary rather than a file.
-  for (const name of ON_INSTALL) {
-    put(join(out, `scripts/${name}`), null, join(ROOT, 'scripts', name))
-    files++
-  }
   for (const name of AT_ROOT) {
     // The changelog a release ships is the one it is generating, which is not
     // yet the file on disk: `pnpm release` writes that after staging, so a
@@ -273,7 +254,6 @@ interface Published {
   bugs: { url: string }
   keywords: string[]
   dependencies: Record<string, string>
-  scripts: Record<string, string>
 }
 
 function manifestFor(
@@ -308,22 +288,14 @@ function manifestFor(
       'codex',
     ],
     dependencies,
-    // Two, and both node-pty's. `preinstall` runs before the dependency build
-    // and says what a Linux machine is missing rather than letting node-gyp
-    // say it in forty lines; `postinstall` runs after it, because node-pty's
-    // prebuilt `spawn-helper` can come out of an extraction without its
-    // executable bit and every PTY spawn then fails with `posix_spawnp
-    // failed`. Nothing else runs on install, and neither reaches the network.
-    scripts: {
-      preinstall: `node scripts/${ON_INSTALL[0]}`,
-      postinstall: `node scripts/${ON_INSTALL[1]}`,
-    },
-    // No `pnpm` field, and none would help: pnpm reads which builds it allows
-    // from the project being installed into, never from a dependency's own
-    // manifest — and 12 reads no `pnpm` field at all — so `pnpm add -g
-    // tade-sh` holds node-pty and the postinstall above, and says so. What
-    // answers that is `pnpm approve-builds -g`, which is in the README, in
-    // `nativeTrouble` and in `helperProblem`.
+    // No scripts at all, so a package manager that holds a dependency's
+    // install scripts until somebody approves them — npm 12, pnpm, bun — has
+    // nothing of Tade's to hold, and `npx tade-sh` is one command. The two
+    // native modules arrive ready-built: `@lydell/node-pty` is node-pty's
+    // prebuilds in one package per platform, `spawn-helper` packed executable,
+    // and better-sqlite3 ships its bindings in `prebuilds/` with `gypfile:
+    // false`. `install-hooks` is `prepare`, which a user's install never runs:
+    // pointing git at this repository's hooks is a contributor's business.
   }
 }
 

@@ -268,6 +268,23 @@ describe('a tmux older than its driver can use', () => {
       expect(config()).toMatch(/driver: tmux/)
     })
 
+    // Under tmux an agent outlives the window and keeps running Tade's own
+    // files, which under npx are a cache entry npm may swap out.
+    it('says what tmux means for a Tade run out of npx’s cache, and only there', async () => {
+      const there = recorder({ choose: [0], confirm: [true] })
+      await setUpWorkspace(there, { ...look(apt, ['apt-get'], 'linux'), npx: '3f2a9c1d0e8b7a65' })
+      const said = there.said.join('\n')
+      expect(said).toContain('you ran Tade with npx')
+      expect(said).toContain('`npm install -g tade-sh`')
+      const installed = recorder({ choose: [0], confirm: [true] })
+      await setUpWorkspace(installed, look(apt, ['apt-get'], 'linux'))
+      expect(installed.said.join('\n')).not.toContain('npx')
+      // And never where agents stop with the window.
+      const pty = recorder({ choose: [1] })
+      await setUpWorkspace(pty, { ...look(apt, ['apt-get'], 'linux'), npx: '3f2a9c1d0e8b7a65' })
+      expect(pty.said.join('\n')).not.toContain('npx')
+    })
+
     it('leaves it on pty when the newer one is declined, rather than a driver that will not start', async () => {
       const ui = recorder({ choose: [0], confirm: [false] })
       await setUpWorkspace(ui, look(apt, ['apt-get'], 'linux'))

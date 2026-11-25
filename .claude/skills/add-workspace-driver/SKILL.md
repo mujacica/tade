@@ -193,9 +193,13 @@ backend that is a separate program rather than a library:
 
 ## Native dependencies
 
-If the backend needs a native module, check it works under pnpm's layout before building on it.
-node-pty's `spawn-helper` loses its executable bit during extraction, which is why
-`scripts/fix-pty-permissions.mjs` runs on postinstall.
+If the backend needs a native module, check it works under pnpm's layout before building on it, and
+that it needs **no install script**: npm 12, pnpm and bun hold a dependency's scripts until somebody
+approves them, so a module that compiles or fixes itself on install is a step `npx tade-sh` cannot
+take. That is why the pty driver's node-pty is `@lydell/node-pty`, pinned exact — microsoft/node-pty's
+own prebuilds in one optional package per platform, `spawn-helper` packed executable — and why
+`helperAt` finds the helper through the wrapper, the only package that depends on the platform one.
+Prove a swap of it with this suite on macOS and in a `node:22` container (linux arm64 and amd64).
 
 ## A RemoteLink is the same shape
 

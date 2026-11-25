@@ -131,6 +131,16 @@ in under Tade by `programsNeeded`: `PROCESSES_PROGRAMS` (`ps`, `status/src/proce
   recognises the tree by the CLI under it, not by a name, because the checkout is `tade` and the
   published package is `tade-sh`. `tade` itself is looked up with `within: null`, or it would report
   as shipped with Tade.
+- **A Tade run with npx is answered from where it runs, never from PATH** (`manager: 'npx'`, read off
+  `npxKeyOf` — `~/.npm/_npx/<key>/` — by `ranByNpx` in `lookAtTade`). Under npx, `tade` on PATH is the
+  cache's own `.bin`, somebody's other install, or nothing, and all three used to end at "cannot tell
+  how it was installed". npm did not install it, so `updateWith` gives **no command**: the window
+  would type it into a lane and open a second Tade there. It says `npx tade-sh@latest` or `npm
+  install --global tade-sh` instead, and `askWhatIsCurrent` asks npm about it like any package. The
+  same key is what `helperProblem` and `nativeTrouble` name (`npm cache npx rm <key> && npx
+  tade-sh`), because npx answers the same version out of the entry it already has; and choosing tmux
+  in setup under npx says that agents which outlive the window keep running files out of a cache npm
+  may replace (`Look.npx`).
 - **Nothing installs anything.** The exact command is on the page or on the checklist **before** it
   runs, and running it types that command into a terminal somebody is looking at
   (`watchCommand`, `offerInstall` → `ui.run`). An installer handed the terminal is an installer whose
@@ -649,7 +659,10 @@ runs it. So `native` is the first step in `ORDER` and in `readiness()`, and a bl
 wizard with "Nothing else can be set up until that is fixed: all of it runs in a lane." Which is also
 why the fix for a helper whose permission bit is wrong is **said and never run**: the fix would have
 to be spawned through the thing that is broken, so `sayNativeTrouble` hands over two commands and
-waits to be told they have been read.
+waits to be told they have been read. Both modules arrive ready-built with no install script
+(`cut-a-release`), so neither sentence names a held script: a helper without its bit is a copy that
+lost it, and a binary that will not load is a machine nobody built one for or an install that left
+this platform's optional package out.
 
 `nativeProblems` asks the **pty driver** about node-pty, whichever driver is configured — node-pty is
 what Tade opens every lane with either way, and the driver is the one thing that can say whether its

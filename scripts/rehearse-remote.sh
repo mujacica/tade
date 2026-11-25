@@ -230,7 +230,7 @@ mac() {
   TARBALL="$(ls -t "$DIR"/tade-sh-*.tgz | head -1)"
   say "The Mac: Tade installed under $DIR/mac-install, its home $DIR/mac/tade, HOME $DIR/mac/home"
   mkdir -p "$DIR/mac/home/.pi/agent" "$DIR/mac/tade" "$DIR/mac/src"
-  npm install --global --allow-scripts=tade-sh,node-pty,better-sqlite3 --prefix "$DIR/mac-install" "$TARBALL" >/dev/null 2>&1
+  npm install --global --prefix "$DIR/mac-install" "$TARBALL" >/dev/null 2>&1
   cat >"$DIR/mac.env" <<EOF
 export PATH="$DIR/bin:$DIR/mac-install/bin:\$PATH"
 export HOME="$DIR/mac/home" TADE_HOME="$DIR/mac/tade" TERM=xterm-256color

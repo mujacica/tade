@@ -1,6 +1,9 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { ProgramLook } from '@tade/workbench/programs'
-import { describe, expect, it } from 'vitest'
-import { askWhatIsCurrent } from '../src/programs.ts'
+import { afterAll, describe, expect, it } from 'vitest'
+import { askWhatIsCurrent, lookAtTade } from '../src/programs.ts'
 
 // Asking the world what is current — the half of Updates that reaches the
 // network, and the half nothing had run.
@@ -185,5 +188,37 @@ describe('what Homebrew says', () => {
       exec: garbage.exec as never,
     })
     expect(second?.cannotTell).toContain('a shape Tade does not recognise')
+  })
+})
+
+describe('Tade run with npx', () => {
+  // Under npx the running Tade is a cache entry, and what PATH calls `tade`
+  // is the cache's own `.bin` while it runs, somebody's other install, or
+  // nothing — so the answer is read off where this Tade is, never PATH.
+  const cache = mkdtempSync(join(tmpdir(), 'tade-npx-'))
+  const root = join(cache, '_npx', '3f2a9c1d0e8b7a65', 'node_modules', 'tade-sh')
+  mkdirSync(root, { recursive: true })
+  writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'tade-sh', version: '0.4.2' }))
+  afterAll(() => rmSync(cache, { recursive: true, force: true }))
+
+  it('says it was run with npx, and gives no command to type in a terminal', async () => {
+    const look = await lookAtTade({ root, env: { PATH: '' } })
+    expect(look.from).toBe('install')
+    expect(look.install).toMatchObject({ manager: 'npx', name: 'tade-sh' })
+    expect(look.cannotTell).toBe('nobody has been asked what is current')
+    expect(look.update).toEqual({
+      cannot:
+        'you ran it with npx: `npx tade-sh@latest` runs the newest, or install it with `npm install --global tade-sh`',
+    })
+  })
+
+  it('asks npm what is current, like any other package', async () => {
+    const look = await lookAtTade({
+      root,
+      env: { PATH: '' },
+      ask: true,
+      fetch: registry(200, { version: '0.5.0' }),
+    })
+    expect(look.newer).toBe('0.5.0 is out')
   })
 })

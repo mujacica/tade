@@ -11,6 +11,7 @@ import {
   installOf,
   isBehind,
   neededPrograms,
+  npxKeyOf,
   type ProgramNeed,
   PUBLIC_PROGRAMS,
   parseVersion,
@@ -418,7 +419,7 @@ export async function askWhatIsCurrent(
             ? // Asking npm what is newest would answer about a package
               // nothing here would ever run: this one moves with Tade.
               { cannot: 'it comes with Tade, and moves when Tade does' }
-            : ['npm', 'pnpm', 'yarn', 'bun', 'volta'].includes(install.manager)
+            : ['npm', 'npx', 'pnpm', 'yarn', 'bun', 'volta'].includes(install.manager)
               ? await npmLatest(install.name, options)
               : {
                   cannot: `cannot ask what is current for ${install.said}`,
@@ -467,6 +468,14 @@ function tadeRoot(): string {
   return dir
 }
 
+/** How the Tade at `root` got here, where that is npx's cache: null anywhere else. */
+function ranByNpx(root: string): Install | null {
+  const at = real(root)
+  if (npxKeyOf(at) === null) return null
+  const install = installOf({ path: at, realPath: at, package: packageAbove(join(at, 'x')) })
+  return install.manager === 'npx' ? install : null
+}
+
 function versionAt(root: string): string {
   try {
     const read = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
@@ -504,12 +513,17 @@ async function inRepo(root: string, args: readonly string[]): Promise<string> {
  * already contains, there is nothing to pull and it says so, rather than
  * offering a `git pull` that would do nothing.
  */
-export async function lookAtTade(options: AskOptions & { ask?: boolean } = {}): Promise<TadeLook> {
-  const root = tadeRoot()
+export async function lookAtTade(
+  options: AskOptions & { ask?: boolean; root?: string } = {},
+): Promise<TadeLook> {
+  const root = options.root ?? tadeRoot()
   const version = versionAt(root)
   const env = options.env ?? process.env
   if (!existsSync(join(root, '.git'))) {
-    const install = whereIs('tade', env, { within: null })
+    // Run with npx, the running Tade is the answer, whatever PATH says: `tade`
+    // there is the npx cache's own `.bin` while it runs, or somebody's global
+    // install that is not the one running, or nothing at all.
+    const install = ranByNpx(root) ?? whereIs('tade', env, { within: null })
     const base: TadeLook = {
       version,
       from: 'install',

@@ -48,7 +48,7 @@ describe('the publish directory', () => {
     bin: Record<string, string>
     engines: Record<string, string>
     dependencies: Record<string, string>
-    scripts: Record<string, string>
+    scripts?: Record<string, string>
     homepage: string
     repository: { url: string }
     bugs: { url: string }
@@ -78,21 +78,15 @@ describe('the publish directory', () => {
     expect(manifest.bugs.url).toBe('https://github.com/mujacica/tade/issues')
   })
 
-  it('runs nothing on install but the two things a user needs, and ships both', () => {
-    // Both are node-pty's, which is the one thing in the tarball that is a
-    // binary: what a Linux machine needs before it is compiled, and its
-    // `spawn-helper`'s executable bit after. `install-hooks` is neither — it
-    // points git at this repository's hooks, which on a contributor's machine
-    // is the gate and on a user's is Tade reaching into a repository of theirs
-    // that has nothing to do with Tade.
-    expect(manifest.scripts).toEqual({
-      preinstall: 'node scripts/check-build-tools.mjs',
-      postinstall: 'node scripts/fix-pty-permissions.mjs',
-    })
-    for (const line of Object.values(manifest.scripts)) {
-      const named = line.replace(/^node /, '')
-      expect(existsSync(join(staged.out, named)), named).toBe(true)
-    }
+  // npm 12, pnpm and bun all hold a dependency's install scripts until
+  // somebody approves them, so a script here is a step `npx tade-sh` cannot
+  // take. There is none: the two native modules arrive ready-built (`@lydell/
+  // node-pty`'s per-platform packages, better-sqlite3's `prebuilds/`).
+  // `install-hooks` is `prepare`, which points git at this repository's
+  // hooks and which a user's install never runs.
+  it('runs nothing on install, so nothing is held and nothing needs approving', () => {
+    expect(manifest.scripts).toBeUndefined()
+    expect(existsSync(join(staged.out, 'scripts'))).toBe(false)
   })
 
   it('asks for vitest nowhere: the suites that import it do not ship', () => {
@@ -196,7 +190,11 @@ describe('the publish directory', () => {
   })
 
   it('brings the native modules it cannot work without', () => {
-    expect(manifest.dependencies['node-pty']).toBeDefined()
+    // A beta of a third party's republish of microsoft/node-pty, so pinned
+    // to the exact version that was read and passed the drivers' conformance
+    // suite on macOS and Linux: a range would be a version nobody read.
+    expect(manifest.dependencies['@lydell/node-pty']).toMatch(/^\d+\.\d+\.\d+(-[\w.]+)?$/)
+    expect(manifest.dependencies['node-pty']).toBeUndefined()
     expect(manifest.dependencies['better-sqlite3']).toBeDefined()
   })
 
@@ -363,7 +361,7 @@ describe('what a contributor gets and a user does not', () => {
     }
     // `prepare` runs for this repository and for a git install, and never for
     // somebody installing the published package.
-    expect(root.scripts.postinstall).not.toContain('install-hooks')
+    expect(root.scripts.postinstall ?? '').not.toContain('install-hooks')
     expect(root.scripts.prepare).toContain('install-hooks')
   })
 })

@@ -12,11 +12,9 @@ release does not add one: the types come off at publish and the repository still
 | Path | What |
 |---|---|
 | `scripts/release/repo.ts` | `ROOT`, `PUBLISHED` (`tade-sh`), `COMMAND` (`tade`), `manifests`, `rootManifest`, `repoUrl`, `git`; `LIVE`, `LIVE_RUN`, `liveTrouble` |
-| `scripts/release/stage.ts` | `stage`, `rewrite`, `exportsFor`, and the private `check`, `depsFor`, `manifestFor`; `NOT_SHIPPED`, `AT_ROOT`, `ON_INSTALL`, `DEFAULT_OUT` |
+| `scripts/release/stage.ts` | `stage`, `rewrite`, `exportsFor`, and the private `check`, `depsFor`, `manifestFor`; `NOT_SHIPPED`, `AT_ROOT`, `DEFAULT_OUT` |
 | `scripts/release/changelog.ts` | `releases`, `changelogFor`, `notesFor`, `tags`, `today`, `RELEASE_COMMIT` |
 | `scripts/release/release.ts` | the command: `parse`, `refusals`, `smoke`, and the four writes |
-| `scripts/check-build-tools.mjs` | the tarball's `preinstall`: `missingFor`, `onPath`, `trouble` |
-| `scripts/fix-pty-permissions.mjs` | the tarball's `postinstall`: `homes`, `find` |
 | `scripts/install-hooks.mjs` | `prepare`, and the one install script that does **not** ship |
 | `packages/cli/src/bin.ts` | the door: `nodeTooOld` before anything is imported, then `nativeTrouble` |
 | `packages/cli/src/version.ts` | `version`, `needsNode` — the root manifest, three levels up in both layouts |
@@ -25,9 +23,8 @@ release does not add one: the types come off at publish and the repository still
 | `.github/workflows/release.yml` | tag → gate → pack → smoke → publish; `workflow_dispatch` rehearses |
 | `.github/workflows/ci.yml` | the gate itself, offered as `workflow_call` so the release runs *this* one |
 | `test/release.test.ts` | what the staged package, the exports map, the rewrite, the changelog and the workflow must be |
-| `test/build-tools.test.ts` | `missingFor`, `onPath`, `trouble`, and that the script is silent where it can build |
-| `scripts/install.sh` | the curl one-liner: `PACKAGE`, `COMMAND`, `NEEDS_NODE`, `approval_for`, `npm_allows_scripts` |
-| `test/install.test.ts` | what it says before it runs, what it may never touch, and that its Node floor is still `engines.node` |
+| `scripts/install.sh` | the curl one-liner: `PACKAGE`, `COMMAND`, `NEEDS_NODE`, `npm_place`, `report` |
+| `test/install.test.ts` | what it says before it runs, what it may never touch, that its Node floor is still `engines.node`, and that neither native module has an install script |
 
 ## The four commands
 
@@ -121,7 +118,7 @@ appears to import may still be reached in a way no regular expression sees. **`v
 thing dropped**, and only because the files that import it (the conformance suites) do not ship,
 which is why the run prints it as `left out:` rather than dropping it silently. No `pnpm` field is
 carried: pnpm reads which builds it allows from the project being installed *into*, and 12 reads no
-`pnpm` field at all, which is why `pnpm add -g` needs `pnpm approve-builds -g`.
+`pnpm` field at all — which no longer matters, because nothing Tade needs has a build to allow.
 
 ## The types come off at publish, and that is not a build step
 
@@ -220,30 +217,34 @@ the same tarball, uploaded as artifacts and **published nowhere**.
 input are somebody's text, and a `run:` block with `${{ }}` in it is that text becoming the script;
 through the environment it stays an argument. `test/release.test.ts` holds the whole workflow to it.
 
-## The four ways in are all the same package
+## The five ways in are all the same package
 
-`tade-sh` on npm is the whole of what Tade publishes, and every way in installs it. There is
-nothing else to build, nothing else to version, and nothing anywhere that can be a different Tade
-than npm has.
+`tade-sh` on npm is the whole of what Tade publishes, and every way in installs it — or, for npx,
+runs it out of npm's cache. There is nothing else to build, nothing else to version, and nothing
+anywhere that can be a different Tade than npm has.
 
 ```sh
+npx tade-sh                                   # run, never installed: straight into setup
 npm install -g tade-sh
-pnpm add -g tade-sh   && pnpm approve-builds -g
-bun add -g tade-sh    && bun pm -g trust --all
+pnpm add -g tade-sh
+bun add -g tade-sh
 curl -fsSL https://tade.sh/install.sh | sh
 ```
 
-**The second command on the pnpm and bun lines is not decoration**, and neither is the flag the
-script passes for npm. All three managers hold a dependency's install scripts by default now, and
-under that node-pty is never built on Linux and never gets its `spawn-helper` bit back on macOS:
-the install goes green and `tade` cannot open a terminal. That is the worst shape a failure has
-here, because nothing says a word until the first lane — which is why `nativeTrouble` answers it in
-three managers' words, why the pnpm note is in the README's install section, and why the script
-below passes the approval flag rather than leaving it to be discovered.
-
-bun is the one that mostly looks after itself: node-pty and better-sqlite3 are both on bun's own
-default trusted list (`bun pm default-trusted`), so the two that matter run. `tade-sh` is not on
-it, which is what `--trust` is for — its postinstall is the `spawn-helper` bit.
+**None of them needs a second command or an approval flag**, and that is the point of the package
+having no install script. All three managers hold a dependency's install scripts by default now —
+npm 12, pnpm 10 on, bun — and while node-pty was microsoft/node-pty that meant it was never built on
+Linux and never got its `spawn-helper` bit back on macOS: the install went green and `tade` could
+not open a terminal, and `npx tade-sh` on npm 12 could not be one command at all. So the pty driver's
+node-pty is **`@lydell/node-pty`, pinned exact**: microsoft/node-pty's own prebuilds republished one
+optional package per platform (darwin, linux, win32 × x64, arm64), with `spawn-helper` packed
+executable, no install script and nothing to compile. better-sqlite3 13 already shipped its
+bindings in the package with `gypfile: false`. What it covers is said where it fails
+(`nativeTrouble`): macOS, and Linux with glibc 2.28 or newer (read off `pty.node`'s symbols), on x64
+and arm64 — **not musl**, so not Alpine. It is a beta of a third party's republish, which is why it is
+an exact version: moving it is reading the new one, then the drivers' conformance suite on macOS and
+in a `node:22` container on linux arm64 and amd64, then a real `npx` on npm 12 against a packed
+tarball in a throwaway cache and `HOME` — the three things that proved this one.
 
 ### `scripts/install.sh` is the curl one-liner, and it installs from npm like everything else
 
@@ -265,6 +266,10 @@ prints the one command it is about to run, and runs it. Four rules, held by `tes
    silent: nobody reads an installer afterwards.
 4. **It stays readable.** The budget in the test is on the lines that *do* something, so
    explaining itself costs nothing, and it may go down and never up.
+
+**It passes no approval flag** (`--allow-scripts`, `--allow-build`, `--trust`), and the test fails if
+one comes back: there is no install script to approve, and a flag added to quiet a warning about
+`esbuild` or `protobufjs` approves somebody else's code for nothing.
 
 **The Node floor is written out rather than read**, because the script runs where `package.json` is
 not — and `test/install.test.ts` holds `NEEDS_NODE` to `engines.node`, so the two cannot drift. A
@@ -307,9 +312,9 @@ nothing out there points at it. It is written down because the formula was *good
 npm tarball rather than building from source, so one publish fed both ways in — and somebody will
 otherwise rebuild it from scratch to learn the same two things:
 
-- **`ignore_scripts: false`** is the one decision in such a formula; Homebrew's default skips
-  install scripts, and under it node-pty never gets built. The same problem as the three package
-  managers above, with a fourth answer.
+- **`ignore_scripts: false`** was the one decision in such a formula; Homebrew's default skips
+  install scripts, and under it microsoft/node-pty was never built. With no install script left
+  (below), a formula would not need it.
 - **homebrew-core wants notability** — roughly 30 forks, 30 watchers, 75 stars — and declines a new
   repository on that alone. A personal tap needs its full name typed (`brew install
   mujacica/tade/tade`) under Homebrew 7, maintains itself for nobody, and bottles nothing.
@@ -317,36 +322,23 @@ otherwise rebuild it from scratch to learn the same two things:
 It came out because four ways in are enough and a fifth was a second thing to keep green. If it
 comes back, `git show f85e4f1` is the whole of it.
 
-## What a user's install runs is node-pty, twice
+## What a user's install runs is nothing
 
-`ON_INSTALL` in `stage.ts` is the list, and it is two. Both are about the one thing in the tarball
-that is a binary rather than a file. **Nothing else ships and neither reaches the network.**
+The published manifest has **no `scripts`**, and `test/release.test.ts` holds it there. There used
+to be two, both node-pty's — a `preinstall` that named a missing Linux toolchain before node-gyp
+could say it in forty lines, and a `postinstall` that put `spawn-helper`'s bit back — and both
+were steps a package manager holding scripts would not take. `@lydell/node-pty` took the reason
+for each away, so they went (`git show` the commit that removed `scripts/check-build-tools.mjs`
+for the whole of them). That also clears Socket's `installScripts` alert.
 
-**`preinstall` is `check-build-tools.mjs`.** node-pty ships prebuilds for darwin and win32 and for
-no Linux, so on Linux it is always compiled, and on a machine with no toolchain the install used to
-end in forty lines of node-gyp naming a Python that is not Tade's and a working directory nobody
-chose. npm runs a package's `preinstall` **before** it builds that package's dependencies, and npm
-shows a script's output only when the script *fails* — so it exits non-zero, and the sentence is the
-whole of the error instead of a line above the wall where nobody reads it.
-
-It may only ever refuse where node-gyp would have failed anyway. So it looks for what node-gyp
-looks for and is generous about what counts: any of six compiler names, either Python, `make`,
-`gmake` or `ninja`, and the environment variables node-gyp reads before it looks at all (`CXX`,
-`PYTHON`, `npm_config_python`, `MAKE`, `npm_config_ninja`). `missingFor` is empty on every platform
-but Linux, and anything it cannot read is not a refusal — node-gyp then speaks, exactly as it did
-before this existed. (better-sqlite3 ships prebuilds everywhere and is not why this is here.)
-
-**`postinstall` is `fix-pty-permissions.mjs`.** That same prebuilt `spawn-helper` comes out of a
-tarball without its executable bit, and every lane then fails with `posix_spawnp failed.` and no
-other word. The script walks up from itself so it finds node-pty in both homes — this repository's
-pnpm store, and wherever a user's package manager put it — and fixes only node-pty's own folders,
-never a recursive hunt through a global `node_modules`. It never fails an install.
-
-**Nothing fixes it at run time**, and that is deliberate: chmod-ing a file inside somebody's
-`node_modules` while Tade is running is a surprise, and the commands that fix it properly are the
-ones they will want next time too. So the pty driver's `available()` **and** `open()` both ask
-`helperProblem(helperAt())`, and that is where the sentence lives — which file, `chmod +x`, and the
-three ways to approve the install script a package manager held rather than ran.
+**Nothing fixes the helper at run time**, and that is deliberate: chmod-ing a file inside somebody's
+`node_modules` while Tade is running is a surprise. It arrives executable, so a helper without the bit
+is a copy that lost it afterwards — copied, synced or unpacked by something that keeps no modes. The
+pty driver's `available()` **and** `open()` both ask `helperProblem(helperAt())`, and that is where
+the sentence lives: which file, `chmod +x`, and installing again — `npm cache npx rm <key> && npx
+tade-sh` where Tade runs out of npx's cache, since npx answers the same version from the entry it
+has. `helperAt` finds the platform package **through the wrapper**, the only package that depends on
+it, so it resolves under pnpm's strict layout too.
 
 **`install-hooks.mjs` is `prepare`**, which runs for this repository and for a git install and never
 for somebody installing the published package. Pointing a stranger's git at hooks in a repository of
@@ -356,10 +348,13 @@ names it, `postinstall` must not. What it does here is point git at `.githooks` 
 what `pnpm hooks` is for.
 
 **A dependency that did not load at all is caught once, in `bin.ts`**, and answered by
-`nativeTrouble`. It names the module, what the machine said, the toolchain a build needs, and the
-commands that approve an install script a package manager held rather than ran — for each of the
-three that hold one (pnpm, npm 11, bun). Whether it is native is decided by **how it failed**
-(`ERR_DLOPEN_FAILED`, `NODE_MODULE_VERSION`, `Failed to load native module`) and never by whether a
+`nativeTrouble`. It names the module, what the machine said, which machines the binaries are built
+for, the two ways an install leaves this one's out (`--omit=optional`, a `node_modules` copied
+between machines), and how to install again — the npx form where `from` is in npx's cache. It never
+names a held install script or a toolchain: there is neither. Whether it is native is decided by
+**how it failed** (`ERR_DLOPEN_FAILED`, `NODE_MODULE_VERSION`, `Failed to load native module`, and
+`@lydell/node-pty`'s own codeless "The @lydell/node-pty package …" for a platform package that is
+not there) and never by whether a
 name could be picked out of the message. **A relative file that is missing is Tade's own bug** and
 is never dressed up as somebody's install problem: `named()` returns null for anything quoted that
 starts with `.` or `/`, and `bin.ts` rethrows the original error, because sending somebody off to
@@ -381,9 +376,8 @@ why 88 and 99 are not a list of things to fix. Quality at 99 is already the read
 
 What it does flag in the contents is the product, and the first four are one alert each:
 
-- **`installScripts` (high)** — the two above, and **both** must go to clear it. The section
-  above is why neither does: without the `preinstall` a Linux machine with no toolchain gets
-  forty lines of node-gyp, and nothing fixes the `spawn-helper` bit at run time *on purpose*.
+- **`installScripts` (high)** — was the two install scripts above, and both are gone. A version
+  scored after that one is clear of it.
 - **`shellAccess`, `filesystemAccess`, `envVars`, `networkAccess`** — 25, 80, 41 and 11 of the 374
   shipped files. Tade opens terminals, reads config, reads `TADE_HOME` and talks to a forge. A
   control room for coding agents that did none of those would not be one.
@@ -460,10 +454,10 @@ was added. `test/release.test.ts` fails if a `secrets.` reference appears in tha
   for the reason above. `pnpm tade` still runs the `.ts` and always will.
 - **Do not put a `package.json` inside a package's shipped tree**, and do not answer a resolution
   problem by adding one. It becomes the closest package scope and self-reference stops working.
-- **Do not add a third script to the tarball**, and do not make either of the two do anything but
-  what it does. A user's install runs what a user's install needs: node-pty, twice. (The curl
-  installer is not one of these. It is a *bootstrap* — it runs before there is a package, off the
-  website rather than out of the tarball, and `ON_INSTALL` does not name it.)
+- **Do not add an install script to the tarball**, and do not take a dependency that needs one.
+  npm 12, pnpm and bun hold it, so it is a step `npx tade-sh` cannot take and a green install
+  that does not work. (The curl installer is not one of these. It is a *bootstrap* — it runs before
+  there is a package, off the website rather than out of the tarball.)
 - **Do not publish from a laptop.** `npm publish` by hand has no gate behind it, no provenance and
   no record. The tag is the way.
 - **Do not put a release commit in the changelog.** `pnpm release` writes `Release X.Y.Z` and
@@ -479,11 +473,11 @@ was added. `test/release.test.ts` fails if a `secrets.` reference appears in tha
   declares a different range, and run `pnpm notices`.
 - **The curl installer** — `test/install.test.ts`, and run it: `sh scripts/install.sh --dry-run`.
   Anything the website quotes changes in tade-web's own commit, by its sync, and not by hand.
-- **The rewrite, the exports map, the refusals or either install script** — `test/release.test.ts`
-  and `test/build-tools.test.ts` hold the parts that would otherwise break quietly: what
+- **The rewrite, the exports map, the refusals or the native modules** — `test/release.test.ts`
+  and `test/install.test.ts` hold the parts that would otherwise break quietly: what
   `liveTrouble` refuses and what satisfies it, what the published manifest says (down to
-  `engines.node`, the two install scripts existing, `vitest` being absent and the native modules
-  being present), that the exports map answers every `@tade/…` specifier this repository actually
+  `engines.node`, no install script at all, `vitest` being absent and the native modules being
+  present, `@lydell/node-pty` at an exact version), that the exports map answers every `@tade/…` specifier this repository actually
   writes, what the two rewrite rules do and do not touch, and the handful of facts about the
   workflow — that its gate calls `ci.yml`, that `ci.yml` still offers `workflow_call`, that a push
   to main is not a trigger, that no `run:` block carries a `${{ }}` expression, and that every

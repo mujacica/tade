@@ -1,4 +1,5 @@
 import { write as writeTo } from 'node:fs'
+import { type IPty, spawn } from '@lydell/node-pty'
 import { type LaneId, resolveCommand, stringEnv, type Unsubscribe } from '@tade/core'
 import {
   type AdoptHint,
@@ -22,7 +23,6 @@ import {
   type WorkspaceDriver,
   wheelBytes,
 } from '@tade/drivers-core'
-import { type IPty, spawn } from 'node-pty'
 import { codeOf, leakIn, mastersHeld } from './held.ts'
 import { helperAt, helperProblem } from './helper.ts'
 import { leftIn } from './left.ts'
