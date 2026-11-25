@@ -229,6 +229,13 @@ everything said to it is typed into its lane. Each of these was found the hard w
 - **Anything that stops it before its first hook looks like an agent thinking**: the folder-trust
   dialog, the bypass-mode warning, first-run onboarding. Answer them before launch (`trust.ts`,
   `skipDangerousModePermissionPrompt`), never by typing into the dialog.
+- **A run gets Tade's tool server and none of claude.ai's connectors.** Signed in with a
+  subscription, Claude Code connects the account's Gmail, Drive, Calendar… at every start: tools
+  nothing uses, and a "did not connect (needs-auth)" for each one somebody never signed in to.
+  Every `claude` Tade starts, lane and headless, is given `ENABLE_CLAUDEAI_MCP_SERVERS=false`
+  (`NO_CLAUDE_AI_CONNECTORS`, set last over `spec.env`); `--mcp-config` is untouched by it. This
+  only narrows what that run gets: never write `disableClaudeAiConnectors` or anything else into the
+  person's own settings, and a `claude` they start themselves still loads them all.
 - **Never type a command that changes a default.** `/model` saves itself as every new session's
   model; change a model by restarting on the same conversation (`model: 'restart'`).
 - **Type one thing at a time**, pasted (bracketed) so several lines arrive as one, Enter after it,

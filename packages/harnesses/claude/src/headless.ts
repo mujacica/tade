@@ -28,6 +28,21 @@ export const MCP_WAITS = {
   MCP_TOOL_TIMEOUT: String(TOOL_WAIT_MS),
 } as const
 
+/**
+ * None of claude.ai's own connectors (Gmail, Calendar, Drive, …), said to every
+ * `claude` Tade starts: the orchestrator's, and every agent's. Signed in with
+ * a subscription, Claude Code fetches the account's connectors and connects
+ * each one at start; nothing Tade starts uses them, a phone-only sign-in left
+ * three saying "did not connect (needs-auth)" at every orchestrator start, and
+ * a connected one is tools and tokens in every request. Tade's own server comes
+ * by `--mcp-config` and is not one of them. This narrows what a run gets and
+ * nothing else: the person's own settings are untouched, and a `claude` they
+ * start themselves still loads every connector. Claude Code reads the variable
+ * itself (2.1.325: `ENABLE_CLAUDEAI_MCP_SERVERS` falsy is the opt-out, the
+ * same one its own sandboxed runs set), and `claude mcp list` shows it.
+ */
+export const NO_CLAUDE_AI_CONNECTORS = { ENABLE_CLAUDEAI_MCP_SERVERS: 'false' } as const
+
 /** The option that stops Claude Code pinning the system prompt, where it has one. */
 export const SNAPSHOT_OPTION = '--system-prompt-snapshot'
 
@@ -115,6 +130,9 @@ export function headlessArgs(launch: HeadlessLaunch): string[] {
  * leave them out of `spec.env` (`toolEnv` does), but that only stops it
  * adding them, so they are dropped here. A headless run has no channel to
  * name: it has no hooks and not this adapter's server.
+ *
+ * **And none of claude.ai's connectors** (`NO_CLAUDE_AI_CONNECTORS`), set last
+ * for the same reason as tool search.
  */
 export function headlessEnv(account: NodeJS.ProcessEnv, spec: WorkerSpec): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...account }
@@ -125,7 +143,7 @@ export function headlessEnv(account: NodeJS.ProcessEnv, spec: WorkerSpec): NodeJ
   env[WORKER_ENV.task] = spec.task
   Object.assign(env, MCP_WAITS)
   if (spec.extras?.tools) env[WORKER_ENV.tools] = spec.extras.tools
-  return { ...env, ...spec.env, ENABLE_TOOL_SEARCH: 'false' }
+  return { ...env, ...spec.env, ENABLE_TOOL_SEARCH: 'false', ...NO_CLAUDE_AI_CONNECTORS }
 }
 
 /** One tool server as a session's `system/init` line says it stands. */

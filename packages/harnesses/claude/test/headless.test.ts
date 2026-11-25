@@ -77,6 +77,17 @@ describe('the environment', () => {
     expect(env.HOME).toBe('/caller')
   })
 
+  it('leaves claude.ai’s connectors out, whatever the window inherited', () => {
+    // Tade's own server comes by `--mcp-config`; the account's Gmail, Drive
+    // and Calendar would only connect, or say "needs-auth", at every start.
+    expect(headlessEnv({}, spec).ENABLE_CLAUDEAI_MCP_SERVERS).toBe('false')
+    const env = headlessEnv(
+      { ENABLE_CLAUDEAI_MCP_SERVERS: 'true' },
+      { ...spec, env: { ENABLE_CLAUDEAI_MCP_SERVERS: 'true' } },
+    )
+    expect(env.ENABLE_CLAUDEAI_MCP_SERVERS).toBe('false')
+  })
+
   it('says which run and task it is', () => {
     const env = headlessEnv({}, spec)
     expect(env.TADE_RUN_ID).toBe(spec.run)
@@ -178,6 +189,7 @@ function fakeClaude(help: string[] | null): string {
       'echo "$PPID" >> "$0.parents"',
       'printf \'%s\\n\' "$@" > "$0.args.tmp"',
       'echo "$ENABLE_TOOL_SEARCH" > "$0.search"',
+      'echo "$ENABLE_CLAUDEAI_MCP_SERVERS" > "$0.connectors"',
       'echo "$MCP_TIMEOUT" > "$0.wait"',
       'mv "$0.args.tmp" "$0.args"',
       'exec sleep 600',
@@ -250,14 +262,18 @@ describe('starting the orchestrator', () => {
     return {
       args: readFileSync(`${bin}.args`, 'utf8').trimEnd().split('\n'),
       search: readFileSync(`${bin}.search`, 'utf8').trim(),
+      connectors: readFileSync(`${bin}.connectors`, 'utf8').trim(),
       wait: readFileSync(`${bin}.wait`, 'utf8').trim(),
     }
   }
 
   it('starts it with nothing pinned', async () => {
-    const { args, search } = await started(HELP)
+    const { args, search, connectors } = await started(HELP)
     expect(given(args, SNAPSHOT_OPTION)).toBe('off')
     expect(search).toBe('false')
+    // And with Tade's tools and none of claude.ai's connectors.
+    expect(connectors).toBe('false')
+    expect(given(args, '--mcp-config')).toBe('/run/tade-tools.mcp.json')
   })
 
   it('starts it with time for its tools to come up, through whatever stands between', async () => {
