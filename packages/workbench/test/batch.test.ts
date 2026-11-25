@@ -1,8 +1,8 @@
-import { existsSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { delimiter, join } from 'node:path'
 import { readRuns } from '@tade/checks-core'
 import { ConfigSchema, recordsDir } from '@tade/core'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { mkrepo } from '../../../test/fixtures/mkrepo.ts'
 import { CI_WORKFLOW, ciWorkflow } from '../../../test/fixtures/workflow.ts'
 import {
@@ -11,7 +11,9 @@ import {
   coveredBy,
   narrowingCommand,
   narrowRed,
+  nodeWithoutTypeScript,
   runBatch,
+  runsTypeScriptOnNode,
   treeAt,
 } from '../src/batch.ts'
 import { checksAt } from '../src/checks.ts'
@@ -185,5 +187,70 @@ describe('a red batch, narrowed', () => {
       run: 'pnpm run test:related packages/app/test/wire/queue.test.ts',
       files: ['packages/app/test/wire/queue.test.ts'],
     })
+  })
+})
+
+describe('a Node that cannot run TypeScript', () => {
+  // Ubuntu 26.04's own nodejs (22.22.1+dfsg) answers exactly this: a version
+  // above every floor, and `process.features.typescript` false.
+  const UBUNTU = 'false v22.22.1 /usr/bin/node'
+
+  function nodeSaying(home: string, said: string): NodeJS.ProcessEnv {
+    const bin = join(home, 'fake-node')
+    mkdirSync(bin, { recursive: true })
+    writeFileSync(join(bin, 'node'), `#!/bin/sh\necho '${said}'\n`)
+    chmodSync(join(bin, 'node'), 0o755)
+    return { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH ?? ''}` }
+  }
+
+  const TS_SCRIPTS = JSON.stringify({ scripts: { coverage: 'node scripts/coverage.ts' } })
+
+  it('is said instead of a batch, for a project that runs its .ts on Node itself', async () => {
+    const { repo, at } = project()
+    repo.commit('runs ts on node', { 'package.json': TS_SCRIPTS })
+    const env = nodeSaying(repo.home, UBUNTU)
+    const said = await nodeWithoutTypeScript({ root: at.root, commit: repo.head(), env })
+    expect(said).toContain('(v22.22.1, /usr/bin/node) is built without TypeScript')
+    expect(said).toContain('`node scripts/coverage.ts`')
+
+    // And the batch is that sentence rather than a red run blamed on a commit.
+    vi.stubEnv('PATH', env.PATH)
+    try {
+      const batch = await runBatch({ ...at, userHome: repo.home, commit: repo.head() })
+      expect(batch).toEqual({ problem: said })
+    } finally {
+      vi.unstubAllEnvs()
+    }
+    expect(await readRuns(recordsDir(repo.home, 'shop', null))).toEqual([])
+  })
+
+  it('is no reason to hold a batch where either half is missing', async () => {
+    const { repo, at } = project()
+    // A project that never runs .ts on Node: its checks need nothing of it.
+    const plain = nodeSaying(repo.home, UBUNTU)
+    expect(await nodeWithoutTypeScript({ root: at.root, commit: repo.head(), env: plain })).toBe(
+      null,
+    )
+    repo.commit('runs ts on node', { 'package.json': TS_SCRIPTS })
+    // A Node that strips types, and one too old to say: neither is `false`.
+    for (const answer of ['strip v22.23.5 /x/node', 'undefined v20.20.2 /x/node']) {
+      const env = nodeSaying(join(repo.home, answer.split(' ')[0] ?? ''), answer)
+      expect(await nodeWithoutTypeScript({ root: at.root, commit: repo.head(), env })).toBe(null)
+    }
+  })
+
+  it('reads a script that runs a .ts file with node, and nothing else', () => {
+    const said = (scripts: Record<string, string>) =>
+      runsTypeScriptOnNode(JSON.stringify({ scripts }))
+    expect(said({ test: 'vitest run', coverage: 'node scripts/coverage.ts' })).toBe(
+      'node scripts/coverage.ts',
+    )
+    expect(said({ x: 'cd a && node --import ./r.mjs src/bin.mts --flag' })).toBe(
+      'node --import ./r.mjs src/bin.mts',
+    )
+    expect(said({ x: 'node dist/bin.js', y: 'tsx src/x.ts', z: 'nodemon src/x.ts' })).toBe(null)
+    expect(said({ x: 'node scripts/types.d.tsx' })).toBe(null)
+    expect(runsTypeScriptOnNode('not json')).toBe(null)
+    expect(runsTypeScriptOnNode('{"scripts": "node x.ts"}')).toBe(null)
   })
 })

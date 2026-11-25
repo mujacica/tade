@@ -171,6 +171,10 @@ and that record.
   checks (`runIn`), recorded as the checkout's, with `covered` the clean tree, so it carries. The
   same tree is the only place the next rule can happen: the checkout is never moved to another
   commit.
+- **A Node that cannot run TypeScript is said instead of a batch** (`nodeWithoutTypeScript`):
+  Debian's and Ubuntu's `nodejs` clears every version floor with `process.features.typescript`
+  `false`, so a project whose `package.json` runs `node x.ts` would go red at any commit and be
+  narrowed onto the first one. Both halves are read; either missing runs the batch as before.
 - **A red batch is narrowed by rule, and is one proposal.** The failing tests (`readOutcome`'s files,
   handed to the related check) or a cheap failing check run again at the covered commits, HEAD first
   — a failure that does not come back on its own is a flake and nobody's — then the base, then

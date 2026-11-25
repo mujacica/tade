@@ -170,6 +170,68 @@ async function prepare(
 /** What a batch came to: its runs, or why it could not run. */
 export type Batch = { runs: CheckLog[] } | { problem: string; busy?: boolean }
 
+// A Node that cannot run TypeScript, for a project that runs its `.ts` on Node
+// itself. Debian's and Ubuntu's `nodejs` package is built without it (22.22.1
+// on Ubuntu 26.04: `process.features.typescript` is `false`), while its version
+// clears every floor that only reads numbers. Every check then fails whatever
+// was committed, and a red batch is narrowed to whichever covered commit comes
+// first — a machine's fault put to an agent as its own. So it is asked before
+// a batch, and said instead of run.
+//
+// Both halves are read, never guessed, and either one missing runs the batch
+// as before: the answer is only `false` from the Node a check would find on
+// PATH, and the project's own `package.json` at the commit has to run a `.ts`
+// file with `node` (Tade's says `node scripts/coverage.ts`). A Node too old to
+// have the flag at all is the project's floor to state, not this.
+
+/**
+ * A script that runs a TypeScript file on Node itself: `node scripts/coverage.ts`,
+ * its flags (and a flag's value: `--import ./r.mjs`) before the file.
+ */
+const NODE_RUNS_TS =
+  /(?:^|[\s;&|(])(node\s+(?:-[^\s;&|()]+(?:\s+[^-\s;&|()][^\s;&|()]*)?\s+)*[^-\s;&|()][^\s;&|()]*\.[cm]?ts)(?=$|[\s;&|)])/
+
+/** The first of a manifest's scripts that runs a `.ts` file on Node, or null. */
+export function runsTypeScriptOnNode(manifest: string): string | null {
+  let scripts: unknown
+  try {
+    scripts = (JSON.parse(manifest) as { scripts?: unknown }).scripts
+  } catch (err) {
+    // A manifest that is not JSON says nothing about what it runs, and the
+    // batch runs as before; anything else is not a reading of it.
+    if (err instanceof SyntaxError) return null
+    throw err
+  }
+  if (typeof scripts !== 'object' || scripts === null) return null
+  for (const line of Object.values(scripts)) {
+    const found = typeof line === 'string' ? NODE_RUNS_TS.exec(line) : null
+    if (found?.[1]) return found[1]
+  }
+  return null
+}
+
+/**
+ * Why a batch at `commit` would be red on this machine's Node whatever was
+ * committed, or null where it would not or that cannot be told.
+ */
+export async function nodeWithoutTypeScript(opts: {
+  root: string
+  commit: string
+  env?: NodeJS.ProcessEnv
+}): Promise<string | null> {
+  const asked = await runProgram(
+    'node',
+    ['-p', "[process.features.typescript, process.version, process.execPath].join(' ')"],
+    { cwd: opts.root, timeoutMs: 10_000, ...(opts.env ? { env: opts.env } : {}) },
+  )
+  const [answer, version, ...where] = asked.stdout.trim().split(' ')
+  if (asked.code !== 0 || answer !== 'false') return null
+  const manifest = await git(opts.root, ['show', `${opts.commit}:package.json`], GIT_MS)
+  const script = manifest.ok ? runsTypeScriptOnNode(manifest.stdout) : null
+  if (script === null) return null
+  return `the Node a check runs here (${version}, ${where.join(' ')}) is built without TypeScript, and this project runs .ts on Node itself (\`${script}\`), so every check would fail whatever was committed — Debian's and Ubuntu's nodejs package is built that way, and Node from nodejs.org or a version manager (mise, nvm, volta) is not`
+}
+
 /**
  * The full checks for a batch, at `commit`, in the batch tree, recorded as the
  * checkout's. Never waits for the machine: a batch that would queue behind an
@@ -185,6 +247,8 @@ export async function runBatch(opts: {
   commit: string
   onWait?: (ahead: Holders) => void
 }): Promise<Batch> {
+  const without = await nodeWithoutTypeScript({ root: opts.root, commit: opts.commit })
+  if (without !== null) return { problem: without }
   const tree = await treeAt(opts)
   if ('problem' in tree) return tree
   try {
