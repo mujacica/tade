@@ -365,7 +365,6 @@ export class Painted implements Component {
    * is not a click's to throw away. Cmd+C copies what is lit (`litText`).
    */
   private takeWords(x: number, y: number, clicks: number): boolean {
-
     const area = scrollAt(this.hits, x, y)
     const across = area ? extentOf(this.hits, { kind: 'scroll', area }, true) : null
     const within =
@@ -388,7 +387,6 @@ export class Painted implements Component {
     const text = this.copied()
     return text.trim() === '' ? null : text
   }
-
 
   /** The region a selection is anchored in, where the last frame drew one. */
   private regionOf(area: ScrollArea | null): Region | null {
