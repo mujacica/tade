@@ -173,7 +173,11 @@ describe('the project tabs', () => {
 describe('the figures at the right', () => {
   it('says whose they are where there is more than one project', () => {
     expect(strip(world([working, wantsYou]))).toContain('in checkout')
-    expect(strip(world([working, { ...wantsYou, task: 'search/pagination' }]))).toContain(
+    // Wide enough for both counts. At 160 the row is a column short of them
+    // once the focused agent's lane has the keyboard (`ctrl ] to Tade` is one
+    // wider than `ctrl k search`), and the rung that fits counts only what
+    // wants you — which is all in search, and says so.
+    expect(strip(world([working, { ...wantsYou, task: 'search/pagination' }]), 180)).toContain(
       'in 2 projects',
     )
   })
