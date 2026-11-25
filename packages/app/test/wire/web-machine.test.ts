@@ -404,4 +404,24 @@ describe('the problems a machine lists from its journal are the ones that still 
       },
     ])
   })
+
+  it('answers without its documents when the journal could not be read for them, and says so', async () => {
+    const home = tmp('tade-standing-')
+    // Only the read for its documents fails: the warnings are still told.
+    const failing = {
+      read: async (filter: EventFilter) =>
+        filter.types?.includes('warning')
+          ? []
+          : Promise.reject(new Error('EACCES: permission denied')),
+    }
+    const failed = await machineFrom(wired({ home, log: failing }).wire, QUIET)()
+    expect(failed.documents).toEqual([])
+    expect(failed.problems).toEqual([
+      {
+        from: 'journal',
+        at: null,
+        said: 'the journal could not be read for its documents: EACCES: permission denied',
+      },
+    ])
+  })
 })
