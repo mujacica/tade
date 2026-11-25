@@ -35,6 +35,7 @@ import {
   focusBy,
   focusNumber,
   keyAction,
+  laneThere,
   laneWithKeyboard,
   leaveLine,
   ORCHESTRATOR_TAB,
@@ -417,8 +418,11 @@ export class Keyboard implements Subject {
       this.deps.toLane(data, pasted)
       return pasted ? { consume: true } : undefined
     }
-    const scrolled = this.wire.state.terminalScroll !== 0
-    this.wire.put({ ...this.wire.state, terminalScroll: 0 })
+    // A terminal in the pane — an agent on another machine — is the pane's to
+    // scroll, as the agent here it stands in for is.
+    const scroll = lane === laneThere(this.wire.state) ? 'paneScroll' : 'terminalScroll'
+    const scrolled = this.wire.state[scroll] !== 0
+    this.wire.put({ ...this.wire.state, [scroll]: 0 })
     const into = lane as LaneId
     if (pasted) this.wire.outbox.paste(into, data)
     else this.wire.outbox.write(into, data)

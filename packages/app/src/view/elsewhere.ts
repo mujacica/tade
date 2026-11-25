@@ -216,7 +216,7 @@ export function renderElsewhere(
   const machine = found?.machine ?? null
   const agent = found?.project?.agents.find((one) => one.id === place.agent)
   if (machine !== null && agent !== undefined) {
-    return renderRemoteAgent(frame, machine, agent, width, height, skin, pointer)
+    return renderRemoteAgent(state, frame, machine, agent, width, height, skin, pointer)
   }
   // A schedule there in front of you is its card, drawn as one here is: its
   // controls carry its machine in its id, so they are this card's own.

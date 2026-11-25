@@ -1,6 +1,5 @@
-import { stripTerminalSequences } from '@earendil-works/pi-tui'
 import { printable } from '@tade/core'
-import type { Frame, LaneView } from '../frame.ts'
+import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, type ScrollArea, sameTarget, type Target } from '../hits.ts'
 import { linkedRow } from '../links.ts'
 import { elsewhereOf } from '../machines.ts'
@@ -16,16 +15,16 @@ import { BAR } from '../scrollbar.ts'
 import type { Regions } from '../selection.ts'
 import type { Skin } from '../skin.ts'
 import { splitShown } from '../split.ts'
-import { blank, box, type Drawn, fit, overlay, type Pointer, Row, stack } from '../ui.ts'
+import { blank, box, type Drawn, overlay, type Pointer, Row, stack } from '../ui.ts'
 import { widthOf } from '../width.ts'
 import { actionRows } from './actions.ts'
 import { type Approval, approvalRows, cardWidth, mostOver } from './approval.ts'
 import { renderElsewhere } from './elsewhere.ts'
 import { renderEmpty } from './empty.ts'
 import {
-  blockAt,
   carded,
-  laneRegion,
+  laneLines,
+  paneRegion,
   pointedIn,
   rowsRead,
   screenRows,
@@ -407,85 +406,6 @@ export function renderMain(
     return { ...withApproval(drawn, pane.approval, half, width, height, skin, pointer), regions }
   }
   return drawn
-}
-
-/**
- * The agent's screen as a region a selection can be anchored in, or nothing
- * where it is not one: a split's halves, whose lines the window does not hold.
- */
-function paneRegion(
-  state: AppState,
-  frame: Frame,
-  at: { screen: number; dropped: number; shown: number; top: string; row: number },
-): Regions {
-  const held = frame.held?.get('pane')
-  const region = laneRegion({
-    held,
-    ...at,
-    back: state.paneScroll,
-    // How deep the lane is now, as the look reads it: what the driver last
-    // said, or — before it has said anything — how deep it was when these
-    // lines were read.
-    at: frame.paneScreen?.lines ?? held?.at ?? 0,
-  })
-  return region ? { pane: region } : {}
-}
-
-/**
- * A lane's screen as rows, bottom-anchored for an agent. pi draws from the top
- * of a terminal and stops where its prompt is, which in a tall pane leaves the
- * prompt stranded half way down, so an agent's screen is read from the bottom,
- * like a conversation; a shell is left where it draws, because full-screen
- * programs count rows.
- */
-function laneLines(
-  screen: string,
-  kind: string,
-  width: number,
-  rows: number,
-  skin: Skin,
-  pointer: Pointer,
-  /**
-   * What to read the lane's text for, or `null` to read it for nothing at
-   * all — which is what a lane that answers the pointer itself gets, because
-   * Tade's own recognition of a path in it is not something it may then take
-   * the click for. `[]` is not that: the paths and the URLs are found whether
-   * or not an extension adds a way of reading one.
-   */
-  linkers: Frame['linkers'] | null,
-  cursor: LaneView['cursor'] | null = null,
-): {
-  rows: { text: string; hits: Hit[] }[]
-  /** Blank rows above the first line drawn, which an agent's screen is pushed down by. */
-  pad: number
-  /** The lines actually drawn, and how many were dropped off the front to fit. */
-  seen: readonly string[]
-  dropped: number
-} {
-  const lines = screen.split('\n')
-  const out: { text: string; hits: Hit[] }[] = []
-  if (kind === 'agent') {
-    while (lines.length > 0 && stripTerminalSequences(lines.at(-1) ?? '').trim() === '') lines.pop()
-    for (let gap = rows - lines.length; gap > 0; gap--) out.push(blank(width))
-  }
-  // Where the lines themselves landed, which is not the region: an agent's
-  // screen is pushed down by the blanks above it, and a shell's top lines are
-  // dropped off the front when there are more of them than there is room.
-  const pad = out.length
-  const seen = lines.slice(-rows)
-  // Which row the last line captured ended on: what the cursor is counted
-  // back from, and the one thing the two anchorings above disagree about.
-  const last = kind === 'agent' ? rows - 1 : Math.min(lines.length, rows) - 1
-  for (const line of seen) {
-    out.push(
-      linkers === null
-        ? { text: fit(line, width), hits: [] }
-        : linkedRow(line, width, skin, pointer, linkers),
-    )
-  }
-  while (out.length < rows) out.push(blank(width))
-  if (cursor) blockAt(out, last - cursor.back, cursor.column, width, skin)
-  return { rows: out, pad, seen, dropped: lines.length - seen.length }
 }
 
 /** Rows given what a click and the wheel anywhere on them mean, under what they already hold. */

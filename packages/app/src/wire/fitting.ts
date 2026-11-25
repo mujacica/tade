@@ -1,9 +1,10 @@
 import type { LaneId } from '@tade/core'
 import { halvesOf, resolveLayout } from '../layout.ts'
-import { laneShown, terminalsOf } from '../model.ts'
+import { laneShown, laneThere, terminalsOf } from '../model.ts'
 import { BAR } from '../scrollbar.ts'
 import { splitShown, terminalSplitShown } from '../split.ts'
 import { carded, rowsRead } from '../view/lane.ts'
+import { THERE_TOP } from '../view/remote-agent.ts'
 import type { Wiring } from './context.ts'
 
 // How big each lane is made, and when it is told.
@@ -116,7 +117,11 @@ export class Fitting {
     // when they are in front.
     if (state.bottomMode === 'min' || state.terminalSplit) return
     const below = this.terminalHalves().first
-    for (const terminal of terminalsOf(state)) void this.fit(terminal.id, below)
+    // The one in the pane is the pane's size, not the panel's (`laneThere`).
+    const there = laneThere(state)
+    for (const terminal of terminalsOf(state)) {
+      if (terminal.id !== there) void this.fit(terminal.id, below)
+    }
   }
 
   /** Tell nothing more: the window is closing. */
@@ -142,6 +147,19 @@ export class Fitting {
   }
 
   /**
+   * The terminal that is an agent on another machine, in the pane: the pane
+   * less the four rows above it that say what it is and what may be asked of
+   * it there (`THERE_TOP`), and the scrollbar's column, as an agent here is made.
+   */
+  thereSize(grown = false): Size {
+    const layout = this.resolved(grown)
+    return {
+      cols: Math.max(20, layout.mainWidth - BAR),
+      rows: Math.max(4, layout.bodyHeight - THERE_TOP),
+    }
+  }
+
+  /**
    * How many rows of a lane are on screen: what a capture is cut to. Exactly
    * the lines the region shows, counted as the drawing counts them — the clamp
    * here and the bar it draws have to agree about where the end is, or the top
@@ -151,6 +169,8 @@ export class Fitting {
     if (area === 'terminal') return this.terminalHalves().first.rows
     const state = this.wire.state
     const pane = state.panes.find((p) => p.task === state.focused)
+    if (!pane && laneThere(state))
+      return rowsRead(this.thereSize(true).rows, 0, state.paneScroll > 0)
     const split = pane ? splitShown(state, pane) : null
     // As the pane is drawn, which the conversation below may have grown into:
     // the lane keeps its size and the newest of its rows are what show.

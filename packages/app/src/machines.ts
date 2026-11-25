@@ -234,6 +234,11 @@ export interface Place {
   project: string
   /** The agent there you are looking at, by its task id there, or none. */
   agent?: string
+  /**
+   * The terminal here that is that agent (`remotes/<machine>/<n>`), drawn in
+   * the pane in place of its screen read over the link (`laneThere`).
+   */
+  lane?: string
 }
 
 /** How long a name may be here; a title or a reason, a little longer. */

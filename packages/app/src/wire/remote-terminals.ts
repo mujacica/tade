@@ -82,8 +82,16 @@ export class RemoteTerminals {
     this.deps = deps
   }
 
-  /** A new terminal to `task` on `machine`, put in front of the lower pane. */
-  async open(machine: string, task: string): Promise<void> {
+  /**
+   * A new terminal to `task` on `machine`, put where `put` says once it runs —
+   * in front of the lower pane, unless asked for somewhere else (the pane, for
+   * the agent there in front: `RemoteAgents.attach`).
+   */
+  async open(
+    machine: string,
+    task: string,
+    put: (id: string) => void = (id) => this.front(id),
+  ): Promise<void> {
     let got: There
     try {
       got = await this.there(machine, task)
@@ -98,7 +106,7 @@ export class RemoteTerminals {
     } catch (err) {
       return this.say(`a terminal to ${machine} could not start here: ${why(err)}`)
     }
-    this.front(id)
+    put(id)
     if (got.terminal.by) flash(this.wire, `${task} on ${machine}, over ${got.terminal.by}`)
     this.wire.draw()
   }

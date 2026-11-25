@@ -1,18 +1,36 @@
 import { duration } from '@tade/core'
 import type { Frame } from '../frame.ts'
-import type { Hit, Target } from '../hits.ts'
+import { type Hit, rowHit, type Target } from '../hits.ts'
+import { linkedRow } from '../links.ts'
 import { ageThere, type Machine, type RemoteAgent, type RemoteScreen } from '../machines.ts'
-import { MARK_TONES, markGlyph } from '../model.ts'
+import { type AppState, laneThere, MARK_TONES, markGlyph } from '../model.ts'
+import { BAR } from '../scrollbar.ts'
+import type { Regions } from '../selection.ts'
 import type { Look, Skin } from '../skin.ts'
 import { blank, type Drawn, fit, NO_POINTER, type Pointer, Row, stack } from '../ui.ts'
 import { widthOf } from '../width.ts'
 import { approvalRows } from './approval.ts'
+import {
+  laneLines,
+  paneRegion,
+  pointedIn,
+  rowsRead,
+  screenRows,
+  scrolledBar,
+  typingIn,
+} from './lane.ts'
+import { gutterBeside } from './rows.ts'
 import { clockOf, shortened } from './text.ts'
 
 // An agent on another machine, in the pane: what it is and how it stands
-// there, what may be asked of it from here, and its screen there — read-only,
-// as that machine last read it. Typing into it is a
-// terminal in the lower pane, opened by the first control or by enter.
+// there, what may be asked of it from here, and its screen.
+//
+// **Its screen is its lane, live, once a terminal here is it** (enter, or the
+// first control): the pane draws that terminal as it draws an agent here —
+// sized to the room under the controls (`THERE_TOP`), read on every look,
+// typed into in place, with the cursor, the bar, scrolling and selecting the
+// window's own. Until one is open — or where the panel below has it in front —
+// it is that machine's own read of it, read-only and as old as it says.
 //
 // **Only what that machine says may be asked of it now is a control** (its
 // `can`): a button nothing could carry out is a promise the window cannot
@@ -44,12 +62,20 @@ export function controlsOf(agent: RemoteAgent, machine: Machine): Control[] {
   return out
 }
 
+/**
+ * The rows above an agent there's lane, once it is live in the pane: its name,
+ * its clause, its controls and the rule saying whose screen it is. What its
+ * lane is made shorter by (`Fitting.thereSize`), so the two count the same.
+ */
+export const THERE_TOP = 4
+
 /** The screen read for this agent, or null where what is held is about another. */
 function screenFor(frame: Frame, agent: RemoteAgent): RemoteScreen | null {
   return frame.remoteScreen?.task === agent.id ? frame.remoteScreen : null
 }
 
 export function renderRemoteAgent(
+  state: AppState,
   frame: Frame,
   machine: Machine,
   agent: RemoteAgent,
@@ -59,6 +85,8 @@ export function renderRemoteAgent(
   pointer: Pointer = NO_POINTER,
 ): Drawn {
   const now = frame.now ?? 0
+  // The terminal here that is it, in the pane (`laneThere`), or its screen there.
+  const live = laneThere(state)
   const clock = clockOf(frame)
   const action = (name: string): Target => ({ kind: 'action', name })
 
@@ -76,7 +104,10 @@ export function renderRemoteAgent(
 
   // What may be asked of it, or why nothing may.
   const controls = new Row(width, skin, pointer).space()
-  const offered = controlsOf(agent, machine)
+  // Typing into it is what the pane already is, once its lane is live there.
+  const offered = controlsOf(agent, machine).filter(
+    (one) => live === null || one.action !== 'remote-attach',
+  )
   if (machine.link !== 'live') {
     controls
       .space(2)
@@ -96,17 +127,27 @@ export function renderRemoteAgent(
 
   // Its screen there: a rule saying whose and how old, then its newest rows.
   const screen = screenFor(frame, agent)
-  const said = [
-    `its screen on ${machine.name}`,
-    'read-only',
-    screen?.at == null ? null : `as of ${clock(screen.at)}`,
-  ]
+  const said = (
+    live !== null
+      ? [`its lane on ${machine.name}`, 'live']
+      : [
+          `its screen on ${machine.name}`,
+          'read-only',
+          screen?.at == null ? null : `as of ${clock(screen.at)}`,
+        ]
+  )
     .filter(Boolean)
     .join(' · ')
   const label = ` ${shortened(said, Math.max(1, width - 6))} `
   const rest = skin.chrome('─'.repeat(Math.max(0, width - 2 - widthOf(label))))
   const rule = { text: fit(`${skin.chrome('──')}${skin.hint(label)}${rest}`, width), hits: [] }
 
+  if (live !== null) {
+    // As many rows above the lane as it was made shorter by, and the card
+    // between them where it is held on something.
+    const top = [head.build(), clause.build(), controls.build(), ...held, rule]
+    return liveLane(state, frame, live, top, width, height, skin, pointer)
+  }
   const top = [
     head.build(),
     clause.build(),
@@ -131,6 +172,110 @@ export function renderRemoteAgent(
   const shown = [...drawn.rows]
   while (shown.length < height) shown.push(' '.repeat(width))
   return { rows: shown, hits: drawn.hits }
+}
+
+/**
+ * The terminal here that is the agent there, under the rows that say what it
+ * is: drawn as an agent's lane here is (`main.ts`) — a full-screen program's
+ * rows from the top, the cursor where typing lands while the pane has the
+ * keyboard, the bar or the program's own mark beside it, a region a selection
+ * anchors in, and the program's own cells where it answers the pointer. Every
+ * row of it gives the pane the keyboard, and the wheel scrolls it.
+ */
+function liveLane(
+  state: AppState,
+  frame: Frame,
+  lane: string,
+  top: readonly { text: string; hits: Hit[] }[],
+  width: number,
+  height: number,
+  skin: Skin,
+  pointer: Pointer,
+): Drawn {
+  const rows = [...top].slice(0, height).map((row) => ({ text: row.text, hits: [...row.hits] }))
+  const from = rows.length
+  const room = height - from
+  if (room <= 0) return stack(rows)
+  const view = frame.paneScreen ?? null
+  const body = view ? width - BAR : width
+  const back = state.paneScroll > 0
+  const inView = rowsRead(room, 0, back)
+  let regions: Regions = {}
+  if (back) {
+    // Scrolled back: exactly the lines asked for, and a way back to the newest.
+    const screen = frame.screen.split('\n')
+    const lines = screen.slice(-inView)
+    const at = from + Math.max(0, inView - lines.length)
+    for (let gap = inView - lines.length; gap > 0; gap--) rows.push(blank(body))
+    for (const line of lines) rows.push(linkedRow(line, body, skin, pointer, frame.linkers))
+    rows.push(scrolledBar(state.paneScroll, 'pane-end', body, skin, pointer))
+    regions = paneRegion(state, frame, {
+      screen: screen.length,
+      dropped: screen.length - lines.length,
+      shown: lines.length,
+      top: lines[0] ?? '',
+      row: at,
+    })
+  } else {
+    const typing = typingIn(state) === 'pane'
+    const pointed = pointedIn(view, typing)
+    const drawn = laneLines(
+      frame.screen,
+      'shell',
+      body,
+      inView,
+      skin,
+      pointer,
+      pointed ? null : frame.linkers,
+      view && typing ? view.cursor : null,
+    )
+    rows.push(...drawn.rows)
+    regions = paneRegion(state, frame, {
+      screen: frame.screen.split('\n').length,
+      dropped: drawn.dropped,
+      shown: drawn.seen.length,
+      top: drawn.seen[0] ?? '',
+      row: from + drawn.pad,
+    })
+    if (pointed && view) {
+      const screen = screenRows(view.lines, inView)
+      const target: Target = {
+        kind: 'screen',
+        lane,
+        from: screen.from,
+        drags: view.pointing === 'drag',
+      }
+      for (let i = inView - screen.rows; i < inView; i++) {
+        rows[from + i]?.hits.push(rowHit(0, body, target))
+      }
+    }
+  }
+  for (let i = from; i < rows.length; i++) {
+    rows[i]?.hits.unshift(rowHit(0, width, { kind: 'pane' }))
+    rows[i]?.hits.unshift(rowHit(0, width, { kind: 'scroll', area: 'pane' }))
+  }
+  while (rows.length < height) rows.push(blank(view ? body : width))
+  if (view) {
+    rows.splice(
+      from,
+      room,
+      ...gutterBeside(
+        rows.slice(from, from + room),
+        view.scrolling ?? 'window',
+        {
+          total: Math.max(view.lines, inView),
+          shown: inView,
+          offset: Math.max(0, view.lines - inView - state.paneScroll),
+          rows: room,
+        },
+        'pane',
+        body,
+        state,
+        skin,
+      ),
+    )
+  }
+  return { ...stack(rows.slice(0, height)), regions }
 }
 
 /**

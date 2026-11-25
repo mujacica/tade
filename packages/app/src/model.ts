@@ -1238,6 +1238,26 @@ export function laneShown(state: AppState, pane: AgentPane): string | null {
 }
 
 /**
+ * The lane the pane draws for an agent on another machine: the terminal here
+ * that is it (`Place.lane`), as an agent here is its own lane — read live,
+ * sized to the pane and typed into there. Null where none is open, where it
+ * has gone, or where the panel below has it in front: one lane is drawn in one
+ * place, and the pane falls back to its screen read over the link.
+ */
+export function laneThere(state: AppState): string | null {
+  const place = state.focused === null ? state.elsewhere : null
+  const lane = place?.agent === undefined ? undefined : place.lane
+  if (lane === undefined || state.bottom === lane) return null
+  return state.terminals.some((one) => one.id === lane) ? lane : null
+}
+
+/** The lane in the pane, here or there: what is read into it, sized to it and watched. */
+export function paneLane(state: AppState): string | null {
+  const pane = state.panes.find((one) => one.task === state.focused)
+  return pane ? laneShown(state, pane) : laneThere(state)
+}
+
+/**
  * The terminals, as the registry has them now. A tab whose terminal has gone
  * gives the front back to the orchestrator, and typing back to the agent.
  */
@@ -2123,7 +2143,8 @@ export function laneWithKeyboard(state: AppState): string | null {
   }
   if (approvalInFront(state)) return null
   const pane = state.panes.find((one) => one.task === state.focused)
-  return pane ? typingLane(state, pane) : null
+  if (pane) return typingLane(state, pane)
+  return state.keyboard === 'pane' ? laneThere(state) : null
 }
 
 /**

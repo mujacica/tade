@@ -131,9 +131,9 @@ describe('an agent on another machine, from this window', () => {
     for (const act of far.acted) expect(typeof act.call.was).toBe('string')
   })
 
-  it('opens a terminal here that is the agent there on enter, in front of the lower pane, and the same one again', async () => {
+  it('opens a terminal here that is the agent there on enter, live in the pane, typed into there, and the same one again', async () => {
     const far = await linkedTo([INTAKE])
-    far.attachable.set('tade/intake-door', 'echo attached-to-the-door; exec sleep 60')
+    far.attachable.set('tade/intake-door', 'echo attached-to-the-door; exec cat')
     row('Doorbell')
     await until('its controls', () => shown('type into it'), 20_000)
     // Enter, with nothing typed on the line: the key the pane's first control names.
@@ -143,13 +143,27 @@ describe('an agent on another machine, from this window', () => {
       () => client.lanes().some((lane) => lane.id === 'remotes/vps/1' && lane.alive),
       20_000,
     )
-    await until('what it printed, in the lower pane', () => shown('attached-to-the-door'), 20_000)
+    // In the pane, in place of the screen read over the link: its lane, live.
+    await until('its lane, in the pane', () => shown('its lane on vps · live'), 20_000)
+    await until('what it printed', () => shown('attached-to-the-door'), 20_000)
+    expect(shown('its screen on vps · read-only')).toBe(false)
+    expect(shown('type into it')).toBe(false)
+    // Its tab is still there below, and it is no terminal of a project's: the
+    // orchestrator's tools never type into it.
     expect(shown('vps · intake-door')).toBe(true)
-    // It is no terminal of a project's: the orchestrator's tools never type into it.
     expect(client.terminals().map((one) => one.id)).not.toContain('remotes/vps/1')
-    // Asked again, the one already open comes to the front; no second is opened.
-    await press('type into it')
-    await until('the same terminal', () => shown('attached-to-the-door'), 20_000)
+    // The keyboard is in it: what is typed is that lane's, echoed back into the pane.
+    terminal.press('ring-the-bell')
+    await until('what was typed, in the pane', () => shown('ring-the-bell'), 20_000)
+    // Not on the orchestrator's line, which would have taken the words in
+    // place of what it says while nothing is typed on it.
+    expect(shown('Ask Tade anything')).toBe(true)
+    // Let go of, and pressed again: the same one, live, and no second opened.
+    row('Doorbell')
+    await until('the project again', () => !shown('its lane on vps'), 20_000)
+    row('Doorbell')
+    await until('the same terminal, live', () => shown('its lane on vps · live'), 20_000)
+    await until('what it had', () => shown('ring-the-bell'), 20_000)
     expect(client.lanes().filter((lane) => lane.id.startsWith('remotes/'))).toHaveLength(1)
   })
 

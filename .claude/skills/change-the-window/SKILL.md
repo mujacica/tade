@@ -1093,7 +1093,11 @@ drawn from what its away view sends — the projection the link holds.
   plan windows are under its row on Spend (`plansThere`), never in this machine's PLAN list.
 - **A remote agent is opened by its row** (a `task` target carrying its machine, `Place.agent`), and the pane is
   `view/remote-agent.ts`: its screen there, read-only (`/api/agent`, asked every `LOOK_MS` while
-  you look and only then, read through `screenOf`), and a control only for what that machine's row
+  you look and only then, read through `screenOf`) — until a terminal here is it (enter, `Place.lane`):
+  then the pane draws that lane live, as an agent here is drawn, sized under its four rows
+  (`THERE_TOP`, `Fitting.thereSize`) and typed into there (`laneThere` in `paneLane` and
+  `laneWithKeyboard`), and nothing is read over the link; with its tab in front below, the pane
+  reads it over the link again, because one lane is drawn in one place — and a control only for what that machine's row
   says it `can` — a verb each (`/api/act/<verb>`, with `was` and `rev` echoed, so a stale press is
   that machine's to refuse), `steer…` a prompt (`remote-steer`), nothing at all while the link is
   down. An approval it is held on is drawn as the card here draws one (`approvalRows`): the whole

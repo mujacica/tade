@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import type { Frame } from '../src/frame.ts'
 import { whereYouAre } from '../src/inbox.ts'
 import { goElsewhere, type Machines, machineOf, screenOf } from '../src/machines.ts'
-import { initialState, withProjects } from '../src/model.ts'
+import { initialState, laneThere, laneWithKeyboard, withProjects } from '../src/model.ts'
 import { PLAIN } from '../src/skin.ts'
 import { refOf, there } from '../src/there.ts'
 import { controlsOf } from '../src/view/remote-agent.ts'
@@ -326,6 +326,52 @@ describe('the pane, looking at an agent there', () => {
     expect(presses).toContainEqual({ machine: 'vps', id: 'tade/other' })
     // Nothing on the side of a project there is a row of this machine's own.
     expect(presses.every((one) => one.machine === 'vps')).toBe(true)
+  })
+})
+
+describe('the pane, once a terminal here is the agent there', () => {
+  const LANE = 'remotes/vps/1'
+  const attached = (over: Partial<ReturnType<typeof looking>> = {}) => {
+    const state = looking()
+    return {
+      ...state,
+      elsewhere: { ...state.elsewhere!, lane: LANE },
+      terminals: [{ id: LANE, project: '', name: 'vps · intake-door' }],
+      ...over,
+    }
+  }
+
+  it('draws that lane live in place of the screen read, with no control to type into it', () => {
+    const text = draw(
+      attached(),
+      frame({
+        skin: PLAIN,
+        width: 140,
+        machines: machines(held([row()])),
+        remoteScreen: screen(['> what the link last read']),
+        screen: '$ live from the lane here',
+      }),
+    ).rows.join('\n')
+    expect(text).toContain('its lane on vps · live')
+    expect(text).toContain('$ live from the lane here')
+    expect(text).not.toContain('what the link last read')
+    expect(text).not.toContain('read-only')
+    expect(text).not.toContain('type into it')
+    // What may still be asked of it there is still offered above it.
+    expect(text).toContain('steer…')
+  })
+
+  it('is the pane’s and has its keyboard — but not while the panel below has it, or it has gone', () => {
+    expect(laneThere(attached())).toBe(LANE)
+    expect(laneWithKeyboard(attached())).toBe(LANE)
+    // One lane is drawn in one place: in front below, the pane reads it over the link.
+    expect(laneThere(attached({ bottom: LANE }))).toBeNull()
+    // A terminal that closed is not a lane to draw or type into.
+    expect(laneThere(attached({ terminals: [] }))).toBeNull()
+    // The orchestrator's line open is typing there, not into the lane.
+    expect(laneWithKeyboard(attached({ dictation: '' }))).toBeNull()
+    // An agent here in front is in front, whatever is remembered of a place there.
+    expect(laneThere(attached({ focused: 'checkout/one' }))).toBeNull()
   })
 })
 

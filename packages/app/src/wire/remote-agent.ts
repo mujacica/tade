@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { printable, TaskId } from '@tade/core'
 import type { Answer, Held, Remote, RemoteLink } from '@tade/remotes-core'
-import { attachedTo } from '@tade/workbench/attached'
+import { attachedFrom, attachedTo } from '@tade/workbench/attached'
 import type { Frame } from '../frame.ts'
 import {
   elsewhereOf,
@@ -14,7 +14,7 @@ import {
   type RemoteScreen,
   screenOf,
 } from '../machines.ts'
-import type { ScheduleView } from '../model.ts'
+import { laneThere, leaveLine, ORCHESTRATOR_TAB, type ScheduleView } from '../model.ts'
 import type { MenuItem } from '../panels/menu/state.ts'
 import { confirmRemovePanel, promptPanel } from '../panels/small/state.ts'
 import { refOf, scheduleThere, there, thereItems, thereScheduleItems } from '../there.ts'
@@ -43,13 +43,15 @@ import { RemoteTerminals } from './remote-terminals.ts'
 //
 // **Typing is a terminal here** (enter): that machine's own line for the
 // agent's lane (`/api/attach`, its driver's), run there over `ssh -t` or mosh
-// in a lane of this machine's (`workbench/src/attached.ts`), put in front in
-// the lower pane, which is the one place a lane is typed into — the window's
-// whole pacing, scrolling and selection come with it. The SSH key is the
-// authority, so nothing types into a lane from away: this never goes through
-// the away view's verbs at all. Opening one, running it again once its
-// connection is back and moving it off a way that does not get through are
-// `remote-terminals.ts`'s.
+// in a lane of this machine's (`workbench/src/attached.ts`), and drawn in the
+// pane in place of the screen read (`Place.lane`, `laneThere`) — sized to it,
+// read on every look and typed into there, as an agent here is its own lane,
+// with the window's whole pacing, scrolling and selection. Pressing an agent
+// there that already has one is looking at it live, and nothing is read over
+// the link while it is. The SSH key is the authority, so nothing types into a
+// lane from away: this never goes through the away view's verbs at all.
+// Opening one, running it again once its connection is back and moving it off
+// a way that does not get through are `remote-terminals.ts`'s.
 //
 // **Everything else is a verb** (`/api/act/<verb>`), with the target and
 // what this window last saw of it (`was`, `rev`), so a press against a screen
@@ -157,6 +159,8 @@ export class RemoteAgents implements Subject, ThereDoor {
     this.terminals.beat()
     const looked = this.looked()
     if (looked === null || this.asking !== null) return
+    // Its lane is in the pane, live: there is nothing to read over the link.
+    if (laneThere(this.wire.state) !== null) return
     if (this.wire.now() - this.askedAt < LOOK_MS && this.screen?.of === keyOf(looked.place)) return
     void this.read(looked)
   }
@@ -234,11 +238,22 @@ export class RemoteAgents implements Subject, ThereDoor {
     // Pressed again, it is let go of: the project there as it was, which is the
     // only other thing that pane draws.
     const agent = place.agent === task ? undefined : task
+    // A terminal here already that is it: its lane, live, in the pane.
+    const open = agent ? attachedTo(this.wire.opts.client.lanes(), place.machine, agent) : null
     this.wire.put({
       ...this.wire.state,
       schedule: null,
-      elsewhere: { ...withoutAgent(place), ...(agent ? { agent } : {}) },
+      paneScroll: 0,
+      elsewhere: {
+        ...withoutAgent(place),
+        ...(agent ? { agent } : {}),
+        ...(open ? { lane: open.id } : {}),
+      },
     })
+    if (open !== null) {
+      this.inPane(open.id)
+      return
+    }
     this.wire.draw()
     const looked = this.looked()
     if (looked !== null) void this.read(looked)
@@ -466,8 +481,9 @@ export class RemoteAgents implements Subject, ThereDoor {
   }
 
   /**
-   * Enter: a terminal here that is the agent there. The one already open to
-   * it is put in front; otherwise one is opened (`remote-terminals.ts`).
+   * Enter: a terminal here that is the agent there, in the pane. The one
+   * already open to it is put there; otherwise one is opened
+   * (`remote-terminals.ts`) and put there once it runs.
    */
   private async attach(): Promise<void> {
     const looked = this.looked()
@@ -475,8 +491,32 @@ export class RemoteAgents implements Subject, ThereDoor {
     const machine = looked.machine.name
     const task = looked.place.agent
     const open = attachedTo(this.wire.opts.client.lanes(), machine, task)
-    if (open !== null) return this.terminals.front(open.id)
-    await this.terminals.open(machine, task)
+    if (open !== null) return this.inPane(open.id)
+    await this.terminals.open(machine, task, (id) => this.inPane(id))
+  }
+
+  /**
+   * A terminal here that is the agent there in front, put in the pane with the
+   * keyboard in it — and out of the lower pane's front, since one lane is drawn
+   * in one place (`laneThere`). Only while that agent is still the one in
+   * front: a terminal that took a while to open does not move a window that
+   * went somewhere else meanwhile.
+   */
+  private inPane(id: string): void {
+    const looked = this.looked()
+    const lane = attachedFrom(this.wire.opts.client.lanes()).find((one) => one.id === id)
+    if (looked === null || lane?.machine !== looked.machine.name) return
+    if (lane.task !== looked.place.agent) return
+    this.wire.live?.tabsNow()
+    const state = this.wire.state
+    this.wire.put({
+      ...leaveLine(state),
+      elsewhere: { ...looked.place, lane: id },
+      keyboard: 'pane',
+      paneScroll: 0,
+      ...(state.bottom === id ? { bottom: ORCHESTRATOR_TAB } : {}),
+    })
+    this.wire.draw()
   }
 
   /** Allow or deny what the agent there is held on, by the approval's own id. */
@@ -542,6 +582,7 @@ function keyOf(place: Place | undefined | null): string {
   return place?.agent === undefined ? '' : `${place.machine}\0${place.agent}`
 }
 
+/** The project there, with no agent in front and so no lane of one. */
 function withoutAgent(place: Place): Place {
   return { machine: place.machine, project: place.project }
 }

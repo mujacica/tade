@@ -7,8 +7,9 @@ import { halvesOf } from '../layout.ts'
 import {
   type AppState,
   activeTerminal,
-  laneShown,
+  laneThere,
   noteTyping,
+  paneLane,
   setHeld,
   showTerminal,
 } from '../model.ts'
@@ -166,7 +167,7 @@ export class Lanes implements Subject {
     const state = this.wire.state
     const pane = state.panes.find((one) => one.task === state.focused)
     const moved = {
-      pane: this.screens.front('pane', pane ? laneShown(state, pane) : null),
+      pane: this.screens.front('pane', paneLane(state)),
       split: this.screens.front('split', pane ? (splitShown(state, pane)?.lane ?? null) : null),
       terminal: this.screens.front('terminal', activeTerminal(state)?.id ?? null),
       below: this.screens.front('splitTerminal', terminalSplitShown(state)?.lane ?? null),
@@ -431,10 +432,11 @@ export class Lanes implements Subject {
    */
   async fitPane(): Promise<PaneAt> {
     const pane = this.wire.state.panes.find((p) => p.task === this.wire.state.focused)
-    const lane = pane ? laneShown(this.wire.state, pane) : null
+    const lane = paneLane(this.wire.state)
     const split = pane ? splitShown(this.wire.state, pane) : null
     const halves = halvesOf(this.paneSize(split !== null), split)
-    const size = halves.first
+    // An agent on another machine is the room under what is said about it.
+    const size = pane || !laneThere(this.wire.state) ? halves.first : this.fitting.thereSize()
     // The lane is made the size of the pane, because that is the terminal the
     // program thinks it is drawing for. What is *read back* is the rows the
     // pane shows, which an approval card takes five off — the clamp here and
@@ -558,7 +560,9 @@ export class Lanes implements Subject {
     const view = this.screens.of(event.area).view
     if (!view || view.scrolling === undefined || view.scrolling === 'window') return false
     const lane =
-      event.area === 'pane' ? this.paneLane() : (activeTerminal(this.wire.state)?.id ?? null)
+      event.area === 'pane'
+        ? paneLane(this.wire.state)
+        : (activeTerminal(this.wire.state)?.id ?? null)
     if (view.scrolling === 'lane' && lane) {
       // What it draws in answer is the lane printing, which is what looks at
       // it (`watch`). A look asked for here landed before the program had
@@ -566,12 +570,6 @@ export class Lanes implements Subject {
       this.wire.outbox.wheel(lane as LaneId, { rows: event.rows, ...event.at })
     }
     return true
-  }
-
-  /** The lane the agent's pane is showing, if it is showing one. */
-  private paneLane(): string | null {
-    const pane = this.wire.state.panes.find((one) => one.task === this.wire.state.focused)
-    return pane ? laneShown(this.wire.state, pane) : null
   }
 
   /**
