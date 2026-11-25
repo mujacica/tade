@@ -37,10 +37,24 @@ step() {
 }
 
 # Formatting and lint, including the Grit plugin that enforces R3 — the same
-# command CI runs, over the same files, so passing here means the same thing.
-# Only errors are drawn: warnings never fail it, and drawn here they were 480KB
-# on every commit, in front of whatever did. `pnpm lint` still lists them.
-step "style and lint" pnpm exec biome ci . --diagnostic-level=error
+# command CI runs. Only errors are drawn: warnings never fail it, and drawn
+# here they were 480KB on every commit, in front of whatever did. `pnpm lint`
+# still lists them.
+#
+# In a commit it reads only the files being committed: several agents share
+# one checkout, and over `.` another agent's half-written file failed
+# everybody's commit. Style, unlike types, cannot break in a file nobody
+# touched. Git sets GIT_INDEX_FILE for the hook, and under `git commit --only`
+# that index holds exactly the named paths, not whatever else is staged. Run
+# by hand or by Tade's checks there is no commit, so it reads the whole tree.
+if [ -n "${GIT_INDEX_FILE:-}" ]; then
+  if [ -n "$(git diff --cached --name-only --diff-filter=d)" ]; then
+    step "style and lint" sh -c 'git diff --cached --name-only -z --diff-filter=d |
+      xargs -0 pnpm exec biome ci --diagnostic-level=error --files-ignore-unknown=true --no-errors-on-unmatched'
+  fi
+else
+  step "style and lint" pnpm exec biome ci . --diagnostic-level=error
+fi
 
 # The whole project, not the staged files: a one-line change in a port breaks
 # types in packages nobody touched, which is exactly the breakage worth
