@@ -98,6 +98,25 @@ describe('jev_review of one task in a checkout two tasks commit to', () => {
     expect(readReviews(repo.home)[0]?.commits).toEqual([refunds])
   })
 
+  it.each([
+    ['gone', { refunds: 'f'.repeat(40), receipts: 'e'.repeat(40) }],
+    ['missing', { refunds: '', receipts: '' }],
+  ])(
+    'still reads one task’s own commits on the base branch when every recorded base is %s',
+    async (_, bases) => {
+      // With no remote, the base branch is the one checked out, so where the
+      // branch left it is HEAD itself: there was no unit at all, and a task that
+      // had committed was told it had nothing committed.
+      const { repo, refunds } = planMadeOnDayOne(bases)
+      const { read, sent } = await review(repo, 'shop/add-refunds')
+      expect(sent).toContain('src/refund.ts')
+      expect(sent).not.toContain('src/receipt.ts')
+      expect(sent).not.toContain('src/by-hand.ts')
+      expect(read.text).toContain(`(${refunds.slice(0, 8)})`)
+      expect(readReviews(repo.home)[0]?.commits).toEqual([refunds])
+    },
+  )
+
   it('reads the other task’s two commits as its own change, and not the one between', async () => {
     const { repo } = planMadeOnDayOne()
     const { read, sent } = await review(repo, 'shop/tidy-receipts')

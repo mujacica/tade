@@ -728,8 +728,28 @@ async function oldestBase(
     }
   }
   const found = await git(ctx, worktree.path, ['merge-base', baseRef, worktree.head])
-  return found.ok ? found.out.trim() : ''
+  const left = found.ok ? found.out.trim() : ''
+  if (left && left !== worktree.head) return left
+  // On the base branch itself — a checkout with no remote, where the base is
+  // the branch checked out — where it left the base is HEAD, and with no base
+  // git can place there was no range at all: a task that had committed was
+  // told it had nothing committed. Every commit read here is only ever read
+  // as somebody's by its trailer, so the newest `HISTORY_LIMIT` commits are
+  // looked through rather than none; own commits older than that, and the root
+  // commit, which is then the base, are not found.
+  const back = await git(ctx, worktree.path, [
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    `${worktree.head}~${HISTORY_LIMIT}^{commit}`,
+  ])
+  if (back.ok && back.out.trim()) return back.out.trim()
+  const roots = await git(ctx, worktree.path, ['rev-list', '--max-parents=0', worktree.head])
+  return roots.ok ? (roots.out.trim().split('\n').at(-1) ?? '') : left
 }
+
+/** How far back a shared checkout with no base anywhere is looked through for a task's own commits. */
+const HISTORY_LIMIT = 500
 
 /**
  * What a unit is measured from: the commit its task file says it branched at,
