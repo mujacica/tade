@@ -205,7 +205,7 @@ export class App {
         updateAction: (choice) => this.updates.action(choice),
         testMicrophone: () => this.voice.testMicrophone(),
         openFile: (path) => this.files.openPlace({ path }),
-        copy: (text) => copyText(text, (data) => this.terminal.write(data)),
+        copy: (text) => this.toClipboard(text),
         releases: () => kittyActive(this.terminal),
         holdSleep: () => this.awake.apply(),
       },
@@ -213,7 +213,7 @@ export class App {
         prefill: (line) => this.keyboard.prefill(line),
         openChanges: (task) => this.files.openChanges(task),
         openPlace: (target) => this.files.openPlace(target),
-        copyToClipboard: (text) => copyText(text, (data) => this.terminal.write(data)),
+        copyToClipboard: (text) => this.toClipboard(text),
         routes: () => this.routes,
         handsOver: () => this.remotes.moved(),
         there: () => this.remotes.there(),
@@ -234,7 +234,7 @@ export class App {
         machines: () => this.remotes.machines(),
       },
       away: {
-        copy: (text) => copyText(text, (data) => this.terminal.write(data)),
+        copy: (text) => this.toClipboard(text),
         // A restart from the person's own phone ends what this window would.
         reloadStops: () => this.window.reloadStops(),
       },
@@ -795,5 +795,14 @@ export class App {
 
   private now(): number {
     return this.opts.now?.() ?? Date.now()
+  }
+
+  /**
+   * Put text on the clipboard without saying so — for the copies that say it
+   * themselves (a setting, a task's branch, an away link) — through the same
+   * `clipboard.write` the said ones use, so a suite never reaches pbcopy.
+   */
+  private toClipboard(text: string): Promise<boolean> {
+    return (this.opts.clipboard?.write ?? copyText)(text, (data) => this.terminal.write(data))
   }
 }

@@ -15,6 +15,7 @@ import {
   SPAWNING_MS,
   screenOf,
   until,
+  type Wired,
   windowUnderTest,
 } from './harness.ts'
 
@@ -25,10 +26,12 @@ describe('the window, starting and ending agents', () => {
   let terminal: FakeTerminal
   let client: Workbench
   let repo: Repo
-  const { start, click, find } = windowUnderTest((wired) => {
-    terminal = wired.terminal
-    client = wired.client
-    repo = wired.repo
+  let wired: Wired
+  const { start, click, find } = windowUnderTest((bound) => {
+    wired = bound
+    terminal = bound.terminal
+    client = bound.client
+    repo = bound.repo
   })
 
   it('starts a new agent from its button, asking nothing first', async () => {
@@ -123,6 +126,25 @@ describe('the window, starting and ending agents', () => {
     terminal.press(`\x1b[<2;${task.col + 2};${task.row + 1}m`)
     await until('the menu', () => terminal.written.includes('Remove agent'))
     expect(terminal.written).toContain('Copy branch name')
+  })
+
+  // Through the window's clipboard like every other copy, so a suite never
+  // overwrites what a developer had copied by reaching the machine's own.
+  it("copies an agent's branch from its menu onto the window's clipboard, and says so", async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const task = find(' refunds')
+    terminal.press(`\x1b[<2;${task.col + 2};${task.row + 1}M`)
+    terminal.press(`\x1b[<2;${task.col + 2};${task.row + 1}m`)
+    await until('the menu', () => terminal.written.includes('Copy branch name'))
+    const item = find('Copy branch name')
+    click(item.col + 1, item.row)
+    await until('it copied', () => wired.copied.length === 1)
+    const [branch] = wired.copied
+    expect(branch).toContain('refunds')
+    await until('it said so', () =>
+      screenOf(terminal.written).some((row) => row.includes(`copied ${branch}`)),
+    )
   })
 
   it('marks an agent finished from its menu, whatever its rule', async () => {

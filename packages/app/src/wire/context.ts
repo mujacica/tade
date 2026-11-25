@@ -157,9 +157,8 @@ export interface AppOptions {
   config: Config
   /**
    * The system clipboard: watching it for a picture, saving one, reading
-   * its text for ctrl+v, and putting what was copied on it — the copies that
-   * are said in the strip (`copySaying`, `copySpanSaying`). The machine's own
-   * unless given.
+   * its text for ctrl+v, and putting anything the window copies on it. The
+   * machine's own unless given.
    */
   clipboard?: {
     watch: WatchClipboard
