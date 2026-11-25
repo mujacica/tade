@@ -291,6 +291,18 @@ const ALLOWED: Record<string, number> = {
   'packages/harnesses/grok/src/headless.ts': 1,
   'packages/harnesses/grok/src/home.ts': 1,
   'packages/harnesses/grok/src/record.ts': 1,
+  // OpenCode's adapter has Grok's two: a listener that throws, and the channel
+  // closed on the way out. The rest are OpenCode's own output read as nothing
+  // when it is not the shape it printed (`record`'s export, `plan`'s `auth
+  // list` and usage limits), as a parser of another program's format is asked to.
+  'packages/harnesses/opencode/src/adapter.ts': 2,
+  'packages/harnesses/opencode/src/plan.ts': 2,
+  // Its plugin, inside OpenCode: a session not made yet read twice as none
+  // (it is made, or its model is said when a step names it), a line from Tade
+  // that is not JSON, and the shell's folders from an unreadable note left as
+  // they are.
+  'packages/harnesses/opencode/src/plugin/index.ts': 4,
+  'packages/harnesses/opencode/src/record.ts': 1,
   'packages/harnesses/pi/src/adapter.ts': 11,
   'packages/harnesses/pi/src/compat.ts': 1,
   'packages/harnesses/pi/src/installed.ts': 2,

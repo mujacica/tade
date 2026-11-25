@@ -67,6 +67,11 @@ export const FLOOR: Record<string, number> = {
   // with `still.ts` tested as Claude Code's is (69.7% with no `grok`). What is
   // measured and untested is `sessions.ts`'s carrying a conversation across.
   'packages/harnesses/grok': 69,
+  // 93% with no `opencode` on the PATH, its adapter driven against a stand-in
+  // that answers as OpenCode 2.4.1 did; the live lane adds what only the real
+  // one does (MOVES). Its plugin runs inside OpenCode and is measured here
+  // through `plugin.test.ts`, which loads it as OpenCode does.
+  'packages/harnesses/opencode': 91,
   'packages/orchestrator': 77,
   // `src/wire/` is the hole and everything else here is over 89%: the pure
   // layers (`view/` at 97%) are what the goldens hold, and the wiring is what
@@ -176,6 +181,7 @@ export const MOVES: Record<string, string> = {
   'packages/harnesses/claude': 'its live-lane tests run only where Claude Code is installed',
   'packages/harnesses/grok':
     'its live-lane and headless tests run only where Grok Build is installed',
+  'packages/harnesses/opencode': 'its live-lane tests run only where OpenCode 2 is installed',
   'packages/orchestrator': 'claude.test.ts runs only where Claude Code is installed',
   // 86% with no `sshd` to link through, 100% on a machine that can run one as
   // an ordinary user: the master and its forward are only ever driven for real.
