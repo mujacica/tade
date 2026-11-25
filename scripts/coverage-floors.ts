@@ -249,7 +249,6 @@ export const UNSEEN: Record<string, string> = {
   'packages/cli/src/commands/summary.ts': 'a command of the binary',
   'packages/cli/src/commands/tasks.ts': 'a command of the binary',
   'packages/cli/src/commands/templates.ts': 'a command of the binary',
-  'packages/cli/src/commands/update.ts': 'a command of the binary',
   'packages/cli/src/commands/web.ts': 'a command of the binary',
 
   // Programs somebody else starts. Each is a path handed to a spawn —
@@ -336,7 +335,6 @@ export const LOADED: Record<string, number> = {
   'packages/cli/src/commands/summary.ts': 1,
   'packages/cli/src/commands/tasks.ts': 1,
   'packages/cli/src/commands/templates.ts': 2,
-  'packages/cli/src/commands/update.ts': 1,
   // Two: registering it runs the arrow that names the connect pages in its help.
   'packages/cli/src/commands/web.ts': 2,
 }
