@@ -131,6 +131,81 @@ export async function takeBack(
   return null
 }
 
+/**
+ * How long a kept place goes on holding its turn, from one look to the next,
+ * while whoever kept it is waiting for something they need before it
+ * (`holdKept`). It is a few of those looks, so a place that stops being held
+ * holds nobody up for long after.
+ */
+export const STILL_MS = 10_000
+
+/**
+ * Make the place `as` kept in `dir` hold its turn for at least `ms` more.
+ * This is for a run waiting for its checkout before it waits for the machine
+ * (`run.ts`). While it does, it is not gone, but its kept place stopped
+ * holding its turn `HELD_MS` after it was kept, and a suite that started after
+ * it took the slot. The exception is a place behind it waiting from the same
+ * `where`. That one may be whoever has the checkout, waiting for the machine
+ * behind this place, and holding the turn would leave each waiting for the
+ * other. Then the place is left as it is. Says whether it now holds its turn
+ * for that long.
+ */
+export async function holdKept(
+  dir: string,
+  as: string,
+  opts: { where: string; ms: number; now: () => number },
+): Promise<boolean> {
+  const names = await readdir(dir).catch((err: unknown) => {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [] as string[]
+    throw err
+  })
+  const order = (name: string) =>
+    TICKET.exec(name)?.[1] ?? KEPT.exec(name)?.[1] ?? TAKING.exec(name)?.[1]
+  for (const name of names.sort()) {
+    const ticket = KEPT.exec(name)?.[1]
+    if (!ticket) continue
+    const path = join(dir, name)
+    const kept = await keptAt(path)
+    if (!kept || kept.as !== as || kept.until <= opts.now() || !(await holderAt(path))) continue
+    const behind = names.filter((other) => {
+      const at = order(other)
+      return at !== undefined && at > ticket
+    })
+    for (const other of behind) {
+      if ((await holderAt(join(dir, other)))?.where === opts.where) return false
+    }
+    const until = opts.now() + opts.ms
+    // Held long enough already, it is not written again on every look.
+    if (kept.held - opts.now() >= opts.ms / 2) return true
+    // Moved out of the way while it is written again, as `takeBack` moves it,
+    // so a wait that takes it back meanwhile has it, rather than a copy left
+    // behind as well. A place being moved still counts as ahead (`waitingAhead`).
+    const taking = `${path}.${process.pid}-${tickets++}.taking`
+    const moved = await rename(path, taking).then(
+      () => true,
+      (err: unknown) => {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false
+        throw err
+      },
+    )
+    if (!moved) return false
+    holdUntilExit(taking)
+    try {
+      const raw = JSON.parse(await readFile(taking, 'utf8')) as Record<string, unknown>
+      await writeAside(path, {
+        ...raw,
+        held: Math.max(kept.held, until),
+        until: Math.max(kept.until, until),
+      })
+    } finally {
+      letGoOf(taking)
+      await rm(taking, { force: true })
+    }
+    return true
+  }
+  return false
+}
+
 /** Write a ticket called `name` into place in `dir`, and say how to give it up. */
 async function placeAt(
   dir: string,

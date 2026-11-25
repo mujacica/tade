@@ -129,7 +129,10 @@ and that record.
   One given up at its deadline is kept for its asker (`as`) and **still holds its turn for
   `HELD_MS`**, and a run that had the worktree and gave up on the machine keeps that place too
   (`WaitedLock.giveUp`): a kept place that held nobody up from the first moment lost its turn in the
-  seconds before its agent asked again, eight times in 85 minutes. A lock is linked into place
+  seconds before its agent asked again, eight times in 85 minutes. A machine place kept while its
+  run waits for the worktree first goes on holding its turn (`holdKept`), **unless a waiter from
+  that worktree is behind it** — whoever has the worktree, waiting for the machine, so holding
+  would leave each waiting for the other. A lock is linked into place
   whole and taken back only by the claim that wrote it (`claim`) — an empty one read as nobody's,
   and two runs shared one checkout from then on.
 - **A worktree is not the machine.** The worktree lock alone let six worktrees run six suites —

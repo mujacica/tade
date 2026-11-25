@@ -221,6 +221,11 @@ export async function waitForRunLock(
     now?: () => number
     /** Who the wait is for, so giving up at the deadline keeps their place (`turn.ts`). */
     as?: string
+    /**
+     * Done at every look while the wait goes on. A run uses it to hold the
+     * turn of the machine place it kept, which it needs next (`run.ts`).
+     */
+    meanwhile?: () => Promise<unknown>
   } = {},
 ): Promise<WaitedLock | { held: LockHolder }> {
   const now = opts.now ?? Date.now
@@ -256,6 +261,7 @@ export async function waitForRunLock(
         return got
       }
       place ??= await joinQueue(queue, opts.as ? { what, as: opts.as } : { what }, now)
+      await opts.meanwhile?.()
       await pause(every)
     }
   } finally {

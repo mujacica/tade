@@ -1,17 +1,20 @@
-import { writeFileSync } from 'node:fs'
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Check, Runner } from '@tade/checks-core'
 import {
   carryOver,
   heldBy,
   insideHeldSlot,
+  queueDir,
   RunnerError,
   readRuns,
   runChecks,
+  runQueueDir,
   SLOT_ENV,
   slotHolders,
   takeMachineSlot,
   takeRunLock,
+  waitForMachineSlot,
 } from '@tade/checks-core'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
@@ -305,6 +308,101 @@ describe('one suite on the machine, from any worktree', () => {
     expect(ran).toEqual(['task-a gave up', 'task-a', 'task-b'])
   })
 
+  it('holds its turn for the machine while it waits for the checkout, past the turn it was kept with', async () => {
+    // Kept for the machine, then waiting for the checkout first, a run's place
+    // stopped holding its turn two minutes after it was kept, and a shell's
+    // suite that asked after it had the slot.
+    const home = tmp('tade-run-home-')
+    const root = tmp('tade-run-')
+    const shell = await takeMachineSlot(home, 1, { what: 'vitest, 424 files', where: '/work/b' })
+    if ('held' in shell) throw new Error('the slot should have been free')
+    await waitForMachineSlot(
+      home,
+      1,
+      { what: 'related', where: root },
+      {
+        waitMs: 40,
+        everyMs: 10,
+        as: 'task-a',
+      },
+    )
+    const late = pastItsTurn(home)
+    const sync = await takeRunLock(root, 'keeping demo in step')
+    if ('held' in sync) throw new Error('the checkout should have been free')
+    const waiting = runChecks({
+      runner: makeScriptedRunner({}),
+      project: { name: 'demo', root },
+      records: root,
+      checks: [check('related', { alone: true })],
+      commit: 'a1b2c3d4e5',
+      by: 'task-a',
+      waitMs: 20_000,
+      machine: { home, most: 1 },
+      now: late,
+    })
+    const by = Date.now() + 5_000
+    while (keptHeld(home) <= late() && Date.now() < by)
+      await new Promise((done) => setTimeout(done, 5))
+    await shell.release()
+    const newcomer = await takeMachineSlot(
+      home,
+      1,
+      { what: 'vitest, 424 files', where: '/work/c' },
+      late,
+    )
+    if (!('held' in newcomer)) await newcomer.release()
+    expect('held' in newcomer).toBe(true)
+    await sync.release()
+    expect((await waiting).map((one) => one.state)).toEqual(['passed'])
+  })
+
+  it('does not hold up, with a place it kept, the run that has its checkout and waits for the machine behind it', async () => {
+    // That run cannot let the checkout go before it has the machine, and the
+    // kept place cannot go before it has the checkout: held, each waits for the other.
+    const home = tmp('tade-run-home-')
+    const root = tmp('tade-run-')
+    const shell = await takeMachineSlot(home, 1, { what: 'vitest, 424 files', where: '/work/b' })
+    if ('held' in shell) throw new Error('the slot should have been free')
+    await waitForMachineSlot(
+      home,
+      1,
+      { what: 'related', where: root },
+      {
+        waitMs: 40,
+        everyMs: 10,
+        as: 'task-a',
+      },
+    )
+    const late = pastItsTurn(home)
+    const ran: string[] = []
+    const run = (by: string, waitMs: number) =>
+      runChecks({
+        runner: makeScriptedRunner({}),
+        project: { name: 'demo', root },
+        records: root,
+        checks: [check('related', { alone: true })],
+        commit: 'a1b2c3d4e5',
+        by,
+        waitMs,
+        machine: { home, most: 1 },
+        now: late,
+      }).then(
+        () => ran.push(by),
+        (err: unknown) => {
+          if ((err as RunnerError).trouble !== 'busy') throw err
+          ran.push(`${by} gave up`)
+        },
+      )
+    const f = run('task-f', 5_000)
+    while (!readdirSync(queueDir(home)).some((name) => name.endsWith('.wait')))
+      await new Promise((done) => setTimeout(done, 2))
+    const a = run('task-a', 20_000)
+    while (!waitsIn(runQueueDir(root))) await new Promise((done) => setTimeout(done, 2))
+    await shell.release()
+    await Promise.all([f, a])
+    expect(ran).toEqual(['task-f', 'task-a'])
+  })
+
   it('takes nothing of the machine for checks that do not need it to themselves', async () => {
     const home = tmp('tade-run-home-')
     const root = tmp('tade-run-')
@@ -321,3 +419,28 @@ describe('one suite on the machine, from any worktree', () => {
     expect(ran.map((one) => one.state)).toEqual(['passed'])
   })
 })
+
+/** When the place kept in the machine's queue stops holding its turn, as it says; 0 for none. */
+function keptHeld(home: string): number {
+  const kept = readdirSync(queueDir(home)).find((name) => name.endsWith('.kept'))
+  if (!kept) return 0
+  try {
+    return (JSON.parse(readFileSync(join(queueDir(home), kept), 'utf8')) as { held: number }).held
+  } catch {
+    return 0
+  }
+}
+
+/** A clock a second past the turn the kept place was kept with. */
+function pastItsTurn(home: string): () => number {
+  const by = keptHeld(home) - Date.now() + 1_000
+  return () => Date.now() + by
+}
+
+function waitsIn(dir: string): boolean {
+  try {
+    return readdirSync(dir).some((name) => name.endsWith('.wait'))
+  } catch {
+    return false
+  }
+}
