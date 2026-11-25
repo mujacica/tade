@@ -185,6 +185,12 @@ export function missingFrom(
         },
       ]
     }
+    // Here, new enough and built without something its version does not say
+    // is as missing too: a newer copy of the same package is built the same
+    // way, so the line is where to get one that is not.
+    if (look.lacks) {
+      return [{ ...about, lacks: look.lacks, install: installWith(look.need.install, machine) }]
+    }
     return []
   })
 }

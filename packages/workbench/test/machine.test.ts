@@ -194,6 +194,42 @@ describe('what is missing, and what would install it', () => {
   })
 })
 
+describe('a Node new enough and built without TypeScript', () => {
+  // Ubuntu's nodejs 22.22.1+dfsg: a newer one from apt is built the same way,
+  // so the line is where to get one that is not, never apt's upgrade.
+  const debian = look({
+    command: 'node',
+    need: {
+      command: 'node',
+      title: 'Node',
+      versionArgs: ['--version'],
+      optional: false,
+      inUse: true,
+      needed: [{ what: 'Tade', why: 'Tade runs on it', inUse: true }],
+      install: { instead: 'nodejs.org, or a version manager: mise, nvm, volta' },
+    },
+    version: '22.22.1',
+    tooOld: false,
+    lacks: 'TypeScript',
+    install: { manager: 'system', name: 'nodejs', where: '/usr/bin/node', said: '' },
+  })
+
+  it('is missing, with where to get one that has it', () => {
+    expect(missingFrom([debian], { platform: 'linux', managers: ['apt-get'] })).toEqual([
+      {
+        command: 'node',
+        title: 'Node',
+        why: 'Tade runs on it',
+        optional: false,
+        lacks: 'TypeScript',
+        install: { cannot: 'nodejs.org, or a version manager: mise, nvm, volta' },
+      },
+    ])
+    const { lacks: _, ...able } = debian
+    expect(missingFrom([able as ProgramLook], machine)).toEqual([])
+  })
+})
+
 describe('what this machine installs with', () => {
   it('is only the managers that are actually on it', async () => {
     const here = installersHere()

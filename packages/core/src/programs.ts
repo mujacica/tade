@@ -32,6 +32,16 @@ export interface RequiredProgram {
    */
   oldest?: string
   /**
+   * Something it must be able to do that its version does not say, asked of
+   * the copy found: what makes it answer, the answers a copy that cannot
+   * gives, and what such a copy is built without, as a clause. Only those
+   * answers say it cannot — a copy that could not be asked has said nothing.
+   * Ubuntu's nodejs 22.22.1+dfsg clears every version floor and is built
+   * without TypeScript, so a floor alone ticked a Node that cannot load an
+   * extension written in `.ts`.
+   */
+  can?: { args: readonly string[]; cannot: readonly string[]; without: string }
+  /**
    * Where it actually is, for something that is not looked up on PATH: a
    * harness that ships with Tade runs the copy in Tade's own node_modules,
    * and reporting it missing because nothing on PATH answers to its name
@@ -161,6 +171,16 @@ export const TADE_PROGRAMS: readonly RequiredProgram[] = [
     // name: Tade is running on this file, so reporting a different Node
     // — or none — would be a lie about the thing doing the reporting.
     at: process.execPath,
+    // The extensions in ~/.tade/extensions are loaded as `.ts`, by Node's own
+    // type stripping. Debian's and Ubuntu's nodejs package is built without
+    // it; Node from nodejs.org or a version manager is not.
+    can: {
+      // `'strip'` or `'transform'` where it can, `false` where it was built
+      // without, and `undefined` on a Node from before the question.
+      args: ['-p', 'process.features.typescript'],
+      cannot: ['false', 'undefined'],
+      without: 'TypeScript, which extensions in ~/.tade/extensions written in .ts need to load',
+    },
     install: { instead: 'nodejs.org, or a version manager: mise, nvm, volta' },
   },
 ]
@@ -174,6 +194,8 @@ export interface ProgramNeed {
   optional: boolean
   /** The oldest that works for everything that needs it: the latest of their floors. */
   oldest?: string
+  /** What it must be able to do that its version does not say, as declared. */
+  can?: RequiredProgram['can']
   /** Where it is, for what is not looked up on PATH. */
   at?: string
   /** How to install it, as whoever needs it declared. */
@@ -215,6 +237,7 @@ export function neededPrograms(declarations: readonly Declared[]): ProgramNeed[]
           versionArgs: program.versionArgs,
           optional: program.optional === true,
           ...(program.oldest ? { oldest: program.oldest } : {}),
+          ...(program.can ? { can: program.can } : {}),
           ...(program.at ? { at: program.at } : {}),
           ...(program.install ? { install: program.install } : {}),
           needed: [reason],
@@ -233,6 +256,8 @@ export function neededPrograms(declarations: readonly Declared[]): ProgramNeed[]
         // One version has to satisfy everything that needs it, so the floor
         // is the highest any of them declared.
         ...(floor ? { oldest: floor } : {}),
+        // Like the install line: the first to declare one asks it.
+        ...((had.can ?? program.can) ? { can: had.can ?? program.can } : {}),
         // What actually asks it its version is whichever declaration wins the
         // row, and they must agree: two ports asking `git` two different ways
         // would be two versions of one program.

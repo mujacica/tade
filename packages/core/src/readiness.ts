@@ -69,6 +69,11 @@ export interface MissingProgram {
    */
   tooOld?: { have: string; needs: string }
   /**
+   * It is here and new enough, and built without something that needs: the
+   * declaration's clause (`TypeScript, which …`). Absent otherwise.
+   */
+  lacks?: string
+  /**
    * The exact command that would install it here — or, for one too old, bring
    * it up to date — or why there is none.
    */
@@ -76,9 +81,10 @@ export interface MissingProgram {
 }
 
 /** What is the matter with a program, after its title: `is not here`, `is too old: 3.1, needs 3.2`. */
-export function programTrouble(program: Pick<MissingProgram, 'tooOld'>): string {
+export function programTrouble(program: Pick<MissingProgram, 'tooOld' | 'lacks'>): string {
   const old = program.tooOld
-  return old ? `is too old: ${old.have}, needs ${old.needs}` : 'is not here'
+  if (old) return `is too old: ${old.have}, needs ${old.needs}`
+  return program.lacks ? `is built without ${program.lacks}` : 'is not here'
 }
 
 /** An install as it is said in a line: the command, or why there is none. */
@@ -371,7 +377,10 @@ function programs(facts: ReadinessFacts): Step {
     title: 'The programs Tade runs',
     done: needed.length === 0,
     detail: needed
-      .map((one) => `${one.title}${one.tooOld ? ` ${programTrouble(one)}` : ''} — ${one.why}`)
+      .map(
+        (one) =>
+          `${one.title}${one.tooOld || one.lacks ? ` ${programTrouble(one)}` : ''} — ${one.why}`,
+      )
       .join('; '),
     required: true,
   }

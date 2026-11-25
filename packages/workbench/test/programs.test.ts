@@ -213,6 +213,52 @@ describe('looking at what is here', () => {
     const [master] = await lookAtPrograms([tmux], { env, exec: exec({ tmux: 'tmux master' }) })
     expect(master?.tooOld).toBe(false)
   })
+
+  describe('a Node new enough and built without TypeScript', () => {
+    // ipax-1's: Ubuntu's nodejs 22.22.1+dfsg, above every floor, with
+    // `process.features.typescript` false, ticked by `tade setup --check`.
+    const node = {
+      ...need,
+      command: 'node',
+      title: 'Node',
+      at: process.execPath,
+      can: {
+        args: ['-p', 'process.features.typescript'],
+        cannot: ['false', 'undefined'],
+        without: 'TypeScript',
+      },
+    }
+    const answering =
+      (typescript: string, code = 0) =>
+      async (_: string, args: readonly string[]) => ({
+        code: args[0] === '-p' ? code : 0,
+        stdout: args[0] === '-p' ? `${typescript}\n` : 'v22.22.1\n',
+        stderr: '',
+      })
+
+    it('says what it is built without, where it answers as one without it does', async () => {
+      const [debian] = await lookAtPrograms([node], { exec: answering('false') })
+      expect(debian).toMatchObject({ version: '22.22.1', tooOld: false, lacks: 'TypeScript' })
+      const [older] = await lookAtPrograms([node], { exec: answering('undefined') })
+      expect(older?.lacks).toBe('TypeScript')
+      for (const able of ['strip', 'transform']) {
+        const [fine] = await lookAtPrograms([node], { exec: answering(able) })
+        expect(fine).not.toHaveProperty('lacks')
+      }
+      // One that could not be asked has said nothing either way.
+      const [failed] = await lookAtPrograms([node], { exec: answering('', 1) })
+      expect(failed).not.toHaveProperty('lacks')
+    })
+
+    it('reads the Node running this as able, as Tade’s own declaration asks it', async () => {
+      // This suite is .ts run by Node itself, so the real answer here is yes.
+      const declared = (await programsNeeded(config, HOME)).find((one) => one.command === 'node')
+      expect(declared?.can?.cannot).toEqual(['false', 'undefined'])
+      const [here] = await lookAtPrograms(declared ? [declared] : [])
+      expect(here?.install).not.toBeNull()
+      expect(here).not.toHaveProperty('lacks')
+    })
+  })
 })
 
 describe('asking what is current', () => {

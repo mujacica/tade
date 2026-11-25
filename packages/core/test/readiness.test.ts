@@ -3,6 +3,7 @@ import {
   isReady,
   lingerCommand,
   nextStep,
+  programTrouble,
   type ReadinessFacts,
   readiness,
   type Unattended,
@@ -296,6 +297,23 @@ describe('readiness', () => {
       expect(step(steps, 'workspace')?.detail).toBe(`tmux 3.1c is older than 3.2 (${apt})`)
       const mac = under(tmux('brew upgrade tmux', old), 'tmux 3.1c is older than 3.2')
       expect(step(mac, 'workspace')?.detail).toBe('tmux 3.1c is older than 3.2 (brew upgrade tmux)')
+    })
+
+    it('says what a program new enough is built without, rather than ticking it', () => {
+      const node = {
+        command: 'node',
+        title: 'Node',
+        why: 'Tade runs on it',
+        optional: false,
+        lacks: 'TypeScript',
+        install: { cannot: 'nodejs.org' },
+      }
+      const steps = readiness(facts({ missing: [node] }))
+      expect(step(steps, 'programs')).toMatchObject({ done: false, required: true })
+      expect(step(steps, 'programs')?.detail).toBe(
+        'Node is built without TypeScript — Tade runs on it',
+      )
+      expect(programTrouble(node)).toBe('is built without TypeScript')
     })
 
     it('adds nothing for a program the driver does not need, or where nobody looked', () => {

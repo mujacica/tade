@@ -80,6 +80,12 @@ export interface ProgramLook {
    * absent there reads as nobody having looked.
    */
   tooOld?: boolean
+  /**
+   * What the copy here is built without (`need.can.without`), where it was
+   * asked and answered as a copy that cannot does. Absent where nothing was
+   * asked, it could not be asked, or it answered anything else.
+   */
+  lacks?: string
 }
 
 /** Tade itself: which one is running, whether there is a newer, and how to get it. */
@@ -317,10 +323,20 @@ export async function lookAtPrograms(
       // Asked of the one that will actually run: for something that ships
       // with Tade, the copy in Tade's own folder, never whatever else on the
       // machine happens to answer to the same name.
-      const said = await exec(need.at ?? need.command, need.versionArgs, { timeoutMs: 10_000 })
+      const run = need.at ?? need.command
+      const [said, can] = await Promise.all([
+        exec(run, need.versionArgs, { timeoutMs: 10_000 }),
+        need.can ? exec(run, need.can.args, { timeoutMs: 10_000 }) : null,
+      ])
       // Some say it on stdout, some on stderr, and one that failed may still
       // have said it before it did.
       const version = parseVersion(`${said.stdout}\n${said.stderr}`)
+      // Only an answer it gave says it cannot: a copy that failed or timed out
+      // being asked is one nobody looked at, never one found without it.
+      const lacks =
+        need.can && can?.code === 0 && need.can.cannot.includes(can.stdout.trim())
+          ? need.can.without
+          : undefined
       const tooOld = belowOldest(version ?? install.version, need.oldest)
       return {
         need,
@@ -334,6 +350,7 @@ export async function lookAtPrograms(
         update: (tooOld ? upgradeWith : updateWith)(install, need.install, installersHere(env)),
         behind: false,
         tooOld,
+        ...(lacks ? { lacks } : {}),
       }
     }),
   )

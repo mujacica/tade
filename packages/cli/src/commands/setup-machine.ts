@@ -127,7 +127,7 @@ export async function setUpPrograms(ui: Ui, missing: readonly MissingProgram[]):
     ui.say('')
     ui.say('Not needed by anything you are set up to use, and there if you want them:')
     for (const program of spare) {
-      const old = program.tooOld ? ` ${programTrouble(program)}` : ''
+      const old = program.tooOld || program.lacks ? ` ${programTrouble(program)}` : ''
       ui.say(`  ${program.title}${old} — ${program.why} (${installSaid(program.install)})`)
     }
   }

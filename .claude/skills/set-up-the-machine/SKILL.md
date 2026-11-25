@@ -193,6 +193,11 @@ in under Tade by `programsNeeded`: `PROCESSES_PROGRAMS` (`ps`, `status/src/proce
   A Debian or Ubuntu release keeps its package at the version it shipped, so where apt's is below
   the floor the declaration says so in `aptTooOld` and that clause is the line: apt's ran, succeeded
   and left Ubuntu 22.04's git at 2.34, and Settings › Updates ran it.
+- **Built without is missing too** (`can`): what a version does not say is asked of the copy found,
+  and only an answer the declaration lists as *cannot* says so — a failed ask says nothing. Node
+  asks `process.features.typescript` (`strip` here, `false` from Ubuntu's nodejs 22.22.1+dfsg,
+  which clears every floor), so `missingFrom` gives `lacks` and `installWith`'s line, never an
+  upgrade of the same package. Settings › Updates and `tade update` do not read it yet.
 - **The system's own copy moves the platform's way** (`updateWith(install, how, machine)`): on a
   Mac with macOS and its command line tools (`Software Update`, a `cannot`), on Linux with the
   distribution's manager — apt's install line, which moves a package that is there to the newest the
