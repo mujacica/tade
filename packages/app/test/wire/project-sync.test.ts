@@ -1,11 +1,14 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { takeRunLock } from '@tade/checks-core'
-import { recordsDir, type ProjectSync as SyncMode, type TadeEvent } from '@tade/core'
+import { mirrorDir, recordsDir, type ProjectSync as SyncMode, type TadeEvent } from '@tade/core'
 import { gitLoad, resetGitLoad } from '@tade/status'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, runGit, tmp } from '../../../../test/fixtures/mkrepo.ts'
+import { emptyTranscript, problem, type Transcript, tadeDid } from '../../src/transcript.ts'
 import {
+  freshName,
+  MERGE_NAMES_TRIED,
   openProposalIn,
   ProjectSync,
   type ProjectSyncDeps,
@@ -36,16 +39,30 @@ function twoMachines() {
 
 function syncing(
   here: ReturnType<typeof mkrepo>,
-  over: { mode?: SyncMode; said?: string[]; tasks?: { id: string; dir: string }[] } = {},
+  over: {
+    mode?: SyncMode
+    said?: string[]
+    tasks?: { id: string; dir: string }[]
+    pushes?: boolean
+  } = {},
 ) {
   let now = Date.parse('2026-11-22T09:00:00Z')
   const journal: { type: string; detail: Record<string, unknown> }[] = []
   const created: TadeEvent[] = []
   const steered: { task: string; message: string }[] = []
-  const proposed: { slug: string; base: string; title: string }[] = []
+  const proposed: {
+    slug: string
+    base: string
+    title: string
+    prompt?: string
+    merges?: string
+  }[] = []
   const news: string[] = []
   const told: string[] = []
   const said: string[] = []
+  const noticed: string[] = []
+  // The window's ledger, drawn the way `projectSyncFor` draws it: trouble a ✗, news a notice.
+  let ledger: Transcript = emptyTranscript()
   const running = new Set(['app/one', 'app/two'])
   const deps: ProjectSyncDeps = {
     home: here.home,
@@ -70,9 +87,16 @@ function syncing(
       if (!running.has(task)) throw new Error(`no agent running on ${task}`)
       steered.push({ task, message })
     },
-    openProposal: async (project, stem) => openProposalIn(created, project, stem),
+    openProposal: async (project, stems) => openProposalIn(created, project, stems),
+    pushes: () => over.pushes ?? true,
     propose: async (req) => {
-      proposed.push({ slug: req.slug, base: req.base, title: req.title })
+      proposed.push({
+        slug: req.slug,
+        base: req.base,
+        title: req.title,
+        prompt: req.prompt,
+        merges: req.merges,
+      })
       const task = `${req.project}/${req.slug}`
       created.push({
         seq: created.length,
@@ -88,7 +112,14 @@ function syncing(
     },
     news: (text) => news.push(text),
     tell: (text) => told.push(text),
-    say: (text) => said.push(text),
+    say: (text) => {
+      said.push(text)
+      ledger = problem(ledger, text, now)
+    },
+    notice: (text) => {
+      noticed.push(text)
+      ledger = tadeDid(ledger, text, now)
+    },
     saidLately: async () => over.said ?? [],
   }
   const sync = new ProjectSync(deps)
@@ -101,11 +132,48 @@ function syncing(
     news,
     told,
     said,
+    noticed,
+    ledger: () => ledger.entries,
     later: (ms: number) => {
       now += ms
     },
   }
 }
+
+describe('the name a merge proposal is made under', () => {
+  it('is the next one never used, where one before it was finished or put away', async () => {
+    const used = new Set(['app/merge-main-abc1234', 'app/merge-main-abc1234-2'])
+    const tried: string[] = []
+    const made = await freshName('merge-main-abc1234', async (slug) => {
+      tried.push(slug)
+      if (used.has(`app/${slug}`)) {
+        const err = new Error(`app/${slug} was used before`)
+        err.name = 'NameUsed'
+        throw err
+      }
+      return slug
+    })
+    expect(made).toBe('merge-main-abc1234-3')
+    expect(tried).toEqual(['merge-main-abc1234', 'merge-main-abc1234-2', 'merge-main-abc1234-3'])
+  })
+
+  it('says any other refusal as it is, and stops trying after a few', async () => {
+    await expect(
+      freshName('merge-main-abc1234', async () => {
+        throw new Error('unknown project "app"')
+      }),
+    ).rejects.toThrow('unknown project')
+    let tries = 0
+    const always = async (): Promise<string> => {
+      tries++
+      const err = new Error('used')
+      err.name = 'NameUsedElsewhere'
+      throw err
+    }
+    await expect(freshName('merge-main-abc1234', always)).rejects.toThrow('used')
+    expect(tries).toBe(MERGE_NAMES_TRIED)
+  })
+})
 
 describe('keeping a project in step', () => {
   it('fast-forwards a clean checkout, writes it down, and tells every agent working in it', async () => {
@@ -209,9 +277,11 @@ describe('keeping a project in step', () => {
     expect(here.git('status', '--porcelain')).toBe('')
     expect(one.proposed).toEqual([
       {
-        slug: `merge-origin-main-${theirs.slice(0, 7)}`,
+        slug: `merge-main-${theirs.slice(0, 7)}`,
         base: 'main',
         title: "Merge origin's main into main here",
+        prompt: expect.stringContaining('git push origin HEAD:main'),
+        merges: 'main',
       },
     ])
     expect(one.journal).toEqual([
@@ -219,7 +289,7 @@ describe('keeping a project in step', () => {
         type: 'project_sync_held',
         detail: expect.objectContaining({
           held: 'diverged',
-          proposal: `app/merge-origin-main-${theirs.slice(0, 7)}`,
+          proposal: `app/merge-main-${theirs.slice(0, 7)}`,
         }),
       },
     ])
@@ -228,6 +298,76 @@ describe('keeping a project in step', () => {
     one.later(SYNC_EVERY_MS)
     await one.sync.beat()
     expect(one.proposed).toHaveLength(1)
+  })
+
+  it('says two machines parting once, as a notice, and again only when a new merge is needed', async () => {
+    const { here, there } = twoMachines()
+    // ipax's main, handed into this home's mirror the way ipax's Tade hands it.
+    const mirror = mirrorDir(here.home, 'app')
+    runGit(here.home, 'init', '-q', '--bare', mirror)
+    const commitThere = (path: string) => {
+      writeFileSync(join(there, path), `${path}\n`)
+      runGit(there, 'add', '-A')
+      runGit(there, 'commit', '-q', '-m', `${path} there`)
+      runGit(there, 'push', '-q', '--force', mirror, '+refs/heads/*:refs/remotes/ipax/*')
+      return runGit(there, 'rev-parse', 'HEAD').trim()
+    }
+    commitThere('theirs.ts')
+    here.commit('work here', { 'mine.ts': 'mine\n' })
+    const one = syncing(here)
+    await one.sync.beat()
+    expect(one.proposed).toHaveLength(1)
+    expect(one.proposed[0]?.slug).toMatch(/^merge-main-[0-9a-f]{7}$/)
+    expect(one.proposed[0]?.title).toBe("Merge ipax's main into main here")
+
+    // Both sides go on committing, so the counts move on every look: nothing more is said.
+    for (const n of [1, 2, 3]) {
+      commitThere(`theirs-${n}.ts`)
+      here.commit(`more here ${n}`, { [`mine-${n}.ts`]: `${n}\n` })
+      one.later(SYNC_EVERY_MS)
+      await one.sync.beat()
+    }
+    const kinds = () => one.ledger().map((entry) => entry.kind)
+    expect(kinds()).toEqual(['tade'])
+    expect(one.said).toEqual([])
+    expect(one.noticed[0]).toContain("app's main has parted from ipax's")
+    expect(one.noticed[0]).toContain(`Proposed app/${one.proposed[0]?.slug}`)
+    expect(one.journal.filter((line) => line.type === 'project_sync_held')).toHaveLength(1)
+    expect(one.proposed).toHaveLength(1)
+
+    // That merge finished and they have parted again: a new proposal, said once more.
+    one.created.push({
+      ...(one.created[0] as TadeEvent),
+      seq: one.created.length,
+      type: 'task_done',
+    } as TadeEvent)
+    commitThere('theirs-4.ts')
+    one.later(SYNC_EVERY_MS)
+    await one.sync.beat()
+    expect(one.proposed).toHaveLength(2)
+    expect(kinds()).toEqual(['tade', 'tade'])
+  })
+
+  it('counts a merge proposed under its old name, with the source in it, as still open', async () => {
+    const { here, pushThere } = twoMachines()
+    pushThere({ 'theirs.ts': 'theirs\n' })
+    here.commit('work here', { 'mine.ts': 'mine\n' })
+    const one = syncing(here)
+    one.created.push({
+      seq: 0,
+      ts: new Date().toISOString(),
+      type: 'task_created',
+      urgency: 'notable',
+      task: 'app/merge-origin-main-by-hand',
+      lane: null,
+      run: null,
+      detail: {},
+    } as TadeEvent)
+    await one.sync.beat()
+    expect(one.proposed).toEqual([])
+    expect(one.noticed).toEqual([
+      expect.stringContaining('app/merge-origin-main-by-hand is already proposed for it'),
+    ])
   })
 
   it('under ask, tells the orchestrator once and moves only on a line of the person’s naming it', async () => {

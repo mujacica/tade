@@ -9,7 +9,7 @@ import { PrepareConfigSchema } from './prepare.ts'
 import { ModelPriceSchema } from './prices.ts'
 import { GIVE_WAY_MAX } from './priority.ts'
 import { PUSH_MODES } from './project.ts'
-import { RemotesSchema } from './remotes.ts'
+import { MachineName, RemotesSchema } from './remotes.ts'
 import { PROJECT_SYNC } from './sync.ts'
 import { WatchesOn } from './watch-where.ts'
 
@@ -829,6 +829,13 @@ export const ConfigSchema = z
          * the one it names; a server that links to another says `here`.
          */
         hub: z.string().min(1).optional(),
+        /**
+         * What this machine is called on the person's other machines
+         * (`machineLabel`, `remotes.ts`): never its host name, which the
+         * machine that dials in is otherwise known by and which reached a
+         * public forge that way. Unset, the kind of machine it is.
+         */
+        name: MachineName.optional(),
       })
       .prefault({}),
     /** Where `tade host backup` keeps this machine's Tade, and its password (`backup.ts`). */

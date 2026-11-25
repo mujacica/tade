@@ -337,9 +337,15 @@ export function syncedNews(req: {
   return `${req.project}'s ${req.branch} was fast-forwarded from ${shortSha(req.was)} to ${shortSha(req.now)}, to ${sourceSays(joinedNames(req.from), req.branch)} (${files(req.files)} changed); ${told}.`
 }
 
-/** What a task proposed to merge a parted branch is called, before its target: one name per source and branch. */
-export function mergeSlugStem(from: string, branch: string): string {
-  const plain = `merge-${from}-${branch}`
+/**
+ * What a task proposed to merge a parted branch is called, before its target:
+ * one name per branch, and **never a machine's**. The slug is the worktree's
+ * branch, and git's own merge message names the branch merged into — so a
+ * machine named here was a machine named in a commit on origin. One merge of a
+ * branch at a time, from whichever source.
+ */
+export function mergeSlugStem(branch: string): string {
+  const plain = `merge-${branch}`
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, '-')
     .replace(/-+/g, '-')
@@ -347,7 +353,30 @@ export function mergeSlugStem(from: string, branch: string): string {
   return plain.slice(0, 55).replace(/-$/, '')
 }
 
-/** The work a parted branch becomes: made parked, for the orchestrator to decide. */
+/**
+ * What a merge for a branch from one source was called before 0.4.3, so one
+ * still open under that name counts as open (`openProposalIn`): read, never
+ * made again.
+ */
+export function formerMergeStem(from: string, branch: string): string {
+  return mergeSlugStem(`${from}-${branch}`)
+}
+
+/** The one message a parted-branch merge is committed with: the branches, by their names here. */
+export function mergeMessage(from: string, branch: string): string {
+  return `Merge ${sourceSays(from, branch)} into ${branch}`
+}
+
+/**
+ * The work a parted branch becomes: made parked, for the orchestrator to decide.
+ *
+ * **Merged on one machine and pushed, and the other fast-forwards** — what a
+ * person does by hand, and nothing else. Never a review, whatever
+ * `projects.<name>.push` says, and never a branch of its own on the forge: a
+ * review of one machine's branch against another's is noise on a forge, and it
+ * was a public one. Where the project says agents `never` push, the merge is
+ * made and handed to the person with the line that pushes it.
+ */
 export function mergeProposal(req: {
   project: string
   branch: string
@@ -356,16 +385,23 @@ export function mergeProposal(req: {
   target: string
   ahead: number
   behind: number
+  /** Whether agents here may push at all (`pushFor` is not `never`). */
+  pushes: boolean
 }): { slug: string; title: string; prompt: string; context: string } {
   const { branch, from, head, target } = req
   const theirs = sourceSays(from, branch)
   const ref = from === ORIGIN ? `origin/${branch}` : target
+  const merge = `git merge --no-ff -m ${JSON.stringify(mergeMessage(from, branch))} ${ref}`
+  const offer = req.pushes
+    ? `Then push the merge to ${branch} on origin itself — \`git push origin HEAD:${branch}\` — and nothing else: that is the whole of offering it, whatever this project says about finished work. If origin's ${branch} moved meanwhile, fetch it, merge it the same way and push again; never force-push. Once origin's ${branch} has both sides, every machine fast-forwards to it by itself, this one's checkout included.`
+    : `This project says agents never push, so push nothing: say in your last message the merge's commit and the line that pushes it, \`git push origin <commit>:${branch}\`, for the person to run.`
   return {
-    slug: `${mergeSlugStem(from, branch)}-${shortSha(target)}`,
+    slug: `${mergeSlugStem(branch)}-${shortSha(target)}`,
     title: `Merge ${theirs} into ${branch} here`,
     prompt: [
       `${req.project}'s ${branch} on this machine and ${theirs} have parted: ${branch} here has ${commits(req.ahead)} ${theirs} lacks, and ${theirs} has ${commits(req.behind)} this machine lacks. Tade only ever fast-forwards a branch, so it moved nothing.`,
-      `In your own worktree, which starts from ${branch} as it is here (${shortSha(head)}), merge ${theirs} (${shortSha(target)}) into it, resolve what conflicts, run the checks, and offer the merge the way this project's finished work goes. Once ${branch} on origin has both sides, every machine's sync fast-forwards to it by itself.`,
+      `In your own worktree, which starts from ${branch} as it is here (${shortSha(head)}), merge ${theirs} (${shortSha(target)}) with \`${merge}\`, resolve what conflicts, and run the checks. ${offer}`,
+      `Never open a review or a pull request for this merge, and never push this worktree's own branch: two copies of one branch are brought together by a merge on ${branch}, not offered for review. Name a machine only as it is named here, never by its host name.`,
     ].join('\n\n'),
     context: [
       `## Keeping ${branch} in step`,

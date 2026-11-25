@@ -124,13 +124,100 @@ export function remotePort(remote: Pick<RemoteConfig, 'host'>): number {
 }
 
 /**
- * This machine, as another machine's Tade calls it — in its device list, and
- * on the lines a carry writes there: its host name, cut to what a label may be
- * and to characters a remote shell has no opinion about.
+ * What a person may call this machine (`machine.name`): the name every other
+ * machine of theirs knows it by — on the lines a carry writes there, in a
+ * duty's holder, as the namespace its branches are handed into a mirror under
+ * (`mirrorMachine`), and so in every merge proposed there and every branch,
+ * title and commit message that merge would make. Lowercase, digits and
+ * dashes, at most 24, because it becomes a ref namespace; never `origin`,
+ * which is what the sources call origin, nor `here`, which is what
+ * `projects.<name>.watches` calls this machine.
  */
-export function machineLabel(name: string = hostname()): string {
+export const MachineName = z
+  .string()
+  .regex(
+    /^[a-z0-9][a-z0-9-]{0,23}$/,
+    'a machine is called by up to 24 lowercase letters, digits and dashes',
+  )
+  .refine((name) => name !== 'origin' && name !== NOT_A_REMOTE, {
+    message: '`origin` and `here` already mean something else, so no machine may be called either',
+  })
+
+/**
+ * What this machine is called where the person has not named it: what kind of
+ * machine it is, and nothing about which one.
+ *
+ * **Never the host name.** That is what this used to be, and it is the one
+ * name the person did not choose: on a Mac it is a serial number and the
+ * router's domain, and the machine that dials a server is known there by
+ * nothing else — so the server named it that way in a merge it proposed, and
+ * that merge went to a public forge as a branch, a title, a body and ten commit
+ * messages. A name is what the person gave a machine (`ipax` is a remote's) or
+ * this; `test/hostname.test.ts` fails where the host name reaches anything Tade
+ * publishes.
+ */
+export function machineNameByDefault(platform: string = process.platform): string {
+  return platform === 'darwin' || platform === 'win32' ? 'laptop' : 'server'
+}
+
+/** This machine's `machine.name`, as the config last loaded here says it; unset is the default. */
+let named: string | undefined
+
+/**
+ * This machine's name from its config, wherever a config is loaded or
+ * replaced (`loadConfig`, the window's Settings, the workbench), so every
+ * reader of `machineLabel` reads the name now and none holds a copy.
+ */
+export function nameThisMachine(name: string | undefined): void {
+  named = name
+}
+
+/**
+ * This machine, as another machine's Tade calls it — in its device list, on
+ * the lines a carry writes there, and as its mirror files its branches: its
+ * `machine.name`, or the default for its kind. Handed a name, that name cut to
+ * what a label may be and to characters a remote shell has no opinion about —
+ * a stored `from`, or one a peer said it is called.
+ */
+export function machineLabel(name: string = named ?? machineNameByDefault()): string {
   const plain = name.replace(/\.local$/, '').replace(/[^A-Za-z0-9._-]+/g, '-')
   return (plain === '' ? 'this machine' : plain).slice(0, 60)
+}
+
+/**
+ * What this machine was called before it had a name of its own: its host name
+ * as a label, which is how a mirror elsewhere may still file its branches
+ * (`mirrors.ts` takes them back). Read only to find that namespace and remove
+ * it; never said, never sent as a name.
+ */
+export function formerLabel(name: string = hostname()): string {
+  return machineLabel(name)
+}
+
+/**
+ * This machine's host name in every form it travels in — as it is, without
+ * `.local`, its first label, and each made a namespace (`mirrorMachine`'s
+ * lowercase and dashes) — longest first. A form counts only from six
+ * characters, so a host called `main` or `work` does not catch every sentence
+ * with the word in it.
+ */
+export function hostNameForms(name: string = hostname()): string[] {
+  const plain = name.trim().toLowerCase()
+  if (plain === '') return []
+  const first = plain.split('.')[0] ?? ''
+  const dashed = (form: string) => form.replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-')
+  const forms = new Set(
+    [plain, plain.replace(/\.local$/, ''), first]
+      .flatMap((form) => [form, dashed(form)])
+      .filter((form) => form.length >= 6),
+  )
+  return [...forms].sort((a, b) => b.length - a.length)
+}
+
+/** Whether text carries this machine's host name in any of its forms, so a door that publishes can refuse it. */
+export function hostNameIn(text: string, name: string = hostname()): boolean {
+  const lower = text.toLowerCase()
+  return hostNameForms(name).some((form) => lower.includes(form))
 }
 
 /**

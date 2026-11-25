@@ -270,6 +270,14 @@ anything that writes, call `forget()` so the next reader polls. `for: ['orchestr
   first project iterated for every review in the account: the side then drew all of them in every
   project. A review on a repository nothing here is a checkout of is `project: null`, which the
   window draws wherever you are rather than nowhere.
+- **Two machines' copies of one branch are never a review.** A parted branch is merged on one
+  machine (the duty's holder) in a worktree and pushed onto the branch itself, and the other
+  fast-forwards (`mergeProposal`, `core/src/sync.ts`); its task carries `merges`, so no push sentence
+  tells it to open one, whatever `push` says, and its slug names no machine, because git's merge
+  message names the branch merged into. PRs #20 and #21 on the public repository were this.
+- **No host name reaches a forge.** A machine is called by `machine.name` (`machineLabel`), never
+  `os.hostname()`, which only `core/src/remotes.ts` reads; `review_open` refuses a branch, title or
+  body that carries this machine's (`hostNameIn`), and `test/hostname.test.ts` holds both.
 - **Another machine's work is read here and written there.** Where one repository is a project on
   this machine and on a remote, that machine's branches are fetched into a mirror of the repository
   in this home (`wire/mirrors.ts`, `status/src/mirror.ts`) — never into the person's checkout — and

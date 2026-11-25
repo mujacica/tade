@@ -236,6 +236,43 @@ export async function pushMirror(
   return why?.replace(/^(fatal|error):\s*/, '').slice(0, 300) || `git push exited ${ran.code}`
 }
 
+/**
+ * Every branch a mirror files under one machine's name, removed: what this
+ * machine handed it under a name it is no longer called (`formerLabel`), so
+ * that machine stops seeing a source nobody is pushing any more — and stops
+ * naming it. A pattern that matches nothing here, pushed with `--prune`,
+ * deletes everything under the one it maps to there and nothing else.
+ */
+export async function dropFromMirror(
+  checkout: string,
+  machine: string,
+  to: FetchFrom,
+  timeoutMs = FETCH_MS,
+): Promise<string | null> {
+  if (!MACHINE.test(machine)) return `${JSON.stringify(machine)} is not a machine's name`
+  const ran = await runProgram(
+    'git',
+    [
+      '-C',
+      checkout,
+      'push',
+      '--quiet',
+      '--no-verify',
+      '--prune',
+      to.url,
+      `refs/tade-nothing/*:${mirrorRef(machine, '*')}`,
+    ],
+    {
+      timeoutMs,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', ...to.env },
+    },
+  )
+  if (ran.missing) return 'there is no git on this machine'
+  if (ran.timedOut) return `pruning a mirror did not finish in ${timeoutMs / 1000}s`
+  if (ran.code === 0) return null
+  return ran.stderr.trim().split('\n').at(-1)?.slice(0, 300) || `git push exited ${ran.code}`
+}
+
 /** This checkout's own branches and the commit each is on: what a push into a mirror would carry. */
 export async function headsHere(checkout: string): Promise<string | null> {
   const out = await git(checkout, [

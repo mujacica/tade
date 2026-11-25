@@ -10,6 +10,7 @@ import {
   heldSays,
   loadConfig,
   modelChosen,
+  nameThisMachine,
   orchestratorAccount,
   ownSignInName,
   parseSetting,
@@ -374,6 +375,8 @@ export class Settings implements Subject {
     const was = this.wire.opts.config.surfaces.voice.muted
     this.wire.opts.config = config
     this.wire.opts.client.config = config
+    // What this machine is called, at once: the next carry, claim and push say it.
+    nameThisMachine(config.machine.name)
     this.wire.live?.useConfig(config)
     // The extensions with them, because a project opened is a project every
     // extension may be asked about and every watch may look at — on the next

@@ -1,6 +1,5 @@
 import { spawn } from 'node:child_process'
 import { stat } from 'node:fs/promises'
-import { hostname } from 'node:os'
 import { join } from 'node:path'
 import {
   type Check,
@@ -17,7 +16,7 @@ import {
   SLEPT,
   summaryOf,
 } from '@tade/checks-core'
-import { givesWay, nicedLine } from '@tade/core'
+import { givesWay, machineLabel, nicedLine } from '@tade/core'
 import { awakeAt, startAwake } from './awake.ts'
 import { stop } from './stop.ts'
 
@@ -53,7 +52,8 @@ export function makeLocalRunner(options: RunnerOptions = {}): Runner {
   const now = options.now ?? Date.now
   const parallel = Math.max(1, options.parallel ?? 2)
   const tailKept = Math.max(200, options.tail ?? 4_000)
-  const host = options.host ?? hostname()
+  // The machine's own name (`machine.name`), never its host name: a run's record travels.
+  const host = options.host ?? machineLabel()
   // Asked once per runner rather than per check: whether this machine has
   // `nice` does not change between two checks of one run, and the answer is a
   // PATH walk. Nothing is said when it cannot — the lane registry is what says

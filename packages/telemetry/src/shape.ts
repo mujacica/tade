@@ -1,4 +1,4 @@
-import { modelIn, type TadeEvent, UNRECORDED } from '@tade/core'
+import { hostNameForms, modelIn, type TadeEvent, UNRECORDED } from '@tade/core'
 import type { FromEvent, Level, Measure } from './port.ts'
 
 // What may be sent, worked out in pure functions: where a DSN points, what a
@@ -79,11 +79,17 @@ export const HELD_FLOOR = 8
  * sent. Matched without case, because a fingerprint is lowercased
  * (`shapeOf`) before it goes.
  */
+/** This machine's host name in its forms, asked once: it does not change under a running Tade. */
+let hostForms: RegExp[] | undefined
+
 export function scrub(text: string, home: string, held: readonly string[] = []): string {
   let out = text
   for (const value of longestFirst(held)) out = out.replace(exactly(value), '…')
   if (home && home !== '/' && home !== '') out = out.split(home).join('~')
   for (const secret of SECRETS) out = out.replace(secret, '…')
+  // The machine's host name, which is somebody's network and not Tade's trouble.
+  hostForms ??= hostNameForms().map(exactly)
+  for (const form of hostForms) out = out.replace(form, '…')
   return out
 }
 

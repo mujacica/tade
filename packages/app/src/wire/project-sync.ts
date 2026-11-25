@@ -1,6 +1,8 @@
 import { runningIn, takeRunLock } from '@tade/checks-core'
 import {
+  type Config,
   FILES_TOLD,
+  formerMergeStem,
   joinedNames,
   LINES_LOOKED_BACK,
   mergeProposal,
@@ -22,7 +24,7 @@ import {
 } from '@tade/core'
 import { lookSync, moveSync, type SyncLooked, type SyncLookOptions } from '@tade/status'
 import { withTranscript } from '../model.ts'
-import { problem } from '../transcript.ts'
+import { problem, tadeDid } from '../transcript.ts'
 import { saidLately, type Wiring } from './context.ts'
 import type { DutyVerdict, FleetDuties } from './duties.ts'
 import { type Tellable, tellOrKeep } from './handed.ts'
@@ -47,8 +49,17 @@ import { putToOrchestrator } from './proposals.ts'
 // **Said once.** A refusal, a parted branch and a fetch that failed are each
 // said in the strip once for as long as they stay the same, and a refusal or a
 // parted branch is written once as `project_sync_held`. A parted branch is one
-// proposal at a time: while the last merge proposed for that branch from that
-// source is neither finished nor removed, no other is made.
+// proposal at a time: while the last merge proposed for that branch is neither
+// finished nor removed, no other is made.
+//
+// **Two machines parting is a state, not a failure**: said as a notice, once
+// when they part, and again only when what is to be done about it changes — a
+// new proposal, another machine holding the merge — never because either side
+// committed again, which moves the counts and nothing else. Merged, a look
+// finds nothing parted and forgets it.
+//
+// **The merge goes onto the branch, never up for review** (`mergeProposal`):
+// one machine merges and pushes, and the other fast-forwards.
 
 /** How often a project is looked at, whatever else happens. */
 export const SYNC_EVERY_MS = 60_000
@@ -81,8 +92,10 @@ export interface ProjectSyncDeps {
   }): Promise<void>
   /** Said to a running agent, into its turn; throws where none is running. */
   steer(task: string, message: string): Promise<void>
-  /** A merge for this branch from this source already proposed and still open, by its task id, or null. */
-  openProposal(project: string, stem: string): Promise<string | null>
+  /** A merge for this branch already proposed under any of these names and still open, by its task id, or null. */
+  openProposal(project: string, stems: readonly string[]): Promise<string | null>
+  /** Whether agents in the project may push at all: its `push`, or `agents.push`, is not `never`. */
+  pushes(project: string): boolean
   /** The merge a parted branch needs, made parked and put to the orchestrator: the task's id. */
   propose(req: {
     project: string
@@ -91,6 +104,8 @@ export interface ProjectSyncDeps {
     prompt: string
     context: string
     base: string
+    /** The branch the merge is pushed onto, never put up for review. */
+    merges: string
   }): Promise<string>
   /**
    * Whose proposing the merge of a branch parted from another machine's is,
@@ -106,6 +121,8 @@ export interface ProjectSyncDeps {
   tell(text: string): void
   /** Said in the strip as trouble. */
   say(text: string): void
+  /** Said in the strip as news, not trouble: a state somebody may want to know about. */
+  notice(text: string): void
   /** The person's own lines lately, for the tool's gate: the journal's `said`. */
   saidLately(): Promise<readonly string[]>
   /** The look and the move: status's, or a test's. */
@@ -400,7 +417,11 @@ export class ProjectSync {
         const said = `${name}'s ${facts.branch ?? 'branch'} was not moved: ${verdict.why}.`
         await this.holdOnce(
           name,
-          `${verdict.kind}:${targetKey(facts)}:${verdict.kind === 'refused' ? verdict.paths.join('\0') : ''}`,
+          // Two sources apart is a state, the same while either commits again;
+          // a refusal is about these commits and these paths.
+          verdict.kind === 'apart'
+            ? `apart:${facts.branch ?? ''}:${apartKey(facts)}`
+            : `refused:${targetKey(facts)}:${verdict.paths.join('\0')}`,
           said,
           {
             project: name,
@@ -419,7 +440,11 @@ export class ProjectSync {
     }
   }
 
-  /** A parted branch: one merge proposed, worked in a worktree of its own, while none is open. */
+  /**
+   * A parted branch: one merge proposed, worked in a worktree of its own, while
+   * none is open — and said once, as a notice, for as long as what is to be done
+   * about it stays the same.
+   */
   private async parted(
     project: SyncProject,
     facts: SyncFacts,
@@ -429,16 +454,19 @@ export class ProjectSync {
     const branch = facts.branch ?? ''
     // A machine's own branch is the one to merge where it and origin agree: it is the newer word.
     const from = verdict.from.find((one) => one !== ORIGIN) ?? verdict.from[0] ?? ORIGIN
-    const stem = mergeSlugStem(from, branch)
-    const open = await this.deps.openProposal(name, stem)
+    const open = await this.deps.openProposal(name, [
+      mergeSlugStem(branch),
+      formerMergeStem(from, branch),
+    ])
     // Parted from another machine's branch, both machines see the parting: one proposes it.
     const duty =
       from === ORIGIN || open !== null
         ? null
         : (this.deps.merge?.(name, branch, facts.head ?? '', verdict.target) ?? null)
+    const parted = `${name}'s ${branch} has parted from ${joinedNames(verdict.from)}'s: ${verdict.why}`
     if (duty !== null && !duty.mine) {
-      const said = `${name}'s ${branch} was not moved: ${verdict.why}. The merge is not proposed here: ${duty.said}.`
-      await this.holdOnce(name, `diverged:${targetKey(facts)}`, said, {
+      const said = `${parted}. The merge is not proposed here: ${duty.said}.`
+      await this.holdOnce(name, `diverged:${branch}:${from}:elsewhere:${duty.on ?? ''}`, said, {
         project: name,
         branch,
         held: 'diverged',
@@ -458,12 +486,13 @@ export class ProjectSync {
         target: verdict.target,
         ahead: verdict.ahead,
         behind: verdict.behind,
+        pushes: this.deps.pushes(name),
       })
-      proposal = await this.deps.propose({ project: name, ...made, base: branch })
+      proposal = await this.deps.propose({ project: name, ...made, base: branch, merges: branch })
       if (duty !== null) this.deps.merged?.(duty.duty)
     }
-    const said = `${name}'s ${branch} was not moved: ${verdict.why}. ${open === null ? `Proposed ${proposal}, parked for the orchestrator.` : `${proposal} is already proposed for it.`}`
-    await this.holdOnce(name, `diverged:${targetKey(facts)}`, said, {
+    const said = `${parted}. ${open === null ? `Proposed ${proposal} to merge them and push the merge onto ${branch}, parked for the orchestrator.` : `${proposal} is already proposed for it.`}`
+    await this.holdOnce(name, `diverged:${branch}:${from}:${proposal ?? ''}`, said, {
       project: name,
       branch,
       held: 'diverged',
@@ -483,7 +512,10 @@ export class ProjectSync {
     }
   }
 
-  /** Written down and said in the strip once for as long as it stays the same reason. */
+  /**
+   * Written down and said in the strip once for as long as it stays the same
+   * reason: a refusal as trouble, a parting as news.
+   */
   private async holdOnce(
     name: string,
     key: string,
@@ -492,7 +524,8 @@ export class ProjectSync {
   ): Promise<void> {
     if (this.held.get(name) === key) return
     this.held.set(name, key)
-    this.deps.say(said)
+    if (detail.held === 'diverged' || detail.held === 'apart') this.deps.notice(said)
+    else this.deps.say(said)
     await this.deps.append({ type: 'project_sync_held', detail })
   }
 
@@ -504,6 +537,11 @@ export class ProjectSync {
       this.deps.say(printable(said))
     }
   }
+}
+
+/** Which two sources are apart, by name: the same two apart again is not news. */
+function apartKey(facts: SyncFacts): string {
+  return facts.target.kind === 'apart' ? `${facts.target.a.from}|${facts.target.b.from}` : ''
 }
 
 /** The commits a reason was about: the same reason about other commits is news again. */
@@ -519,13 +557,13 @@ function targetKey(facts: SyncFacts): string {
 export function openProposalIn(
   events: readonly TadeEvent[],
   project: string,
-  stem: string,
+  stems: readonly string[],
 ): string | null {
-  const prefix = `${project}/${stem}-`
+  const prefixes = stems.map((stem) => `${project}/${stem}-`)
   const open = new Set<string>()
   for (const event of events) {
     const task = event.task
-    if (!task?.startsWith(prefix)) continue
+    if (!task || !prefixes.some((prefix) => task.startsWith(prefix))) continue
     if (event.type === 'task_created') open.add(task)
     else if (event.type === 'task_removed' || event.type === 'task_done') open.delete(task)
   }
@@ -560,30 +598,34 @@ export function projectSyncFor(
       await client.log.append({ type: line.type, task: null, detail: line.detail })
     },
     steer: (task, message) => client.steerAgent(task, message),
-    openProposal: async (project, stem) =>
+    openProposal: async (project, stems) =>
       openProposalIn(
         await client.log.read({ types: ['task_created', 'task_removed', 'task_done'] }),
         project,
-        stem,
+        stems,
       ),
+    pushes: (project) => mergePushes(wire.opts.config, project),
     propose: async (req) => {
-      const task = await client.createTask({
-        project: req.project,
-        slug: req.slug,
-        intent: req.prompt,
-        by: 'orchestrator',
-        workspace: 'worktree',
-        base: req.base,
-        context: req.context,
-        start: { after: [], prompt: req.prompt, touches: [] },
-        proposed: { title: req.title },
-      })
+      const task = await freshName(req.slug, (slug) =>
+        client.createTask({
+          project: req.project,
+          slug,
+          intent: req.prompt,
+          by: 'orchestrator',
+          workspace: 'worktree',
+          base: req.base,
+          context: req.context,
+          start: { after: [], prompt: req.prompt, touches: [] },
+          proposed: { title: req.title },
+          merges: req.merges,
+        }),
+      )
       // Through the one door that writes a park, straight after it is made, as a proposed check is.
       await client.parkTask(task.id, true, { by: 'orchestrator' })
       putToOrchestrator(
         wire,
         orchestrator(),
-        `${req.title}: ${req.prompt}\n\nProposed as ${task.id}, parked: decide it with tade_proposal_decide, with a sentence why — start it, or leave it if the branches are already being brought together.`,
+        `${req.title}: ${req.prompt}\n\nProposed as ${task.id}, parked: decide it with tade_proposal_decide, with a sentence why — start it, or leave it if the branches are already being brought together. Its agent merges and pushes the merge onto ${req.merges}; never open a review or a pull request for it.`,
         [task.id],
       )
       return task.id
@@ -594,6 +636,41 @@ export function projectSyncFor(
       wire.put(withTranscript(wire.state, problem(wire.state.transcript, text, wire.now())))
       wire.draw()
     },
+    notice: (text) => {
+      wire.put(withTranscript(wire.state, tadeDid(wire.state.transcript, text, wire.now())))
+      wire.draw()
+    },
     saidLately: () => saidLately(wire, LINES_LOOKED_BACK),
   })
+}
+
+/**
+ * Whether a merge of a parted branch may push it: anything but a person's
+ * `never`, for the project or for every agent. Not `pushFor`, whose answer for
+ * a worktree is a review — which a merge of one branch is never put up for.
+ */
+export function mergePushes(config: Config, project: string): boolean {
+  return (config.projects[project]?.push ?? config.agents.push) !== 'never'
+}
+
+/** How many names a merge proposal tries before it says why it could not be made. */
+export const MERGE_NAMES_TRIED = 20
+
+/**
+ * A merge made under the first name of its slug's that was never used — the
+ * slug, then `-2`, `-3`… A task's name is never used twice (`guardName`), and a
+ * merge of one branch at one target is proposed again after one before it was
+ * finished or put away, here or on another machine of the person's: the name
+ * is the rule's, so the rule picks the next. Any other refusal is said as it is.
+ */
+export async function freshName<T>(slug: string, make: (slug: string) => Promise<T>): Promise<T> {
+  for (let n = 1; ; n++) {
+    try {
+      return await make(n === 1 ? slug : `${slug}-${n}`)
+    } catch (err) {
+      const used =
+        err instanceof Error && (err.name === 'NameUsed' || err.name === 'NameUsedElsewhere')
+      if (!used || n >= MERGE_NAMES_TRIED) throw err
+    }
+  }
 }

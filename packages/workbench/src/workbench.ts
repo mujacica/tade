@@ -277,6 +277,8 @@ export interface CreateTaskRequest {
   harness?: string
   /** The replay it is one entrant in (`replay.ts`): never pushed, never put up for review. */
   replay?: string
+  /** The branch two machines' copies of it are merged on (`mergeProposal`): pushed there, never put up for review. */
+  merges?: string
   /** Who asked for it, as `TaskOrigin` says it: kept with the task and in the journal. */
   by?: string
   /** How it counts as finished; `said` unless chosen. */
@@ -1121,6 +1123,7 @@ export class Workbench {
       ...(req.effort ? { effort: req.effort } : {}),
       race: req.race,
       replay: req.replay,
+      ...(req.merges ? { merges: req.merges } : {}),
       harness: req.harness,
       prepare: configured?.prepare,
       workspace,
@@ -1814,7 +1817,7 @@ export class Workbench {
   private async agentPrompt(task: string, cwd: string, canSayDone: boolean): Promise<string> {
     const project = task.split('/')[0] ?? ''
     const configured = this.config.projects[project]
-    const { intent, produces, workspace, replay } = await taskSaid(this.home, task)
+    const { intent, produces, workspace, replay, merges } = await taskSaid(this.home, task)
     const head = await git(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
     const context = taskContextPath(this.home, task)
     return composeAgentPrompt({
@@ -1831,7 +1834,10 @@ export class Workbench {
       commit: this.config.agents.commit,
       instructions: this.config.agents.instructions,
       // A replay's entrant is a measurement of a candidate: it is never pushed.
-      push: replay ? 'never' : pushFor(this.config, project, workspace).mode,
+      // A parted branch's merge is told its own push in its own words — onto
+      // the branch itself, never a review — so no sentence here may tell it to
+      // push its branch and open one (`mergeProposal`).
+      push: replay || merges ? 'never' : pushFor(this.config, project, workspace).mode,
       ...(configured?.test_command ? { testCommand: configured.test_command } : {}),
       ...(await checksTold({ config: this.config, home: this.home }, project, cwd, task)),
       ...(await setupTold(this.home, task)),

@@ -8,6 +8,7 @@ import {
 } from './config.ts'
 import { GIVE_WAY_MAX, GIVE_WAY_MEANS } from './priority.ts'
 import { PUSH_BY_DEFAULT, PUSH_MODES, pushDefault } from './project.ts'
+import { machineNameByDefault } from './remotes.ts'
 import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from './secrets.ts'
 import { awayGroup } from './settings-away.ts'
 import { intakeGroup } from './settings-intake.ts'
@@ -337,6 +338,28 @@ export function settingsOf(
           type: { kind: 'text', placeholder: 'checks queue.holds', list: true },
           live: true,
           keywords: ['pin', 'pinned', 'sync', 'machines', 'remote', 'carry', 'own', 'in step'],
+        },
+        {
+          // Read at every carry, claim and push (`machineLabel`), so it is
+          // live. `never` to the orchestrator with the rest of `machine`.
+          path: 'machine.name',
+          title: 'This machine’s name',
+          means:
+            'what your other machines call this one — in a merge one of them proposes, in who holds a duty, in its branches handed to them; never the host name',
+          value: config.machine.name ?? '',
+          fallback: machineNameByDefault(),
+          type: { kind: 'text', placeholder: machineNameByDefault() },
+          live: true,
+          keywords: [
+            'name',
+            'machine',
+            'hostname',
+            'host name',
+            'label',
+            'laptop',
+            'remote',
+            'mirror',
+          ],
         },
         {
           // Read where work is planned (`hubOf`, `placeQueued`), so it is live.

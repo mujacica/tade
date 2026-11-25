@@ -13,7 +13,6 @@ import {
   rmdir,
   writeFile,
 } from 'node:fs/promises'
-import { hostname } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import {
   BACKUP_TAG,
@@ -24,6 +23,7 @@ import {
   type Config,
   expandHome,
   MANIFEST,
+  machineLabel,
   manifestOf,
   type ProjectKept,
   passwordFor,
@@ -258,7 +258,8 @@ export async function backUp(place: BackupPlace, now = Date.now()): Promise<Back
     records,
     projects: await projectsKept(place.config),
     tade: runningVersion(),
-    machine: hostname(),
+    // What the person calls it (`machine.name`), never its host name.
+    machine: machineLabel(),
     at: new Date(now).toISOString(),
   }
   const path = join(place.home, MANIFEST)

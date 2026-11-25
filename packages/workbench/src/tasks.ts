@@ -82,6 +82,11 @@ export interface CreateTaskOptions {
   /** The race or the replay this is one entrant in, by its slug: always in a worktree of its own. */
   race?: string
   replay?: string
+  /**
+   * The branch whose two machines' copies it brings together (`mergeProposal`):
+   * its push is that branch, never a review, whatever the project's `push` says.
+   */
+  merges?: string
   /** The harness its agent runs in, when it is not the route's. */
   harness?: string
   /** Who asked for it: kept in the task file, as `TaskOrigin` says it. */
@@ -219,6 +224,7 @@ async function writeOwnFiles(
       effort: opts.effort,
       race: opts.race,
       replay: opts.replay,
+      merges: opts.merges,
       harness: opts.harness,
       setup,
     },
@@ -290,7 +296,16 @@ async function writeTaskFile(
   links: readonly { title: string; url: string }[],
   kept: Pick<
     CreateTaskOptions,
-    'by' | 'done' | 'produces' | 'start' | 'effort' | 'race' | 'replay' | 'harness' | 'parked'
+    | 'by'
+    | 'done'
+    | 'produces'
+    | 'start'
+    | 'effort'
+    | 'race'
+    | 'replay'
+    | 'merges'
+    | 'harness'
+    | 'parked'
   > & {
     setup?: Setup | null | undefined
   },
@@ -310,6 +325,7 @@ async function writeTaskFile(
       ...(kept.effort ? { effort: kept.effort } : {}),
       ...(kept.race ? { race: kept.race } : {}),
       ...(kept.replay ? { replay: kept.replay } : {}),
+      ...(kept.merges ? { merges: kept.merges } : {}),
       ...(kept.harness ? { harness: kept.harness } : {}),
       ...(links.length > 0 ? { links: links.map(({ title, url }) => ({ title, url })) } : {}),
       ...(kept.by ? { by: kept.by } : {}),
@@ -906,19 +922,25 @@ export async function guardName(
     created.map((event) => event.task),
     id,
   )
-  if (clash) {
-    throw new Error(
-      clash === id
-        ? `${id} was used before, and a task's name is never used twice: pick another`
-        : `${id} would carry on ${clash}'s conversation, which was used before: pick another name`,
-    )
-  }
+  if (clash) throw new NameUsed(id, clash)
   // Not caught: the copies are read by something that never throws over one it
   // cannot read, so a throw here is trouble the caller says.
   const elsewhere = (await deps.elsewhere?.()) ?? new Map<string, string>()
   const there = sameConversation(deps.keyOf, [...elsewhere.keys()], id)
   if (!there) return
   throw new NameUsedElsewhere(id, there, elsewhere.get(there) ?? 'another machine')
+}
+
+/** A name this machine made already: whoever picks names by rule picks the next one (`proposeMerge`). */
+export class NameUsed extends Error {
+  constructor(id: string, clash: string) {
+    super(
+      clash === id
+        ? `${id} was used before, and a task's name is never used twice: pick another`
+        : `${id} would carry on ${clash}'s conversation, which was used before: pick another name`,
+    )
+    this.name = 'NameUsed'
+  }
 }
 
 /** A name another of the person's machines made already: a take renames the task rather than refusing it. */

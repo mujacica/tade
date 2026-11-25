@@ -375,7 +375,7 @@ const ALLOWED: Record<string, number> = {
   'packages/workbench/src/feeds.ts': 1,
   'packages/workbench/src/ignore.ts': 1,
   'packages/workbench/src/intake-acts.ts': 3,
-  'packages/workbench/src/intake.ts': 3,
+  'packages/workbench/src/intake.ts': 2,
   'packages/workbench/src/lane-liveness.ts': 2,
   'packages/workbench/src/lock.ts': 1,
   'packages/workbench/src/machine.ts': 2,

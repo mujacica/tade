@@ -468,6 +468,11 @@ describe('the shape of the rule', () => {
       // of the ones it shares: where Tade sends something, and whose word
       // reaches it from the person's other machines.
       'machine.hub',
+      // What this machine is called on the others, and so the namespace its
+      // branches are pushed under in their mirrors: named another machine's,
+      // its commits land as that machine's branches, which a hub
+      // fast-forwards its checkout to. Where Tade sends something, so never.
+      'machine.name',
       'machine.pinned',
       // A command run as you before an agent starts, and how long it may
       // run: `projects` is `never` because of `root`, and neither of these is

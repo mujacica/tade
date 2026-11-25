@@ -2,15 +2,24 @@ import {
   type BranchThere,
   type Elsewhere,
   fetchDue,
+  formerLabel,
   liveThere,
   machineLabel,
+  machineNameByDefault,
   mirrorDir,
   mirrorMachine,
   printable,
   sameRepository,
 } from '@tade/core'
 import type { Held, Remote, RemoteLink } from '@tade/remotes-core'
-import { fetchMirror, headsHere, mirrorHeads, pushMirror, repositoryAt } from '@tade/status'
+import {
+  dropFromMirror,
+  fetchMirror,
+  headsHere,
+  mirrorHeads,
+  pushMirror,
+  repositoryAt,
+} from '@tade/status'
 import { RepositoriesAnswerSchema } from '@tade/web'
 
 // Other machines' work in this machine's projects, kept in a mirror of each
@@ -111,6 +120,8 @@ export class Mirrors {
   private readonly turns = new Map<string, Promise<unknown>>()
   /** This machine's branches as last pushed into each remote's mirror of each project, by remote and project. */
   private readonly pushed = new Map<string, string>()
+  /** The mirrors this machine's branches under its former name were taken out of, this time Tade is open. */
+  private readonly dropped = new Set<string>()
   private handed: Readonly<Record<string, Elsewhere>> | null = null
 
   constructor(deps: MirrorsDeps) {
@@ -316,6 +327,38 @@ export class Mirrors {
     if (failed !== null)
       return `${here.name}'s branches could not be handed to ${machine}: ${printable(failed)}`
     this.pushed.set(key, heads)
+    return await this.dropFormer(key, here, as, to)
+  }
+
+  /**
+   * This machine's branches under the name it had before it had one of its
+   * own — its host name — taken out of that mirror, once: otherwise that
+   * machine goes on seeing a source of that name, parted from everything, and
+   * proposes merging it under that name. Never a name that could be another
+   * machine's: a default, or this machine's own name now.
+   */
+  private async dropFormer(
+    key: string,
+    here: { name: string; root: string },
+    as: string,
+    to: NonNullable<ReturnType<RemoteLink['repository']>>,
+  ): Promise<string | null> {
+    if (this.dropped.has(key)) return null
+    const former = mirrorMachine(formerLabel())
+    const anybodys = new Set([
+      as,
+      'machine',
+      machineNameByDefault('darwin'),
+      machineNameByDefault('linux'),
+    ])
+    if (anybodys.has(former)) {
+      this.dropped.add(key)
+      return null
+    }
+    const failed = await dropFromMirror(here.root, former, to)
+    if (failed !== null)
+      return `${here.name}'s branches under this machine's former name could not be taken back: ${printable(failed)}`
+    this.dropped.add(key)
     return null
   }
 

@@ -14,6 +14,8 @@ export interface TaskSaid {
   workspace: 'checkout' | 'worktree'
   /** It is a replay's entrant, a measurement: nothing of it is pushed. */
   replay: boolean
+  /** It merges two machines' copies of a branch: pushed onto it in its own words, never put up for review. */
+  merges: boolean
 }
 
 const NONE: TaskSaid = {
@@ -22,6 +24,7 @@ const NONE: TaskSaid = {
   produces: '',
   workspace: 'worktree',
   replay: false,
+  merges: false,
 }
 
 /** What a task's file says: what was asked, and the name a person chose, if any. */
@@ -35,6 +38,7 @@ export async function taskSaid(home: string, task?: string): Promise<TaskSaid> {
       produces?: unknown
       workspace?: unknown
       replay?: unknown
+      merges?: unknown
     } | null
     return {
       intent: typeof file?.intent_spoken === 'string' ? file.intent_spoken : '',
@@ -42,6 +46,7 @@ export async function taskSaid(home: string, task?: string): Promise<TaskSaid> {
       produces: typeof file?.produces === 'string' ? file.produces : '',
       workspace: file?.workspace === 'checkout' ? 'checkout' : 'worktree',
       replay: typeof file?.replay === 'string',
+      merges: typeof file?.merges === 'string',
     }
   } catch {
     // No task file: an agent opened on a worktree Tade did not make.

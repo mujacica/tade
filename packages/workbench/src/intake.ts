@@ -1,4 +1,3 @@
-import { hostname } from 'node:os'
 import {
   type Config,
   INTAKE_REPLY_ATTEMPTS,
@@ -26,6 +25,7 @@ import {
   intakeSays,
   intakeSuffix,
   intakeSummary,
+  machineLabel,
   type PlanChoice,
   type PlanStanding,
   planTooTight,
@@ -100,20 +100,19 @@ export function intakeSourceOf(name: string): IntakeSource | null {
 }
 
 /**
- * What this machine is called, for a status the owner allowed to name it.
+ * What this machine is called, for a status the owner allowed to name it: the
+ * name the person gave it (`machine.name`, `machineLabel`), never its host
+ * name — which is the one name they did not choose, and a tracker is read by
+ * whoever the tracker lets read it.
  *
  * Exported because the rule and the door both put the sentence together and
- * must put the same one together: `outboxFor` is pure and cannot read a
- * hostname, so whoever asks it hands this in, and `sayBackAbout` reads it
- * again at the moment of posting. One definition, two readers — rather than a
- * preview that says one thing and a post that says another.
+ * must put the same one together: `outboxFor` is pure, so whoever asks it hands
+ * this in, and `sayBackAbout` reads it again at the moment of posting. One
+ * definition, two readers — rather than a preview that says one thing and a
+ * post that says another.
  */
 export function intakeMachine(): string {
-  try {
-    return hostname().split('.')[0] ?? ''
-  } catch {
-    return ''
-  }
+  return machineLabel()
 }
 
 /**

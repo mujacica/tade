@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest'
 import {
   ConfigSchema,
   type Contains,
+  formerMergeStem,
+  mergeMessage,
   mergeProposal,
   mergeSlugStem,
   mirrorMachine,
+  ORIGIN,
   parseConfig,
   type SyncFacts,
   syncedNews,
@@ -245,7 +248,7 @@ describe('what is said', () => {
     )
   })
 
-  it('names a merge proposal by its source, branch and target, in a usable task name', () => {
+  it('names a merge proposal by its branch and target alone, in a usable task name', () => {
     const made = mergeProposal({
       project: 'app',
       branch: 'release/1.0',
@@ -254,15 +257,55 @@ describe('what is said', () => {
       target: C,
       ahead: 1,
       behind: 2,
+      pushes: true,
     })
-    expect(made.slug).toBe(`merge-vps-release-1-0-${C.slice(0, 7)}`)
-    expect(made.slug.startsWith(`${mergeSlugStem('vps', 'release/1.0')}-`)).toBe(true)
+    // The slug is the worktree's branch, and git's merge message names it: no machine in it.
+    expect(made.slug).toBe(`merge-release-1-0-${C.slice(0, 7)}`)
+    expect(made.slug.startsWith(`${mergeSlugStem('release/1.0')}-`)).toBe(true)
+    expect(made.slug).not.toContain('vps')
+    expect(formerMergeStem('vps', 'release/1.0')).toBe('merge-vps-release-1-0')
     expect(made.prompt).toContain('Tade only ever fast-forwards')
     expect(made.context).toContain(`git merge ${C}`)
   })
 
+  it('merges on one machine and pushes onto the branch, never a review, whatever push says', () => {
+    const made = mergeProposal({
+      project: 'app',
+      branch: 'main',
+      from: 'ipax',
+      head: A,
+      target: C,
+      ahead: 3,
+      behind: 2,
+      pushes: true,
+    })
+    expect(made.prompt).toContain('git push origin HEAD:main')
+    expect(made.prompt).toContain(`git merge --no-ff -m "${mergeMessage('ipax', 'main')}" ${C}`)
+    expect(mergeMessage('ipax', 'main')).toBe("Merge ipax's main into main")
+    expect(made.prompt).toContain('Never open a review or a pull request')
+    expect(made.prompt).not.toMatch(/open (a|one) review for (it|your)/)
+    expect(made.prompt).toContain('never force-push')
+
+    // A person's `never` is kept: the merge is made and handed over, not pushed.
+    const held = mergeProposal({
+      project: 'app',
+      branch: 'main',
+      from: ORIGIN,
+      head: A,
+      target: C,
+      ahead: 1,
+      behind: 1,
+      pushes: false,
+    })
+    expect(held.prompt).not.toContain('git push origin HEAD:main')
+    expect(held.prompt).toContain('git push origin <commit>:main')
+    expect(held.prompt).toContain(
+      'git merge --no-ff -m "Merge origin\'s main into main" origin/main',
+    )
+  })
+
   it('makes a namespace of a host name', () => {
-    expect(mirrorMachine('Amirs-MacBook-Pro.local')).toBe('amirs-macbook-pro-local')
+    expect(mirrorMachine('Serial-Laptop.example.local')).toBe('serial-laptop-example-lo')
     expect(mirrorMachine('mac')).toBe('mac')
     expect(mirrorMachine('origin')).toBe('machine')
     expect(mirrorMachine('___')).toBe('machine')

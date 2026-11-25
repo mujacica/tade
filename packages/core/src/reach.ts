@@ -222,7 +222,10 @@ const NEVER: readonly (readonly [string, string])[] = [
   // What this machine keeps out of the settings it shares with the others
   // (`machine.pinned`, `carry.ts`): a pin on `approvals` is a machine that no
   // longer hears the person tighten them elsewhere, which changes who decides
-  // what agents may do here — so the person's.
+  // what agents may do here — so the person's. And what it is called there
+  // (`machine.name`), which is the namespace its branches are pushed under
+  // in their mirrors: another machine's name, and its commits are that
+  // machine's branches to a hub that fast-forwards to them.
   [
     'machine',
     'which settings this machine keeps to itself decides whose word reaches it from your other machines, and that is yours to move',

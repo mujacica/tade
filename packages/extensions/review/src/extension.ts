@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url'
+import { hostNameIn } from '@tade/core'
 import {
   boolean,
   type ExtensionContext,
@@ -602,6 +603,13 @@ export const reviewExtension: TadeExtension = {
         const body = [said.trim(), task ? `${TASK_TRAILER}: ${task}` : '']
           .filter(Boolean)
           .join('\n\n')
+        // A forge is read by whoever it lets read it, and this machine's host
+        // name is the one name the person never chose for it (`machine.name`).
+        if (hostNameIn(`${branch}\n${title}\n${body}`)) {
+          throw new Error(
+            "this review names this machine by its host name — in its branch, title or body — so it was not opened: call a machine by the name the person gave it (Settings › This machine's name), and rename the branch if it is there",
+          )
+        }
         const draft = input.draft === undefined ? settings.draft : input.draft === true
         const made = await where.forge.open({
           repo: where.repo,

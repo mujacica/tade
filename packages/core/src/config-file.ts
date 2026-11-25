@@ -17,6 +17,7 @@ import { type Config, ConfigSchema } from './config.ts'
 import { dropGone } from './gone.ts'
 import { defaultConfigPath } from './home.ts'
 import { pushProblems } from './project.ts'
+import { nameThisMachine } from './remotes.ts'
 
 // The file `ConfigSchema` is read out of and written back to. Its own file
 // because the schema is the half that grows with every setting anybody adds,
@@ -171,6 +172,14 @@ function ownerOnly(path: string, text: string): void {
 
 /** Load config from disk. A missing file is not an error: defaults apply. */
 export async function loadConfig(path = defaultConfigPath()): Promise<ConfigResult> {
+  const loaded = await readConfig(path)
+  // What this machine is called is the file's, the moment it is read: every
+  // `machineLabel` after this reads it, and nothing holds a copy (`remotes.ts`).
+  if (loaded.ok) nameThisMachine(loaded.config.machine.name)
+  return loaded
+}
+
+async function readConfig(path: string): Promise<ConfigResult> {
   let text: string
   try {
     text = await readFile(path, 'utf8')

@@ -11,6 +11,7 @@ import { AUTH_BYTES, appendPush, generateVapid, P256DH_BYTES, scriptedPusher } f
 import { BATCH_BY, readTaskFile, Workbench } from '@tade/workbench'
 import { recordConfigChanges } from '@tade/workbench/config-changes'
 import { awaitTask, requestTask } from '@tade/workbench/task-requests'
+import { taskFilePath } from '@tade/workbench/tasks'
 import { afterEach, beforeEach, describe, expect, it, onTestFinished } from 'vitest'
 import { parse, stringify } from 'yaml'
 import { mkrepo, runGit, tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -328,10 +329,15 @@ describe('the heart, with no screen', () => {
     await one.configTools().syncProject({ project: 'app' })
     await one.configTools().syncProject({ project: 'app' })
     expect(repo.head()).toBe(mine)
-    const id = `app/merge-vps-main-${theirs.slice(0, 7)}`
+    const id = `app/merge-main-${theirs.slice(0, 7)}`
     const made = (await client.events({ types: ['task_created'] })).filter((e) => e.task === id)
     expect(made).toHaveLength(1)
     expect(made[0]?.detail).toMatchObject({ workspace: 'worktree', proposed: true })
+    // Merged in its worktree and pushed onto main, never put up for review.
+    const told = String(made[0]?.detail.intent_spoken)
+    expect(told).toContain('git push origin HEAD:main')
+    expect(told).toContain('Never open a review or a pull request')
+    expect(readFileSync(taskFilePath(home, id), 'utf8')).toContain('merges: main')
     // Parked, and the orchestrator's one tool for proposals sees it waiting.
     expect((await readTaskFile(home, id))?.parked).toBe(true)
     const all = await client.events({})
