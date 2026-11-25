@@ -204,9 +204,11 @@ curl -fsSL https://tade.sh/install.sh | sh
 tade                                          # the window; the first time, a short setup
 ```
 
-Or by hand: `npm install -g tade-sh`, `pnpm add -g tade-sh` or `bun add -g tade-sh`. Nothing is
-compiled and nothing asks you to approve an install script: both native modules arrive ready-built,
-for macOS and for Linux with glibc 2.28 or newer, on x64 and arm64 (not Alpine).
+Or by hand: `npm install -g tade-sh`, `pnpm add -g tade-sh` or
+`bun add -g --ignore-scripts tade-sh` (bun would otherwise compile a module that comes ready-built,
+and fail without a compiler). Nothing is compiled and nothing asks you to approve an install script:
+both native modules arrive ready-built, for macOS and for Linux with glibc 2.28 or newer, on x64 and
+arm64 (not Alpine).
 `tade setup --check` looks at the machine again whenever you like. Optional: tmux 3.2+ (agents that
 outlive the window — install Tade for those rather than running it from npx, whose cache npm may
 replace under them), whisper.cpp and ffmpeg (speech), `gh`. Any modern terminal runs it; it works
