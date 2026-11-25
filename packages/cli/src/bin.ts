@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import { builtForAnotherNode, npmBeside, ptyAddon } from './addon.ts'
 import { nodeTooOld } from './node.ts'
 import { opensWindow, sayOpening, unsayOpening } from './opening.ts'
 import { endsQuietly } from './pipe.ts'
 import { needsNode } from './version.ts'
 
-// Nothing below this line is imported at the top, and the four above it are
-// each a file with no dependency of its own — but `opening.ts`'s drawing,
+// Nothing below this line is imported at the top, and the five above it are
+// each a file with no dependency of its own but Node's — but `opening.ts`'s drawing,
 // `splash.ts`, which has none either. A static import is evaluated
 // before any statement in this file, so anything imported here is code that
 // runs before the check that says whether this Node can run it — which on Node
@@ -13,6 +14,20 @@ import { needsNode } from './version.ts'
 const tooOld = nodeTooOld(process.versions.node, needsNode(), process.execPath)
 if (tooOld !== null) {
   process.stderr.write(tooOld)
+  process.exit(1)
+}
+
+// A node-pty compiled against a system Node's libnode loads under this one and
+// aborts the process on exit, which no catch below can answer (`addon.ts`).
+const elsewhere = builtForAnotherNode(
+  ptyAddon(),
+  // Every Node sets it, but @types/node does not declare it.
+  (process.config.variables as Record<string, unknown>).node_shared === true,
+  process.version,
+  npmBeside(process.execPath),
+)
+if (elsewhere !== null) {
+  process.stderr.write(elsewhere)
   process.exit(1)
 }
 

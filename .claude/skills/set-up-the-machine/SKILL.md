@@ -43,7 +43,7 @@ and setting up ends by actually opening a lane — because every other check is 
 | `packages/harnesses/core/src/sign-in.ts` | `signInHere` (is a browser here?), `signInLasts` (how long a sign-in has left) |
 | `packages/drivers/tmux/src/scope.ts` | the lanes' tmux server in a systemd scope of its own, under a user service |
 | `packages/cli/src/commands/update.ts` | `tade update`, and `--check` as the only thing that dials |
-| `packages/cli/src/bin.ts` | the door: `nodeTooOld` before any other import, then `nativeTrouble` |
+| `packages/cli/src/bin.ts` | the door: `nodeTooOld` before any other import, `builtForAnotherNode`, then `nativeTrouble` |
 | `packages/cli/src/node.ts` | `nodeTooOld`, and the two private halves `numbers` and `below` |
 | `packages/cli/src/version.ts` | `needsNode`, `version` — `engines.node`, read back |
 | `packages/drivers/{core,pty,tmux}` | `WorkspaceDriver.programs`; the pty driver's `helperAt`/`helperProblem` |
@@ -695,6 +695,14 @@ run it. Everything else is reached through a dynamic `import()` inside `load()`.
 
 A dependency that did not load at all is the other half of the same door and is `nativeTrouble`'s;
 what it says and why is in `cut-a-release`, under what a user's install runs.
+
+One that *does* load can still be wrong for this Node, and that is checked at the door too
+(`builtForAnotherNode`, `addon.ts`). Debian's node-gyp links node-pty to the system's
+`libnode.so.127`; swap in an official Node of the same ABI and the addon loads, the command runs,
+and the process aborts on exit — 134, `--version` included, nothing to catch. So an addon naming
+`libnode.so` under a Node that is not `node_shared` is refused before loading, with the rebuild:
+`npm run install` in node-pty's directory, using the npm **beside this Node**, because Debian's
+builds against the system headers whichever Node runs it.
 
 ## Steps
 
