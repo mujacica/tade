@@ -253,6 +253,7 @@ export function screenless(heart: () => Beating): Face {
       copyToClipboard: async () => false,
       routes: () => ({ offersFor: () => null, openModels: nothing, openAccount: nothing }),
       handsOver: () => null,
+      there: () => null,
     },
     projects: { rememberWindow: () => {} },
     orchestrator: {
@@ -452,6 +453,7 @@ export class Heart {
           ),
     )
     this.queue = new Queue(this.wire, {
+      there: () => face.agents.there(),
       orchestrator: () => this.told,
       comingBack: () => this.agents.comingBack(),
       places: () => face.places?.() ?? null,
@@ -469,6 +471,7 @@ export class Heart {
       },
     })
     this.schedules = new Schedules(this.wire, {
+      there: () => face.agents.there(),
       news: (words) => this.told.note(words),
       duties: this.duties,
       orchestrator: () => this.told,

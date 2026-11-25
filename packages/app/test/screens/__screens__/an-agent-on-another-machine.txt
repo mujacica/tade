@@ -2,25 +2,25 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  4                on vps █│ ! Webhooks ring the doorbell                                                                                    vps · 12m 
                                    █│   wants approval: gh api                                                                                                  
- ▌ ! Webhooks ring the doorbell    █│                                                                                                                           
- ▌   12m · wants approval: gh a…   █│   ⏎ type into it     steer…     park     stop                                                                             
+ ▌ ! Webhooks ring the d…          █│                                                                                                                           
+ ▌   wants you to approve repos…   █│   ⏎ type into it     steer…     park     stop                                                                             
                                    █│ wants approval                                                                                                            
    ⠋ remote-link                   █│  gh api  repos/acme/checkout/hooks --method POST -f name=web -f events[]=push -f                                          
-     2m · running the suite        █│          config[url]=https://vps.example.com/hooks/github -f config[secret]=•••                                           
+     working · running the suite   █│          config[url]=https://vps.example.com/hooks/github -f config[secret]=•••                                           
                                    █│   allow     deny                                                                                                          
    ⠋ mirror-branches               █│                                                                                                                           
-     41m · working                 █│── its screen on vps · read-only · as of 14:00 ────────────────────────────────────────────────────────────────────────────
+     working                       █│── its screen on vps · read-only · as of 14:00 ────────────────────────────────────────────────────────────────────────────
                                    █│> wire the GitHub webhook to the doorbell, then prove a delivery wakes the watch                                           
-   ✓ Notes are shared both ways    █│                                                                                                                           
-     1h 35m · finished: set uni…   █│● I will register the hook on acme/checkout and send a test delivery.                                                      
+   ✓ Notes are shared bo…          █│                                                                                                                           
+     finished: set union, tombs…   █│● I will register the hook on acme/checkout and send a test delivery.                                                      
                                    █│                                                                                                                           
  ▾ SMART QUEUE  1                  █│● Bash(gh api repos/acme/checkout/hooks --method POST -f name=web …)                                                       
                                    █│                                                                                                                           
    ◌ linear-door                   █│  Do you want to proceed?                                                                                                  
-     30m · waits on intake-webh…   █│  ❯ 1. Yes                                                                                                                 
+     waits on intake-webhooks      █│  ❯ 1. Yes                                                                                                                 
                                    ▕│    2. Yes, and don’t ask again for gh api commands                                                                        
- ▸ INTAKE                          ▕│    3. No, and tell Claude what to do differently                                                                          
- ▸ CHECKS                          ▕│                                                                                                                           
+ ▸ SCHEDULES          not said yet ▕│    3. No, and tell Claude what to do differently                                                                          
+ ▸ INTAKE                          ▕│                                                                                                                           
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
                                                                                                                                                                 
                                                                                                                                                                ▕

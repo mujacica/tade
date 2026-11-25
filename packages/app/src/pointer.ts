@@ -25,6 +25,7 @@ import {
   type Within,
   wordAcross,
 } from './selection.ts'
+import { isThere } from './there.ts'
 import { timing } from './timing.ts'
 import { LastFrame } from './view/last-frame.ts'
 import { draw } from './view.ts'
@@ -611,7 +612,11 @@ export class Painted implements Component {
         }
         this.selectingFile = null
         // An agent pressed may be about to be dragged somewhere else in the list.
-        this.held = target?.kind === 'task' ? heldAgent(this.hits, target.task, event.y) : null
+        // Another machine's rows keep that machine's order: nothing here moves them.
+        this.held =
+          target?.kind === 'task' && !isThere(target.task)
+            ? heldAgent(this.hits, target.task, event.y)
+            : null
         // Anywhere that is not a control is text you might select — and only
         // ever within the one region it was started in. A link or a path is
         // both: the press starts a selection here too, and the click that

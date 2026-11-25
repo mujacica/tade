@@ -49,6 +49,7 @@ import {
   whyStarting,
 } from '../queue.ts'
 import { QUEUE_SCOPES } from '../queue-view.ts'
+import { isThere, refOf } from '../there.ts'
 import { tadeDid } from '../transcript.ts'
 import {
   type Actions,
@@ -67,6 +68,7 @@ import { type Places, placePlan } from './placing.ts'
 import { decideProposal, type ProposalRequest } from './proposals.ts'
 import { intakeSays, planHold, plansFor, probingNow, standsFor } from './queue-holds.ts'
 import { type RaceTools, raceTools } from './races.ts'
+import type { ThereDoor } from './remote-agent.ts'
 import { type ReplayTools, replaysLook, replayTools } from './replays.ts'
 // Type-only, so it is erased and no module edge exists between the two
 // subjects: the queue's tools answer for schedules as well, and this is the
@@ -114,6 +116,8 @@ const ONE_PIECE: ReadonlySet<string> = new Set([
 
 /** What this subject needs from the rest of the window. */
 export interface QueueDeps {
+  /** Where queued work on another machine goes (`there.ts`); null where the window links nothing. */
+  there?(): ThereDoor | null
   /**
    * The orchestrator: `note` what it has not heard yet, to go with the next
    * thing said, and `tell` what it needs now rather than then.
@@ -447,6 +451,14 @@ export class Queue implements Subject {
    * two seconds for anything to happen reads as broken.
    */
   async change(task: string, change: string): Promise<void> {
+    // Queued work on another machine: the same press, carried there.
+    if (isThere(task)) {
+      const door = this.deps.there?.()
+      if (door) return door.fromTaskMenu(task, `queue-${change}`)
+      notify(this.wire, `this window does not link to ${refOf(task).machine}`)
+      this.wire.draw()
+      return
+    }
     if (change === 'after' || change === 'retell') {
       this.ask(task, change)
       return
@@ -1095,6 +1107,8 @@ export class Queue implements Subject {
     return {
       'queue-retell': async (panel, text) => {
         const task = panel.target ?? ''
+        const door = isThere(task) ? this.deps.there?.() : null
+        if (door) return done(await door.retell(task, text))
         done(await this.tools().change({ task, change: 'retell', prompt: text, by: 'you' }))
       },
     }

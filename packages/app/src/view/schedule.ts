@@ -393,7 +393,8 @@ export function renderSchedule(
     const watch = one.watch
     if (watch) {
       const acts = watch.found === 'agent' ? (watch.most === 1 ? 'agent' : 'agents') : 'told'
-      fact('AT MOST', `${watch.most} ${acts} a look`)
+      // Not said is not nought: another machine's watch sends no budget (`there.ts`).
+      if (watch.most > 0) fact('AT MOST', `${watch.most} ${acts} a look`)
       // Which machine looks with it, wherever this one links to another: one per
       // repository (`watchWhere`), and the newest look says which and why.
       const left = watch.looks[0]

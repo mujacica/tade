@@ -387,7 +387,7 @@ export function queueSpread(
  * pointer — is pinned to the side and not to the tree: a button you cannot
  * reach because the chain is deep is a button that is gone.
  */
-function queueRow(
+export function queueRow(
   width: number,
   skin: Skin,
   pointer: Pointer,
@@ -453,7 +453,7 @@ function queueRow(
   // Level with the name above it, whatever lines pass under the mark.
   laidSaid.space(Math.max(1, shift + 3 - laidSaid.used))
   laidSaid.text(
-    shortened(queueSays(pane), Math.max(1, laidSaid.width - laidSaid.used - 1)),
+    shortened(row.says ?? queueSays(pane), Math.max(1, laidSaid.width - laidSaid.used - 1)),
     skin.hint,
     target,
   )

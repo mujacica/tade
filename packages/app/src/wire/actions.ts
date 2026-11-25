@@ -7,6 +7,7 @@ import type { PanelOutcome } from '../panels/outcome.ts'
 import { UPDATES } from '../panels/settings/state.ts'
 import type { PromptPanel } from '../panels/small/state.ts'
 import type { Panel, PanelInputs } from '../panels.ts'
+import { isThere } from '../there.ts'
 import {
   type Actions,
   menuOf,
@@ -224,8 +225,11 @@ export class Router {
   openMenu(subject: MenuSubject, at: { x: number; y: number }): void {
     // Opening an agent's menu is standing on that agent: everything the menu
     // then says is about the one in front of you.
+    // Not one on another machine: the window's focus is this machine's alone,
+    // and its menu says which agent it is about in its title.
+    const there = subject.kind === 'task' && isThere(subject.task)
     const base =
-      subject.kind === 'task' ? focusTask(this.wire.state, subject.task) : this.wire.state
+      subject.kind === 'task' && !there ? focusTask(this.wire.state, subject.task) : this.wire.state
     const title = menuOf(this.deps.subjects(), subject.kind)?.title(subject) ?? ''
     this.wire.put({
       ...base,

@@ -44,6 +44,7 @@ const agent = (over: Partial<RemoteAgent> & Pick<RemoteAgent, 'name' | 'mark'>):
   parked: false,
   lane: over.mark === 'done' || over.mark === 'stopped' ? 'stopped' : 'running',
   can: [],
+  cannot: [],
   ...over,
 })
 

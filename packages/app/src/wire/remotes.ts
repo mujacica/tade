@@ -54,6 +54,7 @@ import type { Ui } from '../screen.ts'
 import { showTalk, talkTab } from '../talk-tab.ts'
 import { remoteStanding } from '../view/standing.ts'
 import { projectSays } from '../view/top.ts'
+import type { MachineActs } from './acts.ts'
 import { Carries, type CarriesDeps } from './carry.ts'
 import { recordChange } from './config-written.ts'
 import {
@@ -79,7 +80,7 @@ import {
 } from './notes-shared.ts'
 import type { Places } from './placing.ts'
 import type { ProjectDoor } from './project-moves.ts'
-import { RemoteAgents } from './remote-agent.ts'
+import { RemoteAgents, type ThereDoor } from './remote-agent.ts'
 import { RemoteMachines } from './remote-machine.ts'
 import { closeThere, remoteProjectItems } from './remote-project.ts'
 import { type RemoteReads, remoteReads } from './remote-reads.ts'
@@ -394,6 +395,11 @@ export class Remotes implements Subject {
     if (this.agents === null)
       return this.deps.say('this window opens no terminal to another machine')
     await this.agents.shell(machine, project)
+  }
+
+  /** Where a row of another machine's goes (`there.ts`): the agents there, which carry every press. */
+  there(): ThereDoor | null {
+    return this.agents
   }
 
   /** Hand it what opens an agent there, which reaches the links through it. */
@@ -980,6 +986,8 @@ export function remotesFor(
     waiting?: WaitingThere
     /** The hub this machine's own conversation is one with, whose turn escape here stops (`conversation.ts`). */
     oneWith?: () => string | null
+    /** Another machine's own tool calls, through its gate (`acts.ts`): what a press on a schedule there is. */
+    acts?: () => Pick<MachineActs, 'pressed'>
   },
 ): Remotes {
   const say = (said: string) => {
@@ -1058,7 +1066,13 @@ export function remotesFor(
     },
     say,
   })
-    .withAgents((remotes) => new RemoteAgents(wire, reachingOf(remotes)))
+    .withAgents((remotes) => {
+      const acts = subjects.acts
+      return new RemoteAgents(wire, {
+        ...reachingOf(remotes),
+        ...(acts && { pressed: (req) => acts().pressed(req) }),
+      })
+    })
     .withTalks(
       (remotes) => new RemoteTalks(wire, { ...reachingOf(remotes), oneWith: subjects.oneWith }),
     )

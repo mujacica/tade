@@ -27,6 +27,7 @@ import { promptPanel } from '../panels/small/state.ts'
 import { foundMessage, scheduleView, scheduleViews } from '../queue.ts'
 import { NEVER_RAN } from '../schedule-fold.ts'
 import { hush, unhush } from '../schedules-view.ts'
+import { isThere, refOf } from '../there.ts'
 import { problem, tadeDid } from '../transcript.ts'
 import {
   type Actions,
@@ -43,6 +44,7 @@ import { type Tellable, tellOrKeep } from './handed.ts'
 import { Kept } from './kept.ts'
 import { mayRun, type Network, networkOf, wasOffline } from './network.ts'
 import { actOnFound, offerRun } from './proposals.ts'
+import type { ThereDoor } from './remote-agent.ts'
 import { type FoundThere, foundThereOf, inputDigest } from './watch-seen.ts'
 import { mayWatch, type WatchTools, watchTools } from './watch-tools.ts'
 import { noTwins, notLooking, type WatchTwinsHere, whereNow } from './watch-where.ts'
@@ -92,6 +94,8 @@ export interface ScheduleRequest {
 
 /** What this subject needs from the rest of the window. */
 export interface SchedulesDeps {
+  /** Where a schedule on another machine goes (`there.ts`); null where the window links nothing. */
+  there?(): ThereDoor | null
   /** Something happened the orchestrator has not heard yet: it goes with the next thing said. */
   news(said: string): void
   /**
@@ -167,7 +171,7 @@ export class Schedules implements Subject {
       // reason stays that reason — so the reason is read here rather than
       // passed in, and the row can never hush one failure by naming another.
       'schedule-hush:': (id: string) => {
-        const reason = this.views().find((one) => one.id === id)?.watch?.looks[0]?.problem
+        const reason = this.viewOf(id)?.watch?.looks[0]?.problem
         if (reason) this.wire.put(hush(this.wire.state, id, reason))
         this.wire.draw()
       },
@@ -177,9 +181,11 @@ export class Schedules implements Subject {
   menus(): Menus {
     return {
       schedule: {
-        title: (subject) => this.views().find((one) => one.id === subject.id)?.name ?? 'Schedule',
+        title: (subject) => this.viewOf(subject.id)?.name ?? 'Schedule',
         items: (subject) => {
-          const one = this.views().find((view) => view.id === subject.id)
+          const door = isThere(subject.id) ? this.deps.there?.() : null
+          if (door) return door.scheduleItems(subject.id)
+          const one = this.viewOf(subject.id)
           return one ? scheduleMenuItems(one) : []
         },
         choose: (subject, item) => this.onSchedule(subject.id, item.slice('schedule-'.length)),
@@ -191,6 +197,12 @@ export class Schedules implements Subject {
     return {
       'rename-schedule': async (panel, text) => {
         if (!panel.target) return
+        const door = isThere(panel.target) ? this.deps.there?.() : null
+        if (door) {
+          const said = await door.renameSchedule(panel.target, text)
+          this.wire.put(acknowledge({ ...this.wire.state, panel: null }, said, this.wire.now()))
+          return
+        }
         const kept = await this.wire.opts.client.changeSchedule({
           id: panel.target,
           change: 'rename',
@@ -217,8 +229,22 @@ export class Schedules implements Subject {
     return this.shown.of([live, live?.revision], made, due)
   }
 
+  /** A schedule here, or one on another machine as this machine's are shown (`there.ts`). */
+  private viewOf(id: string): ScheduleView | null {
+    if (isThere(id)) return this.deps.there?.()?.schedule(id) ?? null
+    return this.views().find((one) => one.id === id) ?? null
+  }
+
   /** What is done to a schedule from the window: yours, and at once. */
   async onSchedule(id: string, change: string): Promise<void> {
+    // One on another machine: the same press, carried there.
+    if (isThere(id)) {
+      const door = this.deps.there?.()
+      if (door) return door.onSchedule(id, change)
+      notify(this.wire, `this window does not link to ${refOf(id).machine}`)
+      this.wire.draw()
+      return
+    }
     try {
       if (change === 'open') {
         this.wire.put(openSchedule(this.wire.state, id))

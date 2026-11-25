@@ -295,7 +295,7 @@ export function renderSidebar(
   const make = () => new Row(width, skin, pointer)
   let previousOpen = false
   let previousBanded = false
-  const drawn = away ? elsewhereSections(frame, away, width, skin) : sections
+  const drawn = away ? elsewhereSections(state, frame, away, width, skin, pointer) : sections
   drawn.forEach((section, i) => {
     // A section of tabs already ends on the room below its last one.
     if (i > 0 && previousOpen && !previousBanded) out.push(blank(width))

@@ -77,6 +77,8 @@ export interface RemoteAgent {
   lane: 'running' | 'stopped' | 'none'
   /** The verbs that machine says may be asked of it now (its `can`); nothing else is offered. */
   can: readonly string[]
+  /** The ones it says may not, each with its sentence why, as text (its `cannot`). */
+  cannot: readonly { verb: string; why: string }[]
 }
 
 export interface RemoteProject {
@@ -344,11 +346,7 @@ function projectsIn(projection: Record<string, unknown>, skew: number): RemotePr
     // Echoed and compared there, never drawn, as an agent's is.
     one.rev = tokenIn(row, 'rev')
     one.can = verbsIn(row.can)
-    one.cannot = listIn(row.cannot).flatMap((no) => {
-      const verb = tokenIn(no, 'verb')
-      const why = text(no.why, SAID_MOST)
-      return verb === null ? [] : [{ verb, why: why === '' ? 'it says not now' : why }]
-    })
+    one.cannot = cannotIn(row.cannot)
     const counts = objectIn(row.counts)
     const total = numberIn(counts, 'tasks')
     const shown = numberIn(counts, 'shown')
@@ -401,7 +399,17 @@ function agentOf(
     parked: row.parked === true,
     lane: LANES.find((one) => one === row.lane) ?? 'none',
     can: verbsIn(row.can),
+    cannot: cannotIn(row.cannot),
   }
+}
+
+/** The verbs a row says may not be asked of it, each with its sentence why, as text. */
+function cannotIn(value: unknown): { verb: string; why: string }[] {
+  return listIn(value).flatMap((no) => {
+    const verb = tokenIn(no, 'verb')
+    const why = text(no.why, SAID_MOST)
+    return verb === null ? [] : [{ verb, why: why === '' ? 'it says not now' : why }]
+  })
 }
 
 /** The verbs a row says may be asked of it, by name: a token each, or nothing. */

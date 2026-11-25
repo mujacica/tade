@@ -70,6 +70,9 @@ export interface PromptPanel {
     | 'rename-lane'
     | 'run-command'
     | 'rename-agent'
+    /** The model or the account an agent on another machine runs on: `target` is its id here (`there.ts`). */
+    | 'model-there'
+    | 'account-there'
     | 'rename-schedule'
     /** What queued work's agent is told when it starts: `target` is the task. */
     | 'queue-retell'

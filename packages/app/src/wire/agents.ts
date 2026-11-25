@@ -25,6 +25,7 @@ import {
 } from '../panels/small/state.ts'
 import { answering, unanswered } from '../pending.ts'
 import { approvalId } from '../reality.ts'
+import { isThere, refOf } from '../there.ts'
 import {
   type Actions,
   flash,
@@ -36,6 +37,7 @@ import {
   type Wiring,
   why,
 } from './context.ts'
+import type { ThereDoor } from './remote-agent.ts'
 import { type Waker, wakerOf } from './sleep.ts'
 
 // The agents: making one, opening one again, stopping it, answering it, and
@@ -84,6 +86,8 @@ export interface AgentsDeps {
   routes(): AgentRoutes
   /** Handing it to another machine, which the remotes do (`moves.ts`); null where the window moves nothing. */
   handsOver(): HandsOver | null
+  /** Where a row of another machine's goes (`there.ts`); null where the window links nothing. */
+  there(): ThereDoor | null
 }
 
 /** What its harness lets a person ask of an agent, and the two pickers. */
@@ -190,7 +194,12 @@ export class Agents implements Subject {
         if (pane?.queued) await this.deps.changeQueue(pane.task, 'start')
         else await this.openAgent()
       },
-      'close-task:': (task) => this.closeAgent(task),
+      // There, `×` asks first and removes it, as Remove agent does: that machine
+      // offers no close that keeps the worktree, so the question says what goes.
+      'close-task:': (task) => {
+        const door = this.doorFor(task)
+        return door ? door.fromTaskMenu(task, 'remove') : this.closeAgent(task)
+      },
       'close-done': () => {
         // Nothing finished is nothing to clean up: said, rather than an empty
         // question nobody can answer.
@@ -272,10 +281,14 @@ export class Agents implements Subject {
     return {
       task: {
         title: (subject) => {
+          const door = this.doorFor(subject.task)
+          if (door) return door.title(subject.task)
           const pane = this.wire.state.panes.find((one) => one.task === subject.task)
           return pane ? shownName(pane) : subject.task
         },
         items: (subject) => {
+          const door = this.doorFor(subject.task)
+          if (door) return door.taskItems(subject.task)
           const pane = this.wire.state.panes.find((one) => one.task === subject.task)
           if (pane?.queued) return queueMenuItems(pane.queued)
           return pane
@@ -303,6 +316,12 @@ export class Agents implements Subject {
     return {
       'rename-agent': async (panel, text) => {
         if (!panel.target) return
+        const door = this.doorFor(panel.target)
+        if (door) {
+          const said = await door.rename(panel.target, text)
+          this.wire.put(acknowledge({ ...this.wire.state, panel: null }, said, this.wire.now()))
+          return
+        }
         const worktree = this.wire.live?.worktreeOf(panel.target)
         if (!worktree) throw new Error(`I do not know where ${panel.target} works`)
         const title = await this.wire.opts.client.renameAgent({
@@ -323,6 +342,8 @@ export class Agents implements Subject {
   }
 
   async fromTaskMenu(task: string, item: string): Promise<void> {
+    const door = this.doorFor(task)
+    if (door) return door.fromTaskMenu(task, item)
     const facts = this.wire.live?.factsOf(task)
     const worktree = this.wire.live?.worktreeOf(task)
     if (item.startsWith('queue-')) {
@@ -467,6 +488,18 @@ export class Agents implements Subject {
     this.wire.draw()
   }
 
+  /**
+   * The door a row of another machine's goes through, for an id that is one
+   * (`refOf`), or null for a row here. One that names a machine this window
+   * cannot reach still goes nowhere silently: it says so.
+   */
+  private doorFor(task: string): ThereDoor | null {
+    if (!isThere(task)) return null
+    const door = this.deps.there()
+    if (door) return door
+    throw new Error(`this window does not link to ${refOf(task).machine}`)
+  }
+
   /** Who hands work to another machine here, where this window links machines. */
   handsOver(): HandsOver | null {
     return this.deps.handsOver()
@@ -477,6 +510,8 @@ export class Agents implements Subject {
    * with it. Says what stopped it from happening, or nothing when it did.
    */
   private async removeOne(task: string): Promise<string | null> {
+    const door = this.doorFor(task)
+    if (door) return door.remove(task)
     const facts = this.wire.live?.factsOf(task)
     const worktree = this.wire.live?.worktreeOf(task)
     const root = facts ? this.wire.opts.config.projects[facts.project]?.root : undefined

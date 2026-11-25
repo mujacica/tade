@@ -34,6 +34,7 @@ function agent(name: string, reason = ''): RemoteAgent {
     parked: false,
     lane: 'running',
     can: [],
+    cannot: [],
   }
 }
 

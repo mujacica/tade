@@ -10,10 +10,14 @@ import {
   type Place,
   placeIn,
   type RemoteAgent,
+  type RemoteProject,
   type RemoteScreen,
   screenOf,
 } from '../machines.ts'
-import { promptPanel } from '../panels/small/state.ts'
+import type { ScheduleView } from '../model.ts'
+import type { MenuItem } from '../panels/menu/state.ts'
+import { confirmRemovePanel, promptPanel } from '../panels/small/state.ts'
+import { refOf, scheduleThere, there, thereItems, thereScheduleItems } from '../there.ts'
 import {
   type Actions,
   flash,
@@ -64,6 +68,48 @@ export interface RemoteAgentDeps {
   machines(): Machines
   /** How far this clock is ahead of a machine's, as its projection last said. */
   skew(machine: string): number
+  /**
+   * One of that machine's own tool calls, through its own gate with a key of
+   * its own (`MachineActs.pressed`): what no verb of its away view reaches —
+   * its schedules, and what queued work is told.
+   */
+  pressed?(req: {
+    machine: string
+    key: string
+    method: string
+    params: Record<string, unknown>
+  }): Promise<string>
+}
+
+/**
+ * What every subject that answers a press on a row hands a row of another
+ * machine's to (`there.ts`'s ids): the agent's, the queue's and the
+ * schedules' own handlers ask `refOf` and come here, so a row there answers
+ * every control a row here has — or says, in words, why one cannot cross.
+ */
+export interface ThereDoor {
+  /** What its menu is called. */
+  title(id: string): string
+  /** Its menu: an agent's or queued work's, as here (`thereItems`). */
+  taskItems(id: string): readonly MenuItem[]
+  /** An item of that menu, or a control on its row (`queue-start`, `remove`…), carried there. */
+  fromTaskMenu(id: string, item: string): Promise<void>
+  /** Pressed: looked at, as an agent here is focused by a press. */
+  look(id: string): void
+  /** Removed there, once asked: an error to put back in the panel, or null. */
+  remove(id: string): Promise<string | null>
+  /** Renamed there (`rename-agent`'s prompt). */
+  rename(id: string, title: string): Promise<string>
+  /** Told what to do when it starts, there (`queue-retell`'s prompt). */
+  retell(id: string, prompt: string): Promise<string>
+  /** A schedule there, as this machine's views are, or null where it has gone. */
+  schedule(id: string): ScheduleView | null
+  /** Its menu. */
+  scheduleItems(id: string): readonly MenuItem[]
+  /** A change to it — open, run, pause, resume, rename, remove — carried there. */
+  onSchedule(id: string, change: string): Promise<void>
+  /** Renamed there (`rename-schedule`'s prompt). */
+  renameSchedule(id: string, name: string): Promise<string>
 }
 
 /** The agent being looked at, with the machine it is on, as the frame has them now. */
@@ -73,7 +119,7 @@ interface Looked {
   agent: RemoteAgent | null
 }
 
-export class RemoteAgents implements Subject {
+export class RemoteAgents implements Subject, ThereDoor {
   private readonly wire: Wiring
   private readonly deps: RemoteAgentDeps
   /** The screen last read, and which machine and task it was read of. */
@@ -112,24 +158,13 @@ export class RemoteAgents implements Subject {
     const looked = this.looked()
     if (looked === null || this.asking !== null) return
     if (this.wire.now() - this.askedAt < LOOK_MS && this.screen?.of === keyOf(looked.place)) return
-    void this.look(looked)
+    void this.read(looked)
   }
 
   actions(): Actions {
     return {
-      // A row of an agent there, pressed: looked at, or let go of when it already was.
-      'remote-look:': (task) => {
-        const place = elsewhereOf(this.wire.state)
-        if (place === null || task === '') return
-        const agent = place.agent === task ? undefined : task
-        this.wire.put({
-          ...this.wire.state,
-          elsewhere: { ...withoutAgent(place), ...(agent ? { agent } : {}) },
-        })
-        this.wire.draw()
-        const looked = this.looked()
-        if (looked !== null) void this.look(looked)
-      },
+      // A row of an agent there, pressed: looked at, as a row here is focused.
+      'remote-look:': (task) => this.look(task),
       'remote-attach': () => this.attach(),
       'remote-steer': () => {
         const looked = this.looked()
@@ -156,6 +191,12 @@ export class RemoteAgents implements Subject {
 
   prompts(): Prompts {
     return {
+      'model-there': async (panel, text) => {
+        await this.named(panel.target ?? '', 'model', { model: text })
+      },
+      'account-there': async (panel, text) => {
+        await this.named(panel.target ?? '', 'account', { account: text })
+      },
       'remote-steer': async (panel, text) => {
         const [machine = '', task = ''] = (panel.target ?? '').split('\0')
         const looked = this.looked()
@@ -173,6 +214,213 @@ export class RemoteAgents implements Subject {
     }
   }
 
+  // ── The door every row of another machine's comes through ──────────────
+
+  title(id: string): string {
+    const found = this.found(id)
+    return found?.agent ? (found.agent.title ?? found.agent.name) : refOf(id).id
+  }
+
+  taskItems(id: string): readonly MenuItem[] {
+    const found = this.found(id)
+    if (found?.agent == null || found.project === null) return []
+    return thereItems(found.agent, found.project, found.machine)
+  }
+
+  look(id: string): void {
+    const place = elsewhereOf(this.wire.state)
+    const task = refOf(id).id
+    if (place === null || task === '') return
+    // Pressed again, it is let go of: the project there as it was, which is the
+    // only other thing that pane draws.
+    const agent = place.agent === task ? undefined : task
+    this.wire.put({
+      ...this.wire.state,
+      schedule: null,
+      elsewhere: { ...withoutAgent(place), ...(agent ? { agent } : {}) },
+    })
+    this.wire.draw()
+    const looked = this.looked()
+    if (looked !== null) void this.read(looked)
+  }
+
+  async fromTaskMenu(id: string, item: string): Promise<void> {
+    const found = this.found(id)
+    if (found?.agent == null) return this.say(`${refOf(id).id} is not there any more`)
+    const { machine, agent } = found
+    // The same menu, so an item that cannot be done is off and never pressed;
+    // a control on the row is checked here against the same rule.
+    const off = this.taskItems(id).find((one) => one.id === item)?.off
+    if (off) return this.say(`${agent.title ?? agent.name}: ${off}`)
+    const name = agent.title ?? agent.name
+    switch (item) {
+      case 'open':
+        if (elsewhereOf(this.wire.state)?.agent !== agent.id) this.look(id)
+        // Typing into it is a terminal here: opened at once where its agent runs.
+        if (agent.lane === 'running') await this.attach()
+        return
+      case 'start':
+        return this.on(id, 'start', {})
+      case 'stop':
+        return this.on(id, 'stop', { confirm: true })
+      case 'mark-done':
+        return this.on(id, 'done', { confirm: true })
+      case 'park':
+        return this.on(id, 'park', { parked: !(agent.parked || agent.mark === 'parked') })
+      case 'rename':
+        return this.prompt(
+          promptPanel('rename-agent', `Rename ${name} on ${machine.name}`, 'NAME', name),
+          id,
+        )
+      case 'model':
+        return this.prompt(promptPanel('model-there', `Model for ${name}`, 'MODEL'), id)
+      case 'account':
+        return this.prompt(promptPanel('account-there', `Account for ${name}`, 'ACCOUNT'), id)
+      case 'remove':
+      case 'queue-remove':
+        this.wire.put({ ...this.wire.state, panel: confirmRemovePanel(id) })
+        this.wire.draw()
+        return
+      case 'queue-retell':
+        return this.prompt(
+          promptPanel('queue-retell', `What ${name} is told on ${machine.name}`, 'PROMPT'),
+          id,
+        )
+      default:
+        if (item.startsWith('queue-')) return this.on(id, 'queue', { change: item.slice(6) })
+        return this.say(`${name} on ${machine.name}: ${item} is not something done from here`)
+    }
+  }
+
+  async remove(id: string): Promise<string | null> {
+    try {
+      flash(this.wire, await this.carryTo(id, 'remove', { confirm: true }))
+      this.wire.draw()
+      return null
+    } catch (err) {
+      return why(err)
+    }
+  }
+
+  rename(id: string, title: string): Promise<string> {
+    return this.carryTo(id, 'rename', { title })
+  }
+
+  retell(id: string, prompt: string): Promise<string> {
+    const { machine, id: task } = refOf(id)
+    return this.pressedOn(machine ?? '', 'queue/change', { task, change: 'retell', prompt })
+  }
+
+  schedule(id: string): ScheduleView | null {
+    const { machine } = refOf(id)
+    const found = this.deps.machines().remotes.find((one) => one.name === machine)
+    if (!found) return null
+    const all = (found.detail.about?.schedules ?? []).map((one) => scheduleThere(one, found.name))
+    return all.find((one) => one.id === id) ?? null
+  }
+
+  scheduleItems(id: string): readonly MenuItem[] {
+    const one = this.schedule(id)
+    const machine = this.deps.machines().remotes.find((each) => each.name === refOf(id).machine)
+    return one && machine ? thereScheduleItems(one, machine) : []
+  }
+
+  async onSchedule(id: string, change: string): Promise<void> {
+    const one = this.schedule(id)
+    const { machine, id: schedule } = refOf(id)
+    if (one === null || machine === null) return this.say(`${schedule} is not there any more`)
+    if (change === 'open') {
+      const place = elsewhereOf(this.wire.state)
+      this.wire.put({
+        ...this.wire.state,
+        schedule: id,
+        ...(place ? { elsewhere: withoutAgent(place) } : {}),
+      })
+      this.wire.draw()
+      return
+    }
+    const off = this.scheduleItems(id).find((item) => item.id === `schedule-${change}`)?.off
+    if (off) return this.say(`${one.name}: ${off}`)
+    if (change === 'rename') {
+      return this.prompt(
+        promptPanel('rename-schedule', `Rename ${one.name} on ${machine}`, 'NAME', one.name),
+        id,
+      )
+    }
+    // Run now is the queue's `start` of a schedule there, as it is here.
+    const asked = change === 'run' ? 'start' : change
+    try {
+      flash(this.wire, await this.pressedOn(machine, 'queue/change', { schedule, change: asked }))
+    } catch (err) {
+      notify(this.wire, why(err))
+    }
+    this.wire.draw()
+  }
+
+  renameSchedule(id: string, name: string): Promise<string> {
+    const { machine, id: schedule } = refOf(id)
+    return this.pressedOn(machine ?? '', 'queue/change', { schedule, change: 'rename', name })
+  }
+
+  /** The machine, its project and the agent an id there names, as the frame has them now. */
+  private found(id: string): {
+    machine: Machine
+    project: RemoteProject | null
+    agent: RemoteAgent | null
+  } | null {
+    const { machine: name, id: task } = refOf(id)
+    const machine = this.deps.machines().remotes.find((one) => one.name === name)
+    if (!machine) return null
+    for (const project of machine.projects) {
+      const agent = project.agents.find((one) => one.id === task)
+      if (agent) return { machine, project, agent }
+    }
+    return { machine, project: null, agent: null }
+  }
+
+  /** One verb on an agent there, said in the strip however it went. */
+  private async on(id: string, verb: string, extra: Record<string, unknown>): Promise<void> {
+    try {
+      flash(this.wire, await this.carryTo(id, verb, extra))
+    } catch (err) {
+      notify(this.wire, why(err))
+    }
+    this.wire.draw()
+  }
+
+  /** A model or an account, named on a prompt: carried, and the panel closed. */
+  private async named(id: string, verb: string, extra: Record<string, unknown>): Promise<void> {
+    const said = await this.carryTo(id, verb, extra)
+    this.wire.put({ ...this.wire.state, panel: null })
+    flash(this.wire, said)
+    this.wire.draw()
+  }
+
+  /** A one-line panel about something there: its id is the panel's target. */
+  private prompt(panel: ReturnType<typeof promptPanel>, id: string): void {
+    this.wire.put({ ...this.wire.state, panel: { ...panel, target: id } })
+    this.wire.draw()
+  }
+
+  /** One of that machine's tool calls, through its own gate, with a key of its own. */
+  private async pressedOn(
+    machine: string,
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<string> {
+    const pressed = this.deps.pressed
+    if (!pressed) throw new Error(`this window cannot act on ${machine}`)
+    const reach = this.deps.reach(machine)
+    if (reach === null || !reach.live) throw new Error(`${machine} is not linked right now`)
+    const said = await pressed({
+      machine,
+      key: randomBytes(12).toString('base64url'),
+      method,
+      params,
+    })
+    return `${machine}: ${printable(said).split('\n')[0] || 'done'}`
+  }
+
   /** What is being looked at, or null: an agent on another machine, as the frame has it now. */
   private looked(): Looked | null {
     const place = elsewhereOf(this.wire.state)
@@ -184,7 +432,7 @@ export class RemoteAgents implements Subject {
   }
 
   /** Ask that machine for the agent's screen, and hold what it answers. */
-  private async look(looked: Looked): Promise<void> {
+  private async read(looked: Looked): Promise<void> {
     const key = keyOf(looked.place)
     const reach = this.deps.reach(looked.machine.name)
     const task = looked.place.agent
@@ -255,14 +503,19 @@ export class RemoteAgents implements Subject {
    * what this window last saw of it, and a key of its own. What came of it, in
    * that machine's words as text; throws with the sentence where it did not.
    */
-  private async carry(
-    looked: Looked,
-    verb: string,
-    extra: Record<string, unknown>,
-  ): Promise<string> {
-    const machine = looked.machine.name
-    const agent = looked.agent
-    if (agent === null) throw new Error(`${looked.place.agent} is not on ${machine} any more`)
+  private carry(looked: Looked, verb: string, extra: Record<string, unknown>): Promise<string> {
+    return this.carryTo(there(looked.machine.name, looked.place.agent), verb, extra)
+  }
+
+  /** The same, for an agent there named by the id its row carries (`there.ts`). */
+  private async carryTo(id: string, verb: string, extra: Record<string, unknown>): Promise<string> {
+    const found = this.found(id)
+    const { machine: name, id: task } = refOf(id)
+    if (found === null) throw new Error(`${name ?? 'that machine'} is not a remote here any more`)
+    const machine = found.machine.name
+    const agent = found.agent
+    if (agent === null) throw new Error(`${task} is not on ${machine} any more`)
+    const looked = { machine: found.machine }
     const reach = this.deps.reach(machine)
     if (reach === null || !reach.live) throw new Error(`${machine} is not linked right now`)
     if (agent.rev === null || looked.machine.rev === null) {

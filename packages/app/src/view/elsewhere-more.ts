@@ -2,7 +2,7 @@ import { SOURCE_NEEDS_YOU, type SourceState } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import type { Hit } from '../hits.ts'
 import { inboxStateMark } from '../intake-view.ts'
-import { type DocumentThere, lookSaid, type ProducedThere } from '../machine-there.ts'
+import type { DocumentThere, ProducedThere } from '../machine-there.ts'
 import { type Machine, type Place, placeIn } from '../machines.ts'
 import { MARK_TONES, markGlyph } from '../model.ts'
 import type { Skin } from '../skin.ts'
@@ -27,10 +27,7 @@ import { clockOf, shortened } from './text.ts'
 /** How many of one list are drawn before the rest are counted. */
 const MOST = 8
 
-/** How many of what a watch found there are drawn under it. */
-const FOUND_SHOWN = 3
-
-/** INTAKE, CHECKS, SCHEDULES and DOCUMENTS for the project you stand in there. */
+/** INTAKE, CHECKS and DOCUMENTS for the project you stand in there; its SCHEDULES are `schedulesSection`'s. */
 export function thereSections(frame: Frame, place: Place, width: number, skin: Skin): Section[] {
   const found = placeIn(frame.machines, place)
   if (found === null) return []
@@ -57,8 +54,6 @@ export function thereSections(frame: Frame, place: Place, width: number, skin: S
   const checks = machine.detail.checks.filter((one) => one.project === place.project)
   const here = checks.filter((one) => one.task === null)
   const trees = new Set(checks.filter((one) => one.task !== null).map((one) => one.task)).size
-  const about = machine.detail.about
-  const schedules = (about?.schedules ?? []).filter((one) => one.project === place.project)
   const documents = documentsOf(machine, place.project)
   return [
     {
@@ -120,30 +115,6 @@ export function thereSections(frame: Frame, place: Place, width: number, skin: S
         ...(trees === 0
           ? []
           : said(row, `and runs in ${trees} ${trees === 1 ? 'worktree' : 'worktrees'} there`)),
-      ],
-    },
-    {
-      ...head('there-schedules', 'SCHEDULES', schedules.length),
-      rows: (row) => [
-        ...(about === null
-          ? said(row, machine.detail.aboutSaid ?? `${machine.name} has not said what it runs yet`)
-          : schedules.length === 0
-            ? said(row, `nothing on a clock for this project on ${machine.name}`)
-            : schedules.slice(0, MOST).flatMap((one) => {
-                const mark = one.paused ? '‖' : one.kind === 'watch' ? '◎' : '↻'
-                const look = lookSaid(one, clock)
-                const tone = look.startsWith('!') ? skin.waiting : skin.hint
-                const top = row().space().text(mark, skin.hint).space()
-                top.text(shortened(`${one.name} · ${one.when}`, room))
-                // What its looks found there — a Sentry issue, a red build — newest first:
-                // its key, what the source called it, and the work started on it.
-                const found = (one.watch?.found ?? []).slice(0, FOUND_SHOWN).flatMap((it) => {
-                  const what = [it.key, it.title, it.task === null ? null : `→ ${it.task}`]
-                  return said(row, `· ${what.filter(Boolean).join(' ')}`, (text) => text)
-                })
-                return [top.build(), ...(look === '' ? [] : said(row, look, tone)), ...found]
-              })),
-        ...more(row, schedules.length),
       ],
     },
     {

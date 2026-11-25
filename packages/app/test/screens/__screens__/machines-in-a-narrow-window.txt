@@ -3,12 +3,12 @@
  ▾ AGENTS  1      on vps ▕│                                                                         
                          ▕│                                                                         
    ✓ og-images           ▕│                                                                         
-     3h 0m · done        ▕│                                                                         
+     finished            ▕│                                                                         
                          ▕│                                   web                                   
  ▸ SMART QUEUE      none ▕│                                                                         
- ▸ INTAKE                ▕│                                 on vps                                  
- ▸ CHECKS                ▕│                                                                         
- ▸ SCHEDULES             ▕│                  everything asked of it there is done                   
+ ▸ SCHEDULES           … ▕│                                 on vps                                  
+ ▸ INTAKE                ▕│                                                                         
+ ▸ CHECKS                ▕│                  everything asked of it there is done                   
  ▸ DOCUMENTS             ▕│                                                                         
                          ▕│                                                                         
                          ▕│                                                                         

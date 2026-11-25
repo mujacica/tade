@@ -311,8 +311,8 @@ export const PICTURES: readonly Picture[] = [
     about:
       'Projects on two machines along the top: this Mac’s checkout and search first, then the VPS ' +
       'with tade and web, and the lab box with firmware, each tab carrying the marks its own machine ' +
-      'gave its agents. Standing in tade on the VPS, the side lists its agents with how long ago ' +
-      'each moved and its queued work under them, and the pane says where it is and how it stands.',
+      'gave its agents. Standing in tade on the VPS, the side lists its agents, its queued work and ' +
+      'its schedules as rows of this machine, and the pane says where it is and how it stands.',
   },
 ]
 

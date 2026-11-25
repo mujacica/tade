@@ -2,8 +2,8 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  4                on vps █│ ! Webhooks ring the doorbell                                                                                    vps · 12m 
                                    ▕│   wants approval: gh api                                                                                                  
- ▌ ! Webhooks ring the doorbell    ▕│                                                                                                                           
- ▌   12m · wants approval: gh a…   ▕│   ⏎ type into it     steer…     park     stop                                                                             
+ ▌ ! Webhooks ring the d…          ▕│                                                                                                                           
+ ▌   wants you to approve repos…   ▕│   ⏎ type into it     steer…     park     stop                                                                             
 ━   orchestrator     vps · intake-webhooks   ×  ≡    +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   find     ↓     ↓   ━
                                                                                                                                                                 
                                                                                                                                                                 

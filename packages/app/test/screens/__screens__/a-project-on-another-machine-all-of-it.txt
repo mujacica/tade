@@ -1,52 +1,52 @@
  ▄▀   T A D E      checkout !⠋    search ●      +      vps    tade !⠋◌   ×  ≡   web ✓     lab    firmware   ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  4                on vps ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
-   ! Webhooks ring the doorbell    ▕│                                                                                                                           
-     12m · wants approval: gh a…   ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
-   ⠋ remote-link                   ▕│                                                                                                                           
-     2m · running the suite        ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
-   ⠋ mirror-branches               ▕│                                                                                                                           
-     41m · working                 ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
-   ✓ Notes are shared both ways    ▕│                                                                                                                           
-     1h 35m · finished: set uni…   ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
- ▾ SMART QUEUE  1                  ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
-   ◌ linear-door                   ▕│                                                                                                                           
-     30m · waits on intake-webh…   ▕│                                                           tade                                                            
-                                   ▕│                                                                                                                           
- ▾ INTAKE  2                       ▕│                                                          on vps                                                           
- ! Webhook deliveries …   proposed ▕│                                                                                                                           
-   @kim · github · waiting for y…  ▕│                                            1 wants you · 2 working · 1 queued                                             
- ⠋ Can the VPS watch Li…   started ▕│                                                                                                                           
-   @amir · slack · an agent is o…  ▕│                                                                                                                           
-   github: found · found 1 new     ▕│                                                                                                                           
-   linear: trouble · Linear said…  ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
- ▾ CHECKS  2                       ▕│                                                                                                                           
- ✗ tests                           ▕│                                                                                                                           
-   failing since 13:25 · 2 runs    ▕│                                                                                                                           
- ✓ types                           ▕│                                                                                                                           
-   passing since 12:00 · 14 runs   ▕│                                                                                                                           
-   and runs in 1 worktree there    ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
- ▾ SCHEDULES  2                    ▕│                                                                                                                           
- ◎ New Sentry errors · every hour  ▕│                                                                                                                           
-   2 new 13:20                     ▕│                                                                                                                           
-   · TADE-1QF TypeError: held.pr…  ▕│                                                                                                                           
-   · TADE-1QE ECONNRESET in the …  ▕│                                                                                                                           
- ‖ Nightly dependency check · ev…  ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
- ▾ DOCUMENTS  2                    ▕│                                                                                                                           
- ▤ REMOTE-TADE.md                  ▕│                                                                                                                           
+ ▾ AGENTS  4                on vps █│                                                                                                                           
+                                   █│                                                                                                                           
+   ! Webhooks ring the d…          █│                                                                                                                           
+     wants you to approve repos…   █│                                                                                                                           
+                                   █│                                                                                                                           
+   ⠋ remote-link                   █│                                                                                                                           
+     working · running the suite   █│                                                                                                                           
+                                   █│                                                                                                                           
+   ⠋ mirror-branches               █│                                                                                                                           
+     working                       █│                                                                                                                           
+                                   █│                                                                                                                           
+   ✓ Notes are shared bo…          █│                                                                                                                           
+     finished: set union, tombs…   █│                                                                                                                           
+                                   █│                                                                                                                           
+ ▾ SMART QUEUE  1                  █│                                                                                                                           
+                                   █│                                                                                                                           
+   ◌ linear-door                   █│                                                                                                                           
+     waits on intake-webhooks      █│                                                           tade                                                            
+                                   █│                                                                                                                           
+ ▾ SCHEDULES  2                    █│                                                          on vps                                                           
+                                   █│                                                                                                                           
+   ◎ New Sentry errors     14:20   █│                                            1 wants you · 2 working · 1 queued                                             
+     every hour           agents   █│                                                                                                                           
+     13:20 · 2 new                 █│                                                                                                                           
+                                   █│                                                                                                                           
+   ‖ Nightly dependency … paused   █│                                                                                                                           
+     every day at 03:00   agents   █│                                                                                                                           
+                                   █│                                                                                                                           
+ ▾ INTAKE  2                       █│                                                                                                                           
+ ! Webhook deliveries …   proposed █│                                                                                                                           
+   @kim · github · waiting for y…  █│                                                                                                                           
+ ⠋ Can the VPS watch Li…   started █│                                                                                                                           
+   @amir · slack · an agent is o…  █│                                                                                                                           
+   github: found · found 1 new     █│                                                                                                                           
+   linear: trouble · Linear said…  █│                                                                                                                           
+                                   █│                                                                                                                           
+ ▾ CHECKS  2                       █│                                                                                                                           
+ ✗ tests                           █│                                                                                                                           
+   failing since 13:25 · 2 runs    █│                                                                                                                           
+ ✓ types                           █│                                                                                                                           
+   passing since 12:00 · 14 runs   █│                                                                                                                           
+   and runs in 1 worktree there    █│                                                                                                                           
+                                   █│                                                                                                                           
+ ▾ DOCUMENTS  2                    █│                                                                                                                           
+ ▤ REMOTE-TADE.md                  █│                                                                                                                           
    tade/research · press to read…  ▕│                                                                                                                           
  ▤ AUDIT.md                        ▕│                                                                                                                           
-   tade/audit · gone               ▕│                                                                                                                           
-                                   ▕│                                                                                                                           
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
                                                                                                                                                                 
                                                                                                                                                                ▕

@@ -24,6 +24,7 @@ import { notePanel } from '../src/panels/small/state.ts'
 import { spendPanel } from '../src/panels/spend/state.ts'
 import { rowSummaryPanel } from '../src/panels/summary/state.ts'
 import { waitsPanel } from '../src/panels/waits/state.ts'
+import { there } from '../src/there.ts'
 import { windowTitle } from '../src/title.ts'
 import {
   deviceSaid,
@@ -753,7 +754,12 @@ describe('everything else another machine says, drawn here', () => {
       'suitename',
       'watchname',
       'lookfailed',
-      'issuekey',
+    )
+    // What a watch there found is on its card, as one here's is: drawn as text there too.
+    expectOnlyText(
+      see({ ...standing, schedule: there('vps', 'w') }, { machines }),
+      'watchname',
+      'issuetitle',
     )
     const remotes = [
       {

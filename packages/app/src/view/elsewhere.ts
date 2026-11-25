@@ -1,21 +1,14 @@
-import { type AgentMark, duration } from '@tade/core'
 import type { Frame } from '../frame.ts'
-import { rowHit, type Target } from '../hits.ts'
-import {
-  ageThere,
-  linkWords,
-  type Machine,
-  type Place,
-  placeIn,
-  type RemoteAgent,
-  type RemoteProject,
-} from '../machines.ts'
-import { MARK_TONES, markGlyph } from '../model.ts'
+import { linkWords, type Machine, type Place, placeIn, type RemoteProject } from '../machines.ts'
+import { type AppState, sectionOpen } from '../model.ts'
 import type { Skin } from '../skin.ts'
+import { paneThere, queuedThere, refOf, schedulesThere } from '../there.ts'
 import { blank, type Drawn, fit, NO_POINTER, type Pointer, Row, stack } from '../ui.ts'
 import { thereSections } from './elsewhere-more.ts'
+import { queueRow } from './queue.ts'
 import { renderRemoteAgent } from './remote-agent.ts'
-import { type ListItem, type Section, TAB_EDGES, tabList } from './rows.ts'
+import { type Section, tabList, taskRow } from './rows.ts'
+import { renderSchedule, schedulesSection } from './schedule.ts'
 import { type ProjectMark, remoteStanding } from './standing.ts'
 import { clockOf, shortened } from './text.ts'
 
@@ -25,37 +18,107 @@ import { clockOf, shortened } from './text.ts'
 // Both draw from `machines.ts`, which is the only thing
 // that ever read what that machine wrote, so every word here is text.
 //
-// **A row here looks like a row of this machine's**, mark for mark — the mark
-// is the one the remote drew (`RemoteAgent.mark`), in this window's glyphs and
-// tones — and carries its age, from that machine's own moments. While the link
-// is down the rows stay, their ages as of the last time it answered, and the
-// heading says so: `○ vps · as of 14:02`.
+// **A row here is a row of this machine's**: its agents, its queued work and
+// its schedules are folded into the panes and views this machine's are
+// (`there.ts`) and drawn by the same `taskRow`, `queueRow` and
+// `schedulesSection`, so they look, light, offer `×` and `≡` and answer a
+// right-click exactly as here. What differs is only where a press goes, which
+// the id each control carries says: `@machine␟id`, read by `refOf` at the one
+// place a press becomes an act (`wire/remote-agent.ts`).
 //
-// **A row is the agent**: pressing one looks at it — its screen there, and
-// what may be asked of it from here (`view/remote-agent.ts`) — and pressing it
-// again lets go. The one looked at is lit as the agent in front is here.
+// **Pressing an agent looks at it** — its screen there, streamed over the link,
+// and what may be asked of it from here (`view/remote-agent.ts`) — and
+// pressing it again lets go. While the link is down the rows stay, and the
+// heading says as of when.
 
 /** The sections the side draws while you stand in a project on another machine. */
 export function elsewhereSections(
+  state: AppState,
   frame: Frame,
   place: Place,
   width: number,
   skin: Skin,
+  pointer: Pointer,
 ): Section[] {
   const found = placeIn(frame.machines, place)
   const now = frame.now ?? 0
   const words = found ? linkWords(found.machine, clockOf(frame)) : null
   const project = found?.project ?? null
+  const machine = found?.machine ?? null
   const agents = project?.agents.filter((agent) => !agent.queued) ?? []
   const queued = project?.agents.filter((agent) => agent.queued) ?? []
   const line = (row: () => Row, said: string) => [row().space(3).text(said, skin.hint).build()]
-  const items = (list: readonly RemoteAgent[]) =>
+  // The rows are this machine's own (`taskRow`, `queueRow`), drawn from panes
+  // whose ids carry the machine (`there.ts`), so every control on them —
+  // the click, `×`, `≡`, a right-click — is the one a row here has.
+  const agentRows = (project: RemoteProject, machine: Machine) =>
     tabList(
-      list.map((agent) =>
-        remoteItem(width, skin, agent, found?.machine ?? null, now, place.agent === agent.id),
+      agents.map((agent) =>
+        taskRow(
+          width,
+          skin,
+          pointer,
+          { ...paneThere(agent, project, machine), focused: place.agent === agent.id },
+          undefined,
+          now,
+        ),
       ),
       width,
     )
+  const queueRows = (project: RemoteProject, machine: Machine) =>
+    tabList(
+      queued.map((agent) =>
+        queueRow(
+          width,
+          skin,
+          pointer,
+          {
+            pane: { ...queuedThere(agent, project, machine), focused: place.agent === agent.id },
+            depth: 0,
+            parent: null,
+            says: agent.reason,
+          },
+          { stem: '', bars: '' },
+          frame,
+          { wide: 0, shown: 0, across: 0 },
+        ),
+      ),
+      width,
+    )
+  const stale =
+    machine === null || machine.link === 'live' || machine.asOf === null
+      ? null
+      : `as of ${clockOf(frame)(machine.asOf)}`
+  const clocks = machine === null ? [] : schedulesThere(machine, place)
+  const clockwork = schedulesSection(
+    state,
+    frame,
+    width,
+    skin,
+    pointer,
+    clocks,
+    sectionOpen(state, 'schedules', clocks.length === 0),
+  )
+  // Where that machine has not said what it runs, the heading says so rather
+  // than *none*; where its link is down, as of when.
+  const unsaid = machine !== null && machine.detail.about === null
+  const schedules: Section =
+    unsaid || (stale !== null && clocks.length > 0)
+      ? {
+          ...clockwork,
+          note: unsaid ? `not said yet` : (stale ?? ''),
+          brief: unsaid ? '…' : (stale ?? ''),
+          ...(unsaid
+            ? {
+                rows: (row: () => Row) =>
+                  line(
+                    row,
+                    machine.detail.aboutSaid ?? `${machine.name} has not said what it runs yet`,
+                  ),
+              }
+            : {}),
+        }
+      : clockwork
   return [
     {
       id: 'agents',
@@ -64,12 +127,12 @@ export function elsewhereSections(
       ...(words ? { note: words.note, brief: words.brief } : {}),
       banded: true,
       rows: (row) =>
-        project === null
-          ? [blank(width), ...line(row, missing(found?.machine ?? null, place)), blank(width)]
+        project === null || machine === null
+          ? [blank(width), ...line(row, missing(machine, place)), blank(width)]
           : agents.length === 0
             ? [blank(width), ...line(row, 'none there'), blank(width)]
             : [
-                ...items(agents),
+                ...agentRows(project, machine),
                 ...(project.more > 0
                   ? line(row, `and ${project.more} more ${place.machine} did not send`)
                   : []),
@@ -82,8 +145,12 @@ export function elsewhereSections(
       ...(queued.length === 0 ? { note: 'none' } : {}),
       quiet: queued.length === 0,
       banded: queued.length > 0,
-      rows: (row) => (queued.length === 0 ? line(row, 'nothing waiting there') : items(queued)),
+      rows: (row) =>
+        queued.length === 0 || project === null || machine === null
+          ? line(row, 'nothing waiting there')
+          : queueRows(project, machine),
     },
+    schedules,
     ...thereSections(frame, place, width, skin),
   ]
 }
@@ -93,48 +160,6 @@ function missing(machine: Machine | null, place: Place): string {
   if (machine === null) return `${place.machine} is not a remote here any more`
   if (!machine.heard) return machine.said ?? `linking to ${machine.name}…`
   return `${place.project} is not open on ${machine.name}`
-}
-
-/** A mark's own word, for a row whose remote said no clause of its own. */
-const MARK_WORDS: Readonly<Record<AgentMark, string>> = {
-  working: 'working',
-  idle: 'idle',
-  'needs-you': 'wants you',
-  failed: 'failed',
-  done: 'done',
-  stopped: 'not running',
-  parked: 'parked',
-}
-
-/**
- * An agent there, as two rows of the side: its mark and its name, then its age
- * and the remote's clause. Drawn as a tab is drawn, lit while it is the one in
- * the pane, and pressing either row looks at it.
- */
-function remoteItem(
-  width: number,
-  skin: Skin,
-  agent: RemoteAgent,
-  machine: Machine | null,
-  now: number,
-  looked: boolean,
-): ListItem {
-  const queued = agent.queued && agent.mark !== 'needs-you'
-  const tone = queued ? skin.hint : skin[MARK_TONES[agent.mark]]
-  const inner = new Row(Math.max(0, width - TAB_EDGES), skin).space()
-  inner.text(markGlyph(queued ? 'queued' : agent.mark, now), tone).space()
-  inner.text(shortened(agent.title ?? agent.name, Math.max(1, inner.width - inner.used - 1)))
-  const age = machine === null ? null : ageThere(agent, machine, now)
-  const said = [age === null ? '' : duration(age), agent.reason || MARK_WORDS[agent.mark]]
-  const under = new Row(Math.max(0, width - TAB_EDGES), skin).space(3)
-  under.text(shortened(said.filter(Boolean).join(' · '), Math.max(1, under.width - 4)), skin.hint)
-  const band = looked ? 'selected' : null
-  const press: Target = { kind: 'action', name: `remote-look:${agent.id}` }
-  const tab = (built: { text: string }) => ({
-    text: ` ${skin.item(built.text, band)} `,
-    hits: [rowHit(0, width, press)],
-  })
-  return { rows: [tab(inner.build()), tab(under.build())], band }
 }
 
 /** What a project's tab counts, in words: `1 wants you · 2 working`. */
@@ -179,6 +204,7 @@ function whereSaid(machine: Machine | null, place: Place, clock: (at: number) =>
  * many as the pane has rows for. The list is the side's, which scrolls.
  */
 export function renderElsewhere(
+  state: AppState,
   frame: Frame,
   place: Place,
   width: number,
@@ -191,6 +217,13 @@ export function renderElsewhere(
   const agent = found?.project?.agents.find((one) => one.id === place.agent)
   if (machine !== null && agent !== undefined) {
     return renderRemoteAgent(frame, machine, agent, width, height, skin, pointer)
+  }
+  // A schedule there in front of you is its card, drawn as one here is: its
+  // controls carry its machine in its id, so they are this card's own.
+  const opened = state.schedule === null ? null : refOf(state.schedule)
+  if (machine !== null && opened?.machine === machine.name) {
+    const one = schedulesThere(machine, place).find((each) => each.id === state.schedule)
+    if (one) return renderSchedule(state, frame, one, width, height, skin, pointer)
   }
   const lines: { text: string; tone: (text: string) => string }[] = [
     { text: found?.project?.title ?? place.project, tone: skin.you },

@@ -45,6 +45,7 @@ import type { Reach } from '../scroll.ts'
 import { pointerSequence } from '../skin.ts'
 import { splitRatio } from '../split.ts'
 import { isTalkTab, showTalk } from '../talk-tab.ts'
+import { isThere } from '../there.ts'
 import { LastFrame } from '../view/last-frame.ts'
 import type { Pressed, Wiring } from './context.ts'
 import { EdgeHold } from './edge.ts'
@@ -578,6 +579,12 @@ export class Mouse {
     }
     switch (target.kind) {
       case 'task': {
+        // A row of another machine's is looked at, as one here is focused: its
+        // id says which machine (`there.ts`), and the machine's subject answers.
+        if (isThere(target.task)) {
+          this.deps.run(`remote-look:${target.task}`)
+          return
+        }
         this.wire.put(focusTask(this.wire.state, target.task))
         const pane = this.wire.state.panes.find((p) => p.task === target.task)
         // Queued work is not started by looking at it: clicking it shows what

@@ -716,6 +716,8 @@ export interface QueueRow {
   depth: number
   /** The queued work it hangs from — the last of its waits — or null at the front of a path. */
   parent: string | null
+  /** What the machine it is on said of it, drawn under its name in place of this machine's words. */
+  says?: string
 }
 
 /**

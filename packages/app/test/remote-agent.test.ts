@@ -7,6 +7,7 @@ import { whereYouAre } from '../src/inbox.ts'
 import { goElsewhere, type Machines, machineOf, screenOf } from '../src/machines.ts'
 import { initialState, withProjects } from '../src/model.ts'
 import { PLAIN } from '../src/skin.ts'
+import { refOf, there } from '../src/there.ts'
 import { controlsOf } from '../src/view/remote-agent.ts'
 import { draw } from '../src/view.ts'
 import { frame, NOW } from './screens/scenarios/fixtures.ts'
@@ -249,10 +250,14 @@ describe('the pane, looking at an agent there', () => {
       'remote-stop',
       'remote-allow',
       'remote-deny',
-      'remote-look:tade/intake-door',
     ]) {
       expect(actions).toContain(name)
     }
+    // Its row down the side is a row of this machine's, carrying its machine in its id.
+    expect(drawn.hits.map((hit) => hit.target)).toContainEqual({
+      kind: 'task',
+      task: there('vps', 'tade/intake-door'),
+    })
     // Nothing that machine's agent printed reaches this terminal as anything but text.
     const plain = text.replaceAll('\x1b[0m', '').replaceAll('\x1b]8;;\x07', '')
     expect(plain).not.toContain('\x1b')
@@ -311,17 +316,16 @@ describe('the pane, looking at an agent there', () => {
     expect(text).toContain('reading its screen…')
   })
 
-  it('lights the agent looked at down the side, and every row of one there is a press', () => {
+  it('draws its agents down the side as rows of this machine, each a press carrying its machine', () => {
     const one = held([row(), row({ id: 'tade/other', name: 'other', title: null })])
     const drawn = draw(looking(), frame({ skin: PLAIN, width: 140, machines: machines(one) }))
     const presses = drawn.hits.flatMap((hit) =>
-      hit.target.kind === 'action' && hit.target.name.startsWith('remote-look:')
-        ? [hit.target.name]
-        : [],
+      hit.target.kind === 'task' ? [refOf(hit.target.task)] : [],
     )
-    expect(new Set(presses)).toEqual(
-      new Set(['remote-look:tade/intake-door', 'remote-look:tade/other']),
-    )
+    expect(presses).toContainEqual({ machine: 'vps', id: 'tade/intake-door' })
+    expect(presses).toContainEqual({ machine: 'vps', id: 'tade/other' })
+    // Nothing on the side of a project there is a row of this machine's own.
+    expect(presses.every((one) => one.machine === 'vps')).toBe(true)
   })
 })
 

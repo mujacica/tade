@@ -216,6 +216,7 @@ export class App {
         copyToClipboard: (text) => copyText(text, (data) => this.terminal.write(data)),
         routes: () => this.routes,
         handsOver: () => this.remotes.moved(),
+        there: () => this.remotes.there(),
       },
       projects: { rememberWindow: () => this.window.remember() },
       orchestrator: {
@@ -330,6 +331,7 @@ export class App {
       feeds: this.heart.feeds,
       waiting: this.heart.waitingThere,
       oneWith: () => this.heart.conversation.oneWith(),
+      acts: () => this.heart.acts,
     })
     // The orchestrator's conversation reaches the hub over the same links.
     this.heart.conversation.withReach((name) => this.remotes.reachFor(name))
