@@ -435,6 +435,9 @@ function basename(path: string): string {
   return path.split(/[/\\]/).filter(Boolean).at(-1) ?? path
 }
 
+/** The name Tade is published under on npm. */
+const TADE_PACKAGE = 'tade-sh'
+
 /** What to run to bring a program forward, or why Tade has nothing to say. */
 export type UpdateCommand = { command: string } | { cannot: string }
 
@@ -469,7 +472,13 @@ export function updateWith(
     case 'yarn':
       return { command: `yarn global add ${install.name}@latest` }
     case 'bun':
-      return { command: `bun add --global ${install.name}@latest` }
+      // Tade's own package refuses every script: bun runs `node-gyp rebuild`
+      // for better-sqlite3 whatever its `gypfile: false` says, over the
+      // prebuilds it ships, and exits 1 on a machine with no compiler — and
+      // Tade needs no script run. Anybody else's keeps what its install needs.
+      return {
+        command: `bun add --global ${install.name === TADE_PACKAGE ? '--ignore-scripts ' : ''}${install.name}@latest`,
+      }
     case 'npx':
       // Nothing to type into a terminal here: the next `npx` is the update, and
       // `@latest` is what makes it ask rather than answer from its cache.

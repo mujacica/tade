@@ -143,6 +143,29 @@ describe('how a program got onto this machine', () => {
     })
   })
 
+  // bun runs `node-gyp rebuild` for better-sqlite3 over its prebuilds,
+  // whatever its `gypfile: false` says, and exits 1 where there is no
+  // compiler (bun 1.3.14 on Debian 12 slim): Tade's own update runs no script.
+  it('updates Tade with bun running no script, and anybody else as they install', () => {
+    const tade = installOf({
+      path: '/home/x/.bun/bin/tade',
+      realPath: '/home/x/.bun/install/global/node_modules/tade-sh/packages/cli/src/bin.js',
+      package: { name: 'tade-sh', version: '0.4.2', dir: '/y' },
+    })
+    expect(tade.manager).toBe('bun')
+    expect(updateWith(tade, undefined, MAC)).toEqual({
+      command: 'bun add --global --ignore-scripts tade-sh@latest',
+    })
+    const other = installOf({
+      path: '/home/x/.bun/bin/pi',
+      realPath: '/home/x/.bun/install/global/node_modules/@pi/cli/bin/pi.js',
+      package: { name: '@pi/cli', version: '0.9.1', dir: '/y' },
+    })
+    expect(updateWith(other, undefined, MAC)).toEqual({
+      command: 'bun add --global @pi/cli@latest',
+    })
+  })
+
   it('tells Volta, which owns the package rather than merely holding it', () => {
     const install = installOf({
       path: '/Users/x/.volta/bin/pi',
