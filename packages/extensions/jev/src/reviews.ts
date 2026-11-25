@@ -30,6 +30,12 @@ export interface Review {
   tasks: string[]
   base: string
   head: string
+  /**
+   * The commits that were read, oldest first, where they were one agent's own
+   * on a branch it shares rather than all of `base...head` — which is then
+   * everybody's work since the oldest task branched, and not what was read.
+   */
+  commits?: string[]
   /** The version that answered. */
   version: string
   /** The version of the questions it answered: `RUBRIC` when they were asked. */
@@ -184,6 +190,11 @@ export function readReviews(home: string): Review[] {
       tasks: Array.isArray(line.tasks) ? line.tasks.map(String) : [],
       base: String(line.base ?? ''),
       head: String(line.head ?? ''),
+      // A line written before this existed says nothing about which commits,
+      // and `jev_replay` reads its trailers again for it.
+      ...(Array.isArray(line.commits) && line.commits.length > 0
+        ? { commits: line.commits.map(String) }
+        : {}),
       version: String(line.version ?? ''),
       // A line written before there was a rubric version says so as nothing,
       // which is the honest answer: it is not the rubric of the day it is read.

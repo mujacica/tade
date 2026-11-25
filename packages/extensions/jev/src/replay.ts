@@ -150,14 +150,17 @@ async function intentOf(home: string, review: Review): Promise<string> {
 /** Read one recorded change again with the candidate. Throws what stopped it. */
 async function readAgain(ctx: ToolContext, asking: Asking, review: Review) {
   const root = allowed(ctx, ctx.project(review.project)).root
-  // One agent's own commits where the reading was of one agent's work, read
-  // back out of the trailer exactly as the reading was; the range otherwise,
-  // whoever's trailers are in it.
-  const own = oneAgents(review)
-    ? ((await commitsByTask(ctx, root, `${review.base}..${review.head}`)).byTask
-        .get(review.tasks[0] ?? '')
-        ?.map((one) => one.sha) ?? [])
-    : []
+  // The commits the reading recorded it read; for a line older than that, one
+  // agent's own commits where the reading was of one agent's work, read back
+  // out of the trailer as the reading was; the range otherwise, whoever's
+  // trailers are in it.
+  const own = review.commits
+    ? review.commits
+    : oneAgents(review)
+      ? ((await commitsByTask(ctx, root, `${review.base}..${review.head}`)).byTask
+          .get(review.tasks[0] ?? '')
+          ?.map((one) => one.sha) ?? [])
+      : []
   const change = await changesFor(ctx, { root, base: review.base, head: review.head, commits: own })
   if (change.files.length === 0) throw new Error('git no longer has anything in that change')
   const unit = { intent: await intentOf(ctx.home, review), branch: '', tasks: review.tasks }

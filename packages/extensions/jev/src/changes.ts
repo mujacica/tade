@@ -93,8 +93,27 @@ export interface Unit {
    * signed are.
    */
   commits: string[]
+  /**
+   * Where `commits` is one agent's own, what else is in `base..head` and was
+   * not read: `base` is where the oldest task in the checkout branched, so the
+   * range is everybody's, and saying it bare reads as a reading of all of it.
+   */
+  beside?: Beside
   /** When its head landed, so a branch still being typed into is left alone. */
   at: number
+}
+
+/** What the range around one agent's own commits holds that was not read as its change. */
+export interface Beside {
+  /** Where the range that was counted ends: the branch's head, not this task's last commit. */
+  head: string
+  /** Commits other tasks signed, and how many tasks they are. */
+  others: number
+  tasks: number
+  /** Commits nobody signed: whose they are, nothing here can say. */
+  unsigned: number
+  /** This task's own commits older than the newest `COMMIT_LIMIT`, which are not read. */
+  older: number
 }
 
 /**
@@ -493,6 +512,46 @@ export async function whoseIn(
 }
 
 /**
+ * What a reading of one agent's own commits read, and what of the range around
+ * them it did not, or null where the unit is a whole range and says so itself.
+ *
+ * `base..head` for one agent in a shared checkout runs from where the oldest
+ * task branched — the repository's first commit, for a plan made on day one —
+ * so printed bare it says a no-findings answer covered everybody's work. What
+ * nobody signed is named rather than given to anybody: it may be this agent's
+ * own, and nothing here can say.
+ */
+export function ownSaid(unit: Pick<Unit, 'base' | 'head' | 'commits' | 'beside'>): string | null {
+  if (unit.commits.length === 0) return null
+  const shas = unit.commits.map((sha) => sha.slice(0, 8))
+  const listed = shas.length > 6 ? `${shas.slice(0, 3).join(' ')} … ${shas.at(-1)}` : shas.join(' ')
+  const own = `Read its own ${plural(unit.commits.length, 'commit')} by its \`Tade-Task:\` trailer (${listed})`
+  const beside = unit.beside
+  if (!beside) return `${own}.`
+  const rest = [
+    ...(beside.others > 0
+      ? [`${plural(beside.others, 'commit')} of ${plural(beside.tasks, 'other task')}`]
+      : []),
+    ...(beside.unsigned > 0
+      ? [
+          `${plural(beside.unsigned, 'commit')} nobody signed, which may be its own and ${beside.unsigned === 1 ? 'was' : 'were'} not read`,
+        ]
+      : []),
+  ]
+  const range = `${unit.base.slice(0, 8)}..${beside.head.slice(0, 8)}`
+  const around = rest.length > 0 ? `, and none of the rest of ${range}: ${rest.join(', and ')}` : ''
+  const older =
+    beside.older > 0
+      ? ` ${beside.older === 1 ? 'Its oldest commit was' : `Its ${beside.older} oldest commits were`} not read: only the newest ${COMMIT_LIMIT} are.`
+      : ''
+  return `${own}${around}.${older}`
+}
+
+function plural(n: number, word: string): string {
+  return n === 1 ? `1 ${word}` : `${n} ${word}s`
+}
+
+/**
  * Every branch in a project with work on it somebody asked for, and what it is
  * diffed against.
  *
@@ -539,7 +598,7 @@ export async function unitsIn(ctx: ExtensionContext, project: ProjectRef): Promi
     if (tasks.length === 0 || !worktree.head) continue
     const shared = tasks.length > 1 || tasks.some((one) => one.shared)
     const whole = { project: project.name, root: worktree.path, branch: worktree.branch }
-    const mine = shared ? await perAgent(ctx, worktree, tasks) : null
+    const mine = shared ? await perAgent(ctx, worktree, tasks, baseRef) : null
     if (mine) {
       units.push(...mine.map((unit) => ({ ...whole, ...unit })))
       continue
@@ -590,15 +649,15 @@ async function perAgent(
   ctx: ExtensionContext,
   worktree: { path: string; head: string },
   tasks: readonly TaskSaid[],
+  baseRef: string,
 ): Promise<Omit<Unit, 'project' | 'root' | 'branch'>[] | null> {
-  const bases = [...new Set(tasks.map((task) => task.base).filter(Boolean))]
-  if (bases.length === 0) return null
-  const oldest =
-    bases.length === 1
-      ? bases[0]
-      : (await git(ctx, worktree.path, ['merge-base', '--octopus', ...bases])).out.trim()
+  const oldest = await oldestBase(ctx, worktree, tasks, baseRef)
   if (!oldest || oldest === worktree.head) return null
-  const { byTask } = await commitsByTask(ctx, worktree.path, `${oldest}..${worktree.head}`)
+  const { byTask, signed, total } = await commitsByTask(
+    ctx,
+    worktree.path,
+    `${oldest}..${worktree.head}`,
+  )
   if (byTask.size === 0) return null
   const units: Omit<Unit, 'project' | 'root' | 'branch'>[] = []
   for (const task of tasks) {
@@ -612,10 +671,64 @@ async function perAgent(
       base: oldest,
       head: last.sha,
       commits: own.slice(-COMMIT_LIMIT).map((commit) => commit.sha),
+      beside: {
+        head: worktree.head,
+        others: signed - own.length,
+        tasks: byTask.size - 1,
+        unsigned: total - signed,
+        older: Math.max(0, own.length - COMMIT_LIMIT),
+      },
       at: last.at,
     })
   }
   return units.length > 0 ? units : null
+}
+
+/**
+ * Where the oldest task in a shared checkout branched: what every agent's own
+ * commits are looked for after.
+ *
+ * One recorded base git no longer has — a task file older than a rebase, or a
+ * sha from another clone — fails the octopus, and that used to make the whole
+ * checkout one branch, which `jev_review` with `task:` then read under that one
+ * task's name. So the bases git can place are used without it, and with none
+ * of them, or a task file that recorded none, where the branch left the base.
+ */
+async function oldestBase(
+  ctx: ExtensionContext,
+  worktree: { path: string; head: string },
+  tasks: readonly TaskSaid[],
+  baseRef: string,
+): Promise<string> {
+  const bases = [...new Set(tasks.map((task) => task.base).filter(Boolean))]
+  if (bases.length === 1 && bases[0]) {
+    const ancestor = await git(ctx, worktree.path, [
+      'merge-base',
+      '--is-ancestor',
+      bases[0],
+      worktree.head,
+    ])
+    if (ancestor.ok) return bases[0]
+  } else if (bases.length > 1) {
+    const all = await git(ctx, worktree.path, ['merge-base', '--octopus', ...bases])
+    if (all.ok && all.out.trim()) return all.out.trim()
+    const placed: string[] = []
+    for (const said of bases) {
+      const ancestor = await git(ctx, worktree.path, [
+        'merge-base',
+        '--is-ancestor',
+        said,
+        worktree.head,
+      ])
+      if (ancestor.ok) placed.push(said)
+    }
+    if (placed.length > 0) {
+      const some = await git(ctx, worktree.path, ['merge-base', '--octopus', ...placed])
+      if (some.ok && some.out.trim()) return some.out.trim()
+    }
+  }
+  const found = await git(ctx, worktree.path, ['merge-base', baseRef, worktree.head])
+  return found.ok ? found.out.trim() : ''
 }
 
 /**

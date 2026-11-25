@@ -28,7 +28,15 @@ import {
   readyProblem,
   thresholds,
 } from './ask.ts'
-import { CHARS_PER_TOKEN, changesFor, partSaid, unitFor, unitsIn, whoseIn } from './changes.ts'
+import {
+  CHARS_PER_TOKEN,
+  changesFor,
+  ownSaid,
+  partSaid,
+  unitFor,
+  unitsIn,
+  whoseIn,
+} from './changes.ts'
 import { circlingIn } from './circles.ts'
 import { findingsOf, shorten } from './loop.ts'
 import { mistakesWatch } from './mistakes.ts'
@@ -482,12 +490,12 @@ export const jevExtension: TadeExtension = {
     {
       name: 'jev_review',
       description:
-        "Read a change against the review pack and say what it flags: injection, secrets, permissions, swallowed errors, missing tests, whether it did what was asked, and this repository's own rules. Give it a task to read that task's whole diff against what it branched from — the unit a review is worth having about — or a ref like main..HEAD for exactly that. It gives a probability per question and no explanation, so read the diff before acting on one. Finding nothing is an answer.",
+        "Read a change against the review pack and say what it flags: injection, secrets, permissions, swallowed errors, missing tests, whether it did what was asked, and this repository's own rules. Give it a task to read that task's whole diff against what it branched from, or in a checkout tasks share its own commits by trailer — the unit a review is worth having about — or a ref like main..HEAD for exactly that. It gives a probability per question and no explanation, so read the diff before acting on one. Finding nothing is an answer.",
       parameters: object(
         {
           project,
           task: string(
-            "a task, to read its whole diff against its base; the agent's own work when it asks",
+            "a task, to read its whole diff against its base — in a checkout tasks share, its own commits by their Tade-Task: trailer; the agent's own work when it asks",
           ),
           ref: string(
             'or a commit or range, like main..HEAD, when you want exactly that; a range is whatever is in it, so in a shared checkout it may be another agent’s commits, and it says whose',
@@ -541,7 +549,7 @@ export const jevExtension: TadeExtension = {
         const change = await changesFor(ctx, unit, paths)
         if (change.files.length === 0) {
           throw new Error(
-            `nothing to read in ${unit.key}: no files a question could be about changed between ${unit.base.slice(0, 8)} and ${unit.head.slice(0, 8)}${partSaid(change) ? `. ${partSaid(change)}` : ''}`,
+            `nothing to read in ${unit.key}: no files a question could be about changed ${unit.commits.length > 0 ? `in its own ${unit.commits.length === 1 ? 'commit' : `${unit.commits.length} commits`}` : `between ${unit.base.slice(0, 8)} and ${unit.head.slice(0, 8)}`}${partSaid(change) ? `. ${partSaid(change)}` : ''}`,
           )
         }
         const only = Array.isArray(input.questions) ? input.questions.map(String) : null
@@ -572,10 +580,15 @@ export const jevExtension: TadeExtension = {
           )
         return {
           text: [
-            `**${unit.key}** — ${change.files.length} file(s), ${unit.base.slice(0, 8)}…${unit.head.slice(0, 8)}, answered by ${reading.version} (${asking.said()})`,
+            // One agent's own commits are never printed as `base…head`: in a
+            // shared checkout that range runs from where the oldest task
+            // branched, and a no-findings answer printed under it read as a
+            // reading of everybody's work.
+            `**${unit.key}** — ${change.files.length} file(s)${unit.commits.length > 0 ? '' : `, ${unit.base.slice(0, 8)}…${unit.head.slice(0, 8)}`}, answered by ${reading.version} (${asking.said()})`,
             // Before the table, never after it: a table of probabilities about
             // part of a change — or about somebody else's — reads as a table
             // about this agent's change.
+            ownSaid(unit) ?? '',
             whose ?? '',
             reading.part ?? '',
             reading.severity

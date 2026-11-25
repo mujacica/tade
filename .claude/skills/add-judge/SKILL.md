@@ -154,6 +154,11 @@ way, and no agent could account for the answer because none of it was only their
   committed in between.
 - **Whose a commit is, is read back out of the `Tade-Task:` trailer and never guessed**
   (`commitsByTask`) — the same fact the ACTIONS tab and the queue's look at the trees read.
+- **One agent's own commits are said as those, never as `base..head`** (`ownSaid`, `Unit.beside`,
+  `Review.commits`): its base is where the *oldest* task branched, so the bare range is everybody's
+  work — finish-kit's no-findings answer read as twenty-six commits of nineteen tasks. What else is
+  in the range is counted, what nobody signed is named as unread, and a recorded base git no longer
+  has never turns the checkout back into one branch (`oldestBase`).
 - **What nobody signed stays nobody's.** A range where no commit carries a trailer is read as one
   branch, exactly as before, filed under no task, and uncommitted work is in no unit at all.
 - **A reading's `tasks` is read back, never trusted.** Older lines filed a shared branch under every

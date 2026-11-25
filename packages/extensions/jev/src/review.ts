@@ -264,6 +264,7 @@ export function reviewLine(
     tasks: [...unit.tasks],
     base: unit.base,
     head: unit.head,
+    ...(unit.commits.length > 0 ? { commits: [...unit.commits] } : {}),
     version: reading.version,
     // The rubric as it is now, which is what answered: a question reworded
     // tomorrow is a different question under the same id, and only this says so.
