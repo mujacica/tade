@@ -291,3 +291,14 @@ describe('a document an agent handed over', () => {
     expect(describeEvent(draft)).toBe('handed over a draft of its document')
   })
 })
+
+describe('an agent that could not reach Tade', () => {
+  it('is described by what was done about it', () => {
+    expect(describeEvent(event('agent_unheard', { detail: { mended: 'listened again' } }))).toBe(
+      'could not reach Tade, and was listened again',
+    )
+    expect(describeEvent(event('agent_unheard', { detail: { mended: null } }))).toBe(
+      'cannot reach Tade, and could not be mended',
+    )
+  })
+})

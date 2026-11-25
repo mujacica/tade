@@ -1,6 +1,6 @@
 import type { EventType, TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import { composeBriefing } from '../src/briefing.ts'
+import { composeBriefing, stillUnheardIn } from '../src/briefing.ts'
 
 // What a reopened orchestrator is told about the world it was talking about.
 //
@@ -489,5 +489,51 @@ describe('what it opens knowing about the other machines', () => {
     expect(said).toContain('- vps:api/q1')
     expect(said).not.toContain('- vps:api/q0')
     expect(said).toContain('- 1 more on vps not listed')
+  })
+})
+
+describe('agents that could not reach Tade', () => {
+  const unheard = (task: string, mended: string | null, minutesAgo: number) =>
+    event('agent_unheard', task, { why: 'unsupervised', missed: false, mended }, minutesAgo)
+
+  it('keeps only the ones whose last word is an unheard nothing mended, oldest first', () => {
+    const events = [
+      event('run_started', 'app/a', {}, 100),
+      unheard('app/a', null, 50),
+      event('run_started', 'app/b', {}, 100),
+      unheard('app/b', null, 60),
+      // Mended on a later look.
+      event('run_started', 'app/c', {}, 100),
+      unheard('app/c', null, 40),
+      unheard('app/c', 'listened again', 39),
+      // Started again, stopped, or removed since: none of them is unheard now.
+      unheard('app/d', null, 40),
+      event('run_started', 'app/d', {}, 30),
+      unheard('app/e', null, 40),
+      event('run_exited', 'app/e', { code: 0 }, 30),
+      unheard('app/f', null, 40),
+      event('task_removed', 'app/f', {}, 30),
+    ]
+    // Oldest by when each was last set, which is journal order.
+    expect(stillUnheardIn(events).map((one) => one.task)).toEqual(['app/a', 'app/b'])
+  })
+
+  it('says them in the briefing with what to do, and says nothing once they are mended', () => {
+    const said = composeBriefing({
+      now: NOW,
+      events: [event('run_started', 'app/refunds', {}, 100), unheard('app/refunds', null, 30)],
+    })
+    expect(said).toContain(
+      'Agents that could not reach Tade when it last looked, and that Tade could not mend — every Tade call they make is refused, so stop and start each with tade_run_stop and tade_run_start:\n- app/refunds, found 30m ago',
+    )
+    const mended = composeBriefing({
+      now: NOW,
+      events: [
+        event('run_started', 'app/refunds', {}, 100),
+        unheard('app/refunds', null, 30),
+        unheard('app/refunds', 'started again', 29),
+      ],
+    })
+    expect(mended).not.toContain('could not reach Tade')
   })
 })

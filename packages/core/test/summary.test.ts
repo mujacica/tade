@@ -242,3 +242,46 @@ describe('summariseWork', () => {
     expect(describeWork(summary, NOW)).toContain('Last moved just now.')
   })
 })
+
+describe('an agent that could not reach Tade', () => {
+  const unheard = (mended: string | null, seq: number) =>
+    event({
+      seq,
+      type: 'agent_unheard',
+      urgency: 'notable',
+      detail: { why: 'unsupervised', mended },
+    })
+
+  it('says it was unheard until it was mended, and the last word wins', () => {
+    const mended = summariseWork(
+      [tool('bash'), unheard(null, 2), unheard('started again', 3)],
+      'checkout/refunds',
+      NOW,
+    )
+    expect(mended.unheard).toBe(
+      'It could not reach Tade for a while — every Tade call it made was refused — until it was started again.',
+    )
+    expect(describeWork(mended, NOW)).toContain(mended.unheard as string)
+    // Not a tool call, a turn or a command that ran.
+    expect(mended.notable).toEqual([])
+    expect(mended.turns).toBe(0)
+  })
+
+  it('says it still cannot reach Tade when the last look could not mend it', () => {
+    const still = summariseWork(
+      [unheard('listened again', 1), unheard(null, 2)],
+      'checkout/refunds',
+      NOW,
+    )
+    expect(still.unheard).toBe(
+      'It cannot reach Tade: every Tade call it makes is refused, and it could not be mended.',
+    )
+    expect(describeWork(still, NOW)).toContain(still.unheard as string)
+  })
+
+  it('has nothing to say when it was always heard', () => {
+    const summary = summariseWork([tool('bash')], 'checkout/refunds', NOW)
+    expect(summary.unheard).toBeNull()
+    expect(describeWork(summary, NOW)).not.toContain('reach Tade')
+  })
+})

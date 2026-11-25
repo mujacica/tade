@@ -385,3 +385,43 @@ describe('a document handed over, told to the orchestrator at once', () => {
     )
   })
 })
+
+describe('an agent that could not reach Tade', () => {
+  const unheard = (detail: Record<string, unknown>) =>
+    event({ type: 'agent_unheard', lane: 'app/refunds/agent', detail })
+
+  it('is news once mended, saying why and how, and that what it could not report can be asked for', () => {
+    expect(
+      eventNews(unheard({ why: 'unsupervised', missed: false, mended: 'listened again' })),
+    ).toBe(
+      `app/refunds's agent could not reach Tade — its lane was working with nobody listening for it — so every Tade call it made, tade_done and checks_run included, was refused as "Tade isn't open". It was listened again, and can reach Tade now; anything it said it could not report, it can be asked for again.`,
+    )
+    // Its socket gone, and its hooks dropping what they had to say: both said.
+    const gone = eventNews(unheard({ why: 'socket-gone', missed: true, mended: 'started again' }))
+    expect(gone).toContain(
+      'the socket its tool calls go to was gone, and its hooks were dropping what they had to say',
+    )
+    expect(gone).toContain('It was started again')
+    // Not mended is not news to wait for the next thing said: it is told now.
+    expect(eventNews(unheard({ why: 'unsupervised', missed: false, mended: null }))).toBeNull()
+  })
+
+  it('is told now when it could not be mended, with what to do and why it failed', () => {
+    expect(
+      eventTell(
+        unheard({ why: 'socket-gone', missed: false, mended: null, error: 'lane is gone' }),
+        [],
+      ),
+    ).toBe(
+      `app/refunds's agent cannot reach Tade — the socket its tool calls go to was gone — so every Tade call it makes is refused as "Tade isn't open", and Tade could not mend it (lane is gone). Stop it and start it again with tade_run_stop and tade_run_start, and tell the person.`,
+    )
+    // With no error written down, no empty brackets.
+    expect(eventTell(unheard({ why: 'unsupervised', missed: false, mended: null }), [])).toContain(
+      'could not mend it. Stop it',
+    )
+    // Mended already: news, never told over the orchestrator's turn.
+    expect(eventTell(unheard({ why: 'unsupervised', mended: 'listened again' }), [])).toBeNull()
+    // A line about no task is about nobody's agent.
+    expect(eventTell({ ...unheard({ mended: null }), task: null }, [])).toBeNull()
+  })
+})
