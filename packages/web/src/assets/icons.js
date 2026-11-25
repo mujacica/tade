@@ -137,9 +137,29 @@ export function svgOf(tag, attrs = {}) {
   return node
 }
 
-/** Point an icon made by `icon` at another symbol, without rebuilding it. */
+/**
+ * Point an icon made by `icon` at another symbol, without rebuilding it: the
+ * `<use>` inside its `<svg>`, and its `ic-<name>` class with it.
+ *
+ * `node` is the icon or what holds it as its first child — a button with an
+ * icon in it — because both have been handed here: the agent row's start/stop
+ * passed its button, so the `href` went on the `<svg>`, which draws nothing,
+ * and the row said "Stop" under a ▷ (`test/icon-in.test.ts`). Without a sprite
+ * the icon is a bare span, and only its class moves.
+ */
 export function iconIn(node, name) {
-  const use = node.firstChild
+  const drawing = isIcon(node) ? node : isIcon(node?.firstChild) ? node.firstChild : null
+  if (drawing === null) return
+  for (const klass of [...drawing.classList]) {
+    if (klass.startsWith('ic-') && klass !== `ic-${name}`) drawing.classList.remove(klass)
+  }
+  if (!drawing.classList.contains(`ic-${name}`)) drawing.classList.add(`ic-${name}`)
+  const use = drawing.firstChild
   if (use === null || use === undefined || typeof use.setAttribute !== 'function') return
   if (use.getAttribute('href') !== `#i-${name}`) use.setAttribute('href', `#i-${name}`)
+}
+
+/** Whether a node is one `icon` made: it carries the `ic` class. */
+function isIcon(node) {
+  return node?.classList?.contains('ic') === true
 }

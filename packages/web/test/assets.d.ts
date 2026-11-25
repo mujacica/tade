@@ -320,6 +320,8 @@ declare module '*/assets/conversation.js' {
 declare module '*/assets/icons.js' {
   export const ICONS: readonly string[]
   export const WORDS: readonly string[]
+  export function icon(name: string, extra?: string): unknown
+  export function iconIn(node: unknown, name: string): void
 }
 
 declare module '*/assets/charts.js' {
@@ -511,6 +513,10 @@ declare module '*/assets/agent-menu.js' {
     choice?: string,
     typed?: string,
   ): Record<string, string>
+  export function agentPresses(
+    acting: unknown,
+    saidOf: () => unknown,
+  ): { node: unknown; openMenu(from: unknown): void; update(row: unknown, acts: unknown): void }
 }
 
 declare module '*/assets/ui.js' {

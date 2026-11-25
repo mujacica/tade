@@ -132,7 +132,8 @@ export function agentPresses(acting, saidOf) {
   // A `span`, so a list's own `.rows > li > div` (a whole row) is never it.
   const node = el('span', { class: 'side-acts agent-acts' })
   const toggle = el('button', { class: 'tap icon side-press', attrs: { type: 'button' } })
-  into(toggle, icon('play'))
+  const toggleIcon = icon('play')
+  into(toggle, toggleIcon)
   const shut = el('button', { class: 'tap icon side-press is-danger', attrs: { type: 'button' } })
   into(shut, icon('close'))
   const more = el('button', {
@@ -212,7 +213,7 @@ export function agentPresses(acting, saidOf) {
       const start = standingOf('start', row, acts)
       toggleVerb = stop.kind === 'yes' ? 'stop' : start.kind === 'yes' ? 'start' : null
       toggle.hidden = toggleVerb === null
-      if (toggleVerb !== null) iconIn(toggle, toggleVerb === 'stop' ? 'stop' : 'play')
+      if (toggleVerb !== null) iconIn(toggleIcon, toggleVerb === 'stop' ? 'stop' : 'play')
       // Closing removes its worktree and branch: the person's own device's alone.
       shut.hidden = !theirs || standingOf('remove', row, acts).kind !== 'yes'
       relabel()
