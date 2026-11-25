@@ -504,11 +504,19 @@ export function fullAccessLacks(device: {
 }
 
 /**
- * Whether a device is the person's own: full access, and **not a machine
- * link** (`tade web pair --owner`), whose words may be another machine's
- * model's and whose reach stays the one it was paired with — the same two
- * halves `armOf` asks. Read off the record at every request, so revoking it
- * or unticking one box ends it at the next one.
+ * Whether a device reaches what the person's own does: full access — a phone
+ * of theirs, **or the link of a machine they paired as owner** (`tade web
+ * pair --owner`, which every way of adding a machine runs). The person
+ * decided there is no difference between driving this machine's agents from
+ * another of their machines and from their phone: remove, run as account,
+ * every setting and the rest (`Verb.theirs`, `Reach.theirs`, `Route.theirs`).
+ * Read off the record at every request, so revoking it or unticking one box
+ * ends it at the next one, and a link somebody narrowed keeps what is left.
+ *
+ * What it does **not** decide is whose a link's **words** are: those may be
+ * another machine's model's, so they are a `said` line only where that
+ * machine says the person typed them (`armOf`, `AskCall.typed`), and the
+ * owner arm is still given only on this machine's own door.
  */
 export function theirsOf(device: {
   scopes?: readonly string[]
@@ -516,9 +524,7 @@ export function theirsOf(device: {
   owner?: boolean
 }): boolean {
   return (
-    device.owner !== true &&
-    device.scopes !== undefined &&
-    fullAccess({ scopes: device.scopes, granted: device.granted })
+    device.scopes !== undefined && fullAccess({ scopes: device.scopes, granted: device.granted })
   )
 }
 

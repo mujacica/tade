@@ -240,7 +240,8 @@ export interface Verb {
   on: 'task' | 'project'
   /**
    * Whether only **the person's own device** may ask for it — full access,
-   * not a machine link (`theirsOf`) — whatever scope another was granted.
+   * a phone of theirs or a machine they paired as owner (`theirsOf`) —
+   * whatever scope another was granted.
    *
    * For the acts that delete work or change whose sign-in or which harness an
    * agent runs as: what a box ticked for *stop and reopen agents* was never

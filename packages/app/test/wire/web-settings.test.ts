@@ -212,8 +212,8 @@ describe('a key, which is never read and never set from here', () => {
 })
 
 describe('the person’s own device, which changes any setting as the keyboard does', () => {
-  // Full access — every scope and every reading grant — and not a machine
-  // link: what pairing gives unless something is unticked (`theirsOf`).
+  // Full access — every scope and every reading grant: what pairing gives
+  // unless something is unticked (`theirsOf`), a phone or a machine link.
   const theirs = (over: Partial<Device> = {}) =>
     device({ scopes: [...SCOPES], granted: [...GRANTS], owner: false, ...over })
   const value = (one: ReturnType<typeof setup>, path: string) =>
@@ -236,6 +236,25 @@ describe('the person’s own device, which changes any setting as the keyboard d
         path,
       ).resolves.toMatchObject({ did: true })
       // **Under the device**, never `you`: the record says it came from the phone.
+      expect(one.wrote, path).toEqual([{ path, value: other, by: `device ${DEVICE}` }])
+    }
+  })
+
+  it('is the same for a machine the person paired as owner, which changes them as their phone does', async () => {
+    // Amir: there should be no difference between ipax from the Mac and ipax
+    // from the phone — so the owner's link is answered every tier too.
+    for (const path of ['agents.commit', 'approvals.mode']) {
+      const one = setup({ devices: [theirs({ owner: true, host: 'localhost:7654' })] })
+      const row = one
+        .rows()
+        .flatMap((group) => group.settings)
+        .find((it) => it.path === path)
+      const other = row?.type.kind === 'choice' ? row.type.options.find((o) => o !== row.value) : ''
+      if (other === undefined || other === '') throw new Error(`no other value for ${path}`)
+      await expect(
+        one.half.change({ path, was: value(one, path), value: other }, REMOTE),
+        path,
+      ).resolves.toMatchObject({ did: true })
       expect(one.wrote, path).toEqual([{ path, value: other, by: `device ${DEVICE}` }])
     }
   })
@@ -266,9 +285,10 @@ describe('the person’s own device, which changes any setting as the keyboard d
     const cases: [string, Device][] = [
       ['one scope unticked', theirs({ scopes: SCOPES.filter((scope) => scope !== 'agents') })],
       ['one grant unticked', theirs({ granted: GRANTS.filter((grant) => grant !== 'spend') })],
-      // A machine link reaches as far in a turn, but its words may be another
-      // machine's model's, and the Settings page is never one.
-      ['a machine link', theirs({ owner: true })],
+      [
+        'a machine link somebody narrowed',
+        theirs({ owner: true, granted: GRANTS.filter((grant) => grant !== 'spend') }),
+      ],
     ]
     for (const [why, held] of cases) {
       const one = setup({ devices: [held] })

@@ -849,7 +849,10 @@ an oracle for it.
   device has none: its request as the words makes `asked` into `open` for any device; the person's
   old lines let a phone ride on last week's sentence (Phase 3's hole).
 - **The person's own device reaches every tier** (`theirsOf` in `src/surface.ts`, `Reach.theirs`):
-  full access and not a machine link — the same two halves `armOf` asks. It is read off the record
+  full access, a phone of theirs **or the link of a machine they paired as owner** (an owner line
+  reads every scope and grant there is now, `devicesIn`) — the person decided driving this machine
+  from another of theirs is the same as from their phone. A link's **words** are still `said` only
+  where that machine says they were typed (`armOf`). It is read off the record
   at the request (`reachOf`, so `readSettingChange(body, theirs)`) and again at the write
   (`web-settings.ts`), so revoking or unticking one box is an ordinary device at the next press; the
   body can never claim it (strict parse). Its key rows carry `sets` and may be typed into, never

@@ -347,6 +347,15 @@ export function devicesIn(text: string): {
       continue
     }
     if (parsed.kind === 'paired') {
+      // **An owner link is paired with everything, so it reads with everything
+      // there is now** — the scopes and grants of this Tade, not of the one
+      // that wrote the line. `mintOwner` is the only writer of an owner line
+      // and writes every scope and grant it knew of; a link paired before a
+      // newer one existed would otherwise stop being full access, and stop
+      // reaching what the person's own device does (`theirsOf`), the day this
+      // machine's Tade is upgraded. What somebody here unticks afterwards is an
+      // `allowed` or `granted` line below, and stands.
+      const owner = ownerOf(parsed)
       devices.set(parsed.device, {
         id: parsed.device,
         label: parsed.label,
@@ -355,12 +364,12 @@ export function devicesIn(text: string): {
         csrf: parsed.csrf,
         until: Date.parse(parsed.until),
         pairedAt: Date.parse(parsed.at),
-        scopes: parsed.scopes,
+        scopes: owner ? [...SCOPES] : parsed.scopes,
         projects: parsed.projects,
-        granted: parsed.granted,
+        granted: owner ? [...GRANTS] : parsed.granted,
         from: parsed.from,
         revoked: null,
-        owner: ownerOf(parsed),
+        owner,
         passkey: null,
       })
       continue

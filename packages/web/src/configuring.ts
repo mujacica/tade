@@ -58,8 +58,8 @@ import { cleanScreen } from './screen.ts'
 //
 // ## The person's own device is the exception, and only it
 //
-// A device with full access that is not a machine link (`theirsOf`) is the
-// person's own phone: they decided it may do everything they can at the
+// A device with full access (`theirsOf`) is the person's own phone, or the
+// link of a machine they paired as owner: they decided it may do everything they can at the
 // machine, and that if it is stolen they revoke it. So for it — and for no
 // other device — every tier is `change` (`awayReach(path, true)`), its key rows
 // may be set as well as cleared (`sets`), and the change is written `by` that

@@ -291,16 +291,18 @@ describe('the person’s own device', () => {
     granted: [...GRANTS],
   }
 
-  it('is a device with full access that is not a machine link, read off the record', () => {
+  it('is a device with full access, a phone or a machine paired as owner, read off the record', () => {
     expect(theirsOf(full)).toBe(true)
     expect(reachOf(full).theirs).toBe(true)
-    // A machine link reaches as far in a turn, but is never the person here.
-    expect(theirsOf({ ...full, owner: true })).toBe(false)
-    expect(reachOf({ ...full, owner: true }).theirs).toBeUndefined()
-    // One box unticked, either kind, and it is an ordinary device.
+    // **A machine the person paired as owner reaches what their phone does**:
+    // they decided there is no difference between the two.
+    expect(theirsOf({ ...full, owner: true })).toBe(true)
+    expect(reachOf({ ...full, owner: true }).theirs).toBe(true)
+    // One box unticked, either kind, on either, and it is an ordinary device.
     for (const scope of SCOPES) {
       const less = { ...full, scopes: SCOPES.filter((one) => one !== scope) }
       expect(theirsOf(less), scope).toBe(false)
+      expect(theirsOf({ ...less, owner: true }), scope).toBe(false)
     }
     for (const grant of GRANTS) {
       const less = { ...full, granted: GRANTS.filter((one) => one !== grant) }

@@ -40,7 +40,7 @@ import {
 // 2. **Re-check how far a device reaches.** `settingReach` asked again, so a
 //    path that was `open` when the listener started and is not now is refused
 //    — the tier is core's decision and this costs one call. The person's own
-//    device (`theirsOf`: full access, not a machine link) reaches every tier,
+//    device (`theirsOf`: full access, a phone or an owner's link) reaches every tier,
 //    asked of the record **now**, so revoking it or unticking one box at the
 //    panel is an ordinary device's reach at this very write.
 // 3. **Re-check the value against the row the window lists now**, through the

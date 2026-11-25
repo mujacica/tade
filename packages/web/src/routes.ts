@@ -154,9 +154,9 @@ export interface Route {
    */
   here?: true
   /**
-   * Whether the person's own device (`theirsOf`: full access, not a machine
-   * link) is answered this `here` route on **any** door, as an owner is on
-   * this one. Off this machine's door the guard lets it through only for a
+   * Whether the person's own device (`theirsOf`: full access, a phone of
+   * theirs or a machine they paired as owner) is answered this `here` route
+   * on **any** door, as an owner is on this one. Off this machine's door the guard lets it through only for a
    * session that is theirs at that request — every other is still the `404`
    * of a path nobody built — and asks it what acting asks, a trusted origin
    * and the passkey, because what it reaches is the SSH key's.

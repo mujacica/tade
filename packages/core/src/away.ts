@@ -115,7 +115,7 @@ export const AWAY_IS_WHILE_OPEN =
  * be the comfortable version of this sentence.
  *
  * **Both halves, as `TALKING_IS_NOT_YOU` has them**: the person's own device
- * (`theirsOf`: full access, not a machine link) acts as them — they decided it
+ * (`theirsOf`: full access, a phone or an owner's link) acts as them — they decided it
  * may do everything they can here, a revoke away if it is stolen — and every
  * other device's act is a request. The list of what acting never reaches is
  * still true of the buttons on either; what the person's own reaches past
@@ -210,7 +210,7 @@ export const DRAFTS_ARE_NOT_PUBLISHED_SHORT = 'a draft is a file no run reads un
  * sentence says where those settings are changed instead.
  *
  * **The person's own device is the one exception** (`theirsOf` in
- * `@tade/web`): full access, not a machine link. They decided it may do
+ * `@tade/web`): full access, a phone or an owner's link. They decided it may do
  * everything they can at the machine, a revoke away if it is stolen, so it
  * changes any setting, a key included — still with two presses, against the
  * value it was shown, under that device's name. An agent here that paired

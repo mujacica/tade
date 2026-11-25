@@ -90,9 +90,10 @@ export function admit(asked: Asked, needs: Scope, standing: Standing, theirs = f
   }
 
   // 2b. Whose device it is, for the verbs that are the person's own device's
-  //     alone (`Verb.theirs`): full access and not a machine link, read off
-  //     the record at this request (`reachOf`), so unticking one box is an
-  //     ordinary device at the next press. No scope stands in for it.
+  //     alone (`Verb.theirs`): full access — a phone of theirs or a machine
+  //     they paired as owner — read off the record at this request
+  //     (`reachOf`), so unticking one box is an ordinary device at the next
+  //     press. No scope stands in for it.
   if (theirs && standing.reach.theirs !== true) {
     return no('out_of_scope', `${asked.verb} is for your own device with full access`)
   }

@@ -58,8 +58,8 @@ export { type CarryLine, type ChangeSeen, changesIn, type HandEdit }
 // write a key, and that is what makes it no wider than what already was**:
 // whoever holds that key can already `ssh` here and edit `config.yaml`. A
 // phone's session, however much it was granted, is refused it — **but the
-// person's own** (`Route.theirs`, `theirsOf`: full access, not a machine
-// link), on any door, which already changes every setting from Settings, keys
+// person's own** (`Route.theirs`, `theirsOf`: full access, a phone or an
+// owner's link), on any door, which already changes every setting from Settings, keys
 // included. The person decided it: their
 // phone is the screen they can pull the plug on — and off this machine's door
 // it is asked a trusted origin and the passkey, as acting is.
