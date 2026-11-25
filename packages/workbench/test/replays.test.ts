@@ -100,6 +100,20 @@ describe('a replay', () => {
     })
   })
 
+  it('puts the one the journal finished later first, when two finished in the same millisecond', async () => {
+    // As a fast runner writes them: by time alone they came out in the order
+    // they were created, which failed the ubuntu row of ci.yml.
+    const same = '2026-11-25T03:00:00.000Z'
+    const cases = await landedCases({
+      home,
+      config: client.config,
+      project: 'app',
+      events: (await client.events({})).map((event) => ({ ...event, ts: same })),
+      now: Date.now(),
+    })
+    expect(cases.map((one) => one.task)).toEqual(['app/yes', 'app/greet'])
+  })
+
   it('holds each case on the harness it first ran on and moves only the model', async () => {
     const made = await startReplay(deps(), {
       project: 'app',

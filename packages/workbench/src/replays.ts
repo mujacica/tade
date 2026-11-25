@@ -93,6 +93,13 @@ export async function landedCases(opts: {
   const runtime = runtimeFrom(opts.events, { now: opts.now }).byTask
   const created = new Map<string, Record<string, unknown>>()
   const commits = new Map<string, { sha: string; at: string; added: number; removed: number }[]>()
+  // Where each task's first `task_done` is in the journal: the tie-break for
+  // two finished in the same millisecond, which a fast machine does.
+  const doneAt = new Map<string, number>()
+  opts.events.forEach((event, index) => {
+    if (event.task && event.type === 'task_done' && !doneAt.has(event.task))
+      doneAt.set(event.task, index)
+  })
   for (const event of opts.events) {
     if (!event.task) continue
     if (event.type === 'task_created') created.set(event.task, event.detail)
@@ -149,7 +156,10 @@ export async function landedCases(opts: {
       head,
     })
   }
-  return cases.sort((a, b) => b.done - a.done)
+  // Newest finished first, and of two in one millisecond the one the journal
+  // wrote later: by time alone they came out in the order they were created.
+  const order = (task: string) => doneAt.get(task) ?? -1
+  return cases.sort((a, b) => b.done - a.done || order(b.task) - order(a.task))
 }
 
 /**
