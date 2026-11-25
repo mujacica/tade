@@ -165,7 +165,10 @@ and that record.
   — and **never a model's or a judge's**: choosing what not to run is the opposite of adding caution.
   It passing leaves the rollup `unknown`; what is said beside it is `pendingWords` — "related tests
   passed, full run pending" — on the ACTIONS heading, in `checks_list` and in `tade checks`, never a
-  green. `paths` narrow the related check alone, each `shellQuote`d, and nothing that starts with `-`.
+  green. `paths`, each `shellQuote`d and nothing that starts with `-`, narrow the related check, and
+  run the commit hook on the index a commit of exactly those paths would have (`withPaths`,
+  `asCommitOf`): `GIT_INDEX_FILE` is HEAD plus those paths, so whatever the hook reads out of the
+  index is this change, not what other agents have staged.
 - **Batched, the full checks run once for every batch of commits** (`checks.full: batched`, and unset
   where the project has a `related` check — `batchedFor`, only ever in a shared checkout, where one
   full run at HEAD covers every task committed before it). The agent is told the related run is what

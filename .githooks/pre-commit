@@ -8,10 +8,10 @@
 # minutes: real git repositories, real PTYs, the tmux driver, the app's frame
 # loop. Those are CI's, and `pnpm check` is how you run them here.
 #
-# It reads the working tree, not the index. With unstaged edits sitting beside
-# your staged ones, what this passed is not byte-for-byte what you are
-# committing — the trade for never stashing your work out from under you in
-# the middle of a commit.
+# Style reads what is staged; types and the tests read the working tree. With
+# unstaged edits sitting beside your staged ones, what those passed is not
+# byte-for-byte what you are committing — the trade for never stashing your
+# work out from under you in the middle of a commit.
 #
 # Installed by `pnpm hooks`, which `pnpm install` runs for you. Skip one
 # commit with `git commit --no-verify`.
@@ -45,12 +45,31 @@ step() {
 # one checkout, and over `.` another agent's half-written file failed
 # everybody's commit. Style, unlike types, cannot break in a file nobody
 # touched. Git sets GIT_INDEX_FILE for the hook, and under `git commit --only`
-# that index holds exactly the named paths, not whatever else is staged. Run
-# by hand or by Tade's checks there is no commit, so it reads the whole tree.
+# that index differs from HEAD in exactly the named paths, not whatever else
+# is staged. Tade's checks, given `paths`, run it on the same shape of index:
+# HEAD plus those paths (`asCommitOf`, packages/workbench/src/checks.ts). Run
+# by hand, or by Tade's checks with no paths, there is no such index, so it
+# reads the whole tree.
+#
+# What it reads of those paths is their staged copies, written out with
+# biome's config beside them, not the working tree's: a file half-staged with
+# `git add -p` was failed for an edit that was not going in, and passed with
+# an untidy copy that was. Out there, with no repository around them, it does
+# not ask git what is ignored: every path given to it is being committed.
+staged_style() {
+  {
+    git ls-files -z -- biome.json biome.jsonc biome/
+    git diff --cached --name-only -z --diff-filter=d
+  } | git checkout-index -f -z --stdin --prefix="$staged/" || return 1
+  git diff --cached --name-only -z --diff-filter=d |
+    (cd "$staged" && xargs -0 "$root/node_modules/.bin/biome" ci --vcs-enabled=false \
+      --diagnostic-level=error --files-ignore-unknown=true --no-errors-on-unmatched)
+}
 if [ -n "${GIT_INDEX_FILE:-}" ]; then
   if [ -n "$(git diff --cached --name-only --diff-filter=d)" ]; then
-    step "style and lint" sh -c 'git diff --cached --name-only -z --diff-filter=d |
-      xargs -0 pnpm exec biome ci --diagnostic-level=error --files-ignore-unknown=true --no-errors-on-unmatched'
+    staged=$(mktemp -d)
+    trap 'rm -rf "$staged"' EXIT
+    step "style and lint" staged_style
   fi
 else
   step "style and lint" pnpm exec biome ci . --diagnostic-level=error
