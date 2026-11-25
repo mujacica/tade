@@ -222,3 +222,75 @@ describe('the commit hook’s types', () => {
     expect(commits(r)).toBe(before)
   }, 60_000)
 })
+
+const SMOKE = 'pre-commit: smoke tests failed'
+const PASSING = 'test/ok.test.mjs'
+const BROKEN = 'test/half.test.mjs'
+
+/**
+ * The workspace, with smoke tests that are Node's test runner over `test/`.
+ * The one committed test passes only where git can say it is tracked, as this
+ * repository's own smoke tests ask `git ls-files` what the repository has.
+ */
+function smoked(): Repo {
+  const r = workspace()
+  r.write({
+    'package.json':
+      '{ "private": true, "type": "module", "scripts": { "test:smoke": "node --test \'test/*.test.mjs\'" } }\n',
+    [PASSING]: [
+      "import { execFileSync } from 'node:child_process'",
+      "import { test } from 'node:test'",
+      `test('is tracked', () => { execFileSync('git', ['ls-files', '--error-unmatch', '${PASSING}']) })`,
+      '',
+    ].join('\n'),
+  })
+  r.git('add', 'package.json', PASSING)
+  r.git('commit', '-q', '--no-verify', '-m', 'Smoke')
+  return r
+}
+
+/** A test that fails, as another agent's is while they are halfway through it. */
+const HALF =
+  "import { test } from 'node:test'\ntest('half', () => { throw new Error('not yet') })\n"
+
+describe('the commit hook’s smoke tests', () => {
+  it('are not failed by somebody else’s broken test that is not in the commit', () => {
+    const r = smoked()
+    r.write({ [BROKEN]: HALF, 'packages/app/src/a.ts': TIDY })
+    // Run over the working tree, the broken test is found.
+    expect(run(r, 'sh', HOOK)).toContain(SMOKE)
+    const before = commits(r)
+    r.git('add', 'packages/app/src/a.ts')
+    const untracked = run(
+      r,
+      'git',
+      'commit',
+      '-q',
+      '-m',
+      'A',
+      '--only',
+      '--',
+      'packages/app/src/a.ts',
+    )
+    expect(untracked).not.toContain(SMOKE)
+    expect(commits(r)).toBe(before + 1)
+
+    // Staged by somebody else, it is still not in a commit `--only` names.
+    r.git('add', BROKEN)
+    r.write({ 'packages/app/src/b.ts': TIDY })
+    r.git('add', 'packages/app/src/b.ts')
+    const staged = run(r, 'git', 'commit', '-q', '-m', 'B', '--only', '--', 'packages/app/src/b.ts')
+    expect(staged).not.toContain(SMOKE)
+    expect(commits(r)).toBe(before + 2)
+  }, 60_000)
+
+  it('fail a commit of a broken test', () => {
+    const r = smoked()
+    r.write({ [BROKEN]: HALF })
+    r.git('add', BROKEN)
+    const before = commits(r)
+    const failed = run(r, 'git', 'commit', '-q', '-m', 'Half', '--only', '--', BROKEN)
+    expect(failed).toContain(SMOKE)
+    expect(commits(r)).toBe(before)
+  }, 60_000)
+})

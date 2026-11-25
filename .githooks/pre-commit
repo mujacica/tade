@@ -8,10 +8,10 @@
 # minutes: real git repositories, real PTYs, the tmux driver, the app's frame
 # loop. Those are CI's, and `pnpm check` is how you run them here.
 #
-# In a commit, style and types read what is staged; the tests read the working
-# tree. With unstaged edits sitting beside your staged ones, what those passed
-# is not byte-for-byte what you are committing — the trade for never stashing
-# your work out from under you in the middle of a commit.
+# In a commit, every step reads what is being committed, written out of the
+# index, and never the working tree: several agents share one checkout, and
+# nobody's half-done file fails anybody else's commit. Nothing is stashed out
+# from under you in the middle of one.
 #
 # Installed by `pnpm hooks`, which `pnpm install` runs for you. Skip one
 # commit with `git commit --no-verify`.
@@ -135,4 +135,32 @@ fi
 # `pnpm check` and the CI workflow Tade reads its checks out of still run the
 # same commands, that the guide, the file budgets and the notices are still
 # true, and that the R3 lint rule still bites.
-step "smoke tests" pnpm run --silent test:smoke
+#
+# In a commit, they run in the tree the types step wrote out, for the same
+# reason: over the working tree another agent's half-done test failed
+# everybody's commit. The tests that hold the repository to its word ask
+# `git ls-files` what it has, so the tree is made a repository of its own: the
+# commit's index entries copied in, the objects borrowed from this one, and
+# HEAD set to this one's. Nothing it runs reaches this repository's index or
+# refs — the hook's GIT_INDEX_FILE is the commit's, and the tests never see it.
+# Run by hand, or by Tade's checks with no paths, they read the working tree.
+in_tree() (
+  cd "$tree" || exit 1
+  unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR
+  "$@"
+)
+committed_smoke() {
+  objects=$(git rev-parse --path-format=absolute --git-path objects) || return 1
+  head=$(git rev-parse -q --verify HEAD) || head=
+  in_tree git init -q . || return 1
+  echo "$objects" > "$tree/.git/objects/info/alternates" || return 1
+  git ls-files -s -z > "$tree/.git/entries" || return 1
+  in_tree git update-index -z --index-info < "$tree/.git/entries" || return 1
+  if [ -n "$head" ]; then in_tree git update-ref HEAD "$head" || return 1; fi
+  in_tree pnpm run --silent test:smoke
+}
+if [ -n "${GIT_INDEX_FILE:-}" ]; then
+  step "smoke tests" committed_smoke
+else
+  step "smoke tests" pnpm run --silent test:smoke
+fi
