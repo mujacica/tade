@@ -283,6 +283,47 @@ describe('Tade’s plugin inside OpenCode', () => {
     ])
   })
 
+  it('says what a failed step used, on the model it ran on, a subagent’s too', async () => {
+    const { signals, stand } = await supervised()
+    stand.emit('session.step.started', {
+      sessionID: 'ses_child',
+      assistantMessageID: 'msg_c',
+      model: { providerID: 'anthropic', id: 'claude-haiku-5-5' },
+    })
+    stand.emit('session.step.failed', {
+      sessionID: 'ses_child',
+      assistantMessageID: 'msg_c',
+      error: { type: 'provider.overloaded', message: 'overloaded' },
+      cost: 0.03,
+      tokens: { input: 700, output: 20, reasoning: 5, cache: { read: 300, write: 10 } },
+    })
+    // One that failed before its model answered says nothing of what it used.
+    stand.emit('session.step.started', {
+      assistantMessageID: 'msg_2',
+      model: { providerID: 'openai', id: 'gpt-5.5' },
+    })
+    stand.emit('session.step.failed', {
+      assistantMessageID: 'msg_2',
+      error: { type: 'aborted', message: 'cancelled' },
+    })
+    stand.emit('session.execution.started', {})
+    await until(() => signals.some((s) => s.type === 'turn_started'), { timeout: 5_000 })
+    expect(
+      signals.filter((s) => s.type === 'usage').map(({ run: _run, at: _at, ...rest }) => rest),
+    ).toEqual([
+      {
+        type: 'usage',
+        model: 'anthropic/claude-haiku-5-5',
+        input: 700,
+        output: 25,
+        cacheRead: 300,
+        cacheWrite: 10,
+        tokens: 1035,
+        usd: 0.03,
+      },
+    ])
+  })
+
   it('says a turn that failed or was stopped, and a server OpenCode gave up on, once', async () => {
     const { signals, stand } = await supervised()
     stand.emit('session.execution.started', {})

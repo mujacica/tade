@@ -583,6 +583,16 @@ export default {
           if (own) await sayContext(input + cacheRead + cacheWrite, on)
           return
         }
+        case 'session.step.failed': {
+          // A step that failed may still have paid for what it sent: OpenCode
+          // adds it to its own totals and files it on the step's message, so
+          // it is said now rather than found when the window next opens.
+          const id = str(data.assistantMessageID) ?? ''
+          const on = steps.get(id) ?? (own ? model : null)
+          steps.delete(id)
+          sayUsage(data, on)
+          return
+        }
         case 'session.model.selected':
           if (own) {
             model = modelName(data.model) ?? model
