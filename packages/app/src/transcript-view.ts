@@ -1,7 +1,7 @@
 import { basename } from 'node:path'
 import { stripTerminalSequences, visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
 import { printable, printableLines } from '@tade/core'
-import type { Hit, Target } from './hits.ts'
+import type { Hit, Said, Target } from './hits.ts'
 import { type Linker, linkedRow } from './links.ts'
 import { spinner } from './model.ts'
 import type { Skin } from './skin.ts'
@@ -70,12 +70,12 @@ export function transcriptLines(
    * moment worth saying it, which is where every harness says it too.
    */
   stoppable = false,
-  /** This machine's own conversation: a path in it is on this disk (`linkedRow`). */
-  here = false,
+  /** Whose orchestrator's conversation it is: a path in it is on that machine's disk (`linkedRow`). */
+  said: Said = {},
 ): Line[] {
   const lines: Line[] = []
   const plainText = (text: string) => lines.push({ text: fit(text, width), hits: [] })
-  const linked = (text: string) => lines.push(linkedRow(text, width, skin, pointer, linkers, here))
+  const linked = (text: string) => lines.push(linkedRow(text, width, skin, pointer, linkers, said))
 
   // Nothing said yet: how to read what will be.
   if (transcript.entries.length === 0) {

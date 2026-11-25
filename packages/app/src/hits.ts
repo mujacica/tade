@@ -90,11 +90,12 @@ export type Target =
   /** A link on an agent's screen. */
   | { kind: 'link'; url: string }
   /**
-   * A file reference on an agent's screen, maybe at a line. `here` is a path
-   * this machine's own orchestrator said, so it is on this disk wherever you
-   * stand: the strip under another machine's project is still this one's.
+   * A file reference on an agent's screen, maybe at a line. Which machine's
+   * orchestrator said it, where one did (`Said`): `here` is this machine's own,
+   * so it is on this disk wherever you stand; `there` is the machine whose tab
+   * it is in, so it is on that machine's disk wherever you stand.
    */
-  | { kind: 'place'; path: string; line?: number; column?: number; here?: true }
+  | ({ kind: 'place'; path: string; line?: number; column?: number } & Said)
   /**
    * A section's heading. `quiet` is what the drawing found: nothing in it, so
    * it is shut unless asked for — carried here so that pressing it does what
@@ -109,6 +110,13 @@ export type Target =
   | { kind: 'dismiss' }
   /** Inside a panel but on nothing: swallows the click so it cannot fall through. */
   | { kind: 'inert' }
+
+/**
+ * Whose orchestrator said a path: this machine's (`here`), another machine's
+ * by its name (`there`), or neither — an agent's screen, which is on the disk
+ * of wherever you stand.
+ */
+export type Said = { here?: true; there?: never } | { here?: never; there?: string }
 
 /**
  * Somewhere the wheel moves what is shown: the sidebar, a panel, the

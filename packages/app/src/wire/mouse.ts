@@ -47,7 +47,7 @@ import { splitRatio } from '../split.ts'
 import { isTalkTab, showTalk } from '../talk-tab.ts'
 import { isThere } from '../there.ts'
 import { LastFrame } from '../view/last-frame.ts'
-import type { Pressed, Wiring } from './context.ts'
+import { notify, type Pressed, type Wiring } from './context.ts'
 import { EdgeHold } from './edge.ts'
 
 // The mouse, which is a shortcut into what you could also have typed.
@@ -584,8 +584,20 @@ export class Mouse {
     // branch's are that machine's (`disk-there`) — nothing here is opened in
     // their place. A folder opens and closes here, as the tree is this window's,
     // and a path this machine's own orchestrator said is on this disk (`here`).
+    // One another machine's orchestrator said is on that machine's disk
+    // (`there`), wherever you stand: read there while you stand in one of its
+    // projects, which is what its disk is read through, and otherwise said —
+    // never opened here, nor on a third machine, in its place.
     const place = elsewhereOf(this.wire.state)
     const ours = target.kind === 'place' && target.here === true
+    if (target.kind === 'place' && target.there !== undefined && place?.machine !== target.there) {
+      notify(
+        this.wire,
+        `${target.path} is on ${target.there}: stand in one of its projects to open it`,
+      )
+      this.wire.draw()
+      return
+    }
     if (place !== null && !ours && THERE_ON_DISK.has(target.kind)) {
       const path = 'path' in target ? target.path : ''
       if (button === 'right' || target.kind === 'branch') {
