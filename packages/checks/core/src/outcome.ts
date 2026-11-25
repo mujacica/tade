@@ -87,19 +87,36 @@ export function summaryOf(tail: string): string | null {
   const { counts } = readOutcome(tail)
   const failed = counts.some((one) => one.tone === 'bad' && one.count > 0)
   const line =
-    counts.length > 0
-      ? [
-          counts.map((one) => `${one.count} ${one.label}`).join(' · '),
-          failed ? null : saidAfter(tail),
-        ]
-          .filter(Boolean)
-          .join(' · ')
-      : plain(tail)
-          .split('\n')
-          .map((part) => part.replace(/\s+$/, ''))
-          .filter((part) => part.trim() !== '')
-          .at(-1)
+    counts.length === 0 && NO_STRIPPING.test(plain(tail))
+      ? cannotStrip(tail)
+      : counts.length > 0
+        ? [
+            counts.map((one) => `${one.count} ${one.label}`).join(' · '),
+            failed ? null : saidAfter(tail),
+          ]
+            .filter(Boolean)
+            .join(' · ')
+        : plain(tail)
+            .split('\n')
+            .map((part) => part.replace(/\s+$/, ''))
+            .filter((part) => part.trim() !== '')
+            .at(-1)
   return line ? line.slice(0, 200) : null
+}
+
+/**
+ * What Node prints when it is handed a `.ts` file it cannot run: one with no
+ * type stripping. Ubuntu's own `nodejs` is built that way — 22.22, above every
+ * floor, with `process.features.typescript` false — and so is any Node before
+ * 22.6. The command never ran at all, and what was recorded was its last line,
+ * `Node.js v22.22.1`, which says nothing about why a batch went red.
+ */
+const NO_STRIPPING = /Unknown file extension "\.[mc]?ts"/
+
+/** The line for a run whose Node could not run TypeScript, naming that Node where it said. */
+function cannotStrip(tail: string): string {
+  const node = /Node\.js (v\d+\.\d+\.\d+\S*)/.exec(plain(tail))?.[1]
+  return `${node ? `Node ${node}` : 'This Node'} cannot run .ts files: it has no type stripping (process.features.typescript is false)`
 }
 
 /**
