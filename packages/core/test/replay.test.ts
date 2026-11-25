@@ -105,6 +105,16 @@ describe('what a replay takes', () => {
     expect(casesFor(cases, { harness: 'codex' }, 5)).toHaveLength(3)
   })
 
+  it('keeps the order it was handed for two that finished in the same millisecond', () => {
+    // `landedCases` puts the one the journal finished later first; a tie-break
+    // by name put `greet` before `yes` again on a fast machine.
+    const tied = [landed('yes', { done: 5 }), landed('greet', { done: 5 })]
+    expect(casesFor(tied, { harness: 'pi' }, 5).map((one) => one.task)).toEqual([
+      'shop/yes',
+      'shop/greet',
+    ])
+  })
+
   it('cannot replay words that were an answer to a conversation, or a base that is gone', () => {
     expect(caseProblem(landed('a'))).toBeNull()
     expect(caseProblem(landed('a', { said: 'yes, do it' }))).toContain(
