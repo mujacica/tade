@@ -273,6 +273,12 @@ export interface Wired {
    */
   readonly opened: { command: string; args: readonly string[] }[]
   /**
+   * Everything the window put on the clipboard, in order. Never the machine's
+   * own clipboard, for the reason `opened` is not the desktop: a suite that
+   * overwrote what a developer had copied is the bug a test here is about.
+   */
+  readonly copied: string[]
+  /**
    * Start the window over that world, and wait for its first look at status:
    * the window draws before it has looked (*looking…*), and the tests here are
    * about what it does once it knows what there is. `looked: false` hands it
@@ -346,6 +352,7 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
   let terminal: FakeTerminal
   let app: App | null = null
   const opened: { command: string; args: readonly string[] }[] = []
+  const copied: string[] = []
   const took: string[] = []
   let dropped = 0
   /** The collectors each window here looks through, closed after the test as a window's own would be. */
@@ -367,6 +374,9 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
     },
     get opened() {
       return opened
+    },
+    get copied() {
+      return copied
     },
     awake: { took, dropped: () => dropped },
 
@@ -418,6 +428,10 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
           watch: () => ({ stop: () => {} }),
           image: async () => null,
           text: async () => '',
+          write: async (text) => {
+            copied.push(text)
+            return true
+          },
         },
         // Never the machine's own desktop either: what would have opened is
         // recorded for the test to read, and nothing is spawned.
@@ -510,6 +524,7 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
     // Emptied rather than replaced, so a test that took the array off the
     // harness once still holds the one being written to.
     opened.length = 0
+    copied.length = 0
     took.length = 0
     dropped = 0
     // Read when asked rather than now, so a second window's terminal

@@ -13,11 +13,12 @@ describe('the window, under the pointer', () => {
   let terminal: FakeTerminal
   let home: string
   let client: Workbench
-  const { start, click, find } = windowUnderTest((wired) => {
+  const wired = windowUnderTest((wired) => {
     terminal = wired.terminal
     home = wired.home
     client = wired.client
   })
+  const { start, click, find } = wired
 
   it('scrolls the sidebar by dragging the bar down its right', async () => {
     // Short of room, so there is more in the sidebar than fits and the bar has
@@ -334,6 +335,41 @@ describe('the window, under the pointer', () => {
     await until('the half-written line, exactly where it was left', () =>
       screenOf(terminal.written).some((row) => row.includes('why is refunds slow')),
     )
+  })
+
+  // What you copied somewhere else with Cmd+C is still there after clicking
+  // into the window. The orchestrator's empty conversation says "◆ the
+  // orchestrator", and two clicks on it a moment apart took that word and put
+  // it on the clipboard — so pasting elsewhere pasted "orchestrator".
+  it('leaves the clipboard alone for a click, two clicks or a hand that never left its cell', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('the orchestrator'))
+    const legend = find('the orchestrator')
+    const word = { col: legend.col + 'the '.length + 3, row: legend.row }
+    // Clicked once, again and again at the same cell: a word, then the line.
+    click(word.col, word.row)
+    click(word.col, word.row)
+    click(word.col, word.row)
+    // Pressed and let go with movement reported inside the one cell.
+    terminal.press(`\x1b[<0;${word.col + 1};${word.row + 1}M`)
+    terminal.press(`\x1b[<32;${word.col + 1};${word.row + 1}M`)
+    terminal.press(`\x1b[<0;${word.col + 1};${word.row + 1}m`)
+    // Twice on another cell of the word, lighting it, then Cmd+C: the one
+    // copy asked for, so it is the first thing on the clipboard.
+    click(word.col + 1, word.row)
+    click(word.col + 1, word.row)
+    terminal.press('\x1b[99;9u')
+    await until('Cmd+C to have copied', () => wired.copied.length > 0)
+    expect(wired.copied).toEqual(['orchestrator'])
+    // And a drag still copies on being let go.
+    const said = find('what you say')
+    terminal.press(`\x1b[<0;${said.col + 1};${said.row + 1}M`)
+    terminal.press(`\x1b[<32;${said.col + 8};${said.row + 1}M`)
+    terminal.press(`\x1b[<0;${said.col + 8};${said.row + 1}m`)
+    await until('the drag to have copied', () => wired.copied.length > 1)
+    expect(wired.copied).toEqual(['orchestrator', 'what you'])
+    // Nothing reached the terminal's own clipboard either.
+    expect(terminal.written).not.toContain('\x1b]52;')
   })
 
   it('moves the sidebar edge where it is dragged, and remembers it', async () => {

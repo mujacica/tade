@@ -387,6 +387,8 @@ export class App {
       settle: () => this.mouse.settle(),
       reach: (area) => this.mouse.reach(area),
       toLane: (data) => this.lanes.toLane(data),
+      litText: () => this.mouse.litText(),
+      copy: (text) => copySpanSaying(this.wire, text, (data) => this.terminal.write(data)),
       act: (said) => void this.router.act(said),
       say: (said) => this.remotes.say(said) || this.orchestrator.say(said),
     })

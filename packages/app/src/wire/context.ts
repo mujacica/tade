@@ -156,13 +156,16 @@ export interface AppOptions {
   client: Workbench
   config: Config
   /**
-   * The system clipboard: watching it for a picture, saving one, and reading
-   * its text for ctrl+v. The machine's own unless given.
+   * The system clipboard: watching it for a picture, saving one, reading
+   * its text for ctrl+v, and putting what was copied on it — the copies that
+   * are said in the strip (`copySaying`, `copySpanSaying`). The machine's own
+   * unless given.
    */
   clipboard?: {
     watch: WatchClipboard
     image: typeof clipboardImage
     text: typeof clipboardText
+    write?: (text: string, write: (data: string) => void) => Promise<boolean>
   }
   /**
    * How a file, a link or a folder is handed to the desktop — your editor,
@@ -588,7 +591,7 @@ export async function copySaying(
   text: string,
   write: (data: string) => void,
 ): Promise<void> {
-  const copied = await copyText(text, write)
+  const copied = await (wire.opts.clipboard?.write ?? copyText)(text, write)
   if (copied) flash(wire, `copied ${text}`)
   else notify(wire, text)
   wire.draw()
@@ -600,7 +603,7 @@ export async function copySpanSaying(
   text: string,
   write: (data: string) => void,
 ): Promise<void> {
-  const copied = await copyText(text, write)
+  const copied = await (wire.opts.clipboard?.write ?? copyText)(text, write)
   const lines = text.split('\n').length
   if (copied) flash(wire, `copied ${lines > 1 ? `${lines} lines` : `${text.length} characters`}`)
   else notify(wire, 'could not copy')

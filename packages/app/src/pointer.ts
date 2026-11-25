@@ -219,6 +219,12 @@ function words(target: Target | null): boolean {
   )
 }
 
+/** Whether a selection's two ends are the one cell of the one line: a click, not a span. */
+function backWhereItStarted(selection: { from: End; to: End }): boolean {
+  const { from, to } = selection
+  return from.x === to.x && from.y === to.y && from.line === to.line
+}
+
 /**
  * The one component the TUI holds: it paints a frame and answers the mouse.
  *
@@ -351,8 +357,14 @@ export class Painted implements Component {
     return highlighted(drawn.rows, chosen, width, selection.within)
   }
 
-  /** A word or a line taken by a second or third press, and copied: whether there was one. */
+  /**
+   * A word or a line taken by a second or third press: whether there was one.
+   * Lit, and never copied — two presses a moment apart on the same cell are
+   * what clicking into the window twice is too, and what you copied elsewhere
+   * is not a click's to throw away. Cmd+C copies what is lit (`litText`).
+   */
   private takeWords(x: number, y: number, clicks: number): boolean {
+
     const area = scrollAt(this.hits, x, y)
     const across = area ? extentOf(this.hits, { kind: 'scroll', area }, true) : null
     const within =
@@ -363,10 +375,19 @@ export class Painted implements Component {
     const line = region ? lineAt(region, y) : null
     const from = { x: span.from, y, line }
     this.selection = { area, from, to: { ...from, x: span.to }, moved: true, within }
-    const text = this.copied()
-    if (text.trim() !== '') this.onCopy(text)
     return true
   }
+
+  /**
+   * What is lit in the window — a drag let go of, or a word or a line a second
+   * or third press took — for the key that copies it. Nothing while nothing is.
+   */
+  litText(): string | null {
+    if (!this.selection?.moved) return null
+    const text = this.copied()
+    return text.trim() === '' ? null : text
+  }
+
 
   /** The region a selection is anchored in, where the last frame drew one. */
   private regionOf(area: ScrollArea | null): Region | null {
@@ -468,6 +489,13 @@ export class Painted implements Component {
           }
         }
         if (event.type === 'drag' && this.selection) {
+          // A hand that has not left the cell it pressed has not dragged: a
+          // terminal may report movement inside one, and taking it for a
+          // selection copied a cell on the release of what was only a click.
+          const { from } = this.selection
+          if (!this.selection.moved && event.x === from.x && event.y === from.y) {
+            return { handled: true, render: false }
+          }
           // The far end follows the pointer while the drag is live: its line is
           // whatever is under it now, which is what makes the wheel and the
           // edge scroll *extend* a selection rather than leave it behind.
@@ -632,7 +660,6 @@ export class Painted implements Component {
         // double click select, and leave the clipboard alone.
         if (this.selectingFile?.dragged) this.onPointer({ kind: 'selected-file' })
         this.selectingFile = null
-        const moved = this.selection?.moved === true
         if (this.selection) {
           // Where the far end stopped, fixed: until now it followed the
           // pointer, and left following it the highlight would slide under the
@@ -645,6 +672,9 @@ export class Painted implements Component {
             }
           }
         }
+        // Let go where it was pressed, it was a click however far it wandered:
+        // there is nothing between the two ends to copy.
+        const moved = this.selection?.moved === true && !backWhereItStarted(this.selection)
         if (moved) {
           const text = this.copied()
           if (text.trim() !== '') this.onCopy(text)
@@ -659,9 +689,10 @@ export class Painted implements Component {
         // as well it would be the same click twice.
         if (target?.kind === 'screen') return { handled: true, render: false }
         // A second press on words takes the word and a third the line, as a
-        // terminal does, and copies it as a drag does: while the window has
-        // the mouse that is the only copy there is. Not on a control, nor on
-        // the line you type on or a file, which take their own (`clickedOn`).
+        // terminal does, and lights it without copying it: only a drag, or
+        // Cmd+C on what is lit, puts anything on the clipboard. Not on a
+        // control, nor on the line you type on or a file, which take their own
+        // (`clickedOn`).
         // It is still a press there as well — the conversation's opens the
         // line — because two presses a moment apart are two presses too.
         const took =

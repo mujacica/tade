@@ -208,6 +208,11 @@ export class Mouse {
     return this.painted?.reach(area) ?? { total: 0, shown: 0 }
   }
 
+  /** What is lit in the window, as the last frame drew it: what Cmd+C copies (`Painted.litText`). */
+  litText(): string | null {
+    return this.painted?.litText() ?? null
+  }
+
   /**
    * A notch of the wheel, added to the notches turned before it this turn and
    * answered with them once the turn is over (`settle`): one move however many

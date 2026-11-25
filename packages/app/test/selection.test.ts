@@ -361,6 +361,26 @@ describe('a selection dragged over more than a screen', () => {
   // A link is text Tade found in somebody else's words, so a press on one has
   // to be able to mean either thing: still, it opens; moved, it selects. A
   // line with a URL in it used to be a line no selection could be started at.
+  // A terminal may report movement without the pointer leaving its cell, and
+  // a hand that wobbled off and back is a click too: copying the cell under
+  // either one overwrote whatever had been copied somewhere else.
+  it('copies nothing for a press let go in the cell it was pressed in', () => {
+    const still = dragging()
+    still.draw()
+    still.mouse('press', 4, 23)
+    still.mouse('drag', 4, 23)
+    still.mouse('release', 4, 23)
+    expect(still.copied).toEqual([])
+
+    const wobbled = dragging()
+    wobbled.draw()
+    wobbled.mouse('press', 4, 23)
+    wobbled.mouse('drag', 5, 23)
+    wobbled.mouse('drag', 4, 23)
+    wobbled.mouse('release', 4, 23)
+    expect(wobbled.copied).toEqual([])
+  })
+
   it('starts a selection on a link, and opens it only where the press never moved', () => {
     const drag = dragging()
     drag.draw()
@@ -515,14 +535,18 @@ describe('a second press on the conversation', () => {
         painted.handleMouse({ type, ...at, ...keys } as never)
       painted.handleMouse({ type: 'click', ...at, ...keys, clickCount: clicks } as never)
     }
-    return { copied, told, click, draw: () => painted.render(100) }
+    return { copied, told, click, painted, draw: () => painted.render(100) }
   }
 
-  it('takes and copies the word, and is still a press there', () => {
-    const { copied, told, click, draw } = pressing()
+  // Two clicks a moment apart are also what clicking into the window twice
+  // is, and copying on them overwrote what had been copied somewhere else.
+  it('takes the word and lights it, copies nothing, and is still a press there', () => {
+    const { copied, told, click, painted, draw } = pressing()
     click(1)
     click(2)
-    expect(copied).toEqual(['number'])
+    expect(copied).toEqual([])
+    // What Cmd+C would copy.
+    expect(painted.litText()).toBe('number')
     // Each press went on to the conversation as well, which keeps the line open.
     const clicks = told.filter((event) => event.kind === 'click')
     expect(clicks.map((event) => event.kind === 'click' && event.clicks)).toEqual([1, 2])
@@ -531,10 +555,11 @@ describe('a second press on the conversation', () => {
   })
 
   it('takes the line on a third', () => {
-    const { copied, click } = pressing()
+    const { copied, click, painted } = pressing()
     click(1)
     click(2)
     click(3)
-    expect(copied.at(-1)).toBe('● answer number 39')
+    expect(copied).toEqual([])
+    expect(painted.litText()).toBe('● answer number 39')
   })
 })

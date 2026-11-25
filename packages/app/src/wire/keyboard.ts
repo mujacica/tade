@@ -127,6 +127,10 @@ export interface KeyboardDeps {
   reach(area: ScrollArea): Reach
   /** Everything the window did not keep goes to the agent you are watching. */
   toLane(data: string): void
+  /** What is lit in the window — a drag, a word, a line — for the key that copies it. */
+  litText(): string | null
+  /** A selection, put on the clipboard and said in the strip, as letting go of a drag does. */
+  copy(text: string): void
   /** A slash command, carried out. */
   act(said: string): void
   /** Anything else: a sentence for Tade, handed to the surface. */
@@ -220,6 +224,11 @@ export class Keyboard implements Subject {
       this.deps.applyPanel(panelMoved(this.wire.state, answer, reach))
       return { consume: true }
     }
+    // Cmd+C, or ctrl+shift+c where Cmd does not reach: what is lit is copied.
+    // The one copy besides letting go of a drag — a click, a second press and
+    // a third only ever light what they take. With nothing lit the key goes
+    // on to wherever it would have gone.
+    if (this.copied(data)) return { consume: true }
     // A picture dropped on the window arrives as its path, pasted. Where it
     // landed is not something a terminal says, so ask who it is for.
     if (paste !== null) {
@@ -774,6 +783,23 @@ export class Keyboard implements Subject {
     const selected = this.selectionSpan()
     if (!selected) return null
     return this.editor.getText().slice(selected.from, selected.to)
+  }
+
+  /**
+   * The copy key on what is lit: the window's selection first, since any
+   * press on the line lets it go, then what is selected on the line while it
+   * is open. Whether it copied anything.
+   */
+  private copied(data: string): boolean {
+    if (isKeyRelease(data)) return false
+    const key = parseKey(data)
+    const named = key === undefined ? null : normalKey(key)
+    if (named !== 'super+c' && named !== 'ctrl+shift+c') return false
+    const text =
+      this.deps.litText() ?? (this.wire.state.dictation !== null ? this.selectedText() : null)
+    if (text === null || text.trim() === '') return false
+    this.deps.copy(text)
+    return true
   }
 
   /**
