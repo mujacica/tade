@@ -92,6 +92,11 @@ export class Files implements Subject {
   private readonly viewed = new Viewed()
   /** The diff the diff panel is showing, once git has answered. */
   private diff: ParsedDiff | null = null
+  /** How the patch reader open on another machine's change reads each file there (`patchThere`). */
+  private readThere: {
+    machine: string
+    read: (path: string) => Promise<ParsedDiff | null>
+  } | null = null
   /** The project checkout's branches, for the Switch branch panel. */
   private branchRows: BranchRow[] = []
   private readonly here: Here
@@ -858,6 +863,9 @@ export class Files implements Subject {
   async loadDiff(task: string, path: string): Promise<void> {
     this.diff = null
     this.wire.draw()
+    const shown = this.wire.state.panel
+    // Another machine's change is read there, by whoever opened it: this machine's git knows nothing of it.
+    if (shown?.kind === 'diff' && shown.there !== undefined) return this.loadDiffThere(shown, path)
     const live = this.wire.live
     const root = live?.worktreeOf(task)
     const text =
@@ -868,6 +876,38 @@ export class Files implements Subject {
       this.diff = text ? parseDiff(text) : parseDiff('')
       this.wire.draw()
     }
+  }
+
+  /**
+   * Another machine's change in the patch reader (`remote-disk.ts`), on one of
+   * its changed files with the rest a step away, as a task's here is — each
+   * file's diff read there by `read`, which says why where it could not be,
+   * and answers null.
+   */
+  patchThere(
+    machine: string,
+    task: string,
+    files: readonly string[],
+    at: number,
+    read: (path: string) => Promise<ParsedDiff | null>,
+  ): void {
+    this.readThere = { machine, read }
+    this.deps.applyPanel({ panel: diffPanel(task, files, at, machine), submit: false })
+  }
+
+  /**
+   * One file of a change there, read there: drawn only while the panel is still
+   * on it, and left unread — never drawn as no differences — where that machine
+   * could not say.
+   */
+  private async loadDiffThere(sent: DiffPanel, path: string): Promise<void> {
+    const reading = this.readThere?.machine === sent.there ? this.readThere : null
+    const diff = reading ? await reading.read(path) : null
+    const panel = this.wire.state.panel
+    if (diff === null || panel?.kind !== 'diff' || panel.there !== sent.there) return
+    if (panel.task !== sent.task || panel.files[panel.file] !== path) return
+    this.diff = diff
+    this.wire.draw()
   }
 
   /**
@@ -893,7 +933,8 @@ export class Files implements Subject {
    */
   shown(): Shown | null {
     const panel = this.wire.state.panel
-    if (panel?.kind === 'diff') {
+    // A change there is nothing to comment on here: the agents a comment goes to are that machine's.
+    if (panel?.kind === 'diff' && panel.there === undefined) {
       const path = panel.files[panel.file]
       return path ? { task: panel.task, path, diff: this.diff } : null
     }

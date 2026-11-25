@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { printable, TaskId } from '@tade/core'
+import { type LaneId, printable, TaskId } from '@tade/core'
 import type { Answer, Held, Remote, RemoteLink } from '@tade/remotes-core'
 import type { AgentMenuOut } from '@tade/web'
 import { attachedFrom, attachedTo } from '@tade/workbench/attached'
@@ -206,6 +206,7 @@ export class RemoteAgents implements Subject, ThereDoor {
       },
       copy: (text) => deps.copy?.(text) ?? Promise.resolve(),
       shell: (machine, project) => this.shellSaid(machine, project),
+      tell: (place, text) => this.tell(place, text),
       soon: () => this.side.soon(),
     })
   }
@@ -875,24 +876,61 @@ export class RemoteAgents implements Subject, ThereDoor {
   /**
    * Enter: a terminal here that is the agent there, in the pane. The one
    * already open to it is put there; otherwise one is opened
-   * (`remote-terminals.ts`) and put there once it runs.
+   * (`remote-terminals.ts`) and put there once it runs. `typed` is written
+   * into it once it is in the pane — unsent, as a question about a file is
+   * typed into an agent here (`Files.askAbout`).
    */
-  private async attach(): Promise<void> {
+  private async attach(typed?: string): Promise<void> {
     const looked = this.looked()
     if (looked === null) return
     const machine = looked.machine.name
     const task = looked.place.agent
+    const put = (id: string) => {
+      this.inPane(id)
+      if (typed !== undefined) void this.typeInto(id, typed)
+    }
     const open = attachedTo(this.wire.opts.client.lanes(), machine, task)
-    if (open !== null) return this.inPane(open.id)
+    if (open !== null) return put(open.id)
     // One on its way is that one: a second press, or enter after a press,
     // while it is asked for or starts, opens no second terminal.
     const key = keyOf(looked.place)
-    if (this.opening.has(key)) return
+    if (this.opening.has(key)) {
+      if (typed !== undefined)
+        this.say(`a terminal to ${task} on ${machine} is opening: ask again once it is`)
+      return
+    }
     this.opening.add(key)
     try {
-      await this.terminals.open(machine, task, (id) => this.inPane(id))
+      await this.terminals.open(machine, task, put)
     } finally {
       this.opening.delete(key)
+    }
+  }
+
+  /**
+   * Something typed into the agent there, unsent: into the terminal here that
+   * is its lane, put in the pane, or opened where none is yet. Only the agent in
+   * front, whose menu it was asked from, and only one whose lane runs there.
+   */
+  private async tell(place: Place & { agent: string }, text: string): Promise<void> {
+    const looked = this.looked()
+    if (looked === null || keyOf(looked.place) !== keyOf(place)) {
+      return this.say(`${place.agent} on ${place.machine} is not in front any more`)
+    }
+    const open = attachedTo(this.wire.opts.client.lanes(), place.machine, place.agent)
+    if (open === null && looked.agent?.lane !== 'running') {
+      return this.say(`${place.agent} is not running on ${place.machine}: start it, then ask`)
+    }
+    await this.attach(text)
+  }
+
+  /** Typed into a terminal here, while it is the one in the pane; why not, said. */
+  private async typeInto(id: string, text: string): Promise<void> {
+    if (elsewhereOf(this.wire.state)?.lane !== id) return
+    try {
+      await this.wire.opts.client.write(id as LaneId, new TextEncoder().encode(text))
+    } catch (err) {
+      this.say(`could not type into it: ${why(err)}`)
     }
   }
 

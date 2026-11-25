@@ -50,13 +50,17 @@ import {
 // what the same press does here, in the same tree. The panels that ask are
 // marked as that machine's and carried out by this file alone
 // (`submitsThere`, `promptsThere`), so none of them can reach this machine's
-// checkout. What needs this machine's desktop or its agents — an editor, a
-// file manager, search, an agent asked — is turned off and said.
+// checkout. A change read as a patch is the patch reader here, marked as that
+// machine's (`DiffPanel.there`), each file's diff read there as Show changes
+// reads it; asking the agent about a file is typed into the terminal here that
+// is that agent's lane there (`RemoteAgents.attach`), unsent, as it is typed
+// into an agent here. What needs this machine's desktop — an editor, a file
+// manager, search — is turned off and said.
 
 type What = Extract<MenuSubject, { kind: 'disk-there' }>['what']
 
-/** The items here that open what only this machine's desktop can, or ask this machine's agents. */
-const NOT_FROM_HERE: ReadonlySet<string> = new Set(['editor', 'reveal', 'ask', 'search', 'patch'])
+/** The items here that open what only this machine's desktop can. */
+const NOT_FROM_HERE: ReadonlySet<string> = new Set(['editor', 'reveal', 'search'])
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
 
@@ -84,6 +88,14 @@ export interface RemoteDiskDeps {
       },
     ): void
     branchesThere(machine: string, rows: readonly BranchRow[]): void
+    /** The patch reader on that machine's change, each file's diff read there by `read`. */
+    patchThere(
+      machine: string,
+      task: string,
+      files: readonly string[],
+      at: number,
+      read: (path: string) => Promise<ParsedDiff | null>,
+    ): void
     /** What a file there typed into would hold, and what it was when read: null where nothing is. */
     editedThere(panel: FilePanel): { text: string; size: number; mtimeMs: number } | null
     /** A file there saved and read again, held as what is on that disk now. */
@@ -95,6 +107,8 @@ export interface RemoteDiskDeps {
   copy(text: string): Promise<void>
   /** A terminal in that project there: where the folder under GIT opens, as one here opens in its app. */
   shell(machine: string, project: string): Promise<void>
+  /** Typed into the agent there, unsent, in the terminal here that is its lane: opened where none is. */
+  tell(place: Place & { agent: string }, text: string): Promise<void>
 }
 
 export class RemoteDisk implements Subject {
@@ -203,6 +217,10 @@ export class RemoteDisk implements Subject {
         this.wire.put(toggleFolder(this.wire.state, path))
         this.wire.draw()
         return
+      case 'patch':
+        return this.patch(place, path)
+      case 'ask':
+        return this.askAbout(place, path)
       case 'switch':
         return this.branches(place)
       case 'new':
@@ -300,6 +318,14 @@ export class RemoteDisk implements Subject {
             this.wire.now(),
           ),
         )
+      },
+      // The patch reader on a change there: its one button that is not reading is asking.
+      diff: async (panel, choice) => {
+        const place = this.placeOn(panel.there ?? '')
+        const path = panel.files[panel.file]
+        if (choice !== 'ask' || !path) return
+        if (place === null || place.agent !== panel.task) return this.left(panel.there ?? '')
+        return this.askAbout(place, path)
       },
       file: async (panel, choice) => {
         if (choice === 'save') return this.save(panel)
@@ -430,6 +456,58 @@ export class RemoteDisk implements Subject {
   /** Said where a panel of that machine's outlived standing in it. */
   private left(machine: string): void {
     this.say(`That is on ${machine || 'another machine'}, and you have left it.`)
+  }
+
+  /**
+   * A change there in the patch reader, among every file the agent there has
+   * changed, as Read as a patch steps through a task's here. Each file's diff
+   * is read there when the reader comes to it.
+   */
+  private patch(place: Place, path: string): void {
+    const task = place.agent
+    if (task === undefined) {
+      this.say(`no agent on ${place.machine} has that change`)
+      return
+    }
+    const files = (this.deps.shown(place)?.changes ?? []).map((one) => one.path)
+    const at = Math.max(0, files.indexOf(path))
+    this.deps
+      .files()
+      .patchThere(place.machine, task, files.length > 0 ? files : [path], at, (one) =>
+        this.readPatch(place, one),
+      )
+  }
+
+  /** What git there says changed in one file, or null with why said. */
+  private async readPatch(place: Place, path: string): Promise<ParsedDiff | null> {
+    let read: DiskAnswer
+    try {
+      read = await this.ask(place, { what: 'file', path, diff: true })
+    } catch (err) {
+      this.say(printable(why(err)))
+      return null
+    }
+    if (read.what !== 'file') {
+      this.say(`${place.machine} answered with what this Tade cannot read`)
+      return null
+    }
+    if (read.diff === null) {
+      this.say(`git on ${place.machine} could not say what changed in ${printable(path)}`)
+      return null
+    }
+    return parseDiff(read.diff)
+  }
+
+  /**
+   * A question about a file put in front of the agent there, unsent — typed,
+   * as it is into an agent here, because asking costs money and you are the
+   * one who presses enter. Its path is that machine's, as text.
+   */
+  private async askAbout(place: Place, path: string): Promise<void> {
+    const agent = place.agent
+    if (agent === undefined) return this.say(`no agent on ${place.machine} to ask`)
+    this.wire.put({ ...this.wire.state, panel: null })
+    await this.deps.tell({ ...place, agent }, `Look at ${printable(path)}: `)
   }
 
   /** The first change the agent there made, opened as one here is from GIT's Show changes. */

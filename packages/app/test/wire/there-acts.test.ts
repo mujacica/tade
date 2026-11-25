@@ -322,6 +322,103 @@ describe('a project on another machine, pressed as a project here', () => {
     expect(far.diskAsked.at(-1)).toMatchObject({ what: 'discard', path: 'hook.ts' })
   })
 
+  it('reads an agent there’s change as a patch, read there, and asks that agent about it there', async () => {
+    const there = mkrepo()
+    there.commit('the hook', { 'hook.ts': 'export const ring = 1\n' })
+    writeFileSync(join(there.root, 'hook.ts'), 'export const ring = 2\n')
+    const far = await startFarEnd({ projects: ['tade'] })
+    fars.push(far)
+    far.show(['tade'], {}, [WORKING])
+    far.attachable.set('tade/door', 'echo the-agent-there; exec cat')
+    const pane = {
+      task: 'tade/door',
+      project: 'tade',
+      name: 'door',
+      title: 'Doorbell',
+      branch: 'tade/door',
+      lane: 'tade/door/agent',
+      state: 'working',
+      waiting: false,
+      approval: null,
+      lanes: [{ id: 'tade/door/agent', kind: 'agent' }],
+    } as AgentPane
+    far.side = async (ask) =>
+      sideAnswerOf({
+        ask,
+        panes: [pane],
+        looking: false,
+        spent: null,
+        here: {
+          files: null,
+          fileMarks: { 'hook.ts': 'M' },
+          where: null,
+          changes: [{ path: 'hook.ts', mark: 'M', added: 1, removed: 1 }],
+          base: null,
+        },
+        notes: [],
+        retired: [],
+        schedules: [],
+        intake: [],
+        intakeEmpty: { short: 'none', long: 'Nothing.' },
+        agent: null,
+        actions: null,
+      })
+    // Its disk, with the agent's worktree the repository there.
+    far.disk = diskOf({
+      config: () => ConfigSchema.parse({ projects: { tade: { root: there.root } } }),
+      panes: () => [pane],
+      live: () =>
+        ({
+          worktreeOf: () => there.root,
+          baseOf: () => null,
+        }) as never,
+    })
+    await standingThere(wired, far, { terminals: true })
+    terminal.resize(120, 60)
+    await until(said('its agent'), () => shown('Doorbell'), 20_000)
+    pressRow(wired, 'Doorbell')
+    await until(said('the agent’s own lane'), () => shown('the-agent-there'), 20_000)
+    await until(said('its changes'), () => wired.sidebar().includes('hook.ts'), 20_000)
+    const rightPress = () => {
+      const changes = wired.headingRow('CHANGES').row + 1
+      const col = (rows()[changes] ?? '').indexOf('hook.ts')
+      terminal.press(`\x1b[<2;${col + 2};${changes + 1}M`)
+      terminal.press(`\x1b[<2;${col + 2};${changes + 1}m`)
+    }
+    // The change, right-pressed: neither item is off any more.
+    rightPress()
+    await until(said('the change’s menu'), () => shown('Read as a patch'), 20_000)
+    expect(shown('not from here')).toBe(true) // its editor, which is this machine's desktop
+    const patch = wired.find('Read as a patch')
+    expect((rows()[patch.row] ?? '').includes('not from here')).toBe(false)
+    const ask = wired.find('Ask the agent about it')
+    expect((rows()[ask.row] ?? '').includes('not from here')).toBe(false)
+    wired.click(patch.col + 2, patch.row)
+    // The patch reader, marked as that machine's, with git there's answer.
+    await until(said('the patch there'), () => shown('hook.ts · door on vps'), 20_000)
+    await until(said('the line it replaced'), () => shown('- export const ring = 1'), 20_000)
+    expect(shown('+ export const ring = 2')).toBe(true)
+    expect(far.diskAsked.at(-1)).toMatchObject({
+      project: 'tade',
+      agent: 'tade/door',
+      what: 'file',
+      path: 'hook.ts',
+      diff: true,
+    })
+    // Nothing of this machine's: no editor, and no comment written on a line.
+    expect(shown('Open in editor')).toBe(false)
+    terminal.press('c')
+    expect(shown('On line')).toBe(false)
+    // Its Ask: typed into the terminal here that is that agent there, unsent.
+    const button = wired.find('Ask the agent about this')
+    wired.click(button.col + 2, button.row)
+    await until(said('the question typed there'), () => shown('Look at hook.ts:'), 20_000)
+    expect(shown('hook.ts · door on vps')).toBe(false)
+    expect(
+      client.lanes().filter((lane) => lane.alive && lane.id.startsWith('remotes/vps/')),
+    ).toHaveLength(1)
+  })
+
   it('opens its shell tab there as a terminal here to that lane, in the pane under the tab', async () => {
     const far = await startFarEnd({ projects: ['tade'] })
     fars.push(far)
