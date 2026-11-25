@@ -3,7 +3,7 @@ import { delimiter, join } from 'node:path'
 import { readRuns } from '@tade/checks-core'
 import { ConfigSchema, recordsDir } from '@tade/core'
 import { describe, expect, it, vi } from 'vitest'
-import { mkrepo } from '../../../test/fixtures/mkrepo.ts'
+import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { CI_WORKFLOW, ciWorkflow } from '../../../test/fixtures/workflow.ts'
 import {
   BATCH_BY,
@@ -92,6 +92,43 @@ describe('a batch', () => {
     const batch = await runBatch({ ...at, userHome: repo.home, commit: repo.head() })
     if (!('runs' in batch)) throw new Error(batch.problem)
     expect(batch.runs.map((run) => run.state)).toEqual(['passed'])
+  })
+
+  it('is never moved to another commit under a run that is reading it', async () => {
+    // An agent's full run before a push uses this tree too, so a second run
+    // checking out its own commit here would change what the first one reads.
+    const repo = mkrepo()
+    const marks = tmp('tade-batch-marks-')
+    const started = join(marks, 'started')
+    const go = join(marks, 'go')
+    repo.commit('a gate that waits to be let go', {
+      [CI_WORKFLOW]: ciWorkflow([
+        { id: 'tests', run: `touch ${started}; until [ -e ${go} ]; do sleep 0.05; done` },
+      ]),
+    })
+    const config = ConfigSchema.parse({
+      projects: { shop: { root: repo.root, checks: { full: 'batched' } } },
+    })
+    const at = { config, home: repo.home, project: 'shop', root: repo.root, userHome: repo.home }
+    const first = repo.head()
+    const reading = runBatch({ ...at, commit: first, by: 'shop/one' })
+    await vi.waitFor(() => expect(existsSync(started)).toBe(true), { timeout: 30_000 })
+
+    const later = commit(repo, 'two', { 'two.txt': '2' })
+    const second = await runBatch({ ...at, commit: later })
+    expect(second).toMatchObject({ busy: true })
+    expect('problem' in second && second.problem).toMatch(/already running in its own tree/)
+    expect(repo.git('-C', batchDir(repo.home, 'shop'), 'rev-parse', 'HEAD').trim()).toBe(first)
+
+    writeFileSync(go, '')
+    const done = await reading
+    if (!('runs' in done)) throw new Error(done.problem)
+    expect(done.runs.map((run) => [run.state, run.by, run.commit])).toEqual([
+      ['passed', 'shop/one', first],
+    ])
+    // Let go, so the next one gets it.
+    const next = await runBatch({ ...at, commit: later })
+    expect('runs' in next && next.runs[0]?.state).toBe('passed')
   })
 })
 

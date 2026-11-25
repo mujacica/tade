@@ -38,7 +38,8 @@ description: How to run a project's own checks through Tade before committing or
    comes back to the task whose commit broke it. A green related run is never the full checks
    passing: the rollup stays `unknown` and the page says *related tests passed, full run pending*.
    Before a push, the full checks have to be green on the exact tree — `checks_run` without
-   `related`.
+   `related`, which runs them at HEAD in that same tree of their own, so what is uncommitted in the
+   checkout, yours or anybody's, is not in it: commit first.
 8. **A check that `does not run here` is not yours to make pass.** It keeps its row and says why in
    a few words, and it is left out of what the local run adds up to. Two reasons, and neither is a
    thing to work around: the reading found that nothing here can run it — a secret, a service

@@ -4,8 +4,10 @@ import { join, resolve, sep } from 'node:path'
 import {
   type Check,
   type CheckLog,
+  type CheckRun,
   followRenames,
   type Holders,
+  type LockHolder,
   planFor,
   RunnerError,
   readChecks,
@@ -14,6 +16,7 @@ import {
   rollup,
   SLOT_ENV,
   waitForMachineSlot,
+  waitForRunLock,
 } from '@tade/checks-core'
 import {
   type Config,
@@ -233,9 +236,42 @@ export async function nodeWithoutTypeScript(opts: {
 }
 
 /**
- * The full checks for a batch, at `commit`, in the batch tree, recorded as the
- * checkout's. Never waits for the machine: a batch that would queue behind an
- * agent's run is a batch for the next look.
+ * Where the batch tree's turn is held: beside the tree and never inside it,
+ * where `git clean` would take it away.
+ *
+ * The tree is one folder that every full run of a shared checkout moves to its
+ * own commit — the window's batch, its narrowing, and an agent's `checks_run`
+ * before a push. Moved while somebody's suite is reading it, that suite reads
+ * a different commit from the one it records, so whoever moves it holds this
+ * for as long as they read it.
+ */
+function treeTurn(home: string, project: string): string {
+  return join(projectDir(home, project), 'batch-turn')
+}
+
+/** The batch tree's turn, waited for up to `waitMs`, or who has it. */
+function takeTree(
+  opts: { home: string; project: string },
+  what: string,
+  waitMs: number,
+): ReturnType<typeof waitForRunLock> {
+  return waitForRunLock(treeTurn(opts.home, opts.project), what, { waitMs })
+}
+
+function treeBusy(held: LockHolder, project: string): string {
+  const since = held.at ? ` (since ${held.at})` : ''
+  return `the full checks of ${project} are already running in its own tree: ${held.what || 'something'}${since}. Wait for them rather than starting a second run.`
+}
+
+/**
+ * The full checks at `commit`, in the batch tree, recorded as the checkout's.
+ *
+ * The window's batch never waits (`waitMs` 0): one that would queue behind an
+ * agent's run is a batch for the next look. An agent's `checks_run` without
+ * `related`, in a shared checkout whose full checks are batched, comes here
+ * too, with its own name as `by` and a wait: what it is about to push is HEAD,
+ * and the checkout holds other agents' uncommitted files, which a run there
+ * reads and goes red over.
  */
 export async function runBatch(opts: {
   config: Config
@@ -245,23 +281,37 @@ export async function runBatch(opts: {
   project: string
   root: string
   commit: string
+  /** Who asked: `batch` for the window's batch, a task for an agent's run. */
+  by?: string
+  only?: readonly string[]
+  waitMs?: number
+  signal?: AbortSignal
   onWait?: (ahead: Holders) => void
+  onRun?: (run: CheckRun) => void
 }): Promise<Batch> {
   const without = await nodeWithoutTypeScript({ root: opts.root, commit: opts.commit })
   if (without !== null) return { problem: without }
-  const tree = await treeAt(opts)
-  if ('problem' in tree) return tree
+  const waitMs = opts.waitMs ?? 0
+  const deadline = Date.now() + waitMs
+  const turn = await takeTree(opts, `full checks at ${opts.commit.slice(0, 8)}`, waitMs)
+  if ('held' in turn) return { problem: treeBusy(turn.held, opts.project), busy: true }
   try {
+    const tree = await treeAt(opts)
+    if ('problem' in tree) return tree
     const runs = await runProjectChecks({
       config: opts.config,
       project: opts.project,
       worktree: opts.root,
       runIn: tree.dir,
       commit: opts.commit,
-      by: BATCH_BY,
+      by: opts.by ?? BATCH_BY,
       home: opts.userHome,
       tadeHome: opts.home,
-      waitMs: 0,
+      waitMs: Math.max(0, deadline - Date.now()),
+      ...(opts.only ? { only: opts.only } : {}),
+      ...(opts.signal ? { signal: opts.signal } : {}),
+      ...(opts.onWait ? { onWait: opts.onWait } : {}),
+      ...(opts.onRun ? { onRun: opts.onRun } : {}),
     })
     return { runs }
   } catch (err) {
@@ -269,6 +319,8 @@ export async function runBatch(opts: {
     // case and the next look's to try again; anything else is said.
     if (err instanceof RunnerError) return { problem: err.message, busy: err.trouble === 'busy' }
     throw err
+  } finally {
+    await turn.release()
   }
 }
 
@@ -405,13 +457,38 @@ export async function narrowRed(opts: {
     tried: opts.baseGreen ? { [opts.base]: 'green' } : {},
   }
   const steps: string[] = []
+  const waitMs = opts.waitMs ?? 30 * 60_000
+  const deadline = Date.now() + waitMs
+  // The tree before the machine, as every full run takes them, so two runs
+  // never each hold one and wait for the other.
+  const turn = await takeTree(opts, `narrowing a red batch of ${opts.project}`, waitMs)
+  if ('held' in turn) {
+    return {
+      narrowing,
+      culprit: {
+        commit: null,
+        because: 'the batch tree stayed in use, so nothing was run again',
+      },
+      steps,
+    }
+  }
   const slot = await waitForMachineSlot(
     opts.home,
     opts.config.checks.suites,
     { what: `narrowing a red batch of ${opts.project}`, where: batchDir(opts.home, opts.project) },
-    { waitMs: opts.waitMs ?? 30 * 60_000 },
-  )
+    { waitMs: Math.max(0, deadline - Date.now()) },
+  ).catch(async (err: unknown) => {
+    // Let go so the tree is not held for ever, and the machine's trouble is
+    // still the one said, before the tree's own.
+    await turn.release().catch((also: unknown) => {
+      throw new Error(
+        `${messageOf(err)}, and the batch tree could not be let go: ${messageOf(also)}`,
+      )
+    })
+    throw err
+  })
   if ('held' in slot) {
+    await turn.release()
     return {
       narrowing,
       culprit: { commit: null, because: 'the machine stayed busy, so nothing was run again' },
@@ -444,6 +521,7 @@ export async function narrowRed(opts: {
     }
   } finally {
     await slot.release()
+    await turn.release()
   }
   return { narrowing, culprit: culpritOf(narrowing), steps }
 }
@@ -464,4 +542,8 @@ function firstLine(text: string): string {
 
 function lastLine(text: string): string {
   return text.trim().split('\n').at(-1) ?? ''
+}
+
+function messageOf(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
 }

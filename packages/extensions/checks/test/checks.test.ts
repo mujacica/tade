@@ -241,6 +241,29 @@ describe('the related run', () => {
     expect(answer.text).toContain('The full run is batched')
   })
 
+  it('runs the full checks at HEAD, so another agent’s uncommitted file does not turn them red', async () => {
+    // What a push needs where the full run is batched: the push is HEAD, and
+    // the checkout holds whatever the other agents in it have half written.
+    const repo = mkrepo()
+    repo.commit('the gate', {
+      [CI_WORKFLOW]: ciWorkflow([{ id: 'tests', run: 'test ! -e half-written.ts' }]),
+      'package.json': JSON.stringify({ scripts: { 'test:related': 'true' } }),
+    })
+    const home = tmp('tade-checks-home-')
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  demo:\n    root: ${repo.root}\n`)
+    writeFileSync(join(repo.root, 'half-written.ts'), 'somebody else’s work in progress')
+    const host = await load({ root: repo.root, home })
+    const caller = { kind: 'agent' as const, task: 'demo/one', project: 'demo', cwd: repo.root }
+
+    const answer = await host.call('checks_run', {}, { caller })
+    expect(answer.text).toContain('a tree of its own at this commit')
+    expect(answer.text).toContain('✓ `tests` passed')
+    const stood = await host.call('checks_list', {}, { caller })
+    expect(stood.text).toContain(`At ${repo.head().slice(0, 8)}: **pass**`)
+    // And the checkout is exactly as it was.
+    expect(repo.git('status', '--porcelain')).toBe('?? half-written.ts\n')
+  })
+
   it('refuses paths that are not paths, and paths without a related run', async () => {
     const where = related()
     const host = await load(where)

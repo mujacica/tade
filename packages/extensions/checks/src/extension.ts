@@ -5,6 +5,7 @@ import {
   type CheckRun,
   carriedNote,
   checkLine,
+  type Holders,
   holdersSaid,
   latestAt,
   pendingWords,
@@ -29,7 +30,7 @@ import {
   type TadeExtension,
   type ToolContext,
 } from '@tade/extensions-core'
-import { checksAt, runProjectChecks } from '@tade/workbench'
+import { checksAt, runBatch, runProjectChecks } from '@tade/workbench'
 
 // The checks a project runs on itself, as tools an agent and the orchestrator
 // can call.
@@ -191,35 +192,74 @@ export const checksExtension: TadeExtension = {
         const wait = Number(input.wait) > 0 ? Math.min(600, Number(input.wait)) * 1_000 : 0
         const related = input.related === true
         const paths = pathsOf(input.paths, related)
+        const by = ctx.caller.kind === 'agent' ? ctx.caller.task : ctx.caller.kind
+        const onWait = (ahead: Holders) =>
+          ctx.progress(`waiting for the machine: ${holdersSaid(ahead)} ahead of this run`)
+        const onRun = (run: CheckRun) => {
+          if (run.state === 'running') ctx.progress(`${run.check} is running`)
+          if (run.state === 'passed' || run.state === 'failed') {
+            ctx.progress(`${run.check} ${run.state}`)
+          }
+        }
+        // Batched in a shared checkout, the full run is what a push needs, and
+        // a push is HEAD: run in the checkout, it read every other agent's
+        // uncommitted files and went red over them. So it runs where the
+        // window's batch does — a tree of Tade's own at exactly HEAD — and is
+        // recorded as the checkout's, so the rollup at HEAD reads it.
+        const ownTree =
+          !related &&
+          (
+            await checksAt({
+              config: where.config,
+              project: where.project,
+              worktree: where.worktree,
+              tadeHome: ctx.home,
+              task: where.task,
+              commit: where.commit,
+            })
+          ).batched
         let ran: CheckLog[]
-        try {
-          ran = await runProjectChecks({
+        if (ownTree) {
+          const batch = await runBatch({
             config: where.config,
-            project: where.project,
-            worktree: where.worktree,
-            task: where.task,
-            commit: where.commit,
-            by: ctx.caller.kind === 'agent' ? ctx.caller.task : ctx.caller.kind,
             home: ctx.home,
-            tadeHome: ctx.home,
+            userHome: ctx.home,
+            project: where.project,
+            root: where.worktree,
+            commit: where.commit,
+            by,
             only,
-            related,
-            paths,
-            signal: ctx.signal,
             waitMs: wait,
-            onWait: (ahead) =>
-              ctx.progress(`waiting for the machine: ${holdersSaid(ahead)} ahead of this run`),
-            onRun: (run) => {
-              if (run.state === 'running') ctx.progress(`${run.check} is running`)
-              if (run.state === 'passed' || run.state === 'failed') {
-                ctx.progress(`${run.check} ${run.state}`)
-              }
-            },
+            signal: ctx.signal,
+            onWait,
+            onRun,
           })
-        } catch (err) {
-          // A runner that will not run says what to do about it; being busy
-          // says who has the checkout. Neither is "they passed".
-          throw err instanceof RunnerError ? new Error(err.message) : err
+          if ('problem' in batch) throw new Error(batch.problem)
+          ran = batch.runs
+        } else {
+          try {
+            ran = await runProjectChecks({
+              config: where.config,
+              project: where.project,
+              worktree: where.worktree,
+              task: where.task,
+              commit: where.commit,
+              by,
+              home: ctx.home,
+              tadeHome: ctx.home,
+              only,
+              related,
+              paths,
+              signal: ctx.signal,
+              waitMs: wait,
+              onWait,
+              onRun,
+            })
+          } catch (err) {
+            // A runner that will not run says what to do about it; being busy
+            // says who has the checkout. Neither is "they passed".
+            throw err instanceof RunnerError ? new Error(err.message) : err
+          }
         }
         if (ran.length === 0) {
           // The quick look is the hook and `test:related`: a project whose
@@ -233,6 +273,12 @@ export const checksExtension: TadeExtension = {
         const lines = [
           `## ${where.project} at ${where.commit.slice(0, 8)}${related ? ' — the related run' : ''}`,
           '',
+          ...(ownTree
+            ? [
+                'Run in a tree of its own at this commit, so nothing uncommitted in the checkout is in it.',
+                '',
+              ]
+            : []),
           ...ran.map(checkLine),
           // Said with every related answer, because a green one reads like the
           // tree passing and is not.

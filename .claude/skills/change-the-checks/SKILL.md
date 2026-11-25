@@ -174,7 +174,9 @@ and that record.
   reads them — most of a night's red runs were exactly that. What is run is what *the commit* says it
   checks (`runIn`), recorded as the checkout's, with `covered` the clean tree, so it carries. The
   same tree is the only place the next rule can happen: the checkout is never moved to another
-  commit.
+  commit. An agent's `checks_run` without `related` there is the same run (`runBatch` with its
+  `by`), since a push is HEAD; whoever moves the tree holds its turn (`treeTurn`) while reading it,
+  the tree before the machine.
 - **A Node that cannot run TypeScript is said instead of a batch** (`nodeWithoutTypeScript`):
   Debian's and Ubuntu's `nodejs` clears every version floor with `process.features.typescript`
   `false`, so a project whose `package.json` runs `node x.ts` would go red at any commit and be
