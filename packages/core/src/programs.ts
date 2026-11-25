@@ -1,3 +1,5 @@
+import { shellQuote } from './prepare.ts'
+
 // The programs Tade runs, and what it takes to keep them current.
 //
 // Tade shells out to other people's software — tmux to hold a lane, pi or
@@ -435,6 +437,15 @@ function basename(path: string): string {
   return path.split(/[/\\]/).filter(Boolean).at(-1) ?? path
 }
 
+/**
+ * The prefix a global npm package was installed under, read off where it is —
+ * `<prefix>/lib/node_modules/<name>/…` — or null where the path does not say.
+ */
+export function npmPrefixOf(where: string): string | null {
+  const at = where.indexOf('/lib/node_modules/')
+  return at > 0 ? where.slice(0, at) : null
+}
+
 /** The name Tade is published under on npm. */
 const TADE_PACKAGE = 'tade-sh'
 
@@ -465,8 +476,15 @@ export function updateWith(
       return {
         command: `brew upgrade ${install.brew === 'cask' ? '--cask ' : ''}${install.name}`,
       }
-    case 'npm':
-      return { command: `npm install --global ${install.name}@latest` }
+    case 'npm': {
+      // Into the prefix it is in, which npm's own may not be: scripts/install.sh
+      // puts it in ~/.local where npm's global folder is root's, and a bare
+      // `--global` writes into npm's — EACCES there, or a copy beside the one
+      // that runs wherever npm's is writable.
+      const prefix = npmPrefixOf(install.where)
+      const into = prefix === null ? '' : `--prefix=${shellQuote(prefix)} `
+      return { command: `npm install --global ${into}${install.name}@latest` }
+    }
     case 'pnpm':
       return { command: `pnpm add --global ${install.name}@latest` }
     case 'yarn':

@@ -7,6 +7,7 @@ import {
   installWith,
   isBehind,
   neededPrograms,
+  npmPrefixOf,
   npxKeyOf,
   parseVersion,
   type RequiredProgram,
@@ -63,6 +64,7 @@ describe('reading a version out of whatever a program prints', () => {
 
 /** A Mac with Homebrew, which is no part of any manager-owned answer. */
 const MAC = { platform: 'darwin', managers: ['brew', 'npm'] }
+const LINUX = { platform: 'linux', managers: ['apt-get', 'npm'] }
 
 describe('how a program got onto this machine', () => {
   it('reads Homebrew off the Cellar the link points into', () => {
@@ -127,8 +129,36 @@ describe('how a program got onto this machine', () => {
     expect(install.name).toBe('@anthropic-ai/claude-code')
     expect(install.version).toBe('2.0.5')
     expect(updateWith(install, undefined, MAC)).toEqual({
-      command: 'npm install --global @anthropic-ai/claude-code@latest',
+      command: 'npm install --global --prefix=/usr/local @anthropic-ai/claude-code@latest',
     })
+  })
+
+  it('updates a global npm package in the prefix it is in, not the one npm is set to', () => {
+    // A box scripts/install.sh put in ~/.local because npm's own prefix,
+    // /usr/local, is root's: `npm config get prefix` still says /usr/local, so
+    // an update without the prefix tries to write there and fails with EACCES.
+    const install = installOf({
+      path: '/home/tade/.local/bin/tade',
+      realPath: '/home/tade/.local/lib/node_modules/tade-sh/packages/cli/bin/tade.ts',
+      package: {
+        name: 'tade-sh',
+        version: '0.4.3',
+        dir: '/home/tade/.local/lib/node_modules/tade-sh',
+      },
+    })
+    expect(install.manager).toBe('npm')
+    expect(updateWith(install, undefined, LINUX)).toEqual({
+      command: 'npm install --global --prefix=/home/tade/.local tade-sh@latest',
+    })
+    expect(npmPrefixOf('/home/a b/.local/lib/node_modules/tade-sh/x.ts')).toBe('/home/a b/.local')
+    expect(
+      updateWith(
+        { ...install, where: '/home/a b/.local/lib/node_modules/tade-sh/x.ts' },
+        undefined,
+        LINUX,
+      ),
+    ).toEqual({ command: "npm install --global --prefix='/home/a b/.local' tade-sh@latest" })
+    expect(npmPrefixOf('/opt/tade/cli.js')).toBeNull()
   })
 
   it('tells pnpm from npm by the folder the package lives in', () => {

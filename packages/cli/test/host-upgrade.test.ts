@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import type { Asker } from '../src/commands/host-service.ts'
 import {
   goingBack,
+  pinnedTo,
   type UpgradeOptions,
   type UpgradePlace,
   unitStarts,
@@ -323,6 +324,14 @@ describe('the words around it', () => {
       'pnpm add --global tade-sh@0.2.1',
     )
     expect(goingBack('brew upgrade tade', '0.2.3')).toBeNull()
+    // A box scripts/install.sh put in ~/.local keeps its prefix both ways.
+    const local = 'npm install --global --prefix=/home/tade/.local tade-sh@latest'
+    expect(pinnedTo(local, '0.4.4')).toBe(
+      'npm install --global --prefix=/home/tade/.local tade-sh@0.4.4',
+    )
+    expect(goingBack(local, '0.4.3')).toBe(
+      'npm install --global --prefix=/home/tade/.local tade-sh@0.4.3',
+    )
     expect(goingBack('git -C /opt/tade pull --ff-only && pnpm install', '0.2.3')).toBeNull()
   })
 
