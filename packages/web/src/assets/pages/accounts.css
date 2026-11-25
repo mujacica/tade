@@ -36,8 +36,7 @@
 
 .page-accounts .ac-tab {
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .page-accounts .ac-said {
