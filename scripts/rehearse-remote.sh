@@ -4,11 +4,14 @@
 # "the VPSes", this machine as "the Mac", and the tarball a release would
 # publish installed on all of them. What CI can hold of the same story is
 # `packages/app/test/wire/rehearsal.test.ts`; this is the rest — systemd,
-# Caddy, a public name, the installer, setup over SSH — which needs a box.
+# Caddy, a public name, the installer, setup over SSH, a reload of every
+# machine restarting each box's service and moving one that is behind — which
+# needs a box.
 #
 #   scripts/rehearse-remote.sh up        # build, boot, install; then prints the person's steps
 #   scripts/rehearse-remote.sh mac       # the Mac's side: an isolated home, `tade remote add` for each box
 #   scripts/rehearse-remote.sh hook <n>  # the scripted intake source on box n, and a signed delivery
+#   scripts/rehearse-remote.sh ahead     # the Mac a version ahead of the boxes, for a reload to move them
 #   scripts/rehearse-remote.sh down      # remove the boxes and the work folder
 #
 # Every step says what it does before it does it. Nothing here touches this
@@ -53,11 +56,14 @@ need() {
 # ── the tarball ─────────────────────────────────────────────────────────────
 
 stage() {
-  say "Staging tade-sh@$VERSION from HEAD (a clean clone, so nobody's uncommitted work is in it)"
+  local version="${1:-$VERSION}"
+  say "Staging tade-sh@$version from HEAD (a clean clone, so nobody's uncommitted work is in it)"
   rm -rf "$DIR/build" && git clone -q "$ROOT" "$DIR/build/clone"
-  (cd "$DIR/build/clone" && node scripts/release/stage.ts --version "$VERSION" --out "$DIR/build/stage" 2>/dev/null | head -1)
+  (cd "$DIR/build/clone" && node scripts/release/stage.ts --version "$version" --out "$DIR/build/stage" 2>/dev/null | head -1)
   (cd "$DIR/build/stage" && npm pack --silent --pack-destination "$DIR" >/dev/null)
-  TARBALL="$DIR/tade-sh-$VERSION.tgz"
+  TARBALL="$DIR/tade-sh-$version.tgz"
+  # Its manifest beside it, which is what a box's registry resolves it by (`ahead`).
+  cp "$DIR/build/stage/package.json" "$DIR/tade-sh-$version.json"
   note "$TARBALL"
 }
 
@@ -270,6 +276,72 @@ EOF
      (the stand-in agent pushes as it is told; vps1 begins a worktree on tade/export)
    - on a box's project tab: CHECKS, SCHEDULES, DOCUMENTS are that box's
    - the scripted intake source:  scripts/rehearse-remote.sh hook 1
+   - every machine reloaded: on this Mac's own tab type  /reload  (or the strip's reload), with an agent
+     working on a box. Said first: "Reloading every machine: vps1 and vps2 first, then this Mac"; then for
+     each box "vpsN is restarting." and "vpsN is back on Tade <its version>." — its own systemd restarting
+     its `tade serve` through its /api/restart: there, `systemctl --user status tade` started just now, its
+     ~/.tade/events.jsonl a web_did restart and then a tade_opened, and the agent still working.
+     Then "this Mac reloads now.", and the window that comes back says whether the conversation is one across them
+   - one box's cable cut (`docker stop tade-rehearsal-vps2`), /reload again: "vps2 could not be reached,
+     so it was not reloaded", vps1 as before, this Mac last; `docker start tade-rehearsal-vps2` after
+   - a box behind, moved by the reload: quit this window, `scripts/rehearse-remote.sh ahead`, open `tade`
+     again and /reload: each box "runs Tade <x>-rehearsal: updating it to <x>-rehearsal.2 first", its
+     `tade host upgrade --yes --to <x>-rehearsal.2` run in a terminal over this window (npm fetching it from
+     the box's own registry), then "vpsN is back on Tade <x>-rehearsal.2." — restarted once, not twice
+EOF
+}
+
+# ── a box behind ────────────────────────────────────────────────────────────
+
+# The Mac moved a version ahead of the boxes, and each box's npm able to find
+# that version: a reload from the Mac then moves each box forward by its own
+# `tade host upgrade --to`, the install's own command pinned to the Mac's
+# version. That version is on no public registry, so each box gets the
+# rehearsal's registry (`test/fixtures/rehearsal/registry.ts`), which answers
+# for tade-sh out of the staged tarballs and hands everything else to npm's.
+ahead() {
+  need docker git node npm
+  local behind
+  behind="$(docker exec -u you "$(box 1)" bash -lc 'tade --version' | tr -d '\r')"
+  local next="$VERSION.2"
+  if [ -f "$DIR/tade-sh-$next.tgz" ] && [ -f "$DIR/tade-sh-$next.json" ]; then
+    say "Using tade-sh@$next, staged already ($DIR/tade-sh-$next.tgz)"
+    TARBALL="$DIR/tade-sh-$next.tgz"
+  else
+    stage "$next"
+  fi
+  for n in $(seq 1 "$BOXES"); do
+    local name
+    name="$(box "$n")"
+    say "vps$n: the rehearsal's npm registry on 127.0.0.1:4873, holding tade-sh@$next, and ~/.npmrc pointed at it"
+    note "(vps$n still runs what it was given: tade --version says $(docker exec -u you "$name" bash -lc 'tade --version' | tr -d '\r'))"
+    docker exec "$name" mkdir -p /opt/rehearsal/registry
+    docker cp -q "$ROOT/test/fixtures/rehearsal/registry.ts" "$name:/opt/rehearsal/registry.ts"
+    docker cp -q "$TARBALL" "$name:/opt/rehearsal/registry/tade-sh-$next.tgz"
+    docker cp -q "$DIR/tade-sh-$next.json" "$name:/opt/rehearsal/registry/tade-sh-$next.json"
+    docker exec -i "$name" sh -s <<'UNIT'
+set -eu
+cat >/etc/systemd/system/rehearsal-registry.service <<EOF
+[Unit]
+Description=The rehearsal's npm registry for tade-sh
+[Service]
+User=you
+ExecStart=/usr/local/bin/node /opt/rehearsal/registry.ts
+Restart=always
+[Install]
+WantedBy=multi-user.target
+EOF
+printf 'registry=http://127.0.0.1:4873/\n' >/home/you/.npmrc && chown you:you /home/you/.npmrc
+systemctl daemon-reload && systemctl enable --now rehearsal-registry >/dev/null 2>&1
+systemctl restart rehearsal-registry
+UNIT
+  done
+  say "The Mac moved to tade-sh@$next, under $DIR/mac-install (quit its window first: it runs what it opened on)"
+  npm install --global --prefix "$DIR/mac-install" "$TARBALL" >/dev/null 2>&1
+  "$DIR/mac-install/bin/tade" --version
+  cat <<EOF
+   The boxes run $behind and this Mac $next. Open \`tade\` again (source $DIR/mac.env) and /reload:
+   each box is updated to $next first, in a terminal over the window, then restarted and said back on it.
 EOF
 }
 
@@ -312,6 +384,7 @@ case "${1:-}" in
   up) up ;;
   mac) mac ;;
   hook) hook "${2:-1}" ;;
+  ahead) ahead ;;
   down) down ;;
   *) sed -n '2,/^set -euo/p' "$0" | sed 's/^# \{0,1\}//' | sed '$d'; exit 2 ;;
 esac
