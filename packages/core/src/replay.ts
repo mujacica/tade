@@ -127,7 +127,10 @@ export function caseProblem(one: ReplayCase): string | null {
 
 /**
  * The cases a replay on this candidate takes: newest landed first, only the
- * harness held where one is named beside a model, at most `last`.
+ * harness held where one is named beside a model, at most `last`. Two that
+ * finished in the same millisecond keep the order they were given in, which is
+ * the journal's (`landedCases`): breaking the tie by name put them back in
+ * alphabetical order, so a fast machine ran the older one first.
  */
 export function casesFor(
   cases: readonly ReplayCase[],
@@ -137,7 +140,7 @@ export function casesFor(
   const held = candidate.model && candidate.harness ? candidate.harness : null
   return cases
     .filter((one) => held === null || one.harness === held)
-    .sort((a, b) => b.done - a.done || (a.task < b.task ? -1 : 1))
+    .sort((a, b) => b.done - a.done)
     .slice(0, Math.max(0, last))
 }
 

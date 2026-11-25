@@ -105,6 +105,16 @@ describe('what a replay takes', () => {
     expect(casesFor(cases, { harness: 'codex' }, 5)).toHaveLength(3)
   })
 
+  it('keeps two that finished in the same millisecond in the order it was given them', () => {
+    // The journal's order, as `landedCases` gives it — not the names', which
+    // put the older first on a machine fast enough to finish both in one.
+    const cases = [landed('yes', { done: 5 }), landed('greet', { done: 5 })]
+    expect(casesFor(cases, { model: 'sonnet' }, 5).map((one) => one.task)).toEqual([
+      'shop/yes',
+      'shop/greet',
+    ])
+  })
+
   it('cannot replay words that were an answer to a conversation, or a base that is gone', () => {
     expect(caseProblem(landed('a'))).toBeNull()
     expect(caseProblem(landed('a', { said: 'yes, do it' }))).toContain(
