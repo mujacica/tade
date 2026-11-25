@@ -41,10 +41,18 @@ export interface ToolServers {
 
 /**
  * Tade's own tool server, as its command line gives it away: the program is
- * `<anywhere>/harnesses/<name>/src/mcp.ts`, so it is found wherever Tade is
- * installed rather than only in a checkout.
+ * `<anywhere>/harnesses/<name>/src/mcp.ts`, or `<anywhere>/harnesses/acp/src/tools.ts`
+ * — the one every ACP agent and every OpenCode lane is handed — so it is found
+ * wherever Tade is installed rather than only in a checkout.
  */
-const TOOL_SERVER = /\/harnesses\/[a-z][a-z0-9-]*\/src\/mcp\.ts$/
+const TOOL_SERVER = /\/harnesses\/(?:[a-z][a-z0-9-]*\/src\/mcp|acp\/src\/tools)\.ts$/
+
+/**
+ * What takes in a process whose parent has gone: pid 1 itself, and on Linux a
+ * user's `systemd --user`, which is a subreaper. A server whose parent is one of
+ * these was left behind, whatever started it.
+ */
+const ADOPTER = /(^|\/)(launchd|systemd|init|tini|dumb-init)(\s|$)/
 
 /**
  * How long a probe waits on a program before it gives up on it.
@@ -221,11 +229,14 @@ export async function listAgentProcesses(
   const found: Array<{ pid: number; provider: string }> = []
   /** Tade's own tool servers, each with the process that started it. */
   const servers: Array<{ pid: number; parent: number }> = []
+  /** Every process's command line, so a server's parent can be read. */
+  const listed = new Map<number, string>()
   for (const line of ps.stdout.split('\n')) {
     const m = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line)
     if (!m) continue
     const pid = Number(m[1])
     const args = m[3]!
+    listed.set(pid, args)
     // Checked before the providers, because the server's own line names the
     // harness package and would otherwise read as the harness itself.
     if (TOOL_SERVER.test(args.split(/\s+/).at(-1) ?? '')) {
@@ -235,11 +246,17 @@ export async function listAgentProcesses(
     const provider = matchProvider(args)
     if (provider) found.push({ pid, provider })
   }
-  // Only the ones still beside an agent: a server whose harness has gone was
-  // reparented away from it, and counting it would prop the answer up with a
-  // process nobody is using.
-  const harnesses = new Set(found.map((one) => one.pid))
-  lastServers = servers.filter((one) => harnesses.has(one.parent)).map((one) => one.pid)
+  // Only the ones still beside the process that started them: a server whose
+  // harness has gone was reparented to pid 1 or a subreaper, and counting it
+  // would prop the answer up with a process nobody is using. The parent is not
+  // matched against the agents above, because an ACP agent or OpenCode — any
+  // program the `acp` harness drives — starts this server too, and a list of
+  // their names here would go stale the day one more is added.
+  const beside = (parent: number): boolean => {
+    const args = parent === 1 ? undefined : listed.get(parent)
+    return args !== undefined && !ADOPTER.test(args.split(/\s+/)[0] ?? '')
+  }
+  lastServers = servers.filter((one) => beside(one.parent)).map((one) => one.pid)
   const toolServers: ToolServers = { looked: true, alive: lastServers.length }
   if (found.length === 0) {
     lastScan = []

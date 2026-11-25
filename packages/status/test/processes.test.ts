@@ -179,6 +179,30 @@ describe('Tade’s own tool servers, found on the same pass', () => {
     expect(found.servers).toEqual({ looked: true, alive: 0 })
   })
 
+  it('counts the ACP tools server beside whichever agent started it, OpenCode included', async () => {
+    // An ACP agent and an OpenCode lane are handed `harnesses/acp/src/tools.ts`
+    // rather than an `mcp.ts`, and their agents are not ones the scan adopts —
+    // so neither the program nor its parent was being recognised, and every
+    // such lane read as one whose tools had gone.
+    const rows = [
+      '  1 0 /sbin/launchd',
+      '  700 1 /bin/zsh -l',
+      '  701 700 gemini --acp',
+      '  702 701 /usr/bin/node /opt/tade/packages/harnesses/acp/src/tools.ts',
+      '  800 700 /Users/me/.opencode/bin/opencode --standalone',
+      '  801 800 /usr/bin/node /opt/tade/packages/harnesses/acp/src/tools.ts',
+      // Left behind on Linux: reparented to the user's subreaper, not to pid 1.
+      '  900 1 /lib/systemd/systemd --user',
+      '  901 900 /usr/bin/node /opt/tade/packages/harnesses/acp/src/tools.ts',
+      '  902 1 /usr/bin/node /opt/tade/packages/harnesses/claude/src/mcp.ts',
+    ]
+    const found = await listAgentProcesses({
+      run: async (command) => (command === 'ps' ? answered(`${rows.join('\n')}\n`) : answered('')),
+    })
+    expect(found.servers).toEqual({ looked: true, alive: 2 })
+    expect(found.processes).toEqual([])
+  })
+
   it('says it could not look rather than saying none are alive', async () => {
     // Nought from a scan that never answered, read as "they have all gone", is
     // the one wrong answer that matters: four agents running a suite at once is
