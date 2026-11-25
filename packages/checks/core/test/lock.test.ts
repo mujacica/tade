@@ -148,4 +148,32 @@ describe('one run at a time, per worktree', () => {
     expect(order).toEqual(['task-a', 'task-b'])
     expect(tickets(worktree)).toEqual([])
   })
+  it('keeps the place of a run that had the worktree and let it go for want of the machine', async () => {
+    // Let go with the lock, the run waiting behind had the checkout 0.8 s
+    // later, 14 s before the one that let go asked again, and was ahead of it
+    // for an hour.
+    const worktree = tmp('tade-lock-')
+    const had = await waitForRunLock(worktree, 'related', { waitMs: 0, as: 'task-a' })
+    if ('held' in had) throw new Error('the lock should have been free')
+    const order: string[] = []
+    const waiting = (as: string) =>
+      waitForRunLock(worktree, as, { waitMs: 20_000, everyMs: 5, as }).then(async (lock) => {
+        order.push('held' in lock ? `${as} gave up` : as)
+        if (!('held' in lock)) await lock.release()
+      })
+    // A ticket is ordered by the millisecond it was first waited for, so the
+    // one behind asks in a later one, as it does in use.
+    const since = Date.now()
+    await until(() => Date.now() > since)
+    const behind = waiting('task-b')
+    await until(() => tickets(worktree).length === 1)
+    await had.giveUp()
+    // Free, and the one behind still waits: the place given up holds its turn.
+    await new Promise((done) => setTimeout(done, 50))
+    expect(order).toEqual([])
+    expect(await heldBy(worktree)).toBeNull()
+    await Promise.all([waiting('task-a'), behind])
+    expect(order).toEqual(['task-a', 'task-b'])
+    expect(tickets(worktree)).toEqual([])
+  })
 })

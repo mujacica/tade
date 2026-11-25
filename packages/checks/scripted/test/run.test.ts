@@ -263,6 +263,48 @@ describe('one suite on the machine, from any worktree', () => {
     expect(await heldBy(root)).toBeNull()
   })
 
+  it('keeps its place for the checkout when it had it and gave up waiting for the machine', async () => {
+    // What a checks_run lost eight times in 85 minutes: it had the checkout,
+    // waited ten minutes for a shell's suite to give up the machine, and let
+    // the checkout go with its place. The run queued behind it had it 0.8 s
+    // later, 14 s before it asked again, and then the machine too.
+    const home = tmp('tade-run-home-')
+    const root = tmp('tade-run-')
+    const shell = await takeMachineSlot(home, 1, { what: 'vitest, 424 files', where: root })
+    if ('held' in shell) throw new Error('the slot should have been free')
+    const ran: string[] = []
+    const run = (by: string, waitMs: number) =>
+      runChecks({
+        runner: makeScriptedRunner({}),
+        project: { name: 'demo', root },
+        records: root,
+        checks: [check('related', { alone: true })],
+        commit: 'a1b2c3d4e5',
+        by,
+        waitMs,
+        machine: { home, most: 1 },
+      }).then(
+        () => ran.push(by),
+        (err: unknown) => {
+          if ((err as RunnerError).trouble !== 'busy') throw err
+          ran.push(`${by} gave up`)
+        },
+      )
+    let checkoutHeld = false
+    const first = run('task-a', 300)
+    // Asked once task-a has the checkout, a millisecond later than it did.
+    while (!checkoutHeld) {
+      checkoutHeld = (await heldBy(root)) !== null
+      await new Promise((done) => setTimeout(done, 2))
+    }
+    const behind = run('task-b', 20_000)
+    await first
+    expect(ran).toEqual(['task-a gave up'])
+    await shell.release()
+    await Promise.all([run('task-a', 20_000), behind])
+    expect(ran).toEqual(['task-a gave up', 'task-a', 'task-b'])
+  })
+
   it('takes nothing of the machine for checks that do not need it to themselves', async () => {
     const home = tmp('tade-run-home-')
     const root = tmp('tade-run-')

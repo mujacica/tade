@@ -72,7 +72,7 @@ async function takeInTurn(
 ): Promise<MachineSlot | { held: Holders }> {
   const slots = Math.max(1, Math.floor(most))
   const busy = await slotHolders(home)
-  if (busy.length + (await waitingAhead(queueDir(home), ticket)).length >= slots)
+  if (busy.length + (await waitingAhead(queueDir(home), ticket, now)).length >= slots)
     return { held: busy }
   for (let slot = 0; slot < slots; slot++) {
     const path = join(slotsDir(home), `slot-${slot}.lock`)

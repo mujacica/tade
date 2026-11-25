@@ -27,6 +27,18 @@ export interface RunLock {
   release(): Promise<void>
 }
 
+/** A worktree's lock had by waiting for it in turn (`waitForRunLock`). */
+export interface WaitedLock extends RunLock {
+  /**
+   * Let the worktree go and keep the asker's place, where they first stood, as
+   * a wait that gave up at its deadline keeps it: for a run that had the
+   * worktree and then gave up waiting for the machine (`run.ts`). Let go with
+   * `release` instead, its place went with the lock, and the run behind had
+   * the worktree the moment it was free.
+   */
+  giveUp(): Promise<void>
+}
+
 /** Who is running what here, when somebody is. */
 export interface LockHolder {
   pid: number
@@ -210,9 +222,10 @@ export async function waitForRunLock(
     /** Who the wait is for, so giving up at the deadline keeps their place (`turn.ts`). */
     as?: string
   } = {},
-): Promise<RunLock | { held: LockHolder }> {
+): Promise<WaitedLock | { held: LockHolder }> {
   const now = opts.now ?? Date.now
-  const deadline = now() + (opts.waitMs ?? 0)
+  const asked = now()
+  const deadline = asked + (opts.waitMs ?? 0)
   const every = opts.everyMs ?? 250
   const queue = runQueueDir(records)
   // Taken only once there is a wait, or taken back where this asker kept one;
@@ -221,11 +234,23 @@ export async function waitForRunLock(
   let gaveUp = false
   try {
     for (;;) {
-      const ahead = await waitingAhead(queue, place?.name ?? null)
+      const ahead = await waitingAhead(queue, place?.name ?? null, now)
       const got = ahead[0]
         ? { held: (await heldBy(records)) ?? ahead[0] }
         : await takeRunLock(records, what, now)
-      if (!('held' in got)) return got
+      if (!('held' in got)) {
+        const as = opts.as
+        const since = place?.at ?? asked
+        return {
+          release: () => got.release(),
+          giveUp: async () => {
+            // Kept before the worktree goes, so nobody behind finds it free
+            // with no place ahead of them.
+            if (as) await (await joinQueue(queue, { what, as }, now, since)).keep()
+            await got.release()
+          },
+        }
+      }
       if (now() >= deadline) {
         gaveUp = true
         return got

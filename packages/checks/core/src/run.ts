@@ -129,7 +129,11 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
         })
       : null
   if (slot && 'held' in slot) {
-    await lock?.release()
+    // Gone at its deadline, it keeps its place for the checkout as it does for
+    // the machine: let go with the lock, the run behind it had the checkout
+    // the moment it was free and was ahead of it for the machine too. Gone
+    // because whoever asked has gone, there is nobody to keep it for.
+    await (request.signal?.aborted ? lock?.release() : lock?.giveUp())
     const most = request.machine?.most ?? 1
     throw new RunnerError(
       'busy',

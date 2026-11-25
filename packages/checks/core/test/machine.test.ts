@@ -14,7 +14,7 @@ import {
   takeMachineSlot,
   waitForMachineSlot,
 } from '../src/machine.ts'
-import { KEPT_MS } from '../src/turn.ts'
+import { HELD_MS, KEPT_MS } from '../src/turn.ts'
 
 // The machine's own bound, over every worktree: six worktrees each holding
 // their own lock was six suites at once, and this is what stops the second.
@@ -240,15 +240,21 @@ describe('the machine runs as many suites as it says, from any worktree', () => 
     expect(readdirSync(queueDir(home))).toEqual([])
   })
 
-  it('holds nobody up with a place kept aside, and lets one lapse', async () => {
+  it('holds its turn while whoever gave it up asks again, then nobody up, and lapses', async () => {
+    // Holding nobody up from the first moment, a place kept saved nothing: the
+    // run behind had the checkout 0.8 s after a checks_run gave up, 14 s before
+    // it asked again.
     const home = tmp('tade-machine-')
     const first = await takeMachineSlot(home, 1, holder('/work/one'))
     if ('held' in first) throw new Error('the slot should have been free')
     await waitForMachineSlot(home, 1, holder('/work/a'), { waitMs: 40, everyMs: 10, as: 'a' })
     await first.release()
-    // Nobody is waiting on the kept place, so a newcomer has the free slot.
-    const newcomer = await takeMachineSlot(home, 1, holder('/work/newcomer'))
-    if ('held' in newcomer) throw new Error('a kept place held the newcomer up')
+    const soon = await takeMachineSlot(home, 1, holder('/work/newcomer'))
+    expect('held' in soon).toBe(true)
+    // Past its turn, nobody is waiting on the kept place, so a newcomer has the free slot.
+    const past = () => Date.now() + HELD_MS + 1
+    const newcomer = await takeMachineSlot(home, 1, holder('/work/newcomer'), past)
+    if ('held' in newcomer) throw new Error('a kept place held the newcomer up past its turn')
     // Asked again once it has lapsed, it is cleared rather than taken back.
     const later = () => Date.now() + KEPT_MS + 1
     await waitForMachineSlot(home, 1, holder('/work/a'), { waitMs: 0, as: 'a', now: later })

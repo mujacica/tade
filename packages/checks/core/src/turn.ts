@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { holdUntilExit, letGoOf } from './held.ts'
 import { holderAt, type LockHolder } from './lock.ts'
@@ -19,19 +19,30 @@ import { holderAt, type LockHolder } from './lock.ts'
 // `checks_run` that may wait ten minutes never got there in seven tries, and
 // every retry made its own place worse. So a wait that gives up at its deadline
 // on behalf of somebody named (`as` — the task asking) keeps its ticket aside
-// for `KEPT_MS`, and their next wait takes it back with the place it had. Kept
-// aside it holds nobody up: a slot that comes free while nobody is waiting on
-// that ticket goes to whoever is.
+// for `KEPT_MS`, and their next wait takes it back with the place it had.
+//
+// Kept aside it still holds its turn for `HELD_MS`, the time an agent takes to
+// ask again, and after that holds nobody up: a slot that comes free while
+// nobody is waiting on that ticket goes to whoever is. Holding nobody up from
+// the first moment, it saved nothing: a checks_run gave up at 16:50:59 and the
+// run behind it had the checkout 0.8 s later, 14 s before it asked again; it
+// waited eight times in 85 minutes and never ran.
 
-const TICKET = /^\d{16}-\d+-\d{6}\.wait$/
+const TICKET = /^(\d{16}-\d+-\d{6})\.wait$/
 const KEPT = /^(\d{16}-\d+-\d{6})\.kept$/
+/** A kept place in the moment between being moved aside and put back as a ticket (`takeBack`). */
+const TAKING = /^(\d{16}-\d+-\d{6})\.kept\.\d+-\d+\.taking$/
 /** How long a place given up at a deadline is kept for whoever gave it up to ask again. */
 export const KEPT_MS = 15 * 60_000
+/** How long a place given up at a deadline still holds its turn — and holds those behind it up. */
+export const HELD_MS = 2 * 60_000
 let tickets = 0
 
 /** A place held in one queue, and how to give it up. */
 export interface Place {
   name: string
+  /** When this place was first waited for, which is what orders it. */
+  at: number
   /** Gone from the queue: what was waited for was had, or whoever asked has gone. */
   leave: () => Promise<void>
   /**
@@ -54,11 +65,17 @@ interface Holder {
  * sorts first; one process holds several, because every `checks_run` an agent
  * makes waits inside the window. It is written aside and renamed into place,
  * so nobody reading the queue finds it half-written and takes it for a dead
- * one.
+ * one. `since` places it where somebody stood who was already waiting — one
+ * that had a lock and let it go for want of the machine (`run.ts`).
  */
-export async function joinQueue(dir: string, holder: Holder, now: () => number): Promise<Place> {
+export async function joinQueue(
+  dir: string,
+  holder: Holder,
+  now: () => number,
+  since?: number,
+): Promise<Place> {
   await mkdir(dir, { recursive: true })
-  const at = now()
+  const at = since ?? now()
   const name = `${String(at).padStart(16, '0')}-${process.pid}-${String(tickets++ % 1_000_000).padStart(6, '0')}.wait`
   return placeAt(dir, name, holder, at, now)
 }
@@ -132,6 +149,7 @@ async function placeAt(
   }
   return {
     name,
+    at,
     leave,
     keep: async () => {
       if (!holder.as) return leave()
@@ -140,6 +158,7 @@ async function placeAt(
         pid: process.pid,
         ...holder,
         at: new Date(at).toISOString(),
+        held: now() + HELD_MS,
         until: now() + KEPT_MS,
       })
       holdUntilExit(kept)
@@ -154,13 +173,19 @@ async function writeAside(path: string, body: Record<string, unknown>): Promise<
   await rename(aside, path)
 }
 
-/** What a kept place says: whose, since when it was waited for, and until when it is kept. */
-async function keptAt(path: string): Promise<{ as: string; at: number; until: number } | null> {
+/**
+ * What a kept place says: whose, since when it was waited for, until when it
+ * still holds its turn (none, written before it did), and until when it is kept.
+ */
+async function keptAt(
+  path: string,
+): Promise<{ as: string; at: number; held: number; until: number } | null> {
   try {
     const raw = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>
     const at = typeof raw.at === 'string' ? Date.parse(raw.at) : Number.NaN
     if (typeof raw.as !== 'string' || typeof raw.until !== 'number' || Number.isNaN(at)) return null
-    return { as: raw.as, at, until: raw.until }
+    const held = typeof raw.held === 'number' ? raw.held : 0
+    return { as: raw.as, at, held, until: raw.until }
   } catch (err) {
     // Gone since the listing, or not a kept place at all: nobody's to take
     // back, and cleared by the caller. A queue that cannot be read is thrown,
@@ -173,23 +198,68 @@ async function keptAt(path: string): Promise<{ as: string; at: number; until: nu
 /**
  * Who holds a live ticket older than `ticket`, oldest first — everybody, for
  * a taker with none. A ticket whose process is gone is nobody, and is cleared
- * away. A place kept aside is not a ticket: nobody is waiting on it.
+ * away. A place kept aside counts while it still holds its turn (`HELD_MS`),
+ * and after that is not a ticket: nobody is waiting on it. One being taken
+ * back counts too: for that moment there is neither a kept place nor a ticket,
+ * and a wait polling behind it found the queue empty and went first.
  */
-export async function waitingAhead(dir: string, ticket: string | null): Promise<LockHolder[]> {
-  // No queue yet is nobody waiting; a queue that cannot be read is not, and is thrown.
-  const names = await readdir(dir).catch((err: unknown) => {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [] as string[]
-    throw err
-  })
-  const ahead = names
-    .filter((name) => TICKET.test(name) && (ticket === null || name < ticket))
-    .sort()
-  const live = await Promise.all(
-    ahead.map(async (name) => {
-      const holder = await holderAt(join(dir, name))
-      if (!holder) await rm(join(dir, name), { force: true })
-      return holder
-    }),
+export async function waitingAhead(
+  dir: string,
+  ticket: string | null,
+  now: () => number = Date.now,
+): Promise<LockHolder[]> {
+  const mine = ticket === null ? null : (TICKET.exec(ticket)?.[1] ?? ticket)
+  // A place moves — kept, being taken back, a ticket again — and one that
+  // moved between the listing and the reading is in neither, which read as
+  // nobody ahead. So one found gone is looked for again under its new name.
+  for (let look = 1; ; look++) {
+    // No queue yet is nobody waiting; a queue that cannot be read is not, and is thrown.
+    const names = await readdir(dir).catch((err: unknown) => {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [] as string[]
+      throw err
+    })
+    const ahead = names
+      .map((name) => ({
+        name,
+        order: TICKET.exec(name)?.[1] ?? KEPT.exec(name)?.[1] ?? TAKING.exec(name)?.[1],
+      }))
+      .filter(
+        (one): one is { name: string; order: string } =>
+          one.order !== undefined && (mine === null || one.order < mine),
+      )
+      .sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0))
+    const looked = await Promise.all(
+      ahead.map(async ({ name }): Promise<LockHolder | null | typeof MOVED> => {
+        const path = join(dir, name)
+        if (KEPT.test(name)) {
+          // Lapsed and dead ones are cleared by whoever asks again (`takeBack`).
+          const kept = await keptAt(path)
+          if (kept && kept.held <= now()) return null
+          return (kept && (await holderAt(path))) ?? ((await there(path)) ? null : MOVED)
+        }
+        const holder = await holderAt(path)
+        if (holder) return holder
+        if (!(await there(path))) return MOVED
+        await rm(path, { force: true })
+        return null
+      }),
+    )
+    if (look < LOOKS && looked.includes(MOVED)) continue
+    return looked.filter((one): one is LockHolder => one !== null && one !== MOVED)
+  }
+}
+
+/** A place that was listed and had gone by the time it was read. */
+const MOVED = Symbol('moved')
+/** How many times a queue is listed again for places that moved while it was read. */
+const LOOKS = 3
+
+async function there(path: string): Promise<boolean> {
+  return stat(path).then(
+    () => true,
+    (err: unknown) => {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false
+      throw err
+    },
   )
-  return live.filter((one): one is LockHolder => one !== null)
 }

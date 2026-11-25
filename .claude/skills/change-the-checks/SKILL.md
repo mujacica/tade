@@ -126,8 +126,12 @@ and that record.
   than reported, and nobody is ever told the checks passed because somebody else's run did
   (`RunnerError('busy')`). Waiting is the polite half of the same rule, and **in turn** (`turn.ts`):
   a wait takes a ticket, so what comes free goes to whoever waited longest, not whoever looks next.
-  A lock is linked into place whole and taken back only by the claim that wrote it (`claim`) — an
-  empty one read as nobody's, and two runs shared one checkout from then on.
+  One given up at its deadline is kept for its asker (`as`) and **still holds its turn for
+  `HELD_MS`**, and a run that had the worktree and gave up on the machine keeps that place too
+  (`WaitedLock.giveUp`): a kept place that held nobody up from the first moment lost its turn in the
+  seconds before its agent asked again, eight times in 85 minutes. A lock is linked into place
+  whole and taken back only by the claim that wrote it (`claim`) — an empty one read as nobody's,
+  and two runs shared one checkout from then on.
 - **A worktree is not the machine.** The worktree lock alone let six worktrees run six suites —
   sixty-seven vitest processes on one laptop — so a run with an `alone` check also takes one of the
   machine's slots (`machine.ts`, under Tade's home, `checks.suites` of them, the same stale-pid
