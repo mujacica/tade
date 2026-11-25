@@ -5,6 +5,11 @@ Every change to Tade, newest first, in the words whoever made it wrote. Generate
 explains the reasoning in the body, and a tool that reshaped them into `feat:` and `fix:` would
 say less than the history already does.
 
+## [0.4.2](https://github.com/mujacica/tade/compare/v0.4.1...v0.4.2) — 2026-11-25
+
+- Claude Code's session-owner, derived-from and data-flow lines are bookkeeping Tade knows, so the orchestrator's conversation is one across machines again ([`496ae61`](https://github.com/mujacica/tade/commit/496ae618e8ebd3e4681fe9a93f6928f03e1143b8))
+- The kitty-protocol keyboard test keeps a wrapped line's space when it reads the shell's rows ([`d64414e`](https://github.com/mujacica/tade/commit/d64414e5cf5434ddb8fa150e6ee1977006039154))
+
 ## [0.4.1](https://github.com/mujacica/tade/compare/v0.4.0...v0.4.1) — 2026-11-25
 
 - The + machine-picker test names this machine as the window does on each platform, so it holds on Linux too ([`8530e98`](https://github.com/mujacica/tade/commit/8530e98797cecb6a0490e05409b3fea411d4c374))
