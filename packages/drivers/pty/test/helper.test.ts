@@ -1,6 +1,15 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { helperAt, helperProblem } from '../src/helper.ts'
 
@@ -70,6 +79,21 @@ describe('finding it', () => {
     const found = helperAt()
     expect(found).toContain(`@lydell/node-pty-darwin-${process.arch}/prebuilds/`)
     expect(helperProblem(found)).toBeNull()
+  })
+
+  // A node-pty that Debian's node-gyp compiled links the system Node's
+  // `libnode.so`: under an official Node it loads, does the work and aborts on
+  // exit, with nothing to catch. Tade has no door for that because nothing
+  // compiles node-pty any more — this is what holds it, on the real binary.
+  it('loads a binary that links nothing of a system Node’s', () => {
+    const wrapper = createRequire(import.meta.url).resolve('@lydell/node-pty')
+    const lib = createRequire(wrapper).resolve(
+      `@lydell/node-pty-${process.platform}-${process.arch}`,
+    )
+    const binary = join(dirname(dirname(lib)), 'prebuilds', `${process.platform}-${process.arch}`)
+    const bytes = readFileSync(join(binary, 'pty.node'))
+    expect(bytes.byteLength).toBeGreaterThan(0)
+    expect(bytes.includes('libnode.so')).toBe(false)
   })
 
   it('finds nothing for a platform nobody packed one for', () => {
