@@ -9,6 +9,7 @@ import { mkrepo } from '../../../../test/fixtures/mkrepo.ts'
 import type { AgentPane } from '../../src/model.ts'
 import { sideAnswerOf } from '../../src/side.ts'
 import { diskOf } from '../../src/wire/web-disk.ts'
+import { actions } from '../screens/scenarios/fixtures.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
 import { pressRow, standingThere } from './standing-there.ts'
 
@@ -281,5 +282,60 @@ describe('a project on another machine, pressed as a project here', () => {
     expect(
       client.lanes().filter((lane) => lane.alive && lane.id.startsWith('remotes/vps/')),
     ).toHaveLength(2)
+  })
+
+  it('draws its ACTIONS tab from that machine, and runs its checks there from Run all', async () => {
+    const far = await startFarEnd({ projects: ['tade'] })
+    fars.push(far)
+    far.show(['tade'], {}, [WORKING])
+    const pane = {
+      task: 'tade/door',
+      project: 'tade',
+      name: 'door',
+      title: 'Doorbell',
+      branch: 'tade/door',
+      lane: null,
+      state: 'working',
+      waiting: false,
+      approval: null,
+      lanes: [],
+    } as AgentPane
+    far.side = async (ask) =>
+      sideAnswerOf({
+        ask,
+        panes: [pane],
+        looking: false,
+        spent: null,
+        here: { files: null, fileMarks: {}, where: null, changes: null, base: null },
+        notes: [],
+        retired: [],
+        schedules: [],
+        intake: [],
+        intakeEmpty: { short: 'none', long: 'Nothing.' },
+        agent: null,
+        actions: { ...actions(), task: 'tade/door' },
+      })
+    await standingThere(wired, far)
+    terminal.resize(120, 60)
+    await until(said('its agent'), () => shown('Doorbell'), 20_000)
+    pressRow(wired, 'Doorbell')
+    await until(said('its tabs'), () => shown('actions'), 20_000)
+    const tab = wired.find('actions')
+    wired.click(tab.col + 1, tab.row)
+    // What its window draws there: its own commits, and its checks with Run all.
+    await until(said('its work there'), () => shown('keep the old webhook shape'), 20_000)
+    expect(far.sideAsked.at(-1)).toMatchObject({ agent: 'tade/door', actions: true })
+    await until(said('Run all'), () => shown('Run all'), 20_000)
+    const run = wired.find('Run all')
+    wired.click(run.col + 2, run.row)
+    await until(
+      said('its checks run there'),
+      () => far.toolCalls.some((one) => one.method === 'extension/call'),
+      20_000,
+    )
+    expect(far.toolCalls.find((one) => one.method === 'extension/call')?.params).toMatchObject({
+      tool: 'checks_run',
+      input: { project: 'tade' },
+    })
   })
 })
