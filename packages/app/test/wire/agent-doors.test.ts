@@ -1,7 +1,7 @@
 import { NotOffered } from '@tade/web'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { initialState } from '../../src/model.ts'
-import { agentMenuDoors } from '../../src/wire/agent-doors.ts'
+import { agentMenuDoors, LISTS_MS } from '../../src/wire/agent-doors.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 
 // The window's own doors for an agent's menu, asked by name: a model, an
@@ -101,5 +101,55 @@ describe('an agent’s menu doors, asked by name', () => {
     await expect(made.doors.move(TASK, 'mini', by)).rejects.toBeInstanceOf(NotOffered)
     await expect(made.doors.move(TASK, 'elsewhere', by)).rejects.toBeInstanceOf(NotOffered)
     expect(made.handed).toEqual(['vps'])
+  })
+})
+
+describe('an agent’s menu, asked while its lists are slow', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** A window with one agent, not running, whose sign-ins are never answered. */
+  function slowAccounts() {
+    const wire = {
+      opts: {
+        config: { accounts: {} },
+        client: {
+          lane: () => null,
+          // Not known, so it offers what the window's row does before it knows.
+          agentHarness: () => Promise.reject(new Error('not asked here')),
+          // A harness asked who it is signed in as that never says.
+          accounts: () => new Promise(() => {}),
+        },
+      },
+      live: {
+        factsOf: () => ({}),
+        queueFacts: () => ({ finished: new Map() }),
+        changes: () => [],
+        vitals: () => null,
+      },
+      note: () => {},
+      state: initialState(),
+    } as unknown as Wiring
+    return agentMenuDoors(wire, { removeExactly: () => Promise.resolve(), handsOver: () => null })
+  }
+
+  it('answers with every item by its own deadline, saying on the account item why it has no list', async () => {
+    vi.useFakeTimers()
+    let answered: Awaited<ReturnType<ReturnType<typeof slowAccounts>['menu']>> | undefined
+    void slowAccounts()
+      .menu(TASK, true)
+      .then((menu) => {
+        answered = menu
+      })
+    await vi.advanceTimersByTimeAsync(LISTS_MS - 1)
+    expect(answered).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(1)
+    const ids = (answered?.items ?? []).map((one) => one.id)
+    for (const id of ['open', 'start', 'rename', 'model', 'account', 'park', 'remove']) {
+      expect(ids, id).toContain(id)
+    }
+    const account = answered?.items.find((one) => one.id === 'account')
+    expect(account?.act).toMatchObject({ why: 'the accounts could not be read now' })
   })
 })

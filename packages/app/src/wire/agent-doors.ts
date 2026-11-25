@@ -1,5 +1,5 @@
 import { type Asker, HARNESS_CHOICES } from '@tade/core'
-import { type AgentMenuIn, NotOffered } from '@tade/web'
+import { type AgentMenuIn, inTime, MENU_MS, NotOffered } from '@tade/web'
 import { awayMenuOf, type MenuExtras } from '../away-menu.ts'
 import { shownName } from '../model.ts'
 import {
@@ -185,8 +185,14 @@ async function menuFor(
   )
   const vitals = wire.live?.vitals(task) ?? null
   const harness = offers?.harness ?? known?.harness ?? ''
-  const models = running
-    ? await client
+  // The two lists under its items are questions to the harnesses — every
+  // sign-in asked in turn for the accounts, a program run for Codex's models —
+  // so they are asked side by side, each by a deadline inside the menu's own
+  // (`LISTS_MS`): one that is late is said on its item, and never costs the
+  // menu every other item. On a busy machine the accounts alone took longer
+  // than `MENU_MS`, and the person's own phone was handed an empty menu.
+  const asking = running
+    ? client
         .agentModels(task)
         .then((offered) => ({
           list: offered.models.map((one) => ({
@@ -206,8 +212,8 @@ async function menuFor(
           }
         })
     : null
-  const accounts = theirs
-    ? await client
+  const reading = theirs
+    ? client
         .accounts()
         .then((views) =>
           accountMenuItems(
@@ -223,6 +229,16 @@ async function menuFor(
           return null
         })
     : []
+  const [models, accounts] = await Promise.all([
+    asking === null
+      ? null
+      : inTime(asking, LISTS_MS, {
+          list: [],
+          current: vitals?.model ?? null,
+          why: 'its harness took too long to say which models it runs',
+        }),
+    Array.isArray(reading) ? reading : inTime(reading, LISTS_MS, null),
+  ])
   const title = pane ? shownName(pane) : task.slice(task.indexOf('/') + 1)
   return {
     items: awayMenuOf(items, {
@@ -235,6 +251,13 @@ async function menuFor(
     }),
   }
 }
+
+/**
+ * How long the lists under an agent's menu items may take, inside the time the
+ * whole menu has (`MENU_MS`): what is left is for building the rest of it and
+ * answering, on a machine busy enough to have made a list late.
+ */
+export const LISTS_MS = MENU_MS - 2_000
 
 /** What every menu knows of an agent, before its lists are asked. */
 function extrasOf(title: string, offers: MenuExtras['offers'], running: boolean): MenuExtras {
