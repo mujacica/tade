@@ -32,7 +32,7 @@ import {
   type WebServer,
   webServer,
 } from '@tade/web'
-import { type FarAct, type FarAgent, farActing, farLane, farTask } from './far-agents.ts'
+import { type FarAct, type FarAgent, farActing, farLane, farMenus, farTask } from './far-agents.ts'
 import { FarTalk } from './far-talk.ts'
 
 export type { FarAct, FarAgent } from './far-agents.ts'
@@ -309,6 +309,7 @@ class Far implements FarEnd {
         keep: (source, fields) => this.connected().keep(source, fields),
       },
       acting: farActing(this.acted),
+      menus: farMenus(() => this.agents),
       acts: {
         take: async (act) => {
           this.toolCalls.push({ method: act.method, params: act.params, quoted: act.quoted })

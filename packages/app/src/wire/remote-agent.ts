@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { printable, TaskId } from '@tade/core'
 import type { Answer, Held, Remote, RemoteLink } from '@tade/remotes-core'
+import type { AgentMenuOut } from '@tade/web'
 import { attachedFrom, attachedTo } from '@tade/workbench/attached'
 import type { Frame } from '../frame.ts'
 import {
@@ -15,12 +16,13 @@ import {
   screenOf,
 } from '../machines.ts'
 import { laneThere, leaveLine, ORCHESTRATOR_TAB, type ScheduleView } from '../model.ts'
-import type { MenuItem } from '../panels/menu/state.ts'
+import { type MenuItem, menuPanel } from '../panels/menu/state.ts'
 import { confirmRemovePanel, promptPanel } from '../panels/small/state.ts'
 import { refOf, scheduleThere, there, thereItems, thereScheduleItems } from '../there.ts'
 import {
   type Actions,
   flash,
+  type Menus,
   notify,
   type Prompts,
   type Subject,
@@ -126,6 +128,12 @@ export class RemoteAgents implements Subject, ThereDoor {
   private readonly deps: RemoteAgentDeps
   /** The screen last read, and which machine and task it was read of. */
   private screen: { of: string; screen: RemoteScreen } | null = null
+  /**
+   * The models an agent there may be switched to, as that machine's own menu
+   * for it listed them (`modelsThere`), for the picker open on it: `items`
+   * null while it is asked.
+   */
+  private picking: { id: string; items: MenuItem[] | null; why: string | null } | null = null
   /** The look on its way, by machine and task, so a late answer about another is dropped. */
   private asking: string | null = null
   private askedAt = 0
@@ -218,6 +226,40 @@ export class RemoteAgents implements Subject, ThereDoor {
     }
   }
 
+  /**
+   * Change model… on an agent there: the models that machine's own menu for it
+   * lists, the one it is on marked, as an agent's picker here is — and a name
+   * typed, for a model that list does not have or a machine that lists none.
+   */
+  menus(): Menus {
+    return {
+      'model-there': {
+        title: (subject) => `Model for ${this.title(subject.id)}`,
+        items: (subject) => {
+          const typed: MenuItem = { id: 'type', label: 'Type a name…' }
+          const picking = this.picking?.id === subject.id ? this.picking : null
+          const machine = refOf(subject.id).machine ?? 'that machine'
+          if (picking?.items == null) {
+            return [{ id: '', label: `asking ${machine} which models it runs…`, off: 'asking' }]
+          }
+          if (picking.items.length === 0) {
+            const said = picking.why ?? `${machine} listed no models for it`
+            return [{ id: '', label: said, off: 'none listed' }, typed]
+          }
+          return [...picking.items, { ...typed, divider: true }]
+        },
+        choose: (subject, item) => {
+          if (item === 'type') {
+            const name = this.title(subject.id)
+            return this.prompt(promptPanel('model-there', `Model for ${name}`, 'MODEL'), subject.id)
+          }
+          if (item.startsWith('model:'))
+            return this.on(subject.id, 'model', { model: item.slice(6) })
+        },
+      },
+    }
+  }
+
   // ── The door every row of another machine's comes through ──────────────
 
   title(id: string): string {
@@ -288,7 +330,7 @@ export class RemoteAgents implements Subject, ThereDoor {
           id,
         )
       case 'model':
-        return this.prompt(promptPanel('model-there', `Model for ${name}`, 'MODEL'), id)
+        return this.pickModel(id, name)
       case 'account':
         return this.prompt(promptPanel('account-there', `Account for ${name}`, 'ACCOUNT'), id)
       case 'remove':
@@ -401,6 +443,58 @@ export class RemoteAgents implements Subject, ThereDoor {
       notify(this.wire, why(err))
     }
     this.wire.draw()
+  }
+
+  /**
+   * The models picker on an agent there, opened at once and saying it is
+   * asking — a list is a question to that machine's harness, and a menu that
+   * appears seconds after the press is a press that seemed to miss — then
+   * filled with what that machine answered, the keyboard on the one in use.
+   */
+  private async pickModel(id: string, name: string): Promise<void> {
+    const picking = { id, items: null, why: null }
+    this.picking = picking
+    this.wire.put({
+      ...this.wire.state,
+      panel: menuPanel({ kind: 'model-there', id }, `Model for ${name}`),
+    })
+    this.wire.draw()
+    const read = await this.modelsThere(id).catch((err: unknown) => ({
+      items: [],
+      why: printable(why(err)),
+    }))
+    // Asked again, or closed for another, meanwhile: nothing on screen is about it.
+    if (this.picking !== picking) return
+    this.picking = { id, ...read }
+    const panel = this.wire.state.panel
+    if (panel?.kind === 'menu' && panel.subject.kind === 'model-there' && panel.subject.id === id) {
+      const index = Math.max(
+        0,
+        read.items.findIndex((one) => one.label.startsWith('● ')),
+      )
+      this.wire.put({ ...this.wire.state, panel: { ...panel, index } })
+    }
+    this.wire.draw()
+  }
+
+  /**
+   * What `Change model…` lists in that machine's own menu for its agent
+   * (`GET /api/agent/:project/:task/menu`, the phone's list) — read when the
+   * picker opens, never on a beat, since it is a question to its harness.
+   */
+  private async modelsThere(id: string): Promise<{ items: MenuItem[]; why: string | null }> {
+    const { machine, id: task } = refOf(id)
+    const name = machine ?? 'that machine'
+    const reach = machine === null ? null : this.deps.reach(machine)
+    if (reach === null || !reach.live) throw new Error(`${name} is not linked right now`)
+    if (!TaskId.safeParse(task).success) throw new Error(`${task} is not an agent's name`)
+    const [project = '', short = ''] = task.split('/')
+    const answer = await reach.link.request(
+      name,
+      `/api/agent/${encodeURIComponent(project)}/${encodeURIComponent(short)}/menu`,
+    )
+    if (answer.status !== 200) return { items: [], why: `${name} did not say which models it runs` }
+    return modelsOfMenu(answer.body, name)
   }
 
   /** A model or an account, named on a prompt: carried, and the panel closed. */
@@ -585,6 +679,42 @@ function keyOf(place: Place | undefined | null): string {
 /** The project there, with no agent in front and so no lane of one. */
 function withoutAgent(place: Place): Place {
   return { machine: place.machine, project: place.project }
+}
+
+/**
+ * The models under `Change model…` in an agent's menu as its machine answered
+ * it (`AgentMenuOut`), as this window's picker rows — the one it is on marked
+ * as a picker here marks it — or, where it lists none, why in its words.
+ * Another machine's answer, so nothing in it is trusted to be the shape it says.
+ */
+export function modelsOfMenu(
+  body: unknown,
+  machine: string,
+): { items: MenuItem[]; why: string | null } {
+  const menu = (typeof body === 'object' && body !== null ? body : {}) as Partial<AgentMenuOut>
+  const said = (text: unknown) => (typeof text === 'string' && text !== '' ? printable(text) : null)
+  const item = Array.isArray(menu.items) ? menu.items.find((one) => one?.id === 'model') : undefined
+  if (item === undefined) {
+    return { items: [], why: said(menu.why) ?? `${machine} offers no model list for it here` }
+  }
+  if (said(item.off) !== null) return { items: [], why: said(item.off) }
+  const act = item.act
+  if (act?.kind !== 'choose' || !Array.isArray(act.choices)) {
+    return { items: [], why: `${machine} offers no model list for it here` }
+  }
+  const items = act.choices
+    .filter((one) => typeof one?.id === 'string' && one.id !== '')
+    .map((one): MenuItem => {
+      const off = said(one.off)
+      const note = said(one.note)
+      return {
+        id: `model:${one.id}`,
+        label: `${one.current === true ? '● ' : '  '}${said(one.label) ?? printable(one.id)}`,
+        ...(one.current === true ? { note: 'now' } : note === null ? {} : { note }),
+        ...(off === null ? {} : { off }),
+      }
+    })
+  return { items, why: said(act.why) }
 }
 
 /** What an act answered, as the sentence to say — or thrown, where it was refused. */

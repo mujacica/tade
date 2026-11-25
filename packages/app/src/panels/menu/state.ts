@@ -47,6 +47,11 @@ export type MenuSubject =
   | { kind: 'machine'; machine: string }
   /** A project's tab on another machine, along the top: what that machine lets be done to it. */
   | { kind: 'remote-project'; machine: string; project: string }
+  /**
+   * Which model an agent on another machine runs on, from the list that
+   * machine's own menu for it offers: `id` is its id here (`there.ts`).
+   */
+  | { kind: 'model-there'; id: string }
   /** Where the `+` opens what it opens, once there is a second machine: this one first. */
   | { kind: 'new-where'; what: 'agent' | 'below' }
 

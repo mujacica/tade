@@ -1,5 +1,14 @@
 import { type AgentMark, noSpend } from '@tade/core'
-import type { AgentIn, AgentLane, Can, Outcome, TaskIn, WebActing } from '@tade/web'
+import type {
+  AgentIn,
+  AgentLane,
+  AgentMenuIn,
+  Can,
+  Outcome,
+  TaskIn,
+  WebActing,
+  WebMenus,
+} from '@tade/web'
 
 // The far end's agents: what another machine's window would hold of each —
 // a task row, the screen its lane shows — and what it does when an owner asks
@@ -35,6 +44,12 @@ export interface FarAgent {
   finished?: boolean
   /** A branch of its own there, in a worktree; absent, it works in that machine's checkout. */
   branch?: string
+  /**
+   * The models its harness runs, as the window there lists them under its
+   * `Change model…` (`/api/agent/:project/:task/menu`), the one it is on
+   * marked; absent, its menu there has no model list.
+   */
+  models?: readonly { id: string; current?: boolean }[]
 }
 
 /** A verb an owner asked of the far end: its name and what the window there was handed. */
@@ -48,7 +63,13 @@ function canOf(agent: FarAgent): Can[] {
   const lane = agent.lane ?? 'running'
   const can: Can[] = [{ verb: 'park', how: 'now' }]
   if (agent.approval) can.push({ verb: 'answer', how: 'now' })
-  if (lane === 'running') can.push({ verb: 'steer', how: 'now' }, { verb: 'stop', how: 'now' })
+  if (lane === 'running') {
+    can.push(
+      { verb: 'steer', how: 'now' },
+      { verb: 'stop', how: 'now' },
+      { verb: 'model', how: 'now' },
+    )
+  }
   if (lane === 'stopped') can.push({ verb: 'reopen', how: 'now' })
   if (agent.queued) can.push({ verb: 'queue', how: 'now' })
   return can
@@ -124,6 +145,46 @@ export function farLane(agent: FarAgent, now: number): AgentIn {
         ? { kind: 'none', why: 'no agent' }
         : { kind: 'read', text: agent.screen, at: now },
     known: [],
+  }
+}
+
+/**
+ * Its menu, as the window there builds it for a device (`menuFor` in
+ * `@tade/app`'s `wire/agent-doors.ts`): here only `Change model…`, with the
+ * models a test said it has.
+ */
+export function farMenus(agents: () => readonly FarAgent[]): WebMenus {
+  return {
+    menu: async (task): Promise<AgentMenuIn | null> => {
+      const agent = agents().find((one) => one.task === task)
+      if (agent === undefined) return null
+      if (agent.models === undefined) return { items: [] }
+      const running = (agent.lane ?? 'running') === 'running'
+      return {
+        items: [
+          {
+            id: 'model',
+            label: 'Change model…',
+            off: running ? null : 'not running',
+            note: null,
+            danger: false,
+            divider: false,
+            act: {
+              kind: 'choose',
+              verb: 'model',
+              choices: agent.models.map((one) => ({
+                id: one.id,
+                label: one.id.split('/').slice(1).join('/') || one.id,
+                current: one.current === true,
+                off: null,
+                note: null,
+              })),
+              why: null,
+            },
+          },
+        ],
+      }
+    },
   }
 }
 

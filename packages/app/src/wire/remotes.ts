@@ -506,7 +506,10 @@ export class Remotes implements Subject {
     return this.skews.get(name)?.skew ?? 0
   }
 
-  /** A machine's name along the top opens its projects; choosing one stands in it. */
+  /**
+   * A machine's name along the top opens its projects; choosing one stands in
+   * it. An agent there's models are its own (`RemoteAgents.menus`).
+   */
   menus(): Menus {
     return {
       machine: {
@@ -552,6 +555,7 @@ export class Remotes implements Subject {
           if (id === 'close') return this.closeThere(`${subject.machine} ${subject.project}`)
         },
       },
+      ...this.agents?.menus(),
     }
   }
 
