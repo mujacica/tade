@@ -68,6 +68,12 @@ const KEPT = new Set([
   'content-replacement',
   'cost-state',
   'custom-title',
+  // These four are 2.1.325–2.1.331's: a session's owner, what it was derived
+  // from and its data flow, none with a uuid or anything of the tree. Unknown,
+  // they kept the orchestrator's conversation apart on every machine.
+  'data-flow-incomplete',
+  'data-flow-records',
+  'derived-from',
   'dev-mods',
   'ended-by-model',
   'file-history-delta',
@@ -83,6 +89,7 @@ const KEPT = new Set([
   'pr-link',
   'queue-operation',
   'relocated',
+  'session-owner',
   'summary',
   'tag',
   'tools-used',

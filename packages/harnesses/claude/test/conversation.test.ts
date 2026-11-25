@@ -111,6 +111,16 @@ describe("Claude Code's record, for one conversation on every machine", () => {
         kind: 'kept',
       })
     }
+    // As Claude Code 2.1.325–2.1.331 write them: unknown, they kept the
+    // orchestrator's conversation on a server from being one with the Mac's.
+    for (const line of [
+      { type: 'data-flow-incomplete', v: 1, sessionId: SESSION, codes: ['x'] },
+      { type: 'data-flow-records', v: 1, sessionId: SESSION, records: [] },
+      { type: 'derived-from', v: 1, sessionId: SESSION, sessions: [] },
+      { type: 'session-owner', sessionId: SESSION, accountUuid: 'a', organizationUuid: 'o' },
+    ]) {
+      expect(CLAUDE_CONVERSATION.read(JSON.stringify(line)), line.type).toEqual({ kind: 'kept' })
+    }
   })
 
   it('knows a tool answer is not words said to it, and a meta line is not a message', () => {
