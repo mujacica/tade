@@ -1,6 +1,5 @@
 import type { Finished } from './done.ts'
 import { type EventType, type TadeEvent, typeNow } from './events.ts'
-import { ownLines } from './feeds.ts'
 import {
   type Fleet,
   followWait,
@@ -11,6 +10,7 @@ import {
   waitThere,
   waitThereProblem,
 } from './fleet-waits.ts'
+import { linesOf, linesTyped, ownOf } from './lines-index.ts'
 import type { DoneRule, StartCondition, TaskState } from './model.ts'
 import { approvedFrom, type Triage } from './produces.ts'
 import { RuntimeFold } from './runtime.ts'
@@ -244,8 +244,8 @@ export function choicesFor(task: string, events: readonly TadeEvent[]): Choices 
     startedAt: 0,
     past: false,
   }
-  for (const event of events) {
-    if (event.type !== 'queue_changed' || event.task !== task) continue
+  for (const event of linesOf(events, task)) {
+    if (event.type !== 'queue_changed') continue
     switch (event.detail.change) {
       case 'pause':
         choices.paused = true
@@ -299,8 +299,8 @@ export function queuePaused(events: readonly TadeEvent[], project: string): bool
 /** Where the pause that holds a project's whole queue now was written, or null where none does. */
 function queuePausedAt(events: readonly TadeEvent[], project: string): number | null {
   let paused: number | null = null
-  for (const event of events) {
-    if (event.type !== 'queue_changed' || event.detail.all !== true) continue
+  for (const event of linesTyped(events, 'queue_changed')) {
+    if (event.detail.all !== true) continue
     const scope = event.detail.project
     if (typeof scope === 'string' && scope !== project) continue
     if (event.detail.change === 'pause') paused = event.seq
@@ -318,8 +318,7 @@ function troubleWith(dep: string, facts: QueueFacts, since: number): string | nu
   let removed = false
   let stopped = false
   let failed = false
-  for (const event of facts.events) {
-    if (event.task !== dep) continue
+  for (const event of linesOf(facts.events, dep)) {
     if (event.type === 'run_started') {
       stopped = false
       failed = false
@@ -368,8 +367,8 @@ export function troubleStarting(
   since: number,
 ): string | null {
   let because: string | null = null
-  for (const event of events) {
-    if (event.task !== task || event.seq <= since) continue
+  for (const event of linesOf(events, task)) {
+    if (event.seq <= since) continue
     if (event.type === 'queue_held' && event.detail.start === 'failed') {
       because =
         typeof event.detail.because === 'string' ? event.detail.because : 'it could not start'
@@ -439,11 +438,12 @@ export function queueStateOf(item: Queued, facts: QueueFacts): QueueState {
  * fold here compares `seq` — a pause after a start, trouble since an answer —
  * and a number out of another machine's journal is a number in another file:
  * set beside this one's it orders nothing, and a pause written on vps would
- * hold a start made here hours later. The same facts where nothing is foreign,
- * which is one pass and no copy.
+ * hold a start made here hours later. The same facts where nothing is foreign;
+ * either way kept with the journal's index (`ownOf`), so a second piece of
+ * queued work asking costs nothing.
  */
 function ownFacts(facts: QueueFacts): QueueFacts {
-  const events = ownLines(facts.events)
+  const events = ownOf(facts.events)
   return events === facts.events ? facts : { ...facts, events }
 }
 
@@ -608,8 +608,8 @@ function writtenCollision(
   since: number,
 ): Collision | null {
   let found: Collision | null = null
-  for (const event of events) {
-    if (event.task !== task || event.seq <= since) continue
+  for (const event of linesOf(events, task)) {
+    if (event.seq <= since) continue
     if (event.type !== 'queue_held' || !Array.isArray(event.detail.changed)) continue
     found = {
       paths: event.detail.changed.map(String),

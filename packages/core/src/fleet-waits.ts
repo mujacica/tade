@@ -1,4 +1,5 @@
 import type { EventType, TadeEvent } from './events.ts'
+import { linesOf } from './lines-index.ts'
 import { DOCUMENT_EVENTS } from './produces.ts'
 
 // Queued work waiting on work on another of the person's machines: the rules,
@@ -154,8 +155,8 @@ interface Moved {
 /** The last move of a task in one journal, where it says what it went as. */
 function movedIn(lines: readonly TadeEvent[], task: string): Moved | null {
   let moved: Moved | null = null
-  for (const line of lines) {
-    if (line.type !== 'task_moved' || line.task !== task) continue
+  for (const line of linesOf(lines, task)) {
+    if (line.type !== 'task_moved') continue
     const as = line.detail.as
     const to = line.detail.to
     if (typeof as === 'string' && typeof to === 'string') moved = { to, as }
@@ -182,12 +183,12 @@ function takenWhere(
   from: string,
 ): WaitParsed | null {
   const found: { at: WaitParsed; from: unknown }[] = []
-  for (const line of own) {
+  for (const line of linesOf(own, as)) {
     if (takes(line, as, was))
       found.push({ at: { machine: null, task: as }, from: line.detail.from })
   }
   for (const machine of fleet?.machines ?? []) {
-    for (const line of machine.lines) {
+    for (const line of linesOf(machine.lines, as)) {
       if (takes(line, as, was))
         found.push({ at: { machine: machine.name, task: as }, from: line.detail.from })
     }

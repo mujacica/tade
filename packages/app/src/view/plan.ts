@@ -4,6 +4,7 @@ import { type PlanRun, type PlanTone, planWidth } from '../plan-graph.ts'
 import { barAcross } from '../scrollbar.ts'
 import type { Skin } from '../skin.ts'
 import { blank, type Pointer, Row, slid } from '../ui.ts'
+import { widthOf } from '../width.ts'
 import { isScrolling } from './rows.ts'
 
 // The picture of a plan: boxes, arrows, and the tones they are painted in.
@@ -54,8 +55,13 @@ export function planPicture(
       out.push(blank(width))
       out.push(new Row(width, skin, pointer).space(2).text(label, skin.label).build())
     }
+    // Each row as wide as it is, never padded out to the widest part: `slid`
+    // fits every row to the pane, and a chain 165 boxes wide padded every row
+    // of every part — its reasons, a row each — to thousands of columns only
+    // for them to be measured and cut back, which was half of drawing it.
     const laid = part.rows.map((runs) => {
-      const r = new Row(2 + wide, skin, pointer).space(2)
+      const own = runs.reduce((sum, run) => sum + widthOf(run.text), 0)
+      const r = new Row(2 + own, skin, pointer).space(2)
       for (const run of runs) {
         r.text(
           run.text,

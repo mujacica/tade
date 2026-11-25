@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { existsSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { cpus, loadavg } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -10,6 +10,7 @@ import {
   KEEPS_PACE,
   type LaneId,
   lowered,
+  taskDir,
 } from '@tade/core'
 import { PtyDriver } from '@tade/drivers-pty'
 import { type Span, Timings, table } from '../src/timing.ts'
@@ -39,6 +40,8 @@ import { benchOpen } from './open.ts'
 //   pnpm bench --keys 40           how many keystrokes each echo round sends (window)
 //   pnpm bench --load 12           how many busy processes "loaded" means
 //   pnpm bench window --lowered    and loaded again with the load started as agents are
+//   pnpm bench window --queue 165  with that much queued work, and a long journal behind it
+//   pnpm bench window --profile d  and a CPU profile of the window (`--cpu-prof`) written into d
 //
 // Two instruments, because the question has two halves.
 //
@@ -90,6 +93,8 @@ const TAKES = [
   '--load',
   '--runs',
   '--journal',
+  '--queue',
+  '--profile',
 ]
 
 const modes = args.filter((arg, at) => !arg.startsWith('--') && !TAKES.includes(args[at - 1] ?? ''))
@@ -197,6 +202,90 @@ const LOAD = numberArg('load', cpus().length * 3, 0)
  * twenty-six agents.
  */
 const LOWERED = args.includes('--lowered')
+
+/**
+ * How much queued work the window's home holds, with a journal the length of a
+ * real one behind it: 12,000 tasks that came and went, each with a run, its
+ * end, its removal and the watches' looks around it — about 150,000 of the
+ * lines the queue reads, which is what a home that has been used for two
+ * months holds (165 queued tasks over 170,000 such lines on 2026-11-25).
+ *
+ * In chains five long (`CHAIN`), each piece waiting on the one before it and
+ * the first of each on a moment next year, so nothing starts and nothing is
+ * held: every beat asks where each one stands and every answer is "waiting".
+ * Five and not one chain of all of them, which is a drawing of its own: the
+ * SMART QUEUE drawing a chain 165 deep is a different cost from folding 165
+ * pieces, and this is about the fold. That was 52% of the window's thread in a
+ * profile of the running window, and none of it is in a frame — which is why
+ * the frame points inside cannot see it and keystroke-to-echo can: a key that
+ * lands while the queue is being folded waits for the fold.
+ */
+const QUEUE = numberArg('queue', 0, 0)
+
+/** How long each chain of the seeded queued work is. */
+const CHAIN = 5
+
+/**
+ * Where the window's CPU profile goes, if anywhere: `node --cpu-prof`, written
+ * when the window stops — which the SIGTERM below is. The frame points say
+ * what a frame cost; this says what the thread did between frames, which is
+ * where the queue's fold was and where a key waits.
+ */
+const PROFILE = (() => {
+  const at = args.indexOf('--profile')
+  return at < 0 ? null : (args[at + 1] ?? null)
+})()
+
+/** The lines the queue reads, for `QUEUE`, written as the journal is. */
+function seedQueue(home: string, many: number): void {
+  const project = 'checkout'
+  let seq = 0
+  const lines: string[] = []
+  const line = (type: string, task: string | null, detail: Record<string, unknown> = {}) => {
+    seq++
+    const ts = new Date(Date.parse('2026-09-25T00:00:00Z') + seq * 30_000).toISOString()
+    lines.push(
+      JSON.stringify({ seq, ts, type, urgency: 'notable', task, lane: null, run: null, detail }),
+    )
+  }
+  for (let i = 0; i < 12_000; i++) {
+    const task = `${project}/gone-${i}`
+    line('run_started', task)
+    for (let k = 0; k < 10; k++) line('watch_checked', null, { watch: `watch-${k}`, found: 0 })
+    line('run_exited', task, { code: 0 })
+    line('task_removed', task)
+    if (i % 3 === 0) line('queue_changed', task, { change: 'start' })
+  }
+  writeFileSync(join(home, 'events.jsonl'), `${lines.join('\n')}\n`)
+  for (let i = 0; i < many; i++) {
+    const id = `${project}/queued-${i}`
+    const dir = taskDir(home, id)
+    mkdirSync(dir, { recursive: true })
+    const start =
+      i % CHAIN === 0
+        ? ['start:', '  at: 2027-11-25T00:00:00.000Z', '  prompt: go']
+        : [
+            'start:',
+            '  after:',
+            `    - task: ${project}/queued-${i - 1}`,
+            '      why: one after another',
+            '  prompt: go',
+          ]
+    writeFileSync(
+      join(dir, 'task.yaml'),
+      [
+        `id: ${id}`,
+        `project: ${project}`,
+        'intent_spoken: queued for the bench',
+        'created: 2026-11-25T00:00:00.000Z',
+        'parked: false',
+        'workspace: checkout',
+        ...start,
+        '',
+      ].join('\n'),
+    )
+  }
+}
 
 /** How many times each half asks `ps`. */
 const PS_ROUNDS = 20
@@ -485,6 +574,7 @@ async function window(
   keys: number,
 ): Promise<{ echo: Timings; spans: Record<string, Span>; missed: number; note: string | null }> {
   const seeded = seedHome()
+  if (QUEUE > 0) seedQueue(seeded.home, QUEUE)
   const driver = new PtyDriver({ attachCommand: (id) => `tade attach ${id}` })
   const lane = 'bench/window/app' as LaneId
   const wrote = join(seeded.base, 'timing.json')
@@ -500,6 +590,7 @@ async function window(
       env: {
         TADE_HOME: seeded.home,
         TADE_TIMING: wrote,
+        ...(PROFILE ? { NODE_OPTIONS: `--cpu-prof --cpu-prof-dir=${PROFILE}` } : {}),
         TERM: 'xterm-256color',
         COLORTERM: 'truecolor',
         NO_COLOR: '',
@@ -589,8 +680,9 @@ async function windows(sizes: readonly Size[]): Promise<void> {
         await timePs(ps)
         const { echo, spans, missed, note } = await window(size, KEYS)
         const lowering = way.wrap.length > 0 ? `, started as \`${way.wrap.join(' ')}\`` : ''
+        const queued = QUEUE > 0 ? `, ${QUEUE} queued` : ''
         heading(
-          `the window at ${size.name}, ${how}${loaded ? ` — ${load.started} busy processes on ${cpus().length} cores${lowering}` : ''}`,
+          `the window at ${size.name}${queued}, ${how}${loaded ? ` — ${load.started} busy processes on ${cpus().length} cores${lowering}` : ''}`,
         )
         say(table(ps.spans()))
         if (note) say(`! ${note}`)

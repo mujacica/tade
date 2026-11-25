@@ -394,13 +394,33 @@ export function treeStems(
   parents: readonly number[],
   depths?: readonly number[],
 ): { stem: string; bars: string }[] {
-  const more = (of: number, after: number) => parents.some((up, j) => j > after && up === of)
-  const chainOf = (i: number) => {
-    const chain: number[] = []
-    for (let up = parents[i] ?? -1; up >= 0; up = parents[up] ?? -1) chain.unshift(up)
-    return chain
+  // What every row asks of every row above it — whether anything further down
+  // still hangs off it, how deep it is, the chain over it — is worked out once.
+  // Asked afresh, each ancestor of each row scanned every row again: a chain
+  // 165 long was 165³ questions and 150 ms a frame on the SMART QUEUE alone.
+  const lastUnder = new Map<number, number>()
+  for (const [j, up] of parents.entries()) lastUnder.set(up, j)
+  const more = (of: number, after: number) => (lastUnder.get(of) ?? -1) > after
+  const chains = new Map<number, readonly number[]>()
+  const chainOf = (i: number): readonly number[] => {
+    const unknown: number[] = []
+    for (let at = i; at >= 0 && !chains.has(at); at = parents[at] ?? -1) unknown.push(at)
+    for (let k = unknown.length - 1; k >= 0; k--) {
+      const row = unknown[k] as number
+      const up = parents[row] ?? -1
+      chains.set(row, up < 0 ? [] : [...(chains.get(up) ?? []), up])
+    }
+    return chains.get(i) ?? []
   }
-  const columnOf = (i: number) => Math.max(0, depths?.[i] ?? chainOf(i).length)
+  const columns = new Map<number, number>()
+  const columnOf = (i: number) => {
+    let column = columns.get(i)
+    if (column === undefined) {
+      column = Math.max(0, depths?.[i] ?? chainOf(i).length)
+      columns.set(i, column)
+    }
+    return column
+  }
   return parents.map((_, i) => {
     const at = columnOf(i)
     // A cell per column before its own: the line of an ancestor that still has

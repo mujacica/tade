@@ -157,6 +157,70 @@ describe('the lines that make a list a tree', () => {
     // Nothing shown to hang from, so nothing is drawn hanging.
     expect(stems[1]?.stem).toBe('    ')
   })
+
+  it('reads each row a few times however deep the chain, never once per row above it', () => {
+    // Asked of every ancestor of every row, a chain of 165 was 165³ questions
+    // and 150 ms of a frame. Counted, not timed: what the drawing asks of the
+    // tree is the same on a loaded machine.
+    const length = 400
+    let reads = 0
+    const chain = new Proxy(
+      Array.from({ length }, (_, i) => i - 1),
+      {
+        get(target, key, receiver) {
+          if (typeof key === 'string' && /^\d+$/.test(key)) reads++
+          return Reflect.get(target, key, receiver)
+        },
+      },
+    )
+    const stems = treeStems(chain)
+    expect(visibleWidth(stems[length - 1]?.stem ?? '')).toBe(2 * (length - 1))
+    expect(reads).toBeLessThanOrEqual(6 * length)
+  })
+
+  it('says what working it out afresh for every row said, for any tree', () => {
+    // The way it was worked out before it was worked out once: every row
+    // asked again of every row. Kept here to hold the faster one to it.
+    const afresh = (parents: readonly number[], depths?: readonly number[]) => {
+      const more = (of: number, after: number) => parents.some((up, j) => j > after && up === of)
+      const chainOf = (i: number) => {
+        const chain: number[] = []
+        for (let up = parents[i] ?? -1; up >= 0; up = parents[up] ?? -1) chain.unshift(up)
+        return chain
+      }
+      const columnOf = (i: number) => Math.max(0, depths?.[i] ?? chainOf(i).length)
+      return parents.map((_, i) => {
+        const at = columnOf(i)
+        const cells = Array.from({ length: at }, () => '  ')
+        for (const up of chainOf(i)) {
+          const column = Math.min(columnOf(up), at - 1)
+          if (column >= 0 && more(up, i)) cells[column] = '│ '
+        }
+        const parent = parents[i] ?? -1
+        const stem =
+          at === 0
+            ? ''
+            : `${cells.slice(0, -1).join('')}${parent < 0 ? '  ' : more(parent, i) ? '├─' : '╰─'}`
+        return { stem, bars: `${cells.join('')}${more(i, i) ? '│' : ' '}`.trimEnd() }
+      })
+    }
+    // A fixed sequence, so a failure is the same failure twice.
+    let seed = 7
+    const next = (below: number) => {
+      seed = (seed * 1103515245 + 12345) % 2147483648
+      return seed % below
+    }
+    for (let round = 0; round < 200; round++) {
+      const size = 1 + next(40)
+      // Each row waits on one above it, or on nothing, or on one filtered out.
+      const parents = Array.from({ length: size }, (_, i) =>
+        i === 0 || next(4) === 0 ? -1 : next(i),
+      )
+      expect(treeStems(parents)).toEqual(afresh(parents))
+      const depths = parents.map(() => next(6))
+      expect(treeStems(parents, depths)).toEqual(afresh(parents, depths))
+    }
+  })
 })
 
 describe('why each piece waits, drawn', () => {
