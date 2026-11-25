@@ -124,4 +124,28 @@ describe('one run at a time, per worktree', () => {
     if (!('held' in held)) await held.release()
     expect('held' in (await waitForRunLock(worktree, 'tests', { waitMs: 0 }))).toBe(false)
   })
+
+  it('keeps the place of a wait that gave up at its deadline, for whoever asks again', async () => {
+    // Asking again was a ticket at the back, so behind runs longer than a
+    // wait may be, a checks_run never reached the front in seven tries.
+    const worktree = tmp('tade-lock-')
+    const first = await takeRunLock(worktree, 'the suite')
+    if ('held' in first) throw new Error('the lock should have been free')
+    await waitForRunLock(worktree, 'tests', { waitMs: 40, everyMs: 10, as: 'task-a' })
+    expect(tickets(worktree)).toEqual([expect.stringMatching(/\.kept$/)])
+    const order: string[] = []
+    const waiting = (as: string) =>
+      waitForRunLock(worktree, as, { waitMs: 20_000, everyMs: 5, as }).then(async (lock) => {
+        order.push('held' in lock ? `${as} gave up` : as)
+        if (!('held' in lock)) await lock.release()
+      })
+    const later = waiting('task-b')
+    await until(() => tickets(worktree).length === 2)
+    const again = waiting('task-a')
+    await until(() => tickets(worktree).filter((name) => name.endsWith('.wait')).length === 2)
+    await first.release()
+    await Promise.all([later, again])
+    expect(order).toEqual(['task-a', 'task-b'])
+    expect(tickets(worktree)).toEqual([])
+  })
 })

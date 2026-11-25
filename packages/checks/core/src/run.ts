@@ -5,6 +5,7 @@ import type { Check, CheckLog, CheckRun, Covered, ProjectRef, Runner } from './p
 import { RunnerError, settled } from './port.ts'
 import { writeRun } from './records.ts'
 import { clearRunning, type RunningCheck, type RunningNow, writeRunning } from './running.ts'
+import { KEPT_MS } from './turn.ts'
 
 // Running a project's checks the way Tade runs them: one run at a time in a
 // worktree and `checks.suites` on the machine, what is skipped said rather
@@ -98,7 +99,7 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
   const asked = now()
   const deadline = asked + (request.waitMs ?? 0)
   const lock = needsMachine
-    ? await waitForRunLock(records, what, { waitMs: request.waitMs ?? 0, now })
+    ? await waitForRunLock(records, what, { waitMs: request.waitMs ?? 0, now, as: by })
     : null
   if (lock && 'held' in lock) {
     const since = lock.held.at ? ` (since ${lock.held.at})` : ''
@@ -116,6 +117,7 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
           {
             waitMs: Math.max(0, deadline - now()),
             now,
+            as: by,
             ...(request.onWait ? { onWait: request.onWait } : {}),
             ...(request.signal ? { signal: request.signal } : {}),
           },
@@ -206,7 +208,7 @@ function waitedSaid(waited: number, waitMs: number | undefined): string {
   if (!waitMs) return 'Wait for them rather than starting a second run.'
   const seconds = Math.round(waited / 1000)
   const how = seconds < 60 ? `${seconds}s` : `${Math.round(seconds / 60)}m`
-  return `This run waited ${how} for them and gave up; try again when they finish rather than starting a second run.`
+  return `This run waited ${how} for them and gave up; its place in the queue is kept for ${KEPT_MS / 60_000} minutes, so asking again carries on from it rather than starting a second run.`
 }
 
 function asRunning(run: CheckRun): RunningCheck {

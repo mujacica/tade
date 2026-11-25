@@ -1,7 +1,7 @@
 import { readdir } from 'node:fs/promises'
 import { join, sep } from 'node:path'
 import { claim, holderAt, type LockHolder, type RunLock } from './lock.ts'
-import { joinQueue, type Place, waitingAhead } from './turn.ts'
+import { joinQueue, type Place, takeBack, waitingAhead } from './turn.ts'
 
 // How many suites this machine runs at once, whoever started them.
 //
@@ -25,7 +25,8 @@ import { joinQueue, type Place, waitingAhead } from './turn.ts'
 //
 // Whoever waits longest goes first: a wait takes a ticket (`queueDir`,
 // `turn.ts`), and a slot is only taken by somebody with fewer live tickets
-// older than theirs than there are slots free.
+// older than theirs than there are slots free. A wait that names who it is for
+// (`as`) and gives up at its deadline keeps that ticket for their next wait.
 
 /** What a run's commands are handed: the path of the slot their run holds. */
 export const SLOT_ENV = 'TADE_CHECKS_SLOT'
@@ -114,20 +115,34 @@ export async function waitForMachineSlot(
     onWait?: (ahead: Holders) => void
     /** Stops the wait: whoever asked has gone, and is answered with who still has it. */
     signal?: AbortSignal
+    /**
+     * Who the wait is for — a task — so one that gives up at its deadline
+     * keeps its place for their next wait rather than starting again at the
+     * back (`turn.ts`).
+     */
+    as?: string
   } = {},
 ): Promise<MachineSlot | { held: Holders }> {
   const now = opts.now ?? Date.now
   const deadline = now() + (opts.waitMs ?? 0)
+  const queue = queueDir(home)
+  const asking = opts.as ? { ...holder, as: opts.as } : holder
   let said = ''
-  // Taken only once there is a wait, and given up however it ends: with the
-  // slot, at the deadline, or because whoever asked has gone.
-  let place: Place | null = null
+  // Taken only once there is a wait — or taken back, where this asker gave one
+  // up at a deadline — and given up however it ends: with the slot, or because
+  // whoever asked has gone; kept at the deadline, for whoever it is to ask again.
+  let place: Place | null = opts.as ? await takeBack(queue, { ...holder, as: opts.as }, now) : null
+  let gaveUp = false
   try {
     for (;;) {
       const got = await takeInTurn(home, most, holder, now, place?.name ?? null)
       if (!('held' in got)) return got
-      if (now() >= deadline || opts.signal?.aborted) return got
-      place ??= await joinQueue(queueDir(home), holder, now)
+      if (opts.signal?.aborted) return got
+      if (now() >= deadline) {
+        gaveUp = true
+        return got
+      }
+      place ??= await joinQueue(queue, asking, now)
       const ahead = got.held.map((one) => `${one.pid}:${one.at}`).join(' ')
       if (ahead !== said) {
         said = ahead
@@ -140,7 +155,7 @@ export async function waitForMachineSlot(
       await new Promise((done) => setTimeout(done, opts.everyMs ?? 250))
     }
   } finally {
-    await place?.leave()
+    await (gaveUp ? place?.keep() : place?.leave())
   }
 }
 

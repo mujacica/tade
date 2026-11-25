@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { link, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { holdUntilExit, letGoOf } from './held.ts'
-import { joinQueue, type Place, waitingAhead } from './turn.ts'
+import { joinQueue, type Place, takeBack, waitingAhead } from './turn.ts'
 
 // One run at a time, per worktree.
 //
@@ -203,14 +203,22 @@ export function runQueueDir(records: string): string {
 export async function waitForRunLock(
   records: string,
   what: string,
-  opts: { waitMs?: number; everyMs?: number; now?: () => number } = {},
+  opts: {
+    waitMs?: number
+    everyMs?: number
+    now?: () => number
+    /** Who the wait is for, so giving up at the deadline keeps their place (`turn.ts`). */
+    as?: string
+  } = {},
 ): Promise<RunLock | { held: LockHolder }> {
   const now = opts.now ?? Date.now
   const deadline = now() + (opts.waitMs ?? 0)
   const every = opts.everyMs ?? 250
   const queue = runQueueDir(records)
-  // Taken only once there is a wait, and given up however it ends.
-  let place: Place | null = null
+  // Taken only once there is a wait, or taken back where this asker kept one;
+  // kept at the deadline, and given up however else it ends.
+  let place: Place | null = opts.as ? await takeBack(queue, { what, as: opts.as }, now) : null
+  let gaveUp = false
   try {
     for (;;) {
       const ahead = await waitingAhead(queue, place?.name ?? null)
@@ -218,12 +226,15 @@ export async function waitForRunLock(
         ? { held: (await heldBy(records)) ?? ahead[0] }
         : await takeRunLock(records, what, now)
       if (!('held' in got)) return got
-      if (now() >= deadline) return got
-      place ??= await joinQueue(queue, { what }, now)
+      if (now() >= deadline) {
+        gaveUp = true
+        return got
+      }
+      place ??= await joinQueue(queue, opts.as ? { what, as: opts.as } : { what }, now)
       await pause(every)
     }
   } finally {
-    await place?.leave()
+    await (gaveUp ? place?.keep() : place?.leave())
   }
 }
 

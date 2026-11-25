@@ -14,6 +14,7 @@ import {
   takeMachineSlot,
   waitForMachineSlot,
 } from '../src/machine.ts'
+import { KEPT_MS } from '../src/turn.ts'
 
 // The machine's own bound, over every worktree: six worktrees each holding
 // their own lock was six suites at once, and this is what stops the second.
@@ -201,6 +202,58 @@ describe('the machine runs as many suites as it says, from any worktree', () => 
       everyMs: 10,
     })
     expect('held' in got && got.held[0]?.where).toBe('/work/one')
+  })
+
+  it('keeps a place given up at the deadline for whoever asks again, ahead of later waiters', async () => {
+    // Asking again was a ticket at the back: behind eight related runs of
+    // twenty minutes, a checks_run that may wait ten never got the slot in
+    // seven tries, and each retry made its own place worse.
+    const home = tmp('tade-machine-')
+    const first = await takeMachineSlot(home, 1, holder('/work/one'))
+    if ('held' in first) throw new Error('the slot should have been free')
+    await waitForMachineSlot(home, 1, holder('/work/a'), { waitMs: 40, everyMs: 10, as: 'a' })
+    expect(readdirSync(queueDir(home))).toEqual([expect.stringMatching(/\.kept$/)])
+    const order: string[] = []
+    const waiting = (as: string) => {
+      let queued: () => void = () => {}
+      const inQueue = new Promise<void>((done) => {
+        queued = done
+      })
+      const got = waitForMachineSlot(home, 1, holder(`/work/${as}`), {
+        waitMs: 20_000,
+        everyMs: 5,
+        as,
+        onWait: () => queued(),
+      }).then(async (slot) => {
+        order.push('held' in slot ? `${as} gave up` : as)
+        if (!('held' in slot)) await slot.release()
+      })
+      return { inQueue, got }
+    }
+    const later = waiting('b')
+    await later.inQueue
+    const again = waiting('a')
+    await again.inQueue
+    await first.release()
+    await Promise.all([later.got, again.got])
+    expect(order).toEqual(['a', 'b'])
+    expect(readdirSync(queueDir(home))).toEqual([])
+  })
+
+  it('holds nobody up with a place kept aside, and lets one lapse', async () => {
+    const home = tmp('tade-machine-')
+    const first = await takeMachineSlot(home, 1, holder('/work/one'))
+    if ('held' in first) throw new Error('the slot should have been free')
+    await waitForMachineSlot(home, 1, holder('/work/a'), { waitMs: 40, everyMs: 10, as: 'a' })
+    await first.release()
+    // Nobody is waiting on the kept place, so a newcomer has the free slot.
+    const newcomer = await takeMachineSlot(home, 1, holder('/work/newcomer'))
+    if ('held' in newcomer) throw new Error('a kept place held the newcomer up')
+    // Asked again once it has lapsed, it is cleared rather than taken back.
+    const later = () => Date.now() + KEPT_MS + 1
+    await waitForMachineSlot(home, 1, holder('/work/a'), { waitMs: 0, as: 'a', now: later })
+    expect(readdirSync(queueDir(home))).toEqual([])
+    await newcomer.release()
   })
 })
 
