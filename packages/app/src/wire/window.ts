@@ -24,7 +24,15 @@ import { narrowing } from '../queue-view.ts'
 import { windowTitle } from '../title.ts'
 import { type Entry, onATurn } from '../transcript.ts'
 import { type Shown, turnedSince, turning, untilTurns } from '../turning.ts'
-import { type Actions, clockOf, type Subject, tilde, type Wiring, whenShort } from './context.ts'
+import {
+  type Actions,
+  clockOf,
+  type Subject,
+  type Submits,
+  tilde,
+  type Wiring,
+  whenShort,
+} from './context.ts'
 
 // The window as a window: how big its regions are, what it says in the
 // terminal's own title, and where you were last time.
@@ -46,6 +54,11 @@ export interface WindowDeps {
   stop(): Promise<void>
   /** A frame for news (`TimedScreen.requestNews`): what the spinner's clock asks for. */
   news(): void
+  /**
+   * The reload itself, once nothing is left to ask: every machine this one is
+   * an owner of, then this window (`fleet-reload.ts`). Absent, this window alone.
+   */
+  reloadAll?: () => Promise<void>
 }
 
 /** The lanes ending this Tade now would end, counting `besides` beside the agents' own. */
@@ -185,7 +198,25 @@ export class Window implements Subject {
       this.wire.draw()
       return
     }
-    void this.wire.opts.reloadWindow?.()
+    void this.reloadNow()
+  }
+
+  /**
+   * The reload, asked nothing more: every linked machine and then this window
+   * where the window was handed that, this window alone otherwise. What went
+   * wrong is said, never dropped.
+   */
+  async reloadNow(): Promise<void> {
+    const reload = this.deps.reloadAll ?? this.wire.opts.reloadWindow
+    await reload?.().catch((err: unknown) => {
+      this.wire.note(err)
+      this.wire.draw()
+    })
+  }
+
+  /** The reload panel's own press: what was asked is the same reload as every other. */
+  submits(): Submits {
+    return { reload: () => this.reloadNow() }
   }
 
   /** How many lanes a reload would end: none where the driver's lanes outlive the window. */

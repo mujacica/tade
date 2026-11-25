@@ -312,6 +312,20 @@ describe('what this machine is, as its window answers it', () => {
     const answer = await machineFrom(wire, QUIET)()
     expect(answer).toMatchObject({ public: null, problems: [], schedules: [], documents: [] })
   })
+
+  it('says how its orchestrator stands where it holds one, read as another machine reads it', async () => {
+    const { wire } = wired({ home: tmp('tade-machine-') })
+    expect((await machineFrom(wire, QUIET)()).orchestrator).toBeUndefined()
+    const standing = {
+      state: 'failed' as const,
+      said: 'no model is chosen for the orchestrator',
+      shares: false,
+      joined: null,
+      model: null,
+    }
+    const answer = await machineFrom(wire, { ...QUIET, orchestrator: () => standing })()
+    expect(MachineAnswerSchema.parse(answer).orchestrator).toEqual(standing)
+  })
 })
 
 const closing: EventLog[] = []

@@ -16,6 +16,7 @@ import {
   has,
   MOMENTS,
   nameDevice,
+  type OrchestratorStanding,
   type PairingAsk,
   type Places,
   type Projector,
@@ -306,6 +307,7 @@ export class Away implements Subject {
         this.deps.lifecycle,
         this.deps.inventory,
         this.deps.waiting,
+        this.standing(),
       ),
       // Tade started again from the person's own phone, through the window's own reload.
       restarting: restartingFrom(this.wire, this.deps.reloadStops),
@@ -1075,6 +1077,12 @@ export class Away implements Subject {
 
   private talking(): boolean {
     return surfaceOf(this.config().surfaces.web).talking
+  }
+
+  /** How the orchestrator here stands, where this window holds the one conversation. */
+  private standing(): (() => OrchestratorStanding) | undefined {
+    const conversation = this.deps.conversation
+    return conversation && (() => conversation.standing())
   }
 
   /** The conversation as it stands: the one fact a message assumes, and whose. */

@@ -90,12 +90,36 @@ export interface UpdatesDeps {
    */
   ownCode?: () => { changed: readonly string[]; startedOn: string | null }
   /**
+   * The reload once nothing is left to ask, every linked machine and then
+   * this window (`Window.reloadNow`): what a reload asked from the person's
+   * own phone presses. Absent, the window's own reload alone.
+   */
+  reloadNow?: () => Promise<void>
+  /**
+   * Why a reload of every machine is due, in a sentence with its one action
+   * (`FleetReload.due`): another machine's sign-in or orchestrator moved, and
+   * a reload would bring the orchestrators together. The chip shows the
+   * reload while it stands. Absent, or null, none is.
+   */
+  fleetDue?: () => string | null
+  /** The other machines a reload starts again first, by their names here; absent, none. */
+  alsoReloads?: () => readonly string[]
+  /**
    * No screen (`tade serve`): nothing is put in front of anybody, so running
    * an update is refused (`RUN_NEEDS_A_SCREEN`), a reload that would stop
    * lanes goes only on the person's own words from their own phone, and one
    * with nothing to start Tade again is refused (`NO_WINDOW`). Absent, a window.
    */
   faceless?: true
+}
+
+/** What `tade_reload` answers as the reload starts: which machines go first, and what carries on. */
+export function reloadingSaid(others: readonly string[]): string {
+  const first =
+    others.length === 0
+      ? 'Reloading in a moment.'
+      : `Reloading in a moment: ${others.join(' and ')} first, each said in the conversation as it comes back, then this window.`
+  return `${first} Agents keep working, and this conversation carries on where it is.`
 }
 
 /** Why `tade_updates_run` is refused with no screen: an update is typed where somebody watches it. */
@@ -172,6 +196,8 @@ export class Updates implements Subject {
    */
   private reloadOwed(): string | null {
     if (this.moved !== null) return this.moved
+    const due = this.deps.fleetDue?.() ?? null
+    if (due !== null) return due
     const own = this.deps.ownCode?.()
     if (!own || own.changed.length === 0) return null
     const [first, ...rest] = own.changed
@@ -495,7 +521,7 @@ export class Updates implements Subject {
           )
           this.wire.draw()
           setTimeout(() => {
-            reload().catch((err: unknown) =>
+            ;(this.deps.reloadNow ?? reload)().catch((err: unknown) =>
               this.wire.note(new Error(`A reload asked from away failed: ${why(err)}`)),
             )
           }, ANSWERED_MS)
@@ -506,7 +532,7 @@ export class Updates implements Subject {
         setTimeout(() => this.deps.reload(), ANSWERED_MS)
         return stops > 0
           ? `Asked them: ${stops} lane${stops === 1 ? '' : 's'} run inside this window and would stop, so the reload panel is theirs to press.`
-          : 'Reloading in a moment. Agents keep working, and this conversation carries on where it is.'
+          : reloadingSaid(this.deps.alsoReloads?.() ?? [])
       },
     }
   }

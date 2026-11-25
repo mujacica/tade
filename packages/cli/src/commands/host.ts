@@ -314,7 +314,11 @@ export function registerHost(program: Command, io: Io, setExit: (code: number) =
     )
     .option('--yes', 'upgrade, and restart the service, without asking')
     .option('--no-backup', 'do not take a backup first, where one is set up')
-    .action(async (opts: { yes?: boolean; backup?: boolean }) => {
+    .option(
+      '--to <version>',
+      'move to this version, as another machine’s reload asks: only where this one is older',
+    )
+    .action(async (opts: { yes?: boolean; backup?: boolean; to?: string }) => {
       const home = tadeHome()
       const loaded = await loadConfig(defaultConfigPath())
       const bin = fileURLToPath(new URL('../bin.ts', import.meta.url))
@@ -343,6 +347,7 @@ export function registerHost(program: Command, io: Io, setExit: (code: number) =
           yes: opts.yes === true,
           asking,
           backup: opts.backup !== false,
+          ...(opts.to === undefined ? {} : { to: opts.to }),
         }),
       )
     })

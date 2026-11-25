@@ -14,6 +14,7 @@ import {
   type DocumentHere,
   inTime,
   type MachineAnswer,
+  type OrchestratorStanding,
   type ProblemHere,
   type ScheduleHere,
   type WebDocument,
@@ -63,6 +64,8 @@ export interface AwayStanding {
   problem(): string | null
   /** What this machine has, as its last look found it; absent, nothing is said of it. */
   inventory?(): Inventory | null
+  /** How the orchestrator here stands (`FleetConversation.standing`); absent, nothing is said of it. */
+  orchestrator?(): OrchestratorStanding
 }
 
 /** The window's `WebMachine`: what this machine is, now. */
@@ -116,6 +119,7 @@ export function machineFrom(wire: Wiring, away: AwayStanding): WebMachine {
         typeof documents === 'string' || documents === LATE ? [] : documentsHere(documents),
       // The last look, never one started for this answer: nothing here waits on a child.
       inventory: away.inventory?.() ?? null,
+      ...(away.orchestrator && { orchestrator: away.orchestrator() }),
     }
   }
 }

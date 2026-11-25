@@ -230,6 +230,37 @@ describe('one conversation, from the heart and the window', () => {
   })
 })
 
+describe('how the orchestrator stands, as another machine is told it', () => {
+  it('is starting, then up and one with the hub it exchanged with, then what stopped it', async () => {
+    const vps = side('vps')
+    const mac = side('mac', { vps: REMOTE })
+    mac.fleet.withReach(linkTo(vps))
+    expect(mac.fleet.standing()).toEqual({
+      state: 'starting',
+      said: null,
+      shares: true,
+      joined: null,
+      model: null,
+    })
+    mac.fleet.started()
+    mac.fleet.beat(false)
+    await waitFor(() => mac.fleet.oneWith() === 'vps')
+    expect(mac.fleet.standing()).toMatchObject({ state: 'up', shares: true, joined: 'vps' })
+    // Started again, and that start did not come up: why, in Tade's words.
+    mac.fleet.place().use('starting')
+    expect(mac.fleet.standing()).toMatchObject({ state: 'starting', shares: false })
+    mac.fleet.place().use(null)
+    mac.fleet.failed('Claude Code is not signed in here')
+    expect(mac.fleet.standing()).toEqual({
+      state: 'failed',
+      said: 'Claude Code is not signed in here',
+      shares: false,
+      joined: null,
+      model: null,
+    })
+  })
+})
+
 async function waitFor(check: () => boolean): Promise<void> {
   const end = Date.now() + 10_000
   while (!check()) {

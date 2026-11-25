@@ -50,6 +50,21 @@ export interface UpgradeOptions {
   asking: boolean
   /** Take a backup first where one is set up. */
   backup: boolean
+  /**
+   * The version to move to, where somebody named one: another machine's
+   * reload moving this one to the Tade it runs (`fleet-reload.ts`). Wanted
+   * only while this one is older, and pinned where the install's command
+   * names `@latest`; elsewhere the command moves to its newest. Absent, the newest.
+   */
+  to?: string
+}
+
+/** A version as `--to` takes it: digits and dots, a pre-release after — never anything a shell reads. */
+export const VERSION_SHAPE = /^\d+\.\d+(?:\.\d+)*(?:-[0-9A-Za-z.]+)?$/
+
+/** The install's command moved to one version, where it names `@latest`; as it is otherwise. */
+export function pinnedTo(command: string, version: string): string {
+  return command.replace(/@latest\b/, `@${version}`)
 }
 
 /** How long a restarted service is given to say it is ready and write that it opened. */
@@ -102,6 +117,11 @@ export async function upgradeHere(
   place: UpgradePlace,
   opts: UpgradeOptions,
 ): Promise<number> {
+  // It goes into the command a shell runs: refused unless it is a version and nothing else.
+  if (opts.to !== undefined && !VERSION_SHAPE.test(opts.to)) {
+    ask.say(`  ${JSON.stringify(opts.to)} is not a version: --to takes one like 0.4.3`)
+    return Exit.invalidInput
+  }
   const look = await place.look(true)
   const where =
     look.from === 'checkout' ? `a checkout at ${look.where}` : (look.install?.said ?? look.where)
@@ -113,15 +133,22 @@ export async function upgradeHere(
   // On disk already newer than what holds the home: an upgrade that was never restarted onto.
   const was = running?.version ?? null
   const behindDisk = was !== null && compareVersions(was, look.version) < 0
-  const wanted = look.newer !== null || look.cannotTell !== null
+  const target = opts.to
+  const wanted =
+    target === undefined
+      ? look.newer !== null || look.cannotTell !== null
+      : compareVersions(look.version, target) < 0
   if (!wanted && !behindDisk) {
     ask.say('  it is current: nothing to do')
     return Exit.ok
   }
   // Nothing to run is a refusal only where something was wanted of it.
-  const command = 'command' in look.update ? look.update.command : null
+  const given = 'command' in look.update ? look.update.command : null
+  const command = given !== null && target !== undefined ? pinnedTo(given, target) : given
   if (wanted && command === null) {
-    ask.say(`  ${look.newer ?? look.cannotTell}`)
+    ask.say(
+      `  ${target === undefined ? (look.newer ?? look.cannotTell) : `${target} was asked for`}`,
+    )
     ask.say(
       `  Tade cannot move itself forward here: ${'cannot' in look.update ? look.update.cannot : ''}`,
     )
@@ -129,7 +156,11 @@ export async function upgradeHere(
   }
   let installed = false
   if (wanted && command !== null) {
-    ask.say(`  ${look.newer ?? `whether a newer one is out cannot be told: ${look.cannotTell}`}`)
+    ask.say(
+      target === undefined
+        ? `  ${look.newer ?? `whether a newer one is out cannot be told: ${look.cannotTell}`}`
+        : `  ${target} was asked for, and this is ${look.version}`,
+    )
     if (opts.backup) {
       const backed = await place.backup()
       if (backed !== null) {
@@ -173,7 +204,11 @@ export async function upgradeHere(
     if (back) ask.say(`  to go back to ${was ?? look.version}: \`${back}\``)
     return Exit.error
   }
-  if (installed && after.version === look.version && look.newer !== null) {
+  if (
+    installed &&
+    after.version === look.version &&
+    (look.newer !== null || target !== undefined)
+  ) {
     ask.say(`  ${command} moved nothing: this is still ${after.version}`)
   } else if (installed) {
     ask.say(`  ${after.version} is installed`)

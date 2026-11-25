@@ -335,3 +335,31 @@ describe('the words around it', () => {
     expect(unitStarts(null)).toBeNull()
   })
 })
+
+describe('upgrading to the version another machine runs (`--to`)', () => {
+  const TO = { yes: true, asking: false, backup: false }
+
+  it('moves an older Tade to exactly that version, pinned where the command names @latest', async () => {
+    const ask = recorder()
+    const place = box({ look: looked({ newer: null }), starts: { version: '0.2.5', said: null } })
+    expect(await upgradeHere(ask, place, { ...TO, to: '0.2.5' })).toBe(0)
+    expect(ask.ran).toEqual(['npm install --global tade-sh@0.2.5'])
+    expect(ask.said).toContain('  0.2.5 was asked for, and this is 0.2.3')
+  })
+
+  it('does nothing where this one is that version already, or newer, whatever is out', async () => {
+    for (const to of ['0.2.3', '0.2.1']) {
+      const ask = recorder()
+      expect(await upgradeHere(ask, box(), { ...TO, to })).toBe(0)
+      expect(ask.ran).toEqual([])
+      expect(ask.said.at(-1)).toBe('  it is current: nothing to do')
+    }
+  })
+
+  it('refuses anything that is not a version, because a shell reads the command it goes into', async () => {
+    const ask = recorder()
+    expect(await upgradeHere(ask, box(), { ...TO, to: '0.2.5; rm -rf ~' })).toBe(2)
+    expect(ask.ran).toEqual([])
+    expect(ask.said[0]).toContain('is not a version')
+  })
+})

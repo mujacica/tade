@@ -7,7 +7,7 @@ import {
   type OneConversation,
 } from '@tade/harnesses-core'
 import { type Answer, LinkError, type Remote, type RemoteLink } from '@tade/remotes-core'
-import { STARTING, type WebConversation } from '@tade/web'
+import { type OrchestratorStanding, STARTING, type WebConversation } from '@tade/web'
 import { clockOf, type Wiring, why } from './context.ts'
 
 // One orchestrator conversation on every machine, from the heart and the
@@ -79,6 +79,11 @@ export class FleetConversation {
    */
   private starting = true
   private reach: ConversationReach | null = null
+  /** Whether the orchestrator came up, and why not where it did not: told by whoever starts it. */
+  private thinker: { state: OrchestratorStanding['state']; said: string | null } = {
+    state: 'starting',
+    said: null,
+  }
   private readonly downAt = new Map<string, number>()
   private lastAt = 0
   private busy = false
@@ -111,6 +116,7 @@ export class FleetConversation {
       use: (one) => {
         this.starting = one === 'starting'
         this.one = one === 'starting' ? null : one
+        if (one === 'starting') this.thinker = { state: 'starting', said: null }
       },
     }
   }
@@ -166,6 +172,32 @@ export class FleetConversation {
   oneWith(): string | null {
     const joined = this.one?.joined ?? null
     return joined !== null && hubOf(this.wire.opts.config).hub?.name === joined ? joined : null
+  }
+
+  /** The orchestrator came up (`Heart.attachThinker`). */
+  started(): void {
+    this.thinker = { state: 'up', said: null }
+  }
+
+  /** The orchestrator did not start, and why (`Heart.thinkerFailed`). */
+  failed(reason: string): void {
+    this.thinker = { state: 'failed', said: reason }
+  }
+
+  /**
+   * How the orchestrator here stands, as another machine of the person's is
+   * told it (`/api/machine`): whether it came up, whether its conversation is
+   * one across the machines, and with which hub — what a reload of every
+   * machine is checked against (`fleet-reload.ts`).
+   */
+  standing(): OrchestratorStanding {
+    return {
+      state: this.thinker.state,
+      said: this.thinker.said === null ? null : printable(this.thinker.said).slice(0, 600),
+      shares: this.one !== null,
+      joined: this.one?.joined ?? null,
+      model: this.wire.opts.config.orchestrator.model || null,
+    }
   }
 
   /** The far half: one request of a machine that links here. */

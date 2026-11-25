@@ -1,4 +1,5 @@
 import type { Inventory } from '@tade/core'
+import type { OrchestratorStanding } from '@tade/web'
 import type { Wiring } from './context.ts'
 import type { Inventories } from './inventory.ts'
 import { notesFor, WaitingThere } from './notes-shared.ts'
@@ -34,6 +35,8 @@ export function ownedFor(
   // What another machine holds of this one's changes to its notes, told by
   // its share either way and drawn on the Machines page.
   waiting: WaitingThere = new WaitingThere(),
+  // How the orchestrator here stands, for the machine that reloads every machine.
+  orchestrator?: () => OrchestratorStanding,
 ) {
   return {
     attaching: attachingFor(wire.opts.client),
@@ -53,6 +56,7 @@ export function ownedFor(
       },
       problem: () => away().problem,
       ...(inventory && { inventory: () => inventory.latest() }),
+      ...(orchestrator && { orchestrator }),
     }),
     document: documentFrom(wire),
     tool: toolFrom(wire),

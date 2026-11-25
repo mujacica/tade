@@ -1,9 +1,10 @@
 import { join } from 'node:path'
 import { ProcessTerminal, type Terminal } from '@earendil-works/pi-tui'
-import { type Arming, attentionFor, closeBy, type Unclosed } from '@tade/core'
+import { type Arming, attentionFor, closeBy, hubOf, type Unclosed } from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
+import { runningVersion } from '@tade/workbench/programs'
 import { Heart } from './heart.ts'
 import { freeViewportKeys } from './keys.ts'
 import { knownTasks } from './live.ts'
@@ -21,6 +22,7 @@ import {
   copySaying,
   copySpanSaying,
   copyText,
+  notify,
   type Subject,
   type Thinker,
   type Wiring,
@@ -32,6 +34,7 @@ import { Evaluations } from './wire/evaluations.ts'
 import { Extensions } from './wire/extensions.ts'
 import { Files } from './wire/files.ts'
 import { FleetJournals } from './wire/fleet-journals.ts'
+import { FleetReload } from './wire/fleet-reload.ts'
 import { frameOf } from './wire/frame.ts'
 import { Images } from './wire/images.ts'
 import type { Intake } from './wire/intake.ts'
@@ -59,6 +62,7 @@ import { Spend } from './wire/spend.ts'
 import { Updates, type UpdateTools } from './wire/updates.ts'
 import { spokenLine, Voice, vocabulary } from './wire/voice.ts'
 import type { Away } from './wire/web.ts'
+import { MACHINE } from './wire/web-panel.ts'
 import { Window } from './wire/window.ts'
 
 // The window: every project down the side, the agent you are watching in the
@@ -121,6 +125,8 @@ export class App {
   private readonly machine: Machine
   /** What Tade runs and whether it is current: the Updates page, the check, the chip, the run. */
   private readonly updates: Updates
+  /** Reload every machine this one is an owner of, then this window; and when one is due. */
+  private readonly fleet: FleetReload
   /** Where you were, how big it all is, and what the title says. */
   private readonly window: Window
   /** What `ctrl+k` finds, inside files and out, and where a result goes. */
@@ -184,6 +190,7 @@ export class App {
       },
       beat: (_tasks, moved) => {
         this.remotes.beat()
+        this.fleet.beat()
         this.updates.beat()
         if (moved) this.draw() // a beat that found what the last did is not news
       },
@@ -288,6 +295,7 @@ export class App {
       setTitle: (title) => this.terminal.setTitle(title),
       stop: () => this.stop(),
       news: () => this.tui.requestNews(),
+      reloadAll: () => this.fleet.reload(),
     })
     this.machine = new Machine(this.wire, {
       reload: () => this.window.reload(),
@@ -306,6 +314,9 @@ export class App {
     })
     this.updates = new Updates(this.wire, {
       reload: () => this.window.reload(),
+      reloadNow: () => this.window.reloadNow(),
+      fleetDue: () => this.fleet.due(),
+      alsoReloads: () => this.remotes.inventories().map((one) => one.name),
       reloadStops: () => this.window.reloadStops(),
       arm: () => this.orchestrator.arm(),
       terminal: (name) => this.machine.watched(name),
@@ -338,6 +349,26 @@ export class App {
       waiting: this.heart.waitingThere,
       oneWith: () => this.heart.conversation.oneWith(),
       acts: () => this.heart.acts,
+    })
+    this.fleet = new FleetReload({
+      home: opts.home,
+      names: () => this.remotes.inventories().map((one) => one.name),
+      reach: (name) => this.remotes.reachFor(name),
+      held: (name) => this.remotes.held().find((one) => one.remote === name) ?? null,
+      answer: (name) => this.remotes.asked()?.held(name) ?? null,
+      ask: async (name) => await this.remotes.asked()?.ask(name),
+      hub: () => hubOf(this.wire.opts.config).hub?.name ?? null,
+      oneWith: () => this.heart.conversation.oneWith(),
+      here: () => this.heart.conversation.standing(),
+      version: () => runningVersion(),
+      hereName: MACHINE,
+      onScreenWith: (flow) => this.screens.onScreenWith(flow),
+      ...(opts.reloadWindow && { reloadHere: opts.reloadWindow }),
+      say: (said) => {
+        notify(this.wire, said)
+        this.draw()
+      },
+      now: () => this.wire.now(),
     })
     // The orchestrator's conversation reaches the hub over the same links.
     this.heart.conversation.withReach((name) => this.remotes.reachFor(name))

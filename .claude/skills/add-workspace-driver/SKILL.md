@@ -302,6 +302,16 @@ over loopback) and `ssh`.
   holding the lease with both copies whole, ever merges a fork** — the hub only adopts, since it
   cannot tell whether what it was given is all there is — so one fork is never merged twice. A
   phone's turn is refused with who is answering rather than kept waiting.
+- **Reload is every machine's** (`app/src/wire/fleet-reload.ts`, the rules pure in `fleet-due.ts`):
+  the strip's reload, `/reload` and `tade_reload` start again each machine this one is an owner of
+  — one behind first moved to this one's version by its own `tade host upgrade --yes --to`, in a
+  terminal over the link — through its own `/api/restart` (a `tade serve` restarts its unit), then
+  this window. Every step is said, a machine whose lanes would stop is not restarted, and the window
+  that comes back reads `reload-check.json` and says whether the conversation is one across them,
+  from both ends: its own exchange (`oneWith`) and each machine's `orchestrator` in `/api/machine`.
+  **A reload due is said once per cause**, only where the two are apart and something moved there
+  that a restart puts to use (a sign-in, a model, a Tade that now says how its orchestrator
+  stands), and only after it stood `SETTLE_MS`, so what settles by itself is never said.
 - **The orchestrator acts on any machine through that machine's own gate** (`tade_remote_act`):
   inside it every call the tool makes back to Tade goes there as `remote/act` under a key of its own,
   and the far side runs it by `ToolHost.act` under an owner's arm (`app/src/wire/acts.ts`), once per

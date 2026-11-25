@@ -118,6 +118,26 @@ const DocumentSchema = z.object({
 })
 
 /**
+ * How this machine's orchestrator stands, as only its window knows: what the
+ * machine that reloads every machine reads to say a reload is due, and to say
+ * after one whether the two orchestrators came back as one conversation
+ * (`@tade/app`'s `fleet-reload.ts`). Tade's own words, never the model's.
+ */
+export const OrchestratorStandingSchema = z.object({
+  /** Coming up, up, or it did not start (`said` says why). */
+  state: z.enum(['starting', 'up', 'failed']),
+  /** Why it did not start, as this Tade said it: a sign-in, a model. Null while it is not failed. */
+  said: Said.nullable(),
+  /** Its conversation is one on every machine: its harness keeps one, and it was opened. */
+  shares: z.boolean(),
+  /** The hub its conversation is one with, by this machine's name for it; null where it keeps the lease or is apart. */
+  joined: z.string().max(120).nullable(),
+  /** The model its config chose for it, or null where the harness picks. */
+  model: z.string().max(200).nullable(),
+})
+export type OrchestratorStanding = z.infer<typeof OrchestratorStandingSchema>
+
+/**
  * The answer, as this machine gives it and another reads it: read for its
  * shape and nothing more — another field from a newer Tade is let be — and
  * every value bounded, because it was written on another machine.
@@ -150,6 +170,8 @@ export const MachineAnswerSchema = z.object({
    * Tade, which says nothing of it.
    */
   inventory: InventorySchema.nullable().optional(),
+  /** How its orchestrator stands; absent from an older Tade, which says nothing of it. */
+  orchestrator: OrchestratorStandingSchema.optional(),
 })
 export type MachineAnswer = z.infer<typeof MachineAnswerSchema>
 export type ScheduleHere = MachineAnswer['schedules'][number]
@@ -226,6 +248,16 @@ export function machineFor(all: MachineAnswer, reach: Reach): MachineAnswer {
       .slice(0, DOCUMENTS_MOST)
       .map((one) => ({ ...one, name: cut(one.name, 200) })),
     inventory: all.inventory ? inventoryFor(all.inventory, reach) : null,
+    ...(all.orchestrator === undefined
+      ? {}
+      : {
+          orchestrator: {
+            ...all.orchestrator,
+            said: said(all.orchestrator.said),
+            joined: all.orchestrator.joined === null ? null : cut(all.orchestrator.joined, 120),
+            model: all.orchestrator.model === null ? null : cut(all.orchestrator.model, 200),
+          },
+        }),
   }
 }
 

@@ -199,6 +199,19 @@ export interface FarEnd {
   readonly found: Map<string, WatchSeenAnswer>
   /** What machines that link to it said of themselves (`/api/seen`), oldest first, by their label. */
   readonly seen: { label: string; word: SeenWord }[]
+  /**
+   * How many lanes a restart asked of it (`/api/restart`) would stop, as its
+   * window counts them — nought where its driver's lanes outlive it, as under
+   * tmux — or why it cannot start itself again. A test sets it.
+   */
+  restartStops: number | { cannot: string }
+  /** Every device that asked it to start again and was answered that it is, oldest first. */
+  readonly restarted: string[]
+  /**
+   * What happens to it as it starts again, before it listens again: what a
+   * test says the Tade that comes back is (`machine`). Null, the same.
+   */
+  onRestart: (() => void) | null
   /** Its window closed and opened again: the same home and port, another epoch. */
   restart(): Promise<void>
   /** Nothing answers on its port any more. Safe twice. */
@@ -209,6 +222,9 @@ export interface FarEnd {
 
 /** How often the far end beats: often, because a test waits on it. */
 const BEAT_MS = 100
+
+/** How long after answering a restart it goes, so the answer is out first, as a window's is. */
+const RESTART_AFTER_MS = 50
 
 export async function startFarEnd(
   opts: {
@@ -276,6 +292,9 @@ class Far implements FarEnd {
   answering: ((method: string, params: Record<string, unknown>) => string) | null = null
   readonly found = new Map<string, WatchSeenAnswer>()
   readonly seen: { label: string; word: SeenWord }[] = []
+  restartStops: number | { cannot: string } = 0
+  readonly restarted: string[] = []
+  onRestart: (() => void) | null = null
   readonly talk = new FarTalk()
   private agents: readonly FarAgent[] = []
   /** When the agents were last shown: their moments, fixed, so a beat finds nothing moved. */
@@ -419,6 +438,19 @@ class Far implements FarEnd {
           seen: [],
           more: 0,
         },
+      // Started again as its window does on the press: the answer first, then
+      // another server lifetime on the same port.
+      restarting: {
+        standing: () =>
+          typeof this.restartStops === 'number' ? { stops: this.restartStops } : this.restartStops,
+        restart: (device) => {
+          this.restarted.push(device)
+          setTimeout(() => {
+            this.onRestart?.()
+            void this.restart()
+          }, RESTART_AFTER_MS)
+        },
+      },
       machine: async () => {
         this.machineAsked++
         return this.machine ?? quietMachine()

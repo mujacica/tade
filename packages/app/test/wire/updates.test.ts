@@ -47,6 +47,9 @@ function world(
     faceless?: boolean
     /** Nothing that would start Tade again: a `tade serve` started by hand. */
     noReload?: boolean
+    /** A reload of every machine due, as `FleetReload.due` says it; and which machines it reloads. */
+    fleetDue?: () => string | null
+    alsoReloads?: readonly string[]
   } = {},
 ) {
   const did: Did[] = []
@@ -140,6 +143,8 @@ function world(
     ...(over.ownCode
       ? { ownCode: () => ({ changed: over.ownCode ?? [], startedOn: 'df4df5b1bcdff6ec' }) }
       : {}),
+    ...(over.fleetDue ? { fleetDue: over.fleetDue } : {}),
+    ...(over.alsoReloads ? { alsoReloads: () => over.alsoReloads ?? [] } : {}),
   })
   return { subject, did, told, reads, home, at: () => state }
 }
@@ -165,6 +170,19 @@ describe('the strip’s chip', () => {
     )
     await one.subject.recall()
     expect(one.subject.facts()).toEqual({ updates: { behind: 2, running: null, reload: false } })
+  })
+
+  it('turns into the reload while a reload of every machine is due, and back once it is not', async () => {
+    const due = {
+      said: 'ipax’s orchestrator now has a model (anthropic/claude-opus-5-5), so ipax’s orchestrator can now share this conversation — Reload to bring the two together' as
+        | string
+        | null,
+    }
+    const one = world({ fleetDue: () => due.said })
+    expect(one.subject.facts()).toEqual({ updates: { behind: 0, running: null, reload: true } })
+    expect(JSON.parse(await one.subject.tools().read(false)).reloadOwed).toBe(due.said)
+    due.said = null
+    expect(one.subject.facts()).toEqual({})
   })
 
   it('turns into the reload once Tade’s own code changed in its checkout', async () => {
@@ -421,6 +439,13 @@ describe('the orchestrator’s tools', () => {
     // Answered first: the reload ends the turn the answer would have gone to.
     expect(yes.did.some((d) => d.what === 'reload')).toBe(false)
     await waitFor(() => yes.did.some((d) => d.what === 'reload'))
+  })
+
+  it('says which other machines the reload starts again first', async () => {
+    const one = world({ said: ['reload everything'], alsoReloads: ['ipax', 'hetz'] })
+    expect(await one.subject.tools().reload({ said: 'reload everything' })).toBe(
+      'Reloading in a moment: ipax and hetz first, each said in the conversation as it comes back, then this window. Agents keep working, and this conversation carries on where it is.',
+    )
   })
 
   it('asks at the panel where lanes would stop and the keyboard asked', async () => {

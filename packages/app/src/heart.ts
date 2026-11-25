@@ -877,6 +877,7 @@ export class Heart {
    */
   attachThinker(thinker: Thinker): void {
     this.orchestrator.attach(thinker)
+    this.conversation.started()
     // Where nothing draws, nobody will say the next thing that would carry
     // what came for it while it was starting: that is told now, once. A window
     // has somebody at it, and what waits goes with their next words.
@@ -897,6 +898,7 @@ export class Heart {
 
   /** The orchestrator could not be started, said where somebody would have waited for it. */
   thinkerFailed(reason: string): void {
+    this.conversation.failed(reason)
     this.orchestrator.failed(reason)
   }
 

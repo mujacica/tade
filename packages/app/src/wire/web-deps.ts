@@ -59,7 +59,7 @@ export interface AwayDeps {
    * machine keeps as the hub. Absent, the route is the `404` of a path nobody
    * wired.
    */
-  conversation?: Pick<FleetConversation, 'web'>
+  conversation?: Pick<FleetConversation, 'web' | 'standing'>
   /**
    * Whose each duty is, where one repository is a project on several machines
    * (`duties.ts`): the far half of `/api/duties`, the board this machine keeps
