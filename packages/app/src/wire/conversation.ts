@@ -1,11 +1,12 @@
 import { type ConversationAsk, hubOf, machineLabel, printable } from '@tade/core'
 import {
+  HubAway,
   type HubLink,
   HubStarting,
   type MachineNamed,
   type OneConversation,
 } from '@tade/harnesses-core'
-import type { Remote, RemoteLink } from '@tade/remotes-core'
+import { type Answer, LinkError, type Remote, type RemoteLink } from '@tade/remotes-core'
 import { STARTING, type WebConversation } from '@tade/web'
 import { clockOf, type Wiring, why } from './context.ts'
 
@@ -128,8 +129,16 @@ export class FleetConversation {
       downSince: this.downAt.get(name) ?? null,
       send: async (ask: ConversationAsk) => {
         const held = this.reach?.(name)
-        if (!held?.live) throw new Error(`${name} is not linked`)
-        const answer = await held.link.request(name, DOOR, ask)
+        // The link down as it was asked, or nothing answering there — its
+        // window restarting: given at the next exchange, not trouble (`HubAway`).
+        if (!held?.live) throw new HubAway(`${name} is not linked`)
+        let answer: Answer
+        try {
+          answer = await held.link.request(name, DOOR, ask)
+        } catch (err) {
+          if (err instanceof LinkError) throw new HubAway(err.message)
+          throw err
+        }
         // Unread: the exchange checks every answer before it takes anything (`ConversationReply`).
         if (answer.status === 200) return answer.body
         // Its orchestrator not up yet: waited for, and not trouble.

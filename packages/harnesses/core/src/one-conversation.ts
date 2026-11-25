@@ -68,6 +68,30 @@ export class HubStarting extends Error {
   }
 }
 
+/**
+ * The hub could not be reached as it was asked: its link went down between
+ * looking and asking, or nothing answers there — its window restarting, which
+ * a hub does several times a day. **Not trouble while it lasts**, because
+ * nothing is lost: every exchange gives whatever the other side lacks, so the
+ * next one after the link is back carries what this one could not (TADE-J,
+ * TADE-K). Said in the window once, as the hub being down is; warned of only
+ * where it stays unsent for `AWAY_WARNED_AFTER_MS` while the link says it is
+ * up, which is no longer a restart.
+ */
+export class HubAway extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'HubAway'
+  }
+}
+
+/**
+ * How long the hub may go on not answering while its link says it is up
+ * before that is Tade's trouble rather than a restart: longer than a window
+ * takes to start again, a few of the beat's exchanges.
+ */
+export const AWAY_WARNED_AFTER_MS = 3 * 60_000
+
 /** The hub's link, where another machine is the hub. */
 export interface HubLink {
   /** Its name here. */
@@ -143,6 +167,13 @@ export class OneConversation {
   private readonly came = new Map<string, number>()
   /** The machine whose hold on the hub's lease a turn here last waited out, until one is granted here. */
   private outwaited: string | null = null
+  /**
+   * Since when the hub has not answered while its link said it was up
+   * (`HubAway`), and whether that was warned of: cleared by an exchange that
+   * went through, and by the link saying it is down, so it counts only from
+   * the link coming back.
+   */
+  private away: { since: number; warned: boolean } | null = null
 
   constructor(opts: OneConversationOptions) {
     this.opts = opts
@@ -192,6 +223,7 @@ export class OneConversation {
 
   private async fromHub(hub: HubLink, wait: boolean): Promise<void> {
     if (!hub.up) {
+      this.away = null
       this.apart(hub)
       return
     }
@@ -211,10 +243,15 @@ export class OneConversation {
           this.apart(hub, 'starting')
           return
         }
+        if (err instanceof HubAway) {
+          this.unreached(hub, err, 'the conversation could not be exchanged with')
+          return
+        }
         this.opts.warn(`the conversation could not be exchanged with ${hub.name}: ${why(err)}`)
         this.apart(hub)
         return
       }
+      this.away = null
       this.one = done.refused ? null : hub.name
       if (done.refused) {
         this.once(done.refused)
@@ -298,16 +335,24 @@ export class OneConversation {
       return
     }
     const hub = this.opts.hub()
-    if (!hub?.up) return
+    if (!hub?.up) {
+      if (hub) this.away = null
+      return
+    }
     try {
       await this.opts.shared.exchange(
         (ask) => hub.send(ask),
         holding === 'hub' ? { op: 'release', key: this.key } : undefined,
         ROUNDS_AT_ONCE,
       )
+      this.away = null
     } catch (err) {
       // Given next time; the lease runs out by itself meanwhile.
       if (err instanceof HubStarting) return
+      if (err instanceof HubAway) {
+        this.unreached(hub, err, 'what this turn said could not be given to')
+        return
+      }
       this.opts.warn(`what this turn said could not be given to ${hub.name} yet: ${why(err)}`)
     }
   }
@@ -345,6 +390,7 @@ export class OneConversation {
             { op: 'look', key: this.key },
             ROUNDS_AT_ONCE,
           )
+          this.away = null
           this.whole = done.complete
           this.others = done.lease?.granted === false
           this.one = done.refused ? null : hub.name
@@ -354,10 +400,15 @@ export class OneConversation {
           this.one = null
           // Asked again on the next beat; nothing is wrong yet.
           if (err instanceof HubStarting) return
+          if (err instanceof HubAway) {
+            this.unreached(hub, err, 'the conversation could not be exchanged with')
+            return
+          }
           this.opts.warn(`the conversation could not be exchanged with ${hub.name}: ${why(err)}`)
           return
         }
       } else if (hub) {
+        this.away = null
         return
       }
       if (hub === null) {
@@ -440,15 +491,36 @@ export class OneConversation {
     if (took) this.opts.took?.(settled)
   }
 
-  private apart(hub: HubLink, starting?: 'starting'): void {
+  private apart(hub: HubLink, starting?: 'starting', unanswered?: string): void {
     const since = hub.downSince ?? this.opts.now()
     if (this.apartSince !== null) return
     this.apartSince = since
     this.opts.say(
       starting
         ? `${hub.name}'s orchestrator is starting: carrying on here; this conversation is merged with ${hub.name}'s when it is up.`
-        : `${hub.name} not linked since ${this.opts.clock(since)}: carrying on here; this conversation is merged with ${hub.name}'s when it is back.`,
+        : unanswered !== undefined
+          ? `${hub.name} did not answer (${unanswered}): carrying on here; what is not given yet goes at the next exchange once it answers, and this conversation is merged with ${hub.name}'s then.`
+          : `${hub.name} not linked since ${this.opts.clock(since)}: carrying on here; this conversation is merged with ${hub.name}'s when it is back.`,
     )
+  }
+
+  /**
+   * The hub did not answer (`HubAway`): said in the window, as it being down
+   * is, and given at the next exchange. Warned of once, only where it has gone
+   * on past `AWAY_WARNED_AFTER_MS` with the link saying it is up.
+   */
+  private unreached(hub: HubLink, err: HubAway, what: string): void {
+    this.one = null
+    this.apart(hub, undefined, err.message)
+    const now = this.opts.now()
+    if (this.away === null) {
+      this.away = { since: now, warned: false }
+      return
+    }
+    if (this.away.warned || !hub.up || now - this.away.since < AWAY_WARNED_AFTER_MS) return
+    this.away.warned = true
+    const minutes = Math.round((now - this.away.since) / 60_000)
+    this.opts.warn(`${what} ${hub.name} for ${minutes} minutes while its link is up: ${why(err)}`)
   }
 
   private together(hub: HubLink): void {

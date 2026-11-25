@@ -22,7 +22,13 @@ import {
   SharedConversation,
   TurnLease,
 } from '../src/conversation-share.ts'
-import { type HubLink, LEASE_WAITED_AT_MOST_MS, OneConversation } from '../src/one-conversation.ts'
+import {
+  AWAY_WARNED_AFTER_MS,
+  HubAway,
+  type HubLink,
+  LEASE_WAITED_AT_MOST_MS,
+  OneConversation,
+} from '../src/one-conversation.ts'
 
 // Each machine's half of one conversation, two homes on one disk: the
 // exchange brings each the other's entries, a line too long for one request
@@ -796,6 +802,108 @@ describe('what goes wrong around a turn, said rather than lost', () => {
     expect(said).toContain(
       'warn: what this turn said could not be given to vps yet: the connection to vps closed',
     )
+  })
+
+  it('takes a hub restarting as news, catches up once it answers, and writes down only one that stays unreached', async () => {
+    // TADE-J and TADE-K: ipax's window restarting, from the Mac — the link
+    // gone as it was asked, or nothing answering there. Nothing is lost, so
+    // nothing is Tade's trouble until it lasts with the link saying it is up.
+    const mac = machine('mac')
+    const vps = machine('vps')
+    const hub = gated(vps, () => null)
+    let answering = true
+    let away = 'vps is not linked'
+    let now = Date.parse('2026-11-25T15:00:00.000Z')
+    const link: HubLink = {
+      name: 'vps',
+      up: true,
+      downSince: null,
+      send: (ask) => {
+        if (!answering) return Promise.reject(new HubAway(away))
+        return hub.one.answer(ask)
+      },
+    }
+    const said: string[] = []
+    const one = new OneConversation({
+      shared: mac.shared,
+      hub: () => link,
+      reload: async () => {},
+      say: (text) => said.push(text),
+      warn: (text) => said.push(`warn: ${text}`),
+      now: () => now,
+      clock: () => '15:00',
+      pause: async () => {},
+    })
+    await one.before(true)
+    turn(mac, 'while-it-restarts', '2026-11-25T15:00:00.000Z')
+    answering = false
+    await one.after()
+    away = 'nothing answers on localhost:7654 there: its Tade is not open, or its away view is off'
+    now += 30_000
+    await one.idle(false)
+    expect(said.filter((line) => line.startsWith('warn:'))).toEqual([])
+    expect(said.filter((line) => line.includes('vps did not answer'))).toEqual([
+      "vps did not answer (vps is not linked): carrying on here; what is not given yet goes at the next exchange once it answers, and this conversation is merged with vps's then.",
+    ])
+    // It answers again: the next exchange on the beat gives what the turn wrote.
+    answering = true
+    now += 30_000
+    await one.idle(false)
+    expect(said.some((line) => line.includes('vps is linked again'))).toBe(true)
+    expect(idsOf(conversationCopyPath(vps.home, mac.id))).toEqual(idsOf(mac.record))
+    await hub.one.idle(false)
+    expect(idsOf(vps.record)).toEqual(expect.arrayContaining(idsOf(mac.record)))
+    expect(said.filter((line) => line.startsWith('warn:'))).toEqual([])
+
+    // Once more, and this time it does not come back while the link says up.
+    answering = false
+    now += 30_000
+    await one.idle(false)
+    now += AWAY_WARNED_AFTER_MS - 1
+    await one.idle(false)
+    expect(said.filter((line) => line.startsWith('warn:'))).toEqual([])
+    now += 1
+    await one.idle(false)
+    now += 30_000
+    await one.idle(false)
+    expect(said.filter((line) => line.startsWith('warn:'))).toEqual([
+      `warn: the conversation could not be exchanged with vps for 3 minutes while its link is up: ${away}`,
+    ])
+  })
+
+  it('counts a hub that stays unreached only from its link coming back', async () => {
+    const mac = machine('mac')
+    let up = true
+    let now = Date.parse('2026-11-25T15:00:00.000Z')
+    const link = {
+      name: 'vps',
+      get up() {
+        return up
+      },
+      downSince: null,
+      send: () => Promise.reject(new HubAway('vps is not linked')),
+    } satisfies HubLink
+    const said: string[] = []
+    const one = new OneConversation({
+      shared: mac.shared,
+      hub: () => link,
+      reload: async () => {},
+      say: (text) => said.push(text),
+      warn: (text) => said.push(`warn: ${text}`),
+      now: () => now,
+      clock: () => '15:00',
+      pause: async () => {},
+    })
+    await one.idle(false)
+    // Down for ten minutes: the link's own news, and not asked.
+    up = false
+    now += 10 * 60_000
+    await one.idle(false)
+    up = true
+    await one.idle(false)
+    now += 30_000
+    await one.idle(false)
+    expect(said.filter((line) => line.startsWith('warn:'))).toEqual([])
   })
 
   it('runs a turn on what is here while a first copy is still crossing, and merges nothing meanwhile', async () => {
