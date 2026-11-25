@@ -587,6 +587,26 @@ describe('the Updates page', () => {
     expect(shown).not.toContain('✓ current')
   })
 
+  it('says a program built without something it must do is built without it, never current', () => {
+    // Ubuntu's nodejs 22.22.1+dfsg: above every floor, newest of its kind,
+    // and `process.features.typescript` false — ticked here once.
+    const [git, tmux, pi] = LOOK.programs
+    if (!git || !tmux || !pi) throw new Error('the fixture has three programs')
+    const node = {
+      ...git,
+      need: { ...git.need, command: 'node', title: 'Node' },
+      version: '22.22.1',
+      latest: '22.22.1',
+      cannotTell: null,
+      tooOld: false,
+      lacks: 'TypeScript',
+    }
+    const shown = shownAt({ updates: { ...LOOK, programs: [node, tmux, pi] } })
+    expect(shown).toContain('built without TypeScript')
+    const { lacks: _, ...able } = node
+    expect(shownAt({ updates: { ...LOOK, programs: [able, tmux, pi] } })).toContain('✓ current')
+  })
+
   it('offers a button only where there is an exact command behind it', () => {
     const drawn = drawPanel(
       panelFor('updates', { focus: 'form', row: 5 }),

@@ -21,7 +21,7 @@ import { Exit, type Io } from '../io.ts'
 // answer that asked is kept in Tade's home, like the window's own check, so
 // the next window to open says what it found without asking again.
 
-function line(look: ProgramLook, asked: boolean): string {
+export function line(look: ProgramLook, asked: boolean): string {
   // Before anything has been asked, what is current is not unknown — it is
   // unasked, which the foot of the answer says once rather than every line.
   const mark = !look.install
@@ -30,13 +30,15 @@ function line(look: ProgramLook, asked: boolean): string {
       : 'not installed'
     : look.tooOld && look.need.oldest
       ? `too old, needs ${look.need.oldest}`
-      : !asked
-        ? ''
-        : look.behind && look.latest
-          ? `${look.latest} is out`
-          : look.latest
-            ? 'current'
-            : 'cannot tell'
+      : look.lacks
+        ? `built without ${look.lacks}`
+        : !asked
+          ? ''
+          : look.behind && look.latest
+            ? `${look.latest} is out`
+            : look.latest
+              ? 'current'
+              : 'cannot tell'
   const said = look.install ? look.install.said : (look.need.needed[0]?.what ?? '')
   return `${look.need.command.padEnd(10)} ${(look.version ?? '—').padEnd(12)} ${mark.padEnd(30)} ${said}`
 }

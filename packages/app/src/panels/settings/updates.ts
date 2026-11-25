@@ -126,13 +126,17 @@ export function drawUpdates(
         ? // Asked or not: the floor is what whoever needs it declared, and
           // the command under it is the one that brings it up to date.
           { text: `▲ too old · needs ${program.need.oldest}`, tone: skin.waiting }
-        : !look.asked
-          ? { text: '', tone: skin.hint }
-          : program.behind && program.latest
-            ? { text: `● ${program.latest} is out`, tone: skin.waiting }
-            : program.latest
-              ? { text: '✓ current', tone: skin.done }
-              : { text: '· cannot tell', tone: skin.hint }
+        : program.lacks
+          ? // Asked or not, too: built without something its version does
+            // not say is never current, whatever the newest there is.
+            { text: `▲ built without ${program.lacks}`, tone: skin.waiting }
+          : !look.asked
+            ? { text: '', tone: skin.hint }
+            : program.behind && program.latest
+              ? { text: `● ${program.latest} is out`, tone: skin.waiting }
+              : program.latest
+                ? { text: '✓ current', tone: skin.done }
+                : { text: '· cannot tell', tone: skin.hint }
     const target = { kind: 'control' as const, id: rowId }
     // The row the keyboard is on is marked down its left, the same bar every
     // other marked row in the window gets — and the column is taken whether or

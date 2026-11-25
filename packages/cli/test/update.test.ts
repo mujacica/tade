@@ -2,8 +2,10 @@ import { spawn } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { ProgramLook } from '@tade/workbench/programs'
 import { expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
+import { line } from '../src/commands/update.ts'
 
 const bin = fileURLToPath(new URL('../src/bin.ts', import.meta.url))
 
@@ -69,3 +71,36 @@ it('says a tmux older than its driver’s floor is too old, read off the driver'
   expect(result.code).toBe(0)
   expect(result.stdout).toMatch(/^tmux\s+3\.1\s+too old, needs 3\.2/m)
 }, 60_000)
+
+it('says a Node built without TypeScript is built without it, never current', () => {
+  // Ubuntu's nodejs 22.22.1+dfsg: above every floor and the newest of its
+  // kind. The Node running this test is not one, so the look is made here.
+  const node: ProgramLook = {
+    need: {
+      command: 'node',
+      title: 'Node',
+      versionArgs: ['--version'],
+      optional: false,
+      needed: [{ what: 'Tade', why: 'Tade runs on it', inUse: true }],
+      inUse: true,
+      install: { instead: 'nodejs.org, or a version manager: mise, nvm, volta' },
+    },
+    install: {
+      manager: 'system',
+      name: 'nodejs',
+      where: '/usr/bin/node',
+      said: 'the system’s own',
+    },
+    version: '22.22.1',
+    latest: '22.22.1',
+    cannotTell: null,
+    update: { cannot: 'it came with the system, so the system updates it' },
+    behind: false,
+    tooOld: false,
+    lacks: 'TypeScript',
+  }
+  expect(line(node, true)).toMatch(/^node\s+22\.22\.1\s+built without TypeScript/)
+  expect(line(node, false)).toContain('built without TypeScript')
+  const { lacks: _, ...able } = node
+  expect(line(able, true)).toMatch(/\scurrent\s/)
+})
