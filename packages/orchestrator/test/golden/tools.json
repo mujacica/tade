@@ -1153,7 +1153,7 @@
   },
   {
     "name": "tade_reload",
-    "description": "Start the window again, on the Tade that is on disk now — after Tade itself was updated, when they ask for it (\"reload\", \"restart Tade\"). Agents keep working where the driver’s lanes outlive the window; where they would stop, the reload panel asks them instead and the press is theirs. Your conversation carries on in the new window: it is the same conversation, and you are not introduced again, but the turn this is called in ends with the window. Refused unless they asked for a reload in their own words — pass their sentence in `said`. Say what you are doing before you call it.",
+    "description": "Start Tade again on every machine, on the Tade that is on disk now — after Tade itself was updated, when they ask for it (\"reload\", \"restart Tade\"). Not this window alone: every machine this one links to as an owner is reloaded first, one that is behind moved to this one’s version, each said as it comes back, and then this window. Agents keep working where the driver’s lanes outlive the window; a machine whose lanes would stop is not restarted and that is said, and here the reload panel asks them instead and the press is theirs. Your conversation carries on in the new window: it is the same conversation, and you are not introduced again, but the turn this is called in ends with the window. Refused unless they asked for a reload in their own words — pass their sentence in `said`. Say what you are doing before you call it.",
     "parameters": {
       "type": "object",
       "properties": {
