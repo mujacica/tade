@@ -322,7 +322,7 @@ describe('a project on another machine, pressed as a project here', () => {
     expect(far.diskAsked.at(-1)).toMatchObject({ what: 'discard', path: 'hook.ts' })
   })
 
-  it('reads an agent there’s change as a patch, read there, and asks that agent about it there', async () => {
+  it('reads an agent there’s change as a patch, read there, comments on it for that agent there, and asks it there', async () => {
     const there = mkrepo()
     there.commit('the hook', { 'hook.ts': 'export const ring = 1\n' })
     writeFileSync(join(there.root, 'hook.ts'), 'export const ring = 2\n')
@@ -405,10 +405,31 @@ describe('a project on another machine, pressed as a project here', () => {
       path: 'hook.ts',
       diff: true,
     })
-    // Nothing of this machine's: no editor, and no comment written on a line.
+    // Nothing of this machine's desktop: no editor.
     expect(shown('Open in editor')).toBe(false)
+    // A comment on a line of it, to its agent there, sent as that machine's own steer.
     terminal.press('c')
-    expect(shown('On line')).toBe(false)
+    await until(said('the comment box'), () => shown('On line 1'), 20_000)
+    expect(shown('door on vps')).toBe(true)
+    for (const char of 'louder') terminal.press(char)
+    terminal.press('\r')
+    await until(said('the comment kept'), () => shown('Send 1'), 20_000)
+    terminal.press('s')
+    await until(
+      said('the comment sent there'),
+      () => far.acted.some((one) => one.verb === 'steer'),
+      20_000,
+    )
+    const steered = far.acted.find((one) => one.verb === 'steer')?.call as {
+      task: string
+      said: string
+    }
+    expect(steered.task).toBe('tade/door')
+    expect(steered.said).toContain('hook.ts:1 (a line taken out)')
+    expect(steered.said).toContain('-export const ring = 1')
+    expect(steered.said).toContain('\nlouder')
+    await until(said('it said so'), () => shown('sent 1 comment to door on vps'), 20_000)
+    expect(shown('Send 1')).toBe(false)
     // Its Ask: typed into the terminal here that is that agent there, unsent.
     const button = wired.find('Ask the agent about this')
     wired.click(button.col + 2, button.row)

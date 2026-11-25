@@ -157,6 +157,22 @@ describe('the patch reader', () => {
     expect(chip.composing?.to).toEqual({ agent: 'shop/pay' })
   })
 
+  it('writes on another machine’s change as on one here, to its agent there, and opens no editor', () => {
+    const there = reader({ there: 'vps', at: 3 })
+    const toThere: PanelInputs = {
+      patch,
+      commentTo: [{ to: { agent: 'shop/pay' }, label: 'pay on vps' }],
+    }
+    const open = press(there, ['c'], toThere).panel as DiffPanel
+    expect(open.composing).toMatchObject({ line: 2, to: { agent: 'shop/pay' } })
+    expect(press(open, ['enter'], toThere)).toMatchObject({ submit: true, choice: 'comment' })
+    expect((panelClick(there, 'line:2', toThere).panel as DiffPanel).composing).not.toBeNull()
+    expect(panelClick(there, 'send', toThere)).toMatchObject({ submit: true, choice: 'send' })
+    expect(press(there, ['s'], { ...toThere, drafted: 1 })).toMatchObject({ choice: 'send' })
+    expect(panelClick(there, 'editor', toThere).submit).toBe(false)
+    expect(panelClick(there, 'ask', toThere)).toMatchObject({ submit: true, choice: 'ask' })
+  })
+
   it('lets go of the line and the box on another file', () => {
     const open = press(reader({ at: 3 }), ['c']).panel as DiffPanel
     const next = panelKey({ ...open, composing: null }, 'right', '', inputs).panel as DiffPanel

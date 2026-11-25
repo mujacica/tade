@@ -6,7 +6,9 @@ import {
   forTade,
   HUNK_REACH,
   hunkFor,
+  hunkWithin,
   type LineComment,
+  packed,
   saidOf,
   withComment,
 } from '../src/comments.ts'
@@ -148,5 +150,52 @@ describe('what an agent is told', () => {
     expect(saidOf([comment(), comment({ line: 12, words: 'and c?' })])).toBe(
       'src/pay.ts:11 · why three?\nsrc/pay.ts:12 · and c?',
     )
+  })
+})
+
+describe('what goes to an agent on another machine, whose steer takes a bounded message', () => {
+  const agent = 'shop/pay'
+  const to = { agent }
+
+  it('packs a review into the fewest messages that fit, in the order written, each under the bound', () => {
+    const all = [1, 2, 3, 4].map((at) => comment({ line: at, words: `note ${at}`, to }))
+    const one = forAgent([all[0] as LineComment], agent).length
+    const bound = forAgent(all.slice(0, 2), agent).length
+    const messages = packed(all, agent, bound)
+    expect(messages.map((message) => message.map((c) => c.line))).toEqual([
+      [1, 2],
+      [3, 4],
+    ])
+    for (const message of messages)
+      expect(forAgent(message, agent).length).toBeLessThanOrEqual(bound)
+    // Everything fits in one where the bound allows it; nothing is lost either way.
+    expect(packed(all, agent, 1_000_000)).toEqual([all])
+    expect(packed(all, agent, one - 1).flat()).toEqual(all)
+  })
+
+  it('narrows the hunk, never the words, until the comment fits on its own', () => {
+    const body = Array.from({ length: 200 }, (_, i) => `+${'x'.repeat(60)} line ${i + 1}`)
+    const long = parseDiff(['@@ -1,0 +1,200 @@', ...body].join('\n'))
+    const at = { side: 'new' as const, git: 100 }
+    const written = {
+      task: agent,
+      path: 'a.ts',
+      line: 100,
+      side: 'new' as const,
+      words: 'why?',
+      to,
+    }
+    const wide = hunkFor(long, at, '')
+    const roomy = forAgent([{ ...written, hunk: wide }], agent).length
+    expect(hunkWithin(long, at, '', written, roomy)).toEqual(wide)
+    const narrow = hunkWithin(long, at, '', written, roomy - 1)
+    expect(narrow.length).toBeLessThan(wide.length)
+    expect(narrow).toContain(`+${'x'.repeat(60)} line 100`)
+    expect(forAgent([{ ...written, hunk: narrow }], agent).length).toBeLessThanOrEqual(roomy - 1)
+    // With no room for any context: the heading and the line itself.
+    expect(hunkWithin(long, at, '', written, 10)).toEqual([
+      '@@ -1,0 +1,200 @@',
+      `+${'x'.repeat(60)} line 100`,
+    ])
   })
 })

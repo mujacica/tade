@@ -37,9 +37,9 @@ export interface DiffPanel {
   busy: false
   /**
    * The machine whose change this is, where it is another's (`remote-disk.ts`):
-   * read there, file by file, and asked about there. Nothing here comments on
-   * it or opens it in an editor — the agents a comment goes to, and the file
-   * an editor would open, are that machine's.
+   * read there, file by file, asked about there, and commented on for its agent
+   * there (`Comments`). Nothing here opens it in an editor — the file an editor
+   * would open is that machine's.
    */
   there?: string
 }
@@ -93,10 +93,8 @@ export function diffKey(
     const back = key === 'p' || key === 'ctrl+p'
     return stay(toChange(panel, lines, back, inputs.body))
   }
-  if (key === 'c' || key === 'ctrl+r') {
-    return panel.there === undefined ? stay(writeOn(panel, lines, panel.at, inputs)) : stay(panel)
-  }
-  if (key === 's' && panel.there === undefined && (inputs.drafted ?? 0) > 0) {
+  if (key === 'c' || key === 'ctrl+r') return stay(writeOn(panel, lines, panel.at, inputs))
+  if (key === 's' && (inputs.drafted ?? 0) > 0) {
     return { panel, submit: true, choice: 'send' }
   }
   // The view, from where it is drawn — which, following the line the
@@ -112,11 +110,8 @@ export function diffClick(
   inputs: PanelInputs = {},
 ): PanelOutcome {
   const lines = inputs.patch?.lines ?? []
-  // Another machine's change is read and asked about there, and nothing else.
-  if (panel.there !== undefined && THERE_ONLY.has(control)) {
-    return { panel, submit: true, choice: control }
-  }
-  if (panel.there !== undefined && !THERE_TOO.has(control)) return stay(panel)
+  // Another machine's file is opened in an editor on that machine or nowhere.
+  if (panel.there !== undefined && control === 'editor') return stay(panel)
   // `line:<n>` — a line of git's answer, pressed: the keyboard goes there and
   // the box opens on it, as a press on a line number does in the file viewer.
   if (control.startsWith('line:')) {
@@ -134,12 +129,6 @@ export function diffClick(
   if (control === 'editor' || control === 'ask') return { panel, submit: true, choice: control }
   return stay(panel)
 }
-
-/** What a press on another machine's change carries there. */
-const THERE_ONLY: ReadonlySet<string> = new Set(['ask'])
-
-/** What a press on another machine's change does here as it does on one here: moving through it. */
-const THERE_TOO: ReadonlySet<string> = new Set(['prev-file', 'next-file'])
 
 /** The comment kept on a line of git's answer, if there is one. */
 export function keptOn(
@@ -188,6 +177,8 @@ function writeOn(
     composing: composeOn(
       { line: number, side, git: number, text: line.text },
       keptOn(line, inputs.comments),
+      // Tade here, and on another machine's change the agent there whose it is.
+      inputs.commentTo?.[0]?.to,
     ),
   }
 }

@@ -38,9 +38,9 @@ export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
   const name = panel.task.split('/').at(-1) ?? panel.task
   const rows: Line[] = []
   const parsed = ctx.diff
-  // Another machine's change is read here and commented on nowhere: its agents are that machine's.
+  // Another machine's change is read and commented on as one here is, and opened in no editor here.
   const there = panel.there !== undefined
-  const here = there ? [] : (ctx.comments?.here ?? [])
+  const here = ctx.comments?.here ?? []
 
   if (!parsed) {
     rows.push(row().space().text('reading the diff…', skin.hint).build())
@@ -80,16 +80,14 @@ export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
       // The whole line is something to press: it is where a comment goes.
       rows.push({
         text: on ? skin.selected(built.text) : built.text,
-        hits: there
-          ? built.hits
-          : [
-              ...built.hits,
-              { row: 0, from: 0, to: inner - 1, target: { kind: 'control', id: `line:${at}` } },
-            ],
+        hits: [
+          ...built.hits,
+          { row: 0, from: 0, to: inner - 1, target: { kind: 'control', id: `line:${at}` } },
+        ],
       })
     })
   }
-  const drafted = there ? 0 : (ctx.comments?.total ?? 0)
+  const drafted = ctx.comments?.total ?? 0
   const kept = keptOn(panel.at === null ? undefined : parsed?.lines[panel.at], here)
   // Every change in the file: what the bar marks and `n` and `p` go through.
   const changes = changesIn(parsed && !parsed.binary ? parsed.lines : null)
@@ -131,15 +129,7 @@ export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
     'Ask the agent about this'.length +
     4
   const room = inner - buttons - (panel.files.length > 1 ? stepper.length + 4 : 0) - 2
-  const keys =
-    (there
-      ? changes.length > 0
-        ? STEPS_THERE
-        : KEYS_THERE
-      : changes.length > 0
-        ? STEPS
-        : KEYS
-    ).find((one) => one.length <= room) ?? ''
+  const keys = (changes.length > 0 ? STEPS : KEYS).find((one) => one.length <= room) ?? ''
   const editor = (r: Row) =>
     there ? r : r.button('Open in editor', { kind: 'control', id: 'editor' }).space()
   const drawn = column(
@@ -191,10 +181,6 @@ const STEPS = [
   'n/p change · c comment',
   'c comment',
 ]
-
-/** The same for another machine's change, which nothing here comments on. */
-const KEYS_THERE = ['↑↓ line · ←→ file', '↑↓ line']
-const STEPS_THERE = ['↑↓ line · n/p change · ←→ file', '↑↓ line · n/p change', 'n/p change']
 
 /**
  * Send, where there is something to send, and first on the row: it is what

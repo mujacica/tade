@@ -39,7 +39,7 @@ export const HUNK_REACH = 8
 
 /**
  * The hunk a line of a diff is in, as unified lines with its `@@` heading —
- * cut to `HUNK_REACH` either side of the line, because a hunk can be hundreds
+ * cut to `reach` either side of the line, because a hunk can be hundreds
  * of lines and what a comment needs is what it is next to. A line git drew no
  * hunk round (one nobody changed, or one typed since git was asked) is its own
  * context, `text`.
@@ -48,6 +48,7 @@ export function hunkFor(
   diff: ParsedDiff | null,
   at: { side: 'new' | 'old'; git: number | null },
   text: string,
+  reach = HUNK_REACH,
 ): string[] {
   const alone = [` ${text}`]
   if (!diff || diff.binary || at.git === null) return alone
@@ -59,8 +60,8 @@ export function hunkFor(
   let end = index
   while (end + 1 < lines.length && lines[end + 1]?.kind !== 'hunk') end++
   const heading = lines[start]?.kind === 'hunk' ? [lines[start]?.text ?? ''] : []
-  const from = Math.max(heading.length > 0 ? start + 1 : start, index - HUNK_REACH)
-  const to = Math.min(end, index + HUNK_REACH)
+  const from = Math.max(heading.length > 0 ? start + 1 : start, index - reach)
+  const to = Math.min(end, index + reach)
   const signs = { add: '+', remove: '-', context: ' ', hunk: '' } as const
   return [...heading, ...lines.slice(from, to + 1).map((one) => `${signs[one.kind]}${one.text}`)]
 }
@@ -150,6 +151,48 @@ export function forAgent(comments: readonly LineComment[], agent: string): strin
     `The person reviewing your work commented on ${many ? `${comments.length} lines` : 'a line'} of a diff in Tade’s window. Their words are under each hunk, as they wrote them.`,
     ...each,
   ].join('\n\n')
+}
+
+/**
+ * A review's comments to one agent, as the fewest messages each no longer than
+ * `bound` — the most another machine's `steer` takes in one (`BOUNDS.said`),
+ * which refuses a longer one rather than cutting it. In the order written; a
+ * comment too long on its own is a message of its own, for that machine to
+ * refuse in its words, because nothing here cuts what somebody wrote.
+ */
+export function packed(
+  comments: readonly LineComment[],
+  agent: string,
+  bound: number,
+): LineComment[][] {
+  const messages: LineComment[][] = []
+  for (const comment of comments) {
+    const last = messages.at(-1)
+    if (last && forAgent([...last, comment], agent).length <= bound) last.push(comment)
+    else messages.push([comment])
+  }
+  return messages
+}
+
+/**
+ * The hunk a comment carries to an agent whose messages are bounded: the
+ * widest, up to `HUNK_REACH` either side, with which the comment alone fits in
+ * one — the context is git's and can be narrowed, the words are theirs and
+ * cannot — or the line alone where even that does not.
+ */
+export function hunkWithin(
+  diff: ParsedDiff | null,
+  at: { side: 'new' | 'old'; git: number | null },
+  text: string,
+  comment: Omit<LineComment, 'hunk'>,
+  bound: number,
+): string[] {
+  const agent = comment.to === 'tade' ? '' : comment.to.agent
+  for (let reach = HUNK_REACH; reach > 0; reach--) {
+    const hunk = hunkFor(diff, at, text, reach)
+    if (forAgent([{ ...comment, hunk }], agent).length <= bound) return hunk
+  }
+  return hunkFor(diff, at, text, 0)
 }
 
 /** What the conversation shows of comments sent to Tade: each line and its words. */

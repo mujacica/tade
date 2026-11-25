@@ -34,14 +34,16 @@ export interface CommentChoice {
 }
 
 /**
- * The box opened on a line: empty and to Tade, or holding the comment already
- * kept there, so writing on a line again is changing what it says.
+ * The box opened on a line: empty and to the first who could be told — Tade,
+ * wherever it is one — or holding the comment already kept there, so writing
+ * on a line again is changing what it says.
  */
 export function composeOn(
   at: Pick<Composing, 'line' | 'side' | 'git' | 'text'>,
   kept: Pick<LineComment, 'words' | 'to'> | null,
+  first: CommentTo = 'tade',
 ): Composing {
-  return { ...at, words: kept?.words ?? '', to: kept?.to ?? 'tade' }
+  return { ...at, words: kept?.words ?? '', to: kept?.to ?? first }
 }
 
 /** What a key did to the box: still writing, kept, or closed. */

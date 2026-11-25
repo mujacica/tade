@@ -895,6 +895,11 @@ export class Files implements Subject {
     this.deps.applyPanel({ panel: diffPanel(task, files, at, machine), submit: false })
   }
 
+  /** A comment on a change there, kept or sent by the same comments as one here (`Comments`). */
+  commentThere(panel: DiffPanel, choice: 'comment' | 'send'): Promise<void> {
+    return this.deps.comment(panel, choice)
+  }
+
   /**
    * One file of a change there, read there: drawn only while the panel is still
    * on it, and left unread — never drawn as no differences — where that machine
@@ -933,10 +938,16 @@ export class Files implements Subject {
    */
   shown(): Shown | null {
     const panel = this.wire.state.panel
-    // A change there is nothing to comment on here: the agents a comment goes to are that machine's.
-    if (panel?.kind === 'diff' && panel.there === undefined) {
+    // A change there is commented on for its agent there, the file as git there names it.
+    if (panel?.kind === 'diff') {
       const path = panel.files[panel.file]
-      return path ? { task: panel.task, path, diff: this.diff } : null
+      if (!path) return null
+      return {
+        task: panel.task,
+        path,
+        diff: this.diff,
+        ...(panel.there === undefined ? {} : { there: panel.there }),
+      }
     }
     if (panel?.kind !== 'file' || panel.there !== undefined) return null
     const task = this.viewed.about()

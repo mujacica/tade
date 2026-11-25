@@ -6,6 +6,7 @@ import { acknowledge } from '../flash.ts'
 import { languageOf } from '../highlight.ts'
 import { elsewhereOf, type Place } from '../machines.ts'
 import { toggleFolder } from '../model.ts'
+import type { DiffPanel } from '../panels/diff/state.ts'
 import type { FilePanel } from '../panels/file/state.ts'
 import {
   branchMenuItems,
@@ -54,7 +55,8 @@ import {
 // machine's (`DiffPanel.there`), each file's diff read there as Show changes
 // reads it; asking the agent about a file is typed into the terminal here that
 // is that agent's lane there (`RemoteAgents.attach`), unsent, as it is typed
-// into an agent here. What needs this machine's desktop — an editor, a file
+// into an agent here, and a comment on a line of it is kept as one here is and
+// sent to that agent as that machine's `steer` (`Comments`). What needs this machine's desktop — an editor, a file
 // manager, search — is turned off and said.
 
 type What = Extract<MenuSubject, { kind: 'disk-there' }>['what']
@@ -96,6 +98,8 @@ export interface RemoteDiskDeps {
       at: number,
       read: (path: string) => Promise<ParsedDiff | null>,
     ): void
+    /** A comment kept, or a review's sent, from the patch reader on a change there (`Comments`). */
+    commentThere(panel: DiffPanel, choice: 'comment' | 'send'): Promise<void>
     /** What a file there typed into would hold, and what it was when read: null where nothing is. */
     editedThere(panel: FilePanel): { text: string; size: number; mtimeMs: number } | null
     /** A file there saved and read again, held as what is on that disk now. */
@@ -319,8 +323,11 @@ export class RemoteDisk implements Subject {
           ),
         )
       },
-      // The patch reader on a change there: its one button that is not reading is asking.
+      // The patch reader on a change there: commenting for its agent there, and asking it.
       diff: async (panel, choice) => {
+        if (choice === 'comment' || choice === 'send') {
+          return this.deps.files().commentThere(panel, choice)
+        }
         const place = this.placeOn(panel.there ?? '')
         const path = panel.files[panel.file]
         if (choice !== 'ask' || !path) return

@@ -412,6 +412,13 @@ export class Remotes implements Subject {
     await this.agents.shell(machine, project)
   }
 
+  /** Words said to an agent on another machine, as its own `steer`: what it answered, or thrown. */
+  async steerThere(machine: string, agent: string, said: string): Promise<string> {
+    if (this.agents === null)
+      throw new Error('this window tells no agent on another machine anything')
+    return this.agents.steerThere(machine, agent, said)
+  }
+
   /** Where a row of another machine's goes (`there.ts`): the agents there, which carry every press. */
   there(): ThereDoor | null {
     return this.agents

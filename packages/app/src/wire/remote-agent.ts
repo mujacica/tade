@@ -986,6 +986,14 @@ export class RemoteAgents implements Subject, ThereDoor {
     return this.carryTo(there(looked.machine.name, looked.place.agent), verb, extra)
   }
 
+  /**
+   * Words said to an agent there, as that machine's own `steer` — the line
+   * comments on its change (`Comments`) — what it answered, or thrown with why.
+   */
+  steerThere(machine: string, agent: string, said: string): Promise<string> {
+    return this.carryTo(there(machine, agent), 'steer', { said })
+  }
+
   /** The same, for an agent there named by the id its row carries (`there.ts`). */
   private async carryTo(id: string, verb: string, extra: Record<string, unknown>): Promise<string> {
     const found = this.found(id)

@@ -1090,8 +1090,11 @@ drawn from what its away view sends — the projection the link holds.
   panels write — a save, a discard, a switch, a new branch, a rename, a pull — is one ask of the
   same route, done there by `checkout-write.ts` as here, a save only over the file as read: **a
   panel marked `there` is carried out only by `Subject.submitsThere`/`promptsThere`**, never by the
-  handlers here, so nothing reaches this disk. What needs this machine's desktop or its agents
-  (editor, file manager, search, ask, patch) is off in its menus (`not from here`). Its ACTIONS
+  handlers here, so nothing reaches this disk. Read as a patch is the patch reader marked
+  `DiffPanel.there`, each file read there; Ask is typed, unsent, into the terminal here to that
+  agent's lane; a line comment on it goes only to that agent, as that machine's `steer`, its hunk
+  narrowed and the review packed to fit `BOUNDS.said` (`wire/comments.ts`). What needs this
+  machine's desktop (editor, file manager, search) is off in its menus (`not from here`). Its ACTIONS
   tab is that machine's (`/api/side`'s `actions`, asked only while shown, kept under the carried
   id), and its shell tab is a terminal here to that lane (`/api/attach` with `lane`, `Place.tab`).
 - **A row there is a row here, and the machine is a value in its id** (`there.ts`). Its agents, its

@@ -487,6 +487,7 @@ export class App {
       ask: (words, about) => this.orchestrator.ask(words, about),
       listening: () => this.orchestrator.started,
       remember: (words) => this.keyboard.remember(words),
+      steerThere: (machine, agent, said) => this.remotes.steerThere(machine, agent, said),
     })
     this.mouse = new Mouse(this.wire, {
       stopped: () => this.stopped,
