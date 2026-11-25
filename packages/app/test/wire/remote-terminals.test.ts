@@ -95,7 +95,7 @@ describe('a terminal to an agent on another machine, kept up', () => {
   }
 
   /**
-   * Open a terminal to an agent there by its row and enter, and wait for what
+   * Open a terminal to an agent there by pressing its row, and wait for what
    * it printed. A terminal opened before takes the window's room, so the side
    * is given it back first, with the lower pane's own control.
    */
@@ -111,18 +111,8 @@ describe('a terminal to an agent on another machine, kept up', () => {
         return false
       }
     })
+    // A press opens it, as a click on an agent here does: nothing else to press.
     row(title)
-    // Its own pane, with its controls: the keyboard may be in a terminal, so the control is pressed.
-    await until(
-      `${title}'s pane`,
-      () =>
-        rows().some((one) => one.slice(one.indexOf('│') + 1).includes(title)) &&
-        shown('type into it'),
-      20_000,
-    )
-    const lines = rows()
-    const at = lines.findIndex((one) => one.includes('type into it'))
-    wired.click((lines[at] ?? '').indexOf('type into it') + 1, at)
     await until(`the terminal to ${title}`, () => alive(lane), 20_000)
     await until(`what ${title}'s terminal printed`, () => shown(printed), 20_000)
   }

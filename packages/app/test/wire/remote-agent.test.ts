@@ -131,12 +131,12 @@ describe('an agent on another machine, from this window', () => {
     for (const act of far.acted) expect(typeof act.call.was).toBe('string')
   })
 
-  it('opens a terminal here that is the agent there on enter, live in the pane, typed into there, and the same one again', async () => {
+  it('opens a terminal here that is the agent there on a press, live in the pane, typed into there, and the same one again', async () => {
     const far = await linkedTo([INTAKE])
     far.attachable.set('tade/intake-door', 'echo attached-to-the-door; exec cat')
+    // A press opens it, as a click on an agent here does. Enter straight after
+    // it, while it is asked for, is the same terminal rather than a second.
     row('Doorbell')
-    await until('its controls', () => shown('type into it'), 20_000)
-    // Enter, with nothing typed on the line: the key the pane's first control names.
     terminal.press('\r')
     await until(
       'the terminal there',
@@ -171,8 +171,6 @@ describe('an agent on another machine, from this window', () => {
     const far = await linkedTo([INTAKE])
     far.attachable.set('tade/intake-door', "echo 'no session called tade-1 there' >&2; exit 1")
     row('Doorbell')
-    await until('its controls', () => shown('type into it'), 20_000)
-    await press('type into it')
     // Its tab stays, saying what the far end said, rather than vanishing in silence.
     await until('what it said', () => shown('no session called tade-1 there'), 20_000)
     await until('that it ended', () => shown('[it ended (1): press enter to close]'), 20_000)
@@ -187,10 +185,14 @@ describe('an agent on another machine, from this window', () => {
 
   it('says why where that machine has no terminal for its agent, and opens nothing', async () => {
     await linkedTo([INTAKE])
+    // Pressed, it is asked for and refused: said, and its screen read stays.
     row('Doorbell')
-    await until('its controls', () => shown('type into it'), 20_000)
-    await press('type into it')
     await until('why not', () => shown('its agent is not running there'), 20_000)
+    await until('its screen there', () => shown('its screen on vps · read-only'), 20_000)
+    expect(client.lanes().some((lane) => lane.id.startsWith('remotes/'))).toBe(false)
+    // Its control asks again, and is told the same.
+    await press('type into it')
+    await until('why not, again', () => shown('its agent is not running there'), 20_000)
     expect(client.lanes().some((lane) => lane.id.startsWith('remotes/'))).toBe(false)
   })
 })

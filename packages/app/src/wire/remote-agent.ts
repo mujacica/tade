@@ -49,8 +49,10 @@ import { RemoteTerminals } from './remote-terminals.ts'
 // pane in place of the screen read (`Place.lane`, `laneThere`) — sized to it,
 // read on every look and typed into there, as an agent here is its own lane,
 // with the window's whole pacing, scrolling and selection. Pressing an agent
-// there that already has one is looking at it live, and nothing is read over
-// the link while it is. The SSH key is the authority, so nothing types into a
+// whose lane runs there opens it, as a press on an agent here opens it: the
+// terminal already open to it is put in the pane, or one is opened (the screen
+// read shows until it runs), and nothing is read over the link while it is
+// live. The SSH key is the authority, so nothing types into a
 // lane from away: this never goes through the away view's verbs at all.
 // Opening one, running it again once its connection is back and moving it off
 // a way that does not get through are `remote-terminals.ts`'s.
@@ -139,6 +141,8 @@ export class RemoteAgents implements Subject, ThereDoor {
   private askedAt = 0
   /** The terminals here that are agents there. */
   private readonly terminals: RemoteTerminals
+  /** The agents there a terminal here is being opened to, by machine and task. */
+  private readonly opening = new Set<string>()
 
   constructor(wire: Wiring, deps: RemoteAgentDeps) {
     this.wire = wire
@@ -175,8 +179,9 @@ export class RemoteAgents implements Subject, ThereDoor {
 
   actions(): Actions {
     return {
-      // A row of an agent there, pressed: looked at, as a row here is focused.
-      'remote-look:': (task) => this.look(task),
+      // A row of an agent there, pressed: looked at, as a row here is focused,
+      // and opened where its lane runs, as a row here is opened by a click.
+      'remote-look:': (task) => this.press(task),
       'remote-attach': () => this.attach(),
       'remote-steer': () => {
         const looked = this.looked()
@@ -299,6 +304,19 @@ export class RemoteAgents implements Subject, ThereDoor {
     this.wire.draw()
     const looked = this.looked()
     if (looked !== null) void this.read(looked)
+  }
+
+  /**
+   * A row pressed: looked at and, where its agent's lane runs there, a terminal
+   * here that is it put in the pane (`attach`) — what enter on it does, as a
+   * click on an agent here opens it. Pressed again it is let go of, and opens
+   * nothing.
+   */
+  private press(id: string): void {
+    this.look(id)
+    const looked = this.looked()
+    if (looked?.agent?.lane !== 'running' || looked.place.lane) return
+    void this.attach()
   }
 
   async fromTaskMenu(id: string, item: string): Promise<void> {
@@ -586,7 +604,16 @@ export class RemoteAgents implements Subject, ThereDoor {
     const task = looked.place.agent
     const open = attachedTo(this.wire.opts.client.lanes(), machine, task)
     if (open !== null) return this.inPane(open.id)
-    await this.terminals.open(machine, task, (id) => this.inPane(id))
+    // One on its way is that one: a second press, or enter after a press,
+    // while it is asked for or starts, opens no second terminal.
+    const key = keyOf(looked.place)
+    if (this.opening.has(key)) return
+    this.opening.add(key)
+    try {
+      await this.terminals.open(machine, task, (id) => this.inPane(id))
+    } finally {
+      this.opening.delete(key)
+    }
   }
 
   /**
