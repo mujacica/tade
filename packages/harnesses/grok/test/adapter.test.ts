@@ -426,6 +426,32 @@ describe('GrokAdapter', () => {
     })
   })
 
+  describe('what it used', () => {
+    it('says a count that failed rather than dropping it', async () => {
+      const warnings: string[] = []
+      const grokHome = tmp('tade-grok-account-')
+      const runDir = tmp('tade-grok-runs-')
+      const one = new GrokAdapter({
+        runDir,
+        grokHome,
+        bin: standIn(tmp('tade-grok-bin-')),
+        home: tmp('tade-grok-home-'),
+        onWarning: (message) => warnings.push(message),
+      })
+      adapter = one
+      const spec = { run: 'app/c/agent', task: 'app/c', cwd: tmp('tade-grok-cwd-'), prompt: '' }
+      await one.supervise(spec)
+      // A record that is there and cannot be read: a folder where the file goes.
+      mkdirSync(join(grokHome, 'sessions', 'x', sessionIdFor(spec.task), 'updates.jsonl'), {
+        recursive: true,
+      })
+      const env = { TADE_RUN_SOCKET: runSocket(runDir, spec.run), TADE_RUN_ID: spec.run }
+      await run(HOOK_PATH, event('UserPromptSubmit', { prompt: 'go', promptId: 'p1' }), env)
+      await until(() => warnings.some((w) => w.startsWith('could not count')))
+      expect(warnings.find((w) => w.startsWith('could not count'))).toMatch(/EISDIR/)
+    })
+  })
+
   describe('its tool server', () => {
     it('says what an agent left before it says the task is done', async () => {
       const { signals, env, one, spec } = await setUp()
@@ -465,6 +491,63 @@ describe('GrokAdapter', () => {
       expect(calls.map((s) => s.type)).toEqual(['extension_call', 'done'])
       expect(calls[0]).toMatchObject({ tool: 'tade_leftovers' })
       expect(out).toContain('"name":"tade_done"')
+    })
+
+    /** The tool server started on its own, as Grok would start it: what it said, and how it ended. */
+    const serve = (env: Record<string, string>, lines: string[] = []) => {
+      const server = spawn(process.execPath, [MCP_PATH], {
+        env: { ...process.env, TADE_RUN_SOCKET: '', ...env },
+      })
+      const said = { out: '', err: '', code: undefined as number | null | undefined }
+      server.stdout.on('data', (chunk: Buffer) => {
+        said.out += chunk.toString('utf8')
+      })
+      server.stderr.on('data', (chunk: Buffer) => {
+        said.err += chunk.toString('utf8')
+      })
+      server.on('exit', (code) => {
+        said.code = code
+      })
+      for (const line of lines) server.stdin.write(`${line}\n`)
+      return { server, said }
+    }
+
+    it('says a list of tools it could not read, and still offers its own', async () => {
+      const missing = join(tmp('tade-grok-tools-'), 'gone.json')
+      const { server, said } = serve({ TADE_EXTENSION_TOOLS: missing }, [
+        JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+      ])
+      await until(() => said.out.includes('"id":1') && said.err.includes(missing), 10_000)
+      server.kill()
+      expect(said.err).toContain(`could not read the extension tools in ${missing}`)
+      expect(said.err).toContain('ENOENT')
+      expect(said.out).toContain('"name":"tade_done"')
+    })
+
+    it('answers a line that is not JSON with a parse error', async () => {
+      const { server, said } = serve({}, ['not json'])
+      await until(() => said.out.includes('-32700'), 10_000)
+      server.kill()
+      expect(JSON.parse(said.out.trim())).toMatchObject({
+        jsonrpc: '2.0',
+        id: null,
+        error: { code: -32700 },
+      })
+    })
+
+    it('says why the server a headless run was handed could not be started', async () => {
+      const dir = tmp('tade-grok-handed-')
+      const missing = join(dir, 'gone.mcp.json')
+      const gone = serve({ TADE_GROK_MCP: missing })
+      await until(() => gone.said.code !== undefined, 10_000)
+      expect(gone.said.code).toBe(1)
+      expect(gone.said.err).toContain(`could not read ${missing}`)
+      const empty = join(dir, 'empty.mcp.json')
+      writeFileSync(empty, JSON.stringify({ mcpServers: {} }))
+      const none = serve({ TADE_GROK_MCP: empty })
+      await until(() => none.said.code !== undefined, 10_000)
+      expect(none.said.code).toBe(1)
+      expect(none.said.err).toContain(`${empty} names no MCP server this can start`)
     })
   })
 })

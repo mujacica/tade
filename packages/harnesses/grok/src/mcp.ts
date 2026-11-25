@@ -86,52 +86,78 @@ const DOCUMENT_READY: ToolSpec = {
   },
 }
 
+/**
+ * The extension tools Tade listed for this agent. A list that cannot be read
+ * still leaves Tade's own tools, so the server goes on without them, and says
+ * so on stderr, which is where Grok keeps what a server it started says.
+ */
 function listed(path: string | undefined): ToolSpec[] {
   if (!path) return []
   try {
     const parsed = JSON.parse(readFileSync(path, 'utf8')) as unknown
-    if (!Array.isArray(parsed)) return []
+    if (!Array.isArray(parsed)) {
+      process.stderr.write(`tade: ${path} is not a list of tools, so none of them is offered\n`)
+      return []
+    }
     return parsed.filter(
       (one): one is ToolSpec =>
         typeof one?.name === 'string' &&
         typeof one?.description === 'string' &&
         typeof one?.parameters === 'object',
     )
-  } catch {
+  } catch (err) {
+    process.stderr.write(
+      `tade: could not read the extension tools in ${path}, so none of them is offered: ${(err as Error).message}\n`,
+    )
     return []
   }
 }
 
-/** The server a headless run was handed, out of the file `TADE_GROK_MCP` names: the first in it. */
-function handed(
-  path: string,
-): { command: string; args: string[]; env: Record<string, string> } | null {
+/** What a headless run's server is started as. */
+interface Server {
+  command: string
+  args: string[]
+  env: Record<string, string>
+}
+
+/**
+ * The server a headless run was handed, out of the file `TADE_GROK_MCP` names:
+ * the first in it. Throws, saying why, when there is none this can start.
+ */
+function handed(path: string): Server {
+  let parsed: { mcpServers?: unknown }
   try {
-    const parsed = JSON.parse(readFileSync(path, 'utf8')) as { mcpServers?: unknown }
-    const servers = parsed.mcpServers
-    if (typeof servers !== 'object' || servers === null) return null
-    const first = Object.values(servers as Record<string, unknown>)[0] as
-      | { command?: unknown; args?: unknown; env?: unknown }
-      | undefined
-    if (typeof first?.command !== 'string') return null
-    const args = Array.isArray(first.args) ? first.args.map(String) : []
-    const env =
-      typeof first.env === 'object' && first.env !== null
-        ? Object.fromEntries(
-            Object.entries(first.env as Record<string, unknown>).map(([k, v]) => [k, String(v)]),
-          )
-        : {}
-    return { command: first.command, args, env }
-  } catch {
-    return null
+    parsed = JSON.parse(readFileSync(path, 'utf8')) as { mcpServers?: unknown }
+  } catch (err) {
+    throw new Error(`could not read ${path}: ${(err as Error).message}`)
   }
+  const servers = parsed?.mcpServers
+  const first =
+    typeof servers === 'object' && servers !== null
+      ? (Object.values(servers as Record<string, unknown>)[0] as
+          | { command?: unknown; args?: unknown; env?: unknown }
+          | undefined)
+      : undefined
+  if (typeof first?.command !== 'string') {
+    throw new Error(`${path} names no MCP server this can start`)
+  }
+  const args = Array.isArray(first.args) ? first.args.map(String) : []
+  const env =
+    typeof first.env === 'object' && first.env !== null
+      ? Object.fromEntries(
+          Object.entries(first.env as Record<string, unknown>).map(([k, v]) => [k, String(v)]),
+        )
+      : {}
+  return { command: first.command, args, env }
 }
 
 const elsewhere = process.env.TADE_GROK_MCP
 if (elsewhere) {
-  const server = handed(elsewhere)
-  if (!server) {
-    process.stderr.write(`tade: ${elsewhere} names no MCP server this can start\n`)
+  let server: Server
+  try {
+    server = handed(elsewhere)
+  } catch (err) {
+    process.stderr.write(`tade: ${(err as Error).message}\n`)
     process.exit(1)
   }
   const child = spawn(server.command, server.args, {
@@ -169,7 +195,13 @@ function serve(): void {
     let message: { id?: unknown; method?: unknown; params?: Record<string, unknown> }
     try {
       message = JSON.parse(line)
-    } catch {
+    } catch (err) {
+      // JSON-RPC's own answer to a line that is not JSON: there is no id to answer on.
+      send({
+        jsonrpc: '2.0',
+        id: null,
+        error: { code: -32700, message: `Parse error: ${(err as Error).message}` },
+      })
       return
     }
     const { id, method, params } = message

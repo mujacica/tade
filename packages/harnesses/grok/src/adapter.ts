@@ -1115,7 +1115,15 @@ export class GrokAdapter implements WorkerAdapter {
     if (entry.countTimer) clearTimeout(entry.countTimer)
     entry.countTimer = setTimeout(() => {
       entry.countTimer = null
-      entry.counting = entry.counting.then(() => this.sayUsage(entry)).catch(() => {})
+      // Caught so the next count still runs, and said: a count that failed is
+      // spend nobody is told about until a later one catches up.
+      entry.counting = entry.counting
+        .then(() => this.sayUsage(entry))
+        .catch((err: unknown) =>
+          this.opts.onWarning(
+            `could not count what a Grok agent used, so its spend is not said until the next count: ${err instanceof Error ? err.message : String(err)}`,
+          ),
+        )
     }, wait)
     entry.countTimer.unref?.()
   }

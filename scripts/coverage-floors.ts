@@ -63,10 +63,10 @@ export const FLOOR: Record<string, number> = {
   // the fixing, which starts an agent.
   'packages/extensions/review': 85,
   'packages/harnesses/claude': 77,
-  // 67.4% with no `grok` on the PATH and 79.1% with one (MOVES). What is
-  // measured and untested is `still.ts`, which Claude Code's has a test for,
-  // and `sessions.ts`'s carrying a conversation across.
-  'packages/harnesses/grok': 67,
+  // 67.4% with no `grok` on the PATH and 79.1% with one (MOVES). 67 -> 69
+  // with `still.ts` tested as Claude Code's is (69.7% with no `grok`). What is
+  // measured and untested is `sessions.ts`'s carrying a conversation across.
+  'packages/harnesses/grok': 69,
   'packages/orchestrator': 77,
   // `src/wire/` is the hole and everything else here is over 89%: the pure
   // layers (`view/` at 97%) are what the goldens hold, and the wiring is what
