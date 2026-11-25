@@ -5,8 +5,35 @@ Every change to Tade, newest first, in the words whoever made it wrote. Generate
 explains the reasoning in the body, and a tool that reshaped them into `feat:` and `fix:` would
 say less than the history already does.
 
+## [0.4.1](https://github.com/mujacica/tade/compare/v0.4.0...v0.4.1) — 2026-11-25
+
+- The + machine-picker test names this machine as the window does on each platform, so it holds on Linux too ([`8530e98`](https://github.com/mujacica/tade/commit/8530e98797cecb6a0490e05409b3fea411d4c374))
+- A request whose asker went away mid-body ends there, and is never reported as the away view's trouble ([`131ac55`](https://github.com/mujacica/tade/commit/131ac55ec552b20f81285e7a0397695f39ad5094))
+- tade task create works beside a window that holds the home: it hands the request to that window, which makes the task and answers ([`1044e5b`](https://github.com/mujacica/tade/commit/1044e5b80090b8a7383c2644b7782f98220c71d6))
+- A hub whose orchestrator is still starting tells a machine to wait, and neither end reports it as trouble ([`809526c`](https://github.com/mujacica/tade/commit/809526c5c2d26000d25d84de8ba783ebe9b764ba))
+- A setting carried in from another machine is followed like one made here: an orchestrator.account carried over starts the orchestrator again as that account ([`806f696`](https://github.com/mujacica/tade/commit/806f696c8c24c2190b969bf198caea6ef3417453))
+- /login typed on the line is held to where it goes: the sign-in sheet on the person's own phone, the window's answer from any other device ([`600a925`](https://github.com/mujacica/tade/commit/600a92576007da9dc58a4396673b0eea1ce2eddb))
+- /login on the person's own phone signs the orchestrator in from there, rather than saying where to do it at the machine ([`75f4749`](https://github.com/mujacica/tade/commit/75f4749311c65abdec46df4d1f5fc2a9f4f2dc47))
+- The window's other slash commands typed on the away view's line are answered by the window, never handed to the model as sentences ([`a07fdd9`](https://github.com/mujacica/tade/commit/a07fdd9557630f2d1a2986a8abb10bff03e6ecb1))
+- /login typed on the away view's line is answered by the window, never handed to the model as a sentence ([`1438e7c`](https://github.com/mujacica/tade/commit/1438e7ce522ac72b9dd036f9260a54e449154813))
+- /login on another machine's tab starts that machine's orchestrator again on the new sign-in ([`b7ac486`](https://github.com/mujacica/tade/commit/b7ac48649e00a129c10b7a69b1cd0f2442c20654))
+- An agent in an account folder of Tade's own never stops on Claude Code's first-run questions, however the folder came to be ([`ccec0fb`](https://github.com/mujacica/tade/commit/ccec0fb440f494ccb9dcf4343edc8f606a828afc))
+- /login on the orchestrator's line signs that orchestrator's harness in, on the machine whose line it was typed on ([`3a623d9`](https://github.com/mujacica/tade/commit/3a623d9ee19394b392e9e1e654c356f755f981f2))
+- tade accounts sign-in --orchestrator signs in the orchestrator's own harness and account, read out of this machine's config ([`e5e79d3`](https://github.com/mujacica/tade/commit/e5e79d3e5453d5ec42b7a4970d389a341871d763))
+- A remote's gh is signed in with no question asked, and everything Tade runs over the link finds what is in ~/.local/bin ([`2052eff`](https://github.com/mujacica/tade/commit/2052effa35cd6d3f2b70c4d1c86b40585d0d5c25))
+- Another machine's project tabs have their × and ≡, this machine's tabs carry no name, and the + asks which machine first ([`267e787`](https://github.com/mujacica/tade/commit/267e78750bbbe93f85ede52036d51f2d1097efd6))
+- The orchestrator's model is kept only when its harness names one, and as the harness's pick, which never beats a model somebody chose on another machine ([`96ac7a0`](https://github.com/mujacica/tade/commit/96ac7a07d8c096b4f345f11fb960af487da1e549))
+- A sign-in whose program is not on the PATH says so and how to fix it, rather than exiting 1 with nothing after Tade's own line ([`b99b4fa`](https://github.com/mujacica/tade/commit/b99b4fabba1f6f0a5727658298d341ff892f37b5))
+- A service unit written over a bare ssh carries Node's directory and ~/.local/bin, so its agents are found ([`23fd28c`](https://github.com/mujacica/tade/commit/23fd28c9dd718898cca91b19fa3423713153c75d))
+- A remote's tade that our installer put in ~/.local/bin is found over SSH, so tade remote add needs no --tade for it ([`6ec8b46`](https://github.com/mujacica/tade/commit/6ec8b467d8bbce84e4ba9d97ae5b4677ca4769d8))
+- The README's VPS steps turn the away view on, on that machine alone, before the Mac pairs through it ([`238ad52`](https://github.com/mujacica/tade/commit/238ad5231489c985c3631e4a901fca2d3a6539a8))
+- The README names Ghostty as the terminal Tade works best in, beside what is optional on a Mac ([`7aef19e`](https://github.com/mujacica/tade/commit/7aef19e6f0750fcdb2c4ecf1b9dee9aa5dc8e4c8))
+- Two feeds tests write only kinds that travel, so a random pick of all output and input no longer leaves the copy empty ([`423dce3`](https://github.com/mujacica/tade/commit/423dce3fd8914481d831ad5263ca31ffd076b6f9))
+- @sentry/node moves from ^11.14.0 to ^11.16.0 (minor) ([`09b827c`](https://github.com/mujacica/tade/commit/09b827cc8fda8401f24df9a4b6b2a6593e496b7f))
+
 ## [0.4.0](https://github.com/mujacica/tade/compare/v0.3.0...v0.4.0) — 2026-11-24
 
+- The reaper listens for being asked to stop before it starts anything, so a SIGTERM just after spawn no longer leaves the harness running ([`70225ed`](https://github.com/mujacica/tade/commit/70225ed35a3611a64fc59198b74c555eacc22da2))
 - Picking what queued work waits on right-clicks the task's row in the list, not the notice beside it that names the same task ([`b2a4a53`](https://github.com/mujacica/tade/commit/b2a4a53f762b36615786155ef8bdb4c17bb4f57b))
 - A plan answers with what its tasks started, not with the look and the pass begun before it ([`c34f71a`](https://github.com/mujacica/tade/commit/c34f71aed65fc2260880c1919b3680d13530af6d))
 - The README is a short showcase: a picture and two or three sentences for each of the features that matter most, then install kept findable ([`471b397`](https://github.com/mujacica/tade/commit/471b397adb7f427b2585bad8bc0be7ec90a385bd))
