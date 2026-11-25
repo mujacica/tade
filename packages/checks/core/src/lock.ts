@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { link, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { holdUntilExit, letGoOf } from './held.ts'
@@ -73,6 +74,12 @@ let claims = 0
  * shared it nobody had it alone again. So a release takes back only the lock
  * it wrote — every run in the window has the window's pid, so the pid alone
  * cannot say whose it is, and each claim writes its own `claim`.
+ *
+ * A dead holder's lock is removed only by whoever takes it over (`takeOver`).
+ * Two takers who both found it dead used each to remove it and link their own,
+ * and the second's removal was of the first's fresh lock: both held it. Nor is
+ * a lock that went between failing to link it and reading it anybody's to
+ * remove — that one is linked for again, since the next might be live.
  */
 export async function claim(
   path: string,
@@ -86,7 +93,7 @@ export async function claim(
   const aside = `${path}.${mine}.writing`
   await writeFile(aside, text, { mode: 0o600 })
   try {
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
         await link(aside, path)
         // Given back however this process ends, a reload included (`held.ts`).
@@ -104,9 +111,12 @@ export async function claim(
         }
       } catch (err) {
         if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err
-        const held = await holderAt(path)
+        const there = await textAt(path)
+        if (there === null) continue
+        const held = holderIn(there)
         if (held) return { held }
-        await rm(path, { force: true })
+        const taking = await takeOver(path, there, holder, now)
+        if (taking) return taking
       }
     }
     return { held: { pid: 0, ...holder, at } }
@@ -115,9 +125,46 @@ export async function claim(
   }
 }
 
+/**
+ * Remove a dead holder's lock, as the one taker allowed to: whoever holds the
+ * guard named after exactly that lock, claimed the way the lock is — so a
+ * guard whose taker died is taken over by the same rule, one level down. While
+ * the guard is held nobody else may remove the dead lock, so one that still
+ * reads as the dead one is that one; a taker who comes late finds the guard
+ * held, or the lock gone or somebody's new one, and removes nothing. Somebody
+ * else taking it over is who has it.
+ */
+async function takeOver(
+  path: string,
+  dead: string,
+  holder: { what: string; where?: string },
+  now: () => number,
+): Promise<{ held: LockHolder } | null> {
+  const which = createHash('sha256').update(dead).digest('hex').slice(0, 16)
+  const guard = await claim(`${path}.${which}.taking`, holder, now)
+  if ('held' in guard) return guard
+  try {
+    if ((await textAt(path)) === dead) await rm(path, { force: true })
+  } finally {
+    await guard.release()
+  }
+  return null
+}
+
+/** What a lock file says; null when there is none. One nobody can read says nothing. */
+async function textAt(path: string): Promise<string | null> {
+  return readFile(path, 'utf8').catch((err: unknown) =>
+    (err as NodeJS.ErrnoException).code === 'ENOENT' ? null : '',
+  )
+}
+
 /** Who holds one lock file, or null. A dead pid is nobody, and so is a file nobody can read. */
 export async function holderAt(path: string): Promise<LockHolder | null> {
-  const text = await readFile(path, 'utf8').catch(() => '')
+  return holderIn((await textAt(path)) ?? '')
+}
+
+/** Who a lock's text names, if they are alive. */
+function holderIn(text: string): LockHolder | null {
   if (!text.trim()) return null
   let raw: Record<string, unknown>
   try {

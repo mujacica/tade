@@ -58,6 +58,23 @@ describe('one run at a time, per worktree', () => {
     }
   })
 
+  it("lets exactly one of several takers over a dead holder's lock", async () => {
+    // Each taker who found the holder dead removed the lock and linked its
+    // own, so the second removed the first's fresh one: two held it. Twenty
+    // rounds of four at once found that in one to four of them.
+    for (let round = 0; round < 20; round++) {
+      const worktree = tmp('tade-lock-')
+      mkdirSync(worktree, { recursive: true })
+      writeFileSync(
+        lockPath(worktree),
+        `${JSON.stringify({ pid: 999_999_9, what: 'tests', at: 'yesterday', claim: 'gone-0' })}\n`,
+      )
+      const got = await Promise.all([1, 2, 3, 4].map(() => takeRunLock(worktree, 'tests')))
+      expect(got.filter((one) => !('held' in one))).toHaveLength(1)
+      expect(readdirSync(worktree).filter((name) => name !== 'checks.lock')).toEqual([])
+    }
+  })
+
   it('takes back only the lock it wrote, never one somebody took since', async () => {
     // Every run in the window has the window's pid. A release that removed
     // whatever lock was there let a third run in beside the second.

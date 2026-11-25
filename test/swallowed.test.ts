@@ -181,7 +181,7 @@ const ALLOWED: Record<string, number> = {
   'packages/checks/core/src/ci.ts': 2,
   'packages/checks/core/src/coverage.ts': 1,
   'packages/checks/core/src/hooks.ts': 1,
-  'packages/checks/core/src/lock.ts': 2,
+  'packages/checks/core/src/lock.ts': 1,
   'packages/checks/core/src/machine.ts': 1,
   'packages/checks/core/src/records.ts': 2,
   'packages/checks/core/src/run.ts': 1,
