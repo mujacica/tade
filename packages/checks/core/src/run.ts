@@ -1,5 +1,5 @@
 import { coverageOf } from './coverage.ts'
-import { waitForRunLock } from './lock.ts'
+import { type LockHolder, waitForRunLock } from './lock.ts'
 import { type Holders, holdersSaid, queueDir, SLOT_ENV, waitForMachineSlot } from './machine.ts'
 import type { Check, CheckLog, CheckRun, Covered, ProjectRef, Runner } from './port.ts'
 import { RunnerError, settled } from './port.ts'
@@ -100,24 +100,29 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
   const deadline = asked + (request.waitMs ?? 0)
   // A place this asker kept for the machine goes on holding its turn while
   // they wait for the checkout first. Left alone it stopped after `HELD_MS`,
-  // and a suite that asked after them took the slot (`holdKept`).
+  // and a suite that asked after them took the slot (`holdKept`). Not while
+  // whoever has the lock waits for the machine behind it: that is who has it,
+  // where it runs, as the lock says — the checkout for a run there, the batch
+  // tree for one in it, which waits for the checkout's lock all the same.
   const machine = request.machine
   const holding = machine
-    ? (ms: number) => holdKept(queueDir(machine.home), by, { where: project.root, ms, now })
+    ? (ms: number, held: LockHolder) =>
+        holdKept(queueDir(machine.home), by, { waitingFor: [held], ms, now })
     : null
   const lock = needsMachine
     ? await waitForRunLock(records, what, {
         waitMs: request.waitMs ?? 0,
         now,
         as: by,
-        ...(holding ? { meanwhile: () => holding(STILL_MS) } : {}),
+        where: project.root,
+        ...(holding ? { meanwhile: (held: LockHolder) => holding(STILL_MS, held) } : {}),
       })
     : null
   if (lock && 'held' in lock) {
     // Given up for the checkout, it holds its turn for the machine while they
     // ask again, as a place given up for the machine does. Gone because whoever
     // asked has gone, there is nobody to hold it for.
-    if (holding && !request.signal?.aborted) await holding(HELD_MS)
+    if (holding && !request.signal?.aborted) await holding(HELD_MS, lock.held)
     const since = lock.held.at ? ` (since ${lock.held.at})` : ''
     throw new RunnerError(
       'busy',

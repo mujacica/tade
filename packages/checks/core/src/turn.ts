@@ -139,23 +139,39 @@ export async function takeBack(
  */
 export const STILL_MS = 10_000
 
+/** Whoever has what a kept place's asker waits for: the process, and where it runs. */
+export interface WaitedFor {
+  pid: number
+  /** Where it runs. Unknown — a lock somebody took without saying — is any waiter of that process. */
+  where?: string
+}
+
 /**
  * Make the place `as` kept in `dir` hold its turn for at least `ms` more.
- * This is for a run waiting for its checkout before it waits for the machine
- * (`run.ts`). While it does, it is not gone, but its kept place stopped
- * holding its turn `HELD_MS` after it was kept, and a suite that started after
- * it took the slot. The exception is a place behind it waiting from the same
- * `where` (any of them, given several). That one may be whoever has the
- * checkout, waiting for the machine behind this place, and holding the turn
- * would leave each waiting for the other. Then the place is left as it is.
+ * This is for a run waiting for its checkout, or the batch tree, before it
+ * waits for the machine (`run.ts`, `batch.ts`). While it does, it is not gone,
+ * but its kept place stopped holding its turn `HELD_MS` after it was kept, and
+ * a suite that started after it took the slot.
+ *
+ * The exception is a place behind it that is one of `waitingFor` — whoever
+ * has the lock the asker waits for, waiting for the machine behind this
+ * place — because holding the turn would leave each waiting for the other.
+ * Then the place is left as it is. It is matched by process and where, and
+ * never by where alone: a run in the batch tree waits for the checkout's lock,
+ * whose holder waits from the checkout, and a shell's suite in the checkout
+ * that asked after this place holds no lock and is not who it waits for.
  * Says whether it now holds its turn for that long.
  */
 export async function holdKept(
   dir: string,
   as: string,
-  opts: { where: string | readonly string[]; ms: number; now: () => number },
+  opts: { waitingFor: readonly WaitedFor[]; ms: number; now: () => number },
 ): Promise<boolean> {
-  const wheres: readonly string[] = typeof opts.where === 'string' ? [opts.where] : opts.where
+  const isWaitedFor = (one: LockHolder | null) =>
+    one !== null &&
+    opts.waitingFor.some(
+      (them) => them.pid === one.pid && (them.where === undefined || them.where === one.where),
+    )
   const names = await readdir(dir).catch((err: unknown) => {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [] as string[]
     throw err
@@ -173,8 +189,7 @@ export async function holdKept(
       return at !== undefined && at > ticket
     })
     for (const other of behind) {
-      const where = (await holderAt(join(dir, other)))?.where
-      if (where !== undefined && wheres.includes(where)) return false
+      if (isWaitedFor(await holderAt(join(dir, other)))) return false
     }
     const until = opts.now() + opts.ms
     // Held long enough already, it is not written again on every look.

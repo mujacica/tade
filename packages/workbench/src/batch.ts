@@ -8,6 +8,7 @@ import {
   followRenames,
   HELD_MS,
   type Holders,
+  heldBy,
   holdKept,
   type LockHolder,
   planFor,
@@ -17,10 +18,12 @@ import {
   readOutcome,
   readRuns,
   rollup,
+  runQueueDir,
   SLOT_ENV,
   STILL_MS,
   waitForMachineSlot,
   waitForRunLock,
+  waitingAhead,
 } from '@tade/checks-core'
 import {
   type Config,
@@ -260,10 +263,10 @@ function treeTurn(home: string, project: string): string {
  * here, and for `HELD_MS` when they give up, as it does while a run waits for
  * its checkout (`runChecks`): left alone it stopped `HELD_MS` after it was
  * kept, and a suite that asked after them took the slot. It is left alone
- * while somebody behind it waits from the tree or from the checkout: whoever
- * has the tree may be waiting for the machine there, or for the checkout's
- * lock, held by a run there that waits for the machine, and holding would
- * leave each waiting for the other.
+ * while whoever has the tree waits for the machine behind it, or waits for the
+ * checkout's lock while whoever has that does: holding would leave each
+ * waiting for the other. Anybody else behind it — a shell's suite in the
+ * checkout — is not who it waits for, and waits its turn (`holdKept`).
  */
 async function takeTree(
   opts: { home: string; project: string; root: string; by?: string; signal?: AbortSignal },
@@ -271,21 +274,38 @@ async function takeTree(
   waitMs: number,
 ): ReturnType<typeof waitForRunLock> {
   const by = opts.by
+  const tree = batchDir(opts.home, opts.project)
   const holding = by
-    ? (ms: number) =>
+    ? async (ms: number, held: LockHolder) =>
         holdKept(queueDir(opts.home), by, {
-          where: [batchDir(opts.home, opts.project), opts.root],
+          waitingFor: [held, ...(await checkoutFor(opts, tree))],
           ms,
           now: Date.now,
         })
     : null
   const turn = await waitForRunLock(treeTurn(opts.home, opts.project), what, {
     waitMs,
-    ...(holding ? { meanwhile: () => holding(STILL_MS) } : {}),
+    where: tree,
+    ...(holding ? { meanwhile: (held: LockHolder) => holding(STILL_MS, held) } : {}),
   })
   // Gone because whoever asked has gone, there is nobody to hold it for.
-  if ('held' in turn && holding && !opts.signal?.aborted) await holding(HELD_MS)
+  if ('held' in turn && holding && !opts.signal?.aborted) await holding(HELD_MS, turn.held)
   return turn
+}
+
+/**
+ * Whoever has the checkout's lock, while the tree's run waits for it — which
+ * only the tree's run does from the tree — or nobody.
+ */
+async function checkoutFor(
+  opts: { home: string; project: string },
+  tree: string,
+): Promise<LockHolder[]> {
+  const records = recordsDir(opts.home, opts.project, null)
+  const queued = await waitingAhead(runQueueDir(records), null)
+  if (!queued.some((one) => one.where === tree)) return []
+  const held = await heldBy(records)
+  return held ? [held] : []
 }
 
 function treeBusy(held: LockHolder, project: string): string {

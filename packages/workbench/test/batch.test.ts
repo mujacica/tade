@@ -1,5 +1,7 @@
+import { spawn } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { delimiter, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import {
   queueDir,
   type RunnerError,
@@ -280,7 +282,93 @@ describe('a place kept for the machine, while its run waits for the batch tree',
     await Promise.all([there, two, one])
     expect(ran).toEqual(['shop/three', 'shop/two', 'shop/one'])
   })
+
+  it('loses no turn with a batch run, a related run and a shell suite waiting together', async () => {
+    // shop/one kept a place for the machine and asks again for a full run. It
+    // has the tree and waits for the checkout's lock, which a related run there
+    // holds while it waits for the machine behind that place: held, the two
+    // wait for each other. Then a shell's suite in the checkout asks, and must
+    // not go before shop/one because it waits from where the related run does.
+    const { repo, at } = project()
+    const shell = await keptPastItsTurn(repo.home, 'shop/one')
+    const records = recordsDir(repo.home, 'shop', null)
+    const ran: string[] = []
+    const first = (who: string) => () => {
+      if (!ran.includes(who)) ran.push(who)
+    }
+    const related = runChecks({
+      runner: makeScriptedRunner({}),
+      project: { name: 'shop', root: repo.root },
+      records,
+      checks: [
+        { id: 'related', title: 'related', run: 'true', alone: true, minutes: 1, required: true },
+      ],
+      commit: repo.head(),
+      by: 'shop/three',
+      waitMs: 20_000,
+      machine: { home: repo.home, most: 1 },
+      onRun: first('shop/three'),
+    }).catch((err: unknown) => {
+      if ((err as RunnerError).trouble !== 'busy') throw err
+      ran.push('shop/three gave up')
+    })
+    await vi.waitFor(() => expect(waitsIn(queueDir(repo.home))).toBe(true), { timeout: 5_000 })
+    const full = runBatch({
+      ...at,
+      userHome: repo.home,
+      commit: repo.head(),
+      by: 'shop/one',
+      waitMs: 30_000,
+      onRun: first('shop/one'),
+    }).then((done) => {
+      if (!('runs' in done)) ran.push('shop/one gave up')
+    })
+    await vi.waitFor(() => expect(waitsIn(runQueueDir(records))).toBe(true), { timeout: 10_000 })
+    // A suite somebody typed into a shell: its own process, as it is, which
+    // takes the machine's turn from the suite's own setup (`test/one-suite.ts`).
+    const suite = spawn(process.execPath, ['--input-type=module', '-e', SHELL_SUITE], {
+      env: {
+        ...process.env,
+        SUITE_MACHINE: pathToFileURL(join(import.meta.dirname, '../../checks/core/src/machine.ts'))
+          .href,
+        SUITE_HOME: repo.home,
+        SUITE_ROOT: repo.root,
+      },
+      stdio: ['ignore', 'pipe', 'inherit'],
+    })
+    const suiteDone = new Promise<void>((done) => suite.on('exit', () => done()))
+    suite.stdout.on('data', (chunk: Buffer) => {
+      for (const line of chunk.toString().split('\n')) if (line) ran.push(`shell: ${line}`)
+    })
+    await vi.waitFor(
+      () =>
+        expect(
+          readdirSync(queueDir(repo.home)).filter((name) => name.endsWith('.wait')),
+        ).toHaveLength(2),
+      { timeout: 10_000 },
+    )
+    await shell.release()
+    await Promise.all([related, full, suiteDone])
+    expect(ran).toEqual(['shop/three', 'shop/one', 'shell: has it'])
+  })
 })
+
+/** A shell's suite waiting for the machine from the checkout, saying when it has it. */
+const SHELL_SUITE = `
+const { waitForMachineSlot } = await import(process.env.SUITE_MACHINE)
+const got = await waitForMachineSlot(
+  process.env.SUITE_HOME,
+  1,
+  { what: 'vitest, 424 files', where: process.env.SUITE_ROOT },
+  { waitMs: 60000, everyMs: 20 },
+)
+if ('held' in got) {
+  console.log('gave up')
+} else {
+  console.log('has it')
+  await got.release()
+}
+`
 
 describe('a red batch, narrowed', () => {
   it('names the commit that broke it and the task its trailer says it is', async () => {

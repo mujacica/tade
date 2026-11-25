@@ -62,8 +62,10 @@ export function takeRunLock(
   records: string,
   what: string,
   now: () => number = Date.now,
+  /** Where the run runs, so whoever waits for this lock can tell it among those waiting for the machine (`holdKept`). */
+  where?: string,
 ): Promise<RunLock | { held: LockHolder }> {
-  return claim(lockPath(records), { what }, now)
+  return claim(lockPath(records), where === undefined ? { what } : { what, where }, now)
 }
 
 /** Who is running checks in this worktree, or null. A dead pid is nobody. */
@@ -221,11 +223,14 @@ export async function waitForRunLock(
     now?: () => number
     /** Who the wait is for, so giving up at the deadline keeps their place (`turn.ts`). */
     as?: string
+    /** Where the asker runs, written in the lock and in its place in the queue (`takeRunLock`). */
+    where?: string
     /**
-     * Done at every look while the wait goes on. A run uses it to hold the
-     * turn of the machine place it kept, which it needs next (`run.ts`).
+     * Done at every look while the wait goes on, told who has the lock (or is
+     * ahead for it). A run uses it to hold the turn of the machine place it
+     * kept, which it needs next, unless that one waits behind it (`run.ts`).
      */
-    meanwhile?: () => Promise<unknown>
+    meanwhile?: (held: LockHolder) => Promise<unknown>
   } = {},
 ): Promise<WaitedLock | { held: LockHolder }> {
   const now = opts.now ?? Date.now
@@ -235,14 +240,16 @@ export async function waitForRunLock(
   const queue = runQueueDir(records)
   // Taken only once there is a wait, or taken back where this asker kept one;
   // kept at the deadline, and given up however else it ends.
-  let place: Place | null = opts.as ? await takeBack(queue, { what, as: opts.as }, now) : null
+  const where = opts.where
+  const holder = where === undefined ? { what } : { what, where }
+  let place: Place | null = opts.as ? await takeBack(queue, { ...holder, as: opts.as }, now) : null
   let gaveUp = false
   try {
     for (;;) {
       const ahead = await waitingAhead(queue, place?.name ?? null, now)
       const got = ahead[0]
         ? { held: (await heldBy(records)) ?? ahead[0] }
-        : await takeRunLock(records, what, now)
+        : await takeRunLock(records, what, now, where)
       if (!('held' in got)) {
         const as = opts.as
         const since = place?.at ?? asked
@@ -251,7 +258,7 @@ export async function waitForRunLock(
           giveUp: async () => {
             // Kept before the worktree goes, so nobody behind finds it free
             // with no place ahead of them.
-            if (as) await (await joinQueue(queue, { what, as }, now, since)).keep()
+            if (as) await (await joinQueue(queue, { ...holder, as }, now, since)).keep()
             await got.release()
           },
         }
@@ -260,8 +267,8 @@ export async function waitForRunLock(
         gaveUp = true
         return got
       }
-      place ??= await joinQueue(queue, opts.as ? { what, as: opts.as } : { what }, now)
-      await opts.meanwhile?.()
+      place ??= await joinQueue(queue, opts.as ? { ...holder, as: opts.as } : holder, now)
+      await opts.meanwhile?.(got.held)
       await pause(every)
     }
   } finally {
