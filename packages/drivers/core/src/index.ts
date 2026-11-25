@@ -2,6 +2,7 @@
 // (`@tade/drivers-core/conformance`) so that importing the port does not drag
 // a test runner into production code.
 
+export * from './paste.ts'
 export * from './pointer.ts'
 export * from './port.ts'
 export * from './wheel.ts'

@@ -18,7 +18,7 @@ import type { LanePointing, LaneScrolling, WheelEncoding } from '@tade/drivers-c
 export const PANE_FORMAT =
   '#{cursor_x} #{cursor_y} #{pane_height} #{alternate_on} ' +
   '#{mouse_any_flag} #{mouse_button_flag} #{mouse_standard_flag} #{mouse_sgr_flag} ' +
-  '#{mouse_all_flag}'
+  '#{mouse_all_flag} #{bracket_paste_flag}'
 
 /** What `PANE_FORMAT` came back with. */
 export interface Pane {
@@ -38,12 +38,19 @@ export interface Pane {
    */
   drag: boolean
   encoding: WheelEncoding
+  /**
+   * It turned bracketed paste on, so a paste is wrapped in its markers. A tmux
+   * that does not know the flag says nothing, which reads as off: the text
+   * reaches the program plain rather than with markers it may never have asked
+   * for.
+   */
+  bracketed: boolean
 }
 
 export function readPane(said: string): Pane {
   const fields = said.trim().split(/\s+/).map(Number)
   const [x = 0, y = 0, height = 0, alternate = 0, any = 0, button = 0] = fields
-  const [standard = 0, sgr = 0, all = 0] = fields.slice(6)
+  const [standard = 0, sgr = 0, all = 0, bracketed = 0] = fields.slice(6)
   return {
     x,
     y,
@@ -52,6 +59,7 @@ export function readPane(said: string): Pane {
     mouse: any === 1 || button === 1 || standard === 1,
     drag: button === 1 || all === 1,
     encoding: sgr === 1 ? 'sgr' : 'legacy',
+    bracketed: bracketed === 1,
   }
 }
 

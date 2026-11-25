@@ -491,6 +491,12 @@ export class LaneRegistry {
     await this.driver.point(id, report)
   }
 
+  /** Hand a lane pasted text, wrapped only where its program turned bracketed paste on. */
+  async paste(id: LaneId, text: string): Promise<void> {
+    this.requireAlive(id)
+    await this.driver.paste(id, text)
+  }
+
   async resize(id: LaneId, cols: number, rows: number): Promise<void> {
     this.requireAlive(id)
     await this.driver.resize(id, cols, rows)

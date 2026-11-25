@@ -35,6 +35,7 @@ import {
   focusBy,
   focusNumber,
   keyAction,
+  laneWithKeyboard,
   leaveLine,
   ORCHESTRATOR_TAB,
   openLine,
@@ -52,7 +53,6 @@ import { type PanelInputs, panelKey } from '../panels.ts'
 import { pasteGoes } from '../pasting.ts'
 import { hovered, type Reach, scrollable } from '../scroll.ts'
 import type { Skin } from '../skin.ts'
-import { terminalSplitShown } from '../split.ts'
 import { notify, type Subject, type Wiring } from './context.ts'
 
 // Where a keystroke goes, and what it does when it gets there.
@@ -125,8 +125,8 @@ export interface KeyboardDeps {
   settle(): void
   /** How far a region the last frame drew goes, read off the bar beside it. */
   reach(area: ScrollArea): Reach
-  /** Everything the window did not keep goes to the agent you are watching. */
-  toLane(data: string): void
+  /** Everything the window did not keep goes to the agent you are watching: typed, or pasted. */
+  toLane(data: string, pasted: boolean): void
   /** What is lit in the window — a drag, a word, a line — for the key that copies it. */
   litText(): string | null
   /** A selection, put on the clipboard and said in the strip, as letting go of a drag does. */
@@ -229,6 +229,15 @@ export class Keyboard implements Subject {
     // a third only ever light what they take. With nothing lit the key goes
     // on to wherever it would have gone.
     if (this.copied(data)) return { consume: true }
+    // A paste into a lane with the keyboard is that lane's, path or words,
+    // exactly as a terminal would hand it over: wrapped only while its program
+    // has bracketed paste on (the driver's `paste`), never with markers a
+    // program that did not ask reads as keys — nano printed `~text~`.
+    const lane = laneWithKeyboard(this.wire.state)
+    if (paste !== null && lane !== null) {
+      if (this.wire.state.leading) this.wire.put({ ...this.wire.state, leading: false })
+      return this.intoLane(lane, paste, true)
+    }
     // A picture dropped on the window arrives as its path, pasted. Where it
     // landed is not something a terminal says, so ask who it is for.
     if (paste !== null) {
@@ -264,8 +273,19 @@ export class Keyboard implements Subject {
       bindings: this.wire.opts.config.surfaces.window.keys,
     })
     const action = key ? keyAction(key, this.wire.state) : { kind: 'none' as const }
+    // After the leader, the next press is the window's whatever it is, and
+    // one that means nothing to the window is not typed into the lane either.
+    const led = this.wire.state.leading && !isKeyRelease(data)
+    if (led) this.wire.put({ ...this.wire.state, leading: false })
 
     switch (action.kind) {
+      case 'lead':
+        this.wire.put({ ...this.wire.state, leading: true })
+        this.wire.draw()
+        return { consume: true }
+      case 'lead-through':
+        this.wire.draw()
+        return this.intoLane(laneWithKeyboard(this.wire.state), forLane(data), false)
       case 'focus-next':
         this.wire.put(focusBy(this.wire.state, 1))
         this.wire.draw()
@@ -345,22 +365,15 @@ export class Keyboard implements Subject {
         break
     }
 
-    // A terminal with the keyboard gets every key Tade did not keep, as legacy bytes (`forLane`).
-    const lanes = forLane(data)
-    if (lanes === '') return { consume: true }
-    const terminal = activeTerminal(this.wire.state)
-    if (terminal && this.wire.state.keyboard === 'terminal' && this.wire.state.dictation === null) {
-      const scrolled = this.wire.state.terminalScroll !== 0
-      this.wire.put({ ...this.wire.state, terminalScroll: 0 })
-      const split = terminalSplitShown(this.wire.state)
-      const into = split && this.wire.state.splitFocus ? split.lane : terminal.id
-      this.wire.outbox.write(into as LaneId, lanes)
-      // No look of its own: the echo is the lane printing, which looks at once
-      // (`Looks.printed`); one asked for here found nothing and held the echo a
-      // floor behind it. Only a terminal scrolled back is owed one, to its end.
-      if (scrolled) this.deps.soonTick()
+    if (led) {
+      this.wire.draw()
       return { consume: true }
     }
+    // A lane with the keyboard gets every key the window did not keep, as
+    // legacy bytes (`forLane`): `keyAction` kept only the leader and talking.
+    const lanes = forLane(data)
+    if (lanes === '') return { consume: true }
+    if (lane !== null) return this.intoLane(lane, lanes, false)
     // Enter on an agent on another machine, with nothing on the line: a terminal that is it.
     if (parseKey(data) === 'enter' && opensRemote(this.wire.state)) {
       this.deps.run('remote-attach')
@@ -389,8 +402,31 @@ export class Keyboard implements Subject {
       this.type(data)
       return { consume: true }
     }
-    this.deps.toLane(lanes)
+    this.deps.toLane(lanes, false)
     return undefined
+  }
+
+  /**
+   * Into the lane with the keyboard: a terminal below, or the agent you are
+   * watching (`Lanes.toLane`, which holds the focus while you type). Typed or
+   * pasted, and a paste goes as the lane's program asked for one.
+   */
+  private intoLane(lane: string | null, data: string, pasted: boolean): TuiInputListenerResult {
+    if (lane === null || data === '') return { consume: true }
+    if (!this.wire.state.terminals.some((one) => one.id === lane)) {
+      this.deps.toLane(data, pasted)
+      return pasted ? { consume: true } : undefined
+    }
+    const scrolled = this.wire.state.terminalScroll !== 0
+    this.wire.put({ ...this.wire.state, terminalScroll: 0 })
+    const into = lane as LaneId
+    if (pasted) this.wire.outbox.paste(into, data)
+    else this.wire.outbox.write(into, data)
+    // No look of its own: the echo is the lane printing, which looks at once
+    // (`Looks.printed`); one asked for here found nothing and held the echo a
+    // floor behind it. Only a terminal scrolled back is owed one, to its end.
+    if (scrolled) this.deps.soonTick()
+    return { consume: true }
   }
 
   /**

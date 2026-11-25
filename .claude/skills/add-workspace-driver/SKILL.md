@@ -112,6 +112,12 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
   asked: bytes it cannot read as a pointer are characters typed into it. Your backend has to be
   able to say which encoding was asked for (tmux `#{mouse_sgr_flag}`; the pty driver watches the
   mode go past in the output), because the two are not interchangeable.
+- **`paste()` hands a lane pasted text as its program asked for one**: `pasteBytes(text, bracketed)`
+  wraps it in `ESC[200~`/`ESC[201~` only while the program has DECSET 2004 on, and otherwise types
+  it with each line break as Enter (`\r`; a bare `\n` is ctrl+j, nano's Justify). Read the mode at
+  the moment of the paste, never off what was launched — a shell turns it on at its prompt and off for
+  the editor it starts: tmux `#{bracket_paste_flag}`, the pty driver `bracketedAfter` on the output
+  going past. Markers sent to a program that never asked are keys to it (`~text~` in nano).
 - **`attachCommand` must always return something that works.** It is the escape hatch that lets a
   human see a lane whatever the backend is — and, with `remoteAttach`, the far half of a lane on
   another machine drawn as a pane of this one's window (`embedded`: nothing of the backend's own

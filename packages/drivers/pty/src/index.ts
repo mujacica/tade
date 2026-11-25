@@ -5,6 +5,7 @@ import {
   type AdoptHint,
   type AttachOptions,
   type Availability,
+  bracketedAfter,
   type CaptureOptions,
   LaneClosedError,
   type LaneExitListener,
@@ -15,6 +16,7 @@ import {
   type LaneScreen,
   type LaneSpec,
   type PointerReport,
+  pasteBytes,
   pointerBytes,
   UnsupportedCapabilityError,
   type WheelEncoding,
@@ -117,6 +119,13 @@ interface Lane {
    * survives until the emulator is upgraded.
    */
   encoding: WheelEncoding
+  /**
+   * Whether the program has bracketed paste on (DECSET 2004), read off the
+   * stream on its way past for the same reason as `encoding`: a paste goes in
+   * the call that sends it, and the markers round it reach a program that
+   * never asked as keys.
+   */
+  bracketed: boolean
   /**
    * The tail of the last chunk, so a sequence cut in half by where the read
    * happened to end is still read. Missing one is not a scroll that goes
@@ -302,6 +311,7 @@ export class PtyDriver implements WorkspaceDriver {
       replayBytes: 0,
       closed: false,
       encoding: 'legacy',
+      bracketed: false,
       tail: '',
       sent: 0,
       frame: null,
@@ -336,6 +346,7 @@ export class PtyDriver implements WorkspaceDriver {
       const at = Date.now()
       lane.handle.lastOutputAt = at
       lane.encoding = encodingAfter(lane.tail + data, lane.encoding)
+      lane.bracketed = bracketedAfter(lane.tail + data, lane.bracketed)
       lane.tail = data.slice(-TAIL)
       // To the emulators first, and as the string node-pty handed over: a
       // `Buffer` made from it comes out of Node's shared pool, and posting one
@@ -506,6 +517,12 @@ export class PtyDriver implements WorkspaceDriver {
     // that wants presses and no movement is answered the same way by every
     // driver rather than by whichever one remembered to check.
     const bytes = pointerBytes(report, lane.encoding, pointingOf(lane))
+    if (bytes.length > 0) await this.write(id, bytes)
+  }
+
+  async paste(id: LaneId, text: string): Promise<void> {
+    const lane = this.live(id)
+    const bytes = pasteBytes(text, lane.bracketed)
     if (bytes.length > 0) await this.write(id, bytes)
   }
 

@@ -7,6 +7,8 @@ if (process.stdin.isTTY) process.stdin.setRawMode(true)
 // Built from a character code: an escape written into a regular expression is
 // usually somebody's mistake, and lint says so.
 const POINTER_REPORT = new RegExp(`${String.fromCharCode(27)}\\[<(\\d+;\\d+;\\d+[Mm])`, 'g')
+/** The markers round a bracketed paste, written out so a capture shows whether they came. */
+const PASTE_MARKER = new RegExp(`${String.fromCharCode(27)}\\[(200|201)~`, 'g')
 
 let buffer = ''
 process.stdout.write(`ready ${process.stdout.columns}x${process.stdout.rows}\r\n`)
@@ -24,6 +26,7 @@ process.stdin.on('data', (chunk) => {
     process.stdout.write(`saw:<${rest}\r\n`)
     return ''
   })
+  buffer = buffer.replace(PASTE_MARKER, (_all, which) => (which === '200' ? '[paste:' : ':paste]'))
   let i = buffer.indexOf('\r')
   let j = buffer.indexOf('\n')
   while (i >= 0 || j >= 0) {
@@ -63,6 +66,10 @@ process.stdin.on('data', (chunk) => {
       process.stdout.write('\x1b[?1049h\x1b[?1000h\x1b[?1006h')
       process.stdout.write('\x1b[2J\x1b[Hown screen, presses only\r\n')
     }
+    // Turn bracketed paste on, and off: what a shell does at its prompt and
+    // around the program it starts.
+    if (line === 'bracketed') process.stdout.write('\x1b[?2004h')
+    if (line === 'unbracketed') process.stdout.write('\x1b[?2004l')
     // The same, without asking for the mouse: nobody can scroll this at all.
     if (line === 'quiet') {
       process.stdout.write('\x1b[?1049h\x1b[2J\x1b[Hown screen, no mouse\r\n')

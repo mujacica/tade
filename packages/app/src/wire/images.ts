@@ -174,7 +174,7 @@ export class Images implements Subject {
       // from its path, and you finish the sentence at its prompt.
       this.wire.put({ ...leaveLine(focusTask(this.wire.state, id)), keyboard: 'pane' })
       await this.wire.opts.client
-        .write(pane.lane as LaneId, asPaste(paths.join(' ')))
+        .paste(pane.lane as LaneId, paths.join(' '))
         .catch((err) => notify(this.wire, why(err)))
     } else if (kind === 'terminal') {
       this.wire.put({ ...leaveLine(this.wire.state), bottom: id, keyboard: 'terminal' })

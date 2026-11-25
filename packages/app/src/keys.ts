@@ -52,6 +52,7 @@ const PRESSED: Record<string, string> = {
   reload: 'reload',
   approve: 'a',
   deny: 'd',
+  leader: 'leader',
 }
 
 /** The defaults, for a caller that has no config: what `surfaces.window.keys` starts as. */
@@ -73,6 +74,7 @@ export const DEFAULT_BINDINGS: Readonly<Record<string, string>> = {
   reload: 'ctrl+shift+r',
   approve: 'a',
   deny: 'd',
+  leader: 'ctrl+]',
   agent_by_number: 'ctrl',
   project_by_number: 'ctrl+shift',
 }

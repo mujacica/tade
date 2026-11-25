@@ -138,6 +138,18 @@ regions in a cycle now.
 - **Claim as few keys as possible.** Whatever the window does not claim is typed straight into the
   focused agent, so its own keybindings keep working. **Never claim a printable character** — that
   is why push-to-talk is `ctrl+space` and not `space`: you have to be able to type a space.
+- **A lane with the keyboard gets every key** — a terminal below, a split's half, the agent you
+  are watching (`laneWithKeyboard`, the one reading of it). `keyAction` keeps exactly two there:
+  talking, and the **leader** (`surfaces.window.keys.leader`, `ctrl+]`), after which one key means
+  what it means anywhere else (`state.leading`) — escape is back to Tade's line, the leader again is
+  the lane's. ctrl+k used to be Search inside nano, which cuts a line with it; a list of what a lane
+  may have is how that happened, so never add a key to the lane's side of that branch. While a lane
+  has the keyboard the strip's search chip says the leader instead (`view/top.ts`). Not a lane: a
+  panel, Tade's line, a pane with no lane, and an approval card in front, which is Tade's to answer.
+- **A paste reaches a lane as its program asked for one** (`WorkspaceDriver.paste`, `pasteBytes`):
+  wrapped in `ESC[200~`/`ESC[201~` only while it has DECSET 2004 on, read off its own output by the
+  driver at the moment of the paste, and typed with line breaks as Enter otherwise. Handing the
+  window's own bracketed paste on as bytes is what put `~text~` in nano. Never `write` a paste.
 - **Key names are decided in `keys.ts`, meanings in `model.ts`.** `appKey(data, ctx)` turns bytes
   into a name; `keyAction(key, state)` decides what it means. Keeping them apart is what lets talk be
   hold-to-talk on one terminal and a toggle on another without the model knowing.

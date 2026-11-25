@@ -640,6 +640,34 @@ export function testWorkspaceDriver(
       expect(said).not.toContain('saw:<32;')
     })
 
+    // A program that never asked for bracketed paste reads the markers as
+    // keys: nano printed `~text~`. So a paste is wrapped exactly while the
+    // program has it on, as it says in its own output, and a line break in an
+    // unwrapped one is Enter rather than ctrl+j.
+    it('pastes wrapped only while the program has bracketed paste on', async () => {
+      const s = spec()
+      await driver.open(s)
+      await waitFor(s.id, 'ready')
+      await driver.paste(s.id, 'one\n')
+      await waitFor(s.id, 'got:one')
+      expect(await capture(s.id)).not.toContain('paste')
+
+      await driver.write(s.id, line('bracketed'))
+      await waitFor(s.id, 'got:bracketed')
+      // The mode is written before the line that says so, so it is on by now.
+      await driver.paste(s.id, 'two')
+      await driver.write(s.id, line(''))
+      await waitFor(s.id, 'got:[paste:two:paste]')
+
+      await driver.write(s.id, line('unbracketed'))
+      await waitFor(s.id, 'got:unbracketed')
+      await driver.paste(s.id, 'three\r\nfour\n')
+      await waitFor(s.id, 'got:four')
+      const said = await capture(s.id)
+      expect(said).toContain('got:three')
+      expect(said.split('got:unbracketed')[1]).not.toContain('paste')
+    })
+
     // Closing Tade and opening it again is the ordinary case, not the
     // exceptional one, so a driver whose lanes outlive us has to be able to
     // walk back into them: finding a lane is worth nothing if the handle it

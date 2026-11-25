@@ -5,6 +5,7 @@ import { elsewhereOf, type Machine, machineMark, type Place } from '../machines.
 import {
   type AgentPane,
   type AppState,
+  laneWithKeyboard,
   markGlyph,
   markOf,
   projects,
@@ -587,8 +588,20 @@ export function renderTop(
     }
     const said = many && show.counts !== 'none' ? whose(standings, countedBy(show.counts)) : null
     if (said !== null) r.text(said, skin.hint).space(3)
-    // Search, beside talking: the two keys that work from anywhere.
-    if (show.search) {
+    // Search, beside talking: the two keys that work from anywhere. Where a
+    // lane has the keyboard and every other key is its program's, the one way
+    // back to the window is said instead, and lit once it has been pressed;
+    // pressed, it is the sheet of every key the window keeps.
+    if (show.search && laneWithKeyboard(state) !== null) {
+      const keys: Target = { kind: 'action', name: 'keys' }
+      const look = state.leading
+        ? skin.waiting
+        : sameTarget(state.hover, keys)
+          ? skin.link
+          : skin.hint
+      r.keys(keyCaps(frame.bindings?.leader ?? 'ctrl+]')).space()
+      r.text(state.leading ? 'now a key' : 'to Tade', look, keys).space(3)
+    } else if (show.search) {
       const search: Target = { kind: 'action', name: 'search' }
       r.keys(keyCaps(frame.bindings?.search ?? 'ctrl+k')).space()
       r.text('search', sameTarget(state.hover, search) ? skin.link : skin.hint, search).space(3)

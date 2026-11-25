@@ -599,7 +599,8 @@ export const ConfigSchema = z
             check_updates: z.enum(UPDATE_CHECKS).default('daily'),
             /**
              * The keys the window keeps for itself, by what they do. Anything
-             * not here goes to the agent or terminal you are typing at. A key
+             * not here goes to the agent or terminal you are typing at, and
+             * while one has the keyboard only `leader` and talking reach Tade. A key
              * with shift, or ctrl with a digit or m, reaches Tade only where
              * the terminal speaks the Kitty keyboard protocol.
              */
@@ -622,6 +623,12 @@ export const ConfigSchema = z
                 reload: z.string().min(1).default('ctrl+shift+r'),
                 approve: z.string().min(1).default('a'),
                 deny: z.string().min(1).default('d'),
+                /**
+                 * In a terminal or an agent with the keyboard every key is its
+                 * program's; this one, then any key here, is the window's.
+                 * Pressed twice, the lane gets it.
+                 */
+                leader: z.string().min(1).default('ctrl+]'),
                 /** Held with 1–9: the agent in that place in the sidebar. `off` for none. */
                 agent_by_number: z.string().min(1).default('ctrl'),
                 /** Held with 1–9: the project in that place along the top. `off` for none. */

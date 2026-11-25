@@ -209,6 +209,14 @@ export interface WorkspaceDriver {
    * `UnsupportedCapabilityError` where `capabilities.pointer` is false.
    */
   point(lane: LaneId, report: PointerReport): Promise<void>
+  /**
+   * Hand a lane text somebody pasted, as the program in it asked for it:
+   * wrapped in `ESC [ 200 ~` … `ESC [ 201 ~` only while it has bracketed paste
+   * on, as plain keys otherwise (`pasteBytes`). Read off the lane at the
+   * moment of the paste, never off what was launched into it: a shell turns
+   * it on at its prompt and off for the editor it starts.
+   */
+  paste(lane: LaneId, text: string): Promise<void>
   resize(lane: LaneId, cols: number, rows: number): Promise<void>
   focus(lane: LaneId): Promise<void>
   setTitle(lane: LaneId, title: string): Promise<void>

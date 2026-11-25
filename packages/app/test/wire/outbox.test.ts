@@ -22,6 +22,9 @@ function recorded() {
     write: async (lane: LaneId, data: Uint8Array | string) => {
       went.push(`write ${lane} ${String(data)}`)
     },
+    paste: async (lane: LaneId, text: string) => {
+      went.push(`paste ${lane} ${text}`)
+    },
     point: async (lane: LaneId, report: PointerReport) => {
       went.push(`point ${lane} ${report.did}`)
     },
@@ -67,6 +70,10 @@ describe('what the window sends a lane', () => {
     outbox.write(a, '\r')
     outbox.wheel(b, { rows: -3, column: 1, row: 1 })
     outbox.write(b, '\r')
+    // A paste is never joined to the typing either side of it: its markers go round it alone.
+    outbox.write(a, 'x')
+    outbox.paste(a, 'pasted')
+    outbox.write(a, 'y')
     await Promise.resolve()
     expect(went).toEqual([
       'write app/a/agent ls',
@@ -76,6 +83,9 @@ describe('what the window sends a lane', () => {
       'write app/a/agent \r',
       'wheel app/b/agent -3',
       'write app/b/agent \r',
+      'write app/a/agent x',
+      'paste app/a/agent pasted',
+      'write app/a/agent y',
     ])
   })
 
@@ -96,6 +106,7 @@ describe('what the window sends a lane', () => {
         if (lane === a) throw new Error('gone')
         went.push(String(data))
       },
+      paste: async () => {},
       point: async () => {},
       wheel: async () => {},
     })

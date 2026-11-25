@@ -19,6 +19,7 @@ import {
   initialState,
   keyAction,
   laneShown,
+  laneWithKeyboard,
   leaveLine,
   markOf,
   moveProject,
@@ -562,15 +563,55 @@ describe('the bottom panel', () => {
     expect(current).toMatchObject({ bottom: 'orchestrator', keyboard: 'pane' })
   })
 
-  it('leaves tab, ctrl+c and letters to a terminal with the keyboard, but keeps talk and search', () => {
+  it('gives a terminal with the keyboard every key but talking and the leader', () => {
     const inTerminal = showTerminal(withTerminals(state(), tabs), 'checkout/terminals/1')
-    for (const key of ['tab', 'shift+tab', 'ctrl+c', 'a', 'd']) {
+    expect(laneWithKeyboard(inTerminal)).toBe('checkout/terminals/1')
+    // nano's ctrl+k cuts a line, and a shell's ctrl+t swaps two letters.
+    for (const key of [
+      'tab',
+      'shift+tab',
+      'ctrl+c',
+      'a',
+      'd',
+      'search',
+      'new-terminal',
+      'agent-1',
+    ]) {
       expect(keyAction(key, inTerminal).kind).toBe('none')
     }
     expect(keyAction('talk-down', inTerminal).kind).toBe('talk-start')
-    expect(keyAction('search', inTerminal).kind).toBe('search')
+    expect(keyAction('leader', inTerminal).kind).toBe('lead')
     expect(keyAction('reload', state())).toEqual({ kind: 'run', action: 'reload' })
     expect(keyAction('tab', showOrchestrator(inTerminal)).kind).toBe('focus-next')
+  })
+
+  it('reads the key after the leader as the window does, and the leader twice as the lane’s', () => {
+    const led = {
+      ...showTerminal(withTerminals(state(), tabs), 'checkout/terminals/1'),
+      leading: true,
+    }
+    expect(keyAction('search', led).kind).toBe('search')
+    expect(keyAction('tab', led).kind).toBe('focus-next')
+    expect(keyAction('agent-1', led)).toEqual({ kind: 'agent-number', n: 1 })
+    expect(keyAction('ctrl+c', led).kind).toBe('quit')
+    expect(keyAction('leader', led).kind).toBe('lead-through')
+    // Escape is the way out of the lane, to Tade's own line.
+    expect(keyAction('escape', led).kind).toBe('orchestrator')
+  })
+
+  it('gives an agent with the keyboard every key, and the window its card while one waits', () => {
+    const atRefunds = focusTask(state(), 'checkout/refunds')
+    expect(laneWithKeyboard(atRefunds)).toBe('checkout/refunds/agent')
+    // Claude Code changes its mode on shift+tab, and pi completes a path on tab.
+    for (const key of ['tab', 'shift+tab', 'ctrl+c', 'search', 'a']) {
+      expect(keyAction(key, atRefunds).kind).toBe('none')
+    }
+    // A card Tade drew over the agent has the keyboard while it asks: `a` answers it.
+    const asking = focusTask(state(), 'checkout/stripe-v15')
+    expect(laneWithKeyboard(asking)).toBeNull()
+    expect(keyAction('a', asking).kind).toBe('approve')
+    // Tade's own line, and a panel, are never a lane's.
+    expect(laneWithKeyboard(openLine(atRefunds))).toBeNull()
   })
 
   it('follows a dragged divider', () => {

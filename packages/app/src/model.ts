@@ -23,6 +23,7 @@ import { stillAnswered } from './pending.ts'
 import { type QueueView, shownBy, WHOLE_QUEUE } from './queue-view.ts'
 import { endOf, type Reach, scrollable } from './scroll.ts'
 import { offsetAt, thumbOf } from './scrollbar.ts'
+import { terminalSplitShown, typingLane } from './split.ts'
 import { isTalkTab, talkingTo } from './talk-tab.ts'
 import { emptyTranscript, fromTurn, onATurn, type Transcript, tadeDid } from './transcript.ts'
 
@@ -320,6 +321,11 @@ export interface AppState {
   bottomMode: 'open' | 'max' | 'min'
   /** Where typing goes when no line is open: the agent in the middle, or the terminal below. */
   keyboard: 'pane' | 'terminal'
+  /**
+   * The leader was pressed in a lane with the keyboard, so the next key is the
+   * window's rather than the lane's (`laneWithKeyboard`, `keyAction`).
+   */
+  leading: boolean
   /** Sizes you dragged the dividers to, over the ones the config gives. */
   sizes: { sidebarWidth?: number; stripHeight?: number }
   /**
@@ -449,6 +455,7 @@ export function initialState(): AppState {
     bottom: ORCHESTRATOR_TAB,
     bottomMode: 'open',
     keyboard: 'pane',
+    leading: false,
     sizes: {},
     resizing: null,
     scrolling: null,
@@ -1964,6 +1971,10 @@ export type KeyAction =
   | { kind: 'agent-number'; n: number }
   /** The project in this place along the top, counting from one. */
   | { kind: 'project-number'; n: number }
+  /** The leader, in a lane with the keyboard: the next key is the window's. */
+  | { kind: 'lead' }
+  /** The leader pressed twice: the lane is sent the key itself. */
+  | { kind: 'lead-through' }
   | { kind: 'none' }
 
 /**
@@ -2050,18 +2061,18 @@ export function somethingTyped(state: AppState): boolean {
 }
 
 export function keyAction(key: string, state: AppState): KeyAction {
-  // A terminal with the keyboard gets tab for completion, ctrl+c to interrupt,
-  // and every letter: only talking and search stay Tade's.
-  if (state.keyboard === 'terminal' && state.dictation === null && activeTerminal(state)) {
+  // A lane with the keyboard gets every key: nano's ctrl+k cuts a line, a
+  // shell's tab completes, Claude Code's shift+tab changes its mode. The window
+  // keeps two — talking, which nothing in a pane may ever swallow, and the
+  // leader, after which one key means what it means everywhere else — and
+  // that is the whole of the rule, rather than a list of what a lane may have.
+  if (laneWithKeyboard(state) !== null) {
     if (key === 'talk-down') return { kind: 'talk-start' }
     if (key === 'talk-up') return state.listening ? { kind: 'talk-stop' } : { kind: 'none' }
-    if (key === 'search') return { kind: 'search' }
-    if (key === 'orchestrator') return { kind: 'orchestrator' }
-    // A shell keeps tab, and a letter while nothing waits; the rest are the window's.
-    const numbered = numberAction(key)
-    if (numbered) return numbered
-    if (RUNS.has(key) || key === 'mute' || key === 'keys') return { kind: 'run', action: key }
-    return { kind: 'none' }
+    if (!state.leading) return key === 'leader' ? { kind: 'lead' } : { kind: 'none' }
+    if (key === 'leader') return { kind: 'lead-through' }
+    // Escape after the leader is the way out of the lane: to Tade's own line.
+    if (key === 'escape') return { kind: 'orchestrator' }
   }
   // Escape is only ever the window's where the window is what you are typing
   // at, and only ever one thing: `escapeMeans` says which.
@@ -2093,6 +2104,26 @@ export function keyAction(key: string, state: AppState): KeyAction {
   if (approvalInFront(state) && key === 'a') return { kind: 'approve' }
   if (approvalInFront(state) && key === 'd') return { kind: 'deny' }
   return { kind: 'none' }
+}
+
+/**
+ * The lane the keyboard is in — a terminal below, the half of a split it is
+ * on, or the agent you are watching — or null where the window has it: a
+ * panel open, the orchestrator's line, an approval card in front of the agent
+ * (a card Tade drew, answered with `a` and `d`), or a pane with no lane in it.
+ * The one reading of it: `keyAction` gives such a lane every key but the
+ * leader and talking, and the strip says how to reach the window from it.
+ */
+export function laneWithKeyboard(state: AppState): string | null {
+  if (state.panel !== null || state.dictation !== null) return null
+  const terminal = activeTerminal(state)
+  if (state.keyboard === 'terminal' && terminal) {
+    const split = terminalSplitShown(state)
+    return split && state.splitFocus ? split.lane : terminal.id
+  }
+  if (approvalInFront(state)) return null
+  const pane = state.panes.find((one) => one.task === state.focused)
+  return pane ? typingLane(state, pane) : null
 }
 
 /**

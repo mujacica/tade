@@ -388,7 +388,7 @@ export class App {
       soonTick: () => this.looks.soonTick(),
       settle: () => this.mouse.settle(),
       reach: (area) => this.mouse.reach(area),
-      toLane: (data) => this.lanes.toLane(data),
+      toLane: (data, pasted) => this.lanes.toLane(data, pasted),
       litText: () => this.mouse.litText(),
       copy: (text) => copySpanSaying(this.wire, text, (data) => this.terminal.write(data)),
       act: (said) => void this.router.act(said),

@@ -494,8 +494,13 @@ export class Lanes implements Subject {
     return this.screens.read(area, { lane: half.lane, screen, view: null }, true)
   }
 
-  /** Type into the agent you are watching, and hold focus while you do. */
-  toLane(data: string): void {
+  /**
+   * Type into the agent you are watching, and hold focus while you do. A paste
+   * goes as the lane's program asked for one (the driver's `paste`), and past
+   * the line Tade listens for: words pasted are the agent's, never a sentence
+   * beginning "tade ".
+   */
+  toLane(data: string, pasted = false): void {
     const was = this.wire.state
     const pane = this.wire.state.panes.find((p) => p.task === this.wire.state.focused)
     // Typing at an agent is looking at its newest line.
@@ -508,15 +513,22 @@ export class Lanes implements Subject {
       this.routerFor = this.wire.state.focused
     }
 
-    // A line beginning "tade " is addressed to Tade, not to the agent.
-    const routed = route(this.router, data)
+    // A line beginning "tade " is addressed to Tade, not to the agent. A paste
+    // never starts one: what was held back goes first, and the paste is mid-line.
+    const pasting = pasted && !this.router.capturing
+    const routed = pasting
+      ? {
+          state: { held: '', capturing: false, atLineStart: false },
+          toLane: this.router.held,
+          toTade: null,
+        }
+      : route(this.router, data)
     this.router = routed.state
     this.wire.put(setHeld(this.wire.state, pending(this.router)))
 
     const lane = pane ? typingLane(this.wire.state, pane) : null
-    if (routed.toLane !== '' && lane) {
-      this.wire.outbox.write(lane as LaneId, routed.toLane)
-    }
+    if (routed.toLane !== '' && lane) this.wire.outbox.write(lane as LaneId, routed.toLane)
+    if (pasting && lane) this.wire.outbox.paste(lane as LaneId, data)
     if (routed.toTade !== null) this.deps.say(routed.toTade)
     // Back to its newest line, and the text with the bar: the lines held may
     // reach it, and a look catches up if not.

@@ -26,11 +26,12 @@ import type { Workbench } from '@tade/workbench'
 // keystroke already did: a lane that went away while somebody typed at it is
 // not news, and the next look says it has gone.
 
-/** The three ways the window reaches into a lane. */
-export type LaneDoor = Pick<Workbench, 'write' | 'point' | 'wheel'>
+/** The four ways the window reaches into a lane. */
+export type LaneDoor = Pick<Workbench, 'write' | 'paste' | 'point' | 'wheel'>
 
 type Sent =
   | { kind: 'write'; lane: LaneId; data: string }
+  | { kind: 'paste'; lane: LaneId; text: string }
   | { kind: 'point'; lane: LaneId; report: PointerReport }
   | { kind: 'wheel'; lane: LaneId; turn: WheelTurn }
 
@@ -55,6 +56,16 @@ export class Outbox {
     else this.queue({ kind: 'write', lane, data })
   }
 
+  /**
+   * Pasted text, wrapped or not as the lane's program asked (the driver's
+   * `paste`): never joined to typing, because the wrapping is round the paste
+   * alone.
+   */
+  paste(lane: LaneId, text: string): void {
+    this.typed()
+    this.queue({ kind: 'paste', lane, text })
+  }
+
   /** What the pointer did, for a program that answers it itself. */
   point(lane: LaneId, report: PointerReport): void {
     this.queue({ kind: 'point', lane, report })
@@ -73,9 +84,11 @@ export class Outbox {
       const went =
         one.kind === 'write'
           ? this.door.write(one.lane, one.data)
-          : one.kind === 'point'
-            ? this.door.point(one.lane, one.report)
-            : this.door.wheel(one.lane, one.turn)
+          : one.kind === 'paste'
+            ? this.door.paste(one.lane, one.text)
+            : one.kind === 'point'
+              ? this.door.point(one.lane, one.report)
+              : this.door.wheel(one.lane, one.turn)
       void went.catch(() => {})
     }
   }

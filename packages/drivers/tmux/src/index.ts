@@ -21,6 +21,7 @@ import {
   type LaneScreen,
   type LaneSpec,
   type PointerReport,
+  pasteBytes,
   pointerBytes,
   type WheelTurn,
   type WorkspaceCapabilities,
@@ -394,9 +395,15 @@ export class TmuxDriver implements WorkspaceDriver {
     if (bytes.length > 0) await this.write(id, bytes)
   }
 
+  async paste(id: LaneId, text: string): Promise<void> {
+    const pane = await this.paneNow(id)
+    const bytes = pasteBytes(text, pane.bracketed)
+    if (bytes.length > 0) await this.write(id, bytes)
+  }
+
   /**
-   * What the pane is like right now, for the two calls that answer the
-   * pointer. Asked again rather than remembered from the last look: a program
+   * What the pane is like right now, for the calls that answer the pointer and
+   * the one that pastes. Asked again rather than remembered from the last look: a program
    * that has just let go of the mouse would otherwise be typed at, and what
    * it wants is one short answer from tmux away.
    */

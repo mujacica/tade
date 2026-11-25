@@ -859,7 +859,7 @@ export function settingsOf(
       id: 'shortcuts',
       title: 'Shortcuts',
       about:
-        'The keys Tade keeps for itself; everything else goes to your agent. Keys with shift, and ctrl with a number or m, need a terminal with the Kitty keyboard protocol.',
+        'The keys Tade keeps for itself; everything else goes to your agent. In a terminal or an agent with the keyboard every key is its own but talking and Tade from a lane, then one of these. Keys with shift, and ctrl with a number or m, need a terminal with the Kitty keyboard protocol.',
       // “Keys” is what a person types to find this, and what the panel used to
       // be called — but it is also what an API key is, one group above.
       keywords: ['key', 'keys', 'keyboard', 'shortcut', 'binding', 'hotkey', 'sheet'],
@@ -916,6 +916,12 @@ export const KEY_BINDINGS: readonly {
   /** Claimed only while it means something — an approval waiting — so a letter is fine. */
   printable?: boolean
 }[] = [
+  {
+    key: 'leader',
+    title: 'Tade from a lane',
+    means: 'in a terminal or an agent, then a key here',
+    fallback: 'ctrl+]',
+  },
   { key: 'search', title: 'Search', means: 'agents, files, lines, commands', fallback: 'ctrl+k' },
   {
     key: 'next_agent',
