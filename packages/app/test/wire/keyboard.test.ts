@@ -62,13 +62,16 @@ describe('the window, taking a keystroke', () => {
      * bottom of a full pane moves every row up as it prints. The rows are read
      * as one run without the bar down their right, so a prompt that wraps
      * what was typed onto the next row — a runner's hostname, a path under
-     * `/var/folders` — wraps it here too.
+     * `/var/folders` — wraps it here too. Only the bar comes off, never the
+     * spaces before it: a line the shell wrapped at a space ends in that
+     * space, and taking it off read `echo one` as `echoone` on a runner whose
+     * hostname put the wrap there.
      */
     const look = (text: string) => {
       const rows = screenOf(terminal.written)
       let run = ''
       const ends = rows.map((row) => {
-        run += row.replace(/[\s▕█]+$/, '')
+        run += row.replace(/[▕█]$/, '')
         return run.length
       })
       const at = run.lastIndexOf(text)
