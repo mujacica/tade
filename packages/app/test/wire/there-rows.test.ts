@@ -80,6 +80,25 @@ describe('another machine’s rows, answering as rows here do', () => {
     await until(screen('what came of it'), () => shown('vps: stop done there'), 20_000)
   })
 
+  it('pauses queued work there with the ‖ its row shows under the pointer, as a row here does', async () => {
+    const far = await startFarEnd({ projects: ['tade'] })
+    fars.push(far)
+    far.show(['tade'], {}, [LINK, { task: 'tade/later', title: 'Later work', queued: true }])
+    await linkedTo(far)
+    await until(screen('its queued work'), () => shown('Later work'), 20_000)
+    // The pointer over its row, as a terminal reports a move: its controls appear.
+    const at = wired.find('Later work')
+    terminal.press(`\x1b[<35;${at.col + 2};${at.row + 1}M`)
+    await until(screen('its controls'), () => (rows()[at.row] ?? '').includes('‖'), 20_000)
+    const col = (rows()[at.row] ?? '').indexOf('‖')
+    wired.click(col, at.row)
+    await until(screen('the pause there'), () => far.acted.some((one) => one.verb === 'queue'))
+    expect(far.acted.find((one) => one.verb === 'queue')?.call).toMatchObject({
+      task: 'tade/later',
+      change: 'pause',
+    })
+  })
+
   it('draws a schedule there as one here, and pauses it through that machine’s own gate', async () => {
     const far = await startFarEnd({ projects: ['tade'] })
     fars.push(far)
