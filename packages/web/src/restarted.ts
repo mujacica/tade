@@ -37,8 +37,13 @@ export interface RestartAnswer {
 export interface WebRestarting {
   /** How many lanes a restart would end now, or why this Tade cannot start itself again. */
   standing(): { stops: number } | { cannot: string }
-  /** Start again once the answer is on its way, written down as this device's. */
-  restart(device: string): void
+  /**
+   * Start again once the answer is on its way, written down as this device's.
+   * `link` is another of the person's machines asking (an owner device,
+   * `owner.ts`): its own reload of every machine is what asked, so this
+   * machine alone starts again. A person's press reloads every machine.
+   */
+  restart(device: string, link: boolean): void
 }
 
 /** The lanes the device was told would stop: nought on a first press. */
@@ -65,7 +70,7 @@ export async function restartHere(
   if (now.stops !== parsed.data.stops) {
     return { body: { restarting: false, stops: now.stops, said: null } }
   }
-  restarting.restart(device.id)
+  restarting.restart(device.id, device.owner)
   return { body: { restarting: true, stops: now.stops, said: null } }
 }
 

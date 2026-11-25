@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { allowDevice, grantDevice } from '../src/devices.ts'
+import { mintOwner } from '../src/owner.ts'
 import { GRANTS } from '../src/reach.ts'
 import { CSRF_HEADER } from '../src/request.ts'
 import type { WebOrchestratorRestart, WebRestarting } from '../src/restarted.ts'
@@ -15,12 +16,17 @@ import { ask, closeAll, pair, type Running, start } from './harness.ts'
 afterEach(closeAll)
 
 /** A window half with `stops` lanes inside it, recording each restart. */
-function half(stops: number | null): WebRestarting & { restarted: string[] } {
+function half(stops: number | null): WebRestarting & { restarted: string[]; links: boolean[] } {
   const restarted: string[] = []
+  const links: boolean[] = []
   return {
     restarted,
+    links,
     standing: () => (stops === null ? { cannot: 'no window here' } : { stops }),
-    restart: (device) => restarted.push(device),
+    restart: (device, link) => {
+      restarted.push(device)
+      links.push(link)
+    },
   }
 }
 
@@ -53,6 +59,29 @@ describe('restarting Tade from the person’s own phone', () => {
     expect(said.status, said.text).toBe(200)
     expect(JSON.parse(said.text)).toEqual({ restarting: true, stops: 0, said: null })
     expect(restarting.restarted).toEqual([phone.device])
+    // A person's press: every machine reloads, not this one alone.
+    expect(restarting.links).toEqual([false])
+  })
+
+  it('tells the window another machine asked, where an owner link pressed', async () => {
+    // That machine's reload of every machine is what asked: this one restarts alone.
+    const restarting = half(0)
+    const one = await start({}, { owned: { restarting } })
+    const port = Number(one.host.split(':')[1])
+    const made = await mintOwner(one.home, { port, label: 'mac', from: '' }, Date.now())
+    const said = await ask(one, '/api/restart', {
+      method: 'POST',
+      headers: {
+        host: made.host,
+        origin: `http://${made.host}`,
+        cookie: `tade_away=${made.cookie}`,
+        'content-type': 'application/json',
+        [CSRF_HEADER]: made.csrf,
+      },
+      body: JSON.stringify({ stops: 0 }),
+    })
+    expect(said.status, said.text).toBe(200)
+    expect(restarting.links).toEqual([true])
   })
 
   it('answers how many lanes would stop and does nothing, then restarts on that number', async () => {

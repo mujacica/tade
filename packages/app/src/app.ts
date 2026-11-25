@@ -244,6 +244,8 @@ export class App {
         copy: (text) => this.toClipboard(text),
         // A restart from the person's own phone ends what this window would.
         reloadStops: () => this.window.reloadStops(),
+        // And reloads every machine, as the strip's reload does.
+        reloadAll: () => this.fleet.reload(),
       },
     })
     this.wire = this.heart.wire

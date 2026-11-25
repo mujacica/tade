@@ -142,6 +142,12 @@ export interface AwayDeps {
    */
   reloadStops?: () => number
   /**
+   * The reload of every machine this one is an owner of, then this window
+   * (`FleetReload.reload`), for the phone's press (`web-restart.ts`): the
+   * face's, as the strip's reload is. Absent, the press starts this Tade alone.
+   */
+  reloadAll?: () => Promise<void>
+  /**
    * Start the orchestrator again once any turn it is in is over, on what it is
    * signed in as now (`Orchestrator.moveAccount`), for `/login` on this
    * machine's tab on another machine (`web-restart.ts`). Absent, it is said

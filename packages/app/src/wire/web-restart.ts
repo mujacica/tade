@@ -17,6 +17,15 @@ import { reloadStopsOf } from './window.ts'
 // asks systemd to restart it. A `tade serve` nothing keeps has nobody to start
 // it again, and that is said rather than offered.
 //
+// **One press reloads every machine**, as the strip's reload does: where the
+// window hands in its reload of every machine it is an owner of
+// (`fleet-reload.ts`), the phone's press is that, each machine said in the
+// conversation as it comes back. The count stays this window's lanes, as the
+// reload panel's does; a machine whose lanes would stop refuses and is said.
+// A press that came over another machine's link is that machine's reload of
+// every machine reaching this one, so it starts this window alone — never a
+// second fan-out back at the machine waiting for it.
+//
 // Written down as the device's (`web_did`, `verb: restart`) before the window
 // goes, and started a moment after the answer, so the phone is told.
 
@@ -30,6 +39,7 @@ export const NO_WINDOW =
 export function restartingFrom(
   wire: Wiring,
   stops: () => number = () => reloadStopsOf(wire),
+  everyMachine?: () => Promise<void>,
 ): WebRestarting {
   let going = false
   return {
@@ -37,10 +47,12 @@ export function restartingFrom(
       if (wire.opts.reloadWindow === undefined) return { cannot: NO_WINDOW }
       return { stops: going ? 0 : stops() }
     },
-    restart: (device) => {
-      const reload = wire.opts.reloadWindow
+    restart: (device, link) => {
+      // Nothing could start this window again: nothing is restarted anywhere.
+      if (wire.opts.reloadWindow === undefined) return
+      const reload = link ? wire.opts.reloadWindow : (everyMachine ?? wire.opts.reloadWindow)
       // A second press while the first is on its way starts nothing twice.
-      if (going || reload === undefined) return
+      if (going) return
       going = true
       void wire.opts.client.log
         .append({ type: 'web_did', detail: { device, verb: 'restart', state: 'done' } })

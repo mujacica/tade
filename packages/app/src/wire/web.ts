@@ -309,8 +309,8 @@ export class Away implements Subject {
         this.deps.waiting,
         this.standing(),
       ),
-      // Tade started again from the person's own phone, through the window's own reload.
-      restarting: restartingFrom(this.wire, this.deps.reloadStops),
+      // Tade started again from the person's own phone: every machine, as the strip's reload.
+      restarting: restartingFrom(this.wire, this.deps.reloadStops, this.deps.reloadAll),
       // Its orchestrator alone, on a sign-in made here from another machine's `/login`.
       orchestratorRestart: orchestratorRestartFrom(this.wire, this.deps.restartOrchestrator),
       // `/login` from the person's own phone: its sign-in, run here and typed into from there.

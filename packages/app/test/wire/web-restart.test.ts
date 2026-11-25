@@ -73,13 +73,59 @@ describe('restarting from the person’s own phone', () => {
     vi.useFakeTimers()
     const { wire, did } = wiring(true)
     const half = restartingFrom(wire, () => 0)
-    half.restart('00112233445566aa')
-    half.restart('00112233445566aa')
+    half.restart('00112233445566aa', false)
+    half.restart('00112233445566aa', false)
     await vi.advanceTimersByTimeAsync(0)
     expect(did).toEqual(['web_did {"device":"00112233445566aa","verb":"restart","state":"done"}'])
     await vi.runAllTimersAsync()
     expect(did.filter((one) => one === 'reload')).toHaveLength(1)
     // Going, nothing is said to stop.
     expect(half.standing()).toEqual({ stops: 0 })
+  })
+
+  it('reloads every machine on a person’s press, as the strip’s reload does', async () => {
+    vi.useFakeTimers()
+    const { wire, did } = wiring(true)
+    const half = restartingFrom(
+      wire,
+      () => 0,
+      async () => {
+        did.push('every machine')
+      },
+    )
+    half.restart('00112233445566aa', false)
+    await vi.runAllTimersAsync()
+    expect(did.slice(1)).toEqual(['every machine'])
+  })
+
+  it('reloads this machine alone when another machine’s reload of every machine asks', async () => {
+    // Fanning out again would ask the machine that is waiting for this one to come back.
+    vi.useFakeTimers()
+    const { wire, did } = wiring(true)
+    const half = restartingFrom(
+      wire,
+      () => 0,
+      async () => {
+        did.push('every machine')
+      },
+    )
+    half.restart('owner-link', true)
+    await vi.runAllTimersAsync()
+    expect(did.slice(1)).toEqual(['reload'])
+  })
+
+  it('restarts nothing anywhere where nothing would start this one again', async () => {
+    vi.useFakeTimers()
+    const { wire, did } = wiring(false)
+    const half = restartingFrom(
+      wire,
+      () => 0,
+      async () => {
+        did.push('every machine')
+      },
+    )
+    half.restart('00112233445566aa', false)
+    await vi.runAllTimersAsync()
+    expect(did).toEqual([])
   })
 })
