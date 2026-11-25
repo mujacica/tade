@@ -426,6 +426,8 @@ const ID_ACTIONS = [
   'schedule-remove',
   'schedule-hush',
   'queue-start',
+  'queue-pause',
+  'queue-resume',
   'queue-wait',
   'queue-drop',
   'queue-remove',
