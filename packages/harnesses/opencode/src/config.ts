@@ -24,8 +24,12 @@ export type OpenCodeServer =
 export interface RunConfig {
   /** The folder Tade's plugin is in: OpenCode loads a local plugin only from a folder. */
   plugin: string
-  /** Tade's own tool server. */
-  tools: { command: string; args: string[] }
+  /**
+   * Tade's own tool server for an agent — the one that lends it its
+   * extension tools over the run's socket. Null for the conversation Tade
+   * drives headless, whose own tool server is among `servers`, named `tade`.
+   */
+  tools: { command: string; args: string[] } | null
   /** MCP servers the run's extensions give it, in the standard's own files. */
   servers?: readonly string[]
   /** A file of instructions appended to OpenCode's own. */
@@ -54,14 +58,19 @@ export function configFor(run: RunConfig): Record<string, unknown> {
   for (const file of run.servers ?? []) {
     for (const [name, server] of Object.entries(serversIn(file, run.onWarning))) {
       // Tade's own is named `tade`, and a server of an extension's never
-      // takes its place.
+      // takes its place. Where there is none of an agent's, the `tade` handed
+      // over is Tade's own — the orchestrator's tools — and is outside Code
+      // Mode for the same reason.
       if (name !== 'tade') servers[name] = server
+      else if (!run.tools) servers.tade = { ...server, codemode: false }
     }
   }
-  servers.tade = {
-    type: 'local',
-    command: [run.tools.command, ...run.tools.args],
-    codemode: false,
+  if (run.tools) {
+    servers.tade = {
+      type: 'local',
+      command: [run.tools.command, ...run.tools.args],
+      codemode: false,
+    }
   }
   return {
     plugins: [run.plugin],

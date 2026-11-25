@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { connect, type Socket } from 'node:net'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -24,6 +24,51 @@ const FIXTURES = fileURLToPath(
   new URL('../../../../test/fixtures/transcripts/opencode/2.4.1/', import.meta.url),
 )
 
+/**
+ * One `opencode run` of the stand-in, as Tade's plugin inside it speaks: it
+ * dials the run's socket, says it is there — `idle` too, as the plugin does
+ * on every connect — and answers its message. With `hold` in its folder it
+ * waits to be told something first: a steer ends the turn well, an abort
+ * ends it stopped. With `crash` it says what went wrong and never connects.
+ * What it was run with is written down, and what it heard.
+ */
+function turnOf(dir: string): string {
+  return `import { appendFileSync, existsSync, writeFileSync } from 'node:fs'
+import { connect } from 'node:net'
+const here = ${JSON.stringify(dir)}
+const env = process.env
+writeFileSync(here + '/env.json', JSON.stringify({ config: env.OPENCODE_CONFIG_CONTENT, approvals: env.TADE_APPROVALS, home: env.TADE_HOME }))
+if (existsSync(here + '/crash')) {
+  process.stderr.write('starting\\nthe model is not connected\\n')
+  process.exit(3)
+}
+const message = process.argv.at(-1)
+const socket = connect(env.TADE_RUN_SOCKET)
+const say = (signal) => socket.write(JSON.stringify({ run: env.TADE_RUN_ID, at: Date.now(), ...signal }) + '\\n')
+const end = (status) => {
+  say({ type: 'turn_done', status })
+  say({ type: 'idle' })
+  socket.end(() => process.exit(0))
+}
+socket.on('connect', () => {
+  say({ type: 'started', sessionId: env.TADE_OPENCODE_SESSION, model: 'openai/gpt-5.5', thinking: null })
+  say({ type: 'idle' })
+  say({ type: 'turn_started' })
+  say({ type: 'message', text: 'heard: ' + message })
+  if (!existsSync(here + '/hold')) end('ok')
+})
+socket.setEncoding('utf8')
+socket.on('data', (chunk) => {
+  for (const line of chunk.trim().split('\\n')) {
+    appendFileSync(here + '/heard', line + '\\n')
+    const command = JSON.parse(line)
+    if (command.type === 'steer') end('ok')
+    if (command.type === 'abort') end('aborted')
+  }
+})
+`
+}
+
 /** A stand-in `opencode`, and the folder it answers from and writes down in. */
 function standIn(): { bin: string; dir: string; ran: () => string[] } {
   const dir = tmp('tade-opencode-stand-')
@@ -43,11 +88,13 @@ case "$1 $2" in
   "session list") cat "$here/list.json" 2>/dev/null || echo "[]"; exit 0 ;;
   "session import") id=$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).info.id)' "$3"); cp "$3" "$here/sessions/$id.json"; exit 0 ;;
   "models --standalone") cat "$here/models.txt" 2>/dev/null; exit 0 ;;
+  "--standalone run") exec "${process.execPath}" "$here/turn.mjs" "$@" ;;
 esac
 exit 0
 `,
   )
   chmodSync(bin, 0o755)
+  writeFileSync(join(dir, 'turn.mjs'), turnOf(dir))
   return {
     bin,
     dir,
@@ -284,9 +331,153 @@ describe('the OpenCode adapter', () => {
       ])
       await expect(one.setThinking('app/fix/agent', 'high')).rejects.toThrow(/variant/)
       await expect(one.compact('app/fix/agent')).rejects.toThrow(/compact/)
-      await expect(one.start(spec(tmp('tade-opencode-cwd-')))).rejects.toThrow(/lane/)
+      await expect(one.start(spec(tmp('tade-opencode-cwd-')))).rejects.toThrow(/already/)
       await one.stop('app/fix/agent')
       expect(await one.list()).toEqual([])
+    })
+  })
+
+  describe('headless', () => {
+    const RUN = 'app/fix/agent'
+
+    /** What the stand-in's last turn was run with, and everything said in this run. */
+    function watch(one: OpenCodeAdapter, dir: string) {
+      const signals: WorkerSignal[] = []
+      one.onSignal(RUN, (signal) => signals.push(signal))
+      return {
+        signals,
+        types: () => signals.map((s) => s.type),
+        idles: () => signals.filter((s) => s.type === 'idle').length,
+        heard: () =>
+          existsSync(join(dir, 'heard'))
+            ? readFileSync(join(dir, 'heard'), 'utf8')
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line) as Record<string, unknown>)
+            : [],
+        env: () =>
+          JSON.parse(readFileSync(join(dir, 'env.json'), 'utf8')) as {
+            config: string
+            approvals: string
+            home?: string
+          },
+      }
+    }
+
+    it('is a turn a process on the task’s session, ungated, with Tade’s own tools as it was handed them', async () => {
+      const stand = standIn()
+      const one = adapter(stand.bin, { approvals: 'policy' })
+      const servers = join(tmp('tade-opencode-mcp-'), 'tools.mcp.json')
+      writeFileSync(
+        servers,
+        JSON.stringify({
+          mcpServers: { tade: { type: 'stdio', command: 'node', args: ['tools'] } },
+        }),
+      )
+      const seen = watch(one, stand.dir)
+      const cwd = tmp('tade-opencode-cwd-')
+      await one.start({
+        ...spec(cwd, { prompt: '-a message that starts like a flag' }),
+        extras: { mcp: [servers] },
+        env: { TADE_HOME: '/home/me/.tade' },
+      })
+      await until(() => seen.idles() === 1, { timeout: 15_000 })
+      // Its turn is Tade's to begin and end: the plugin's `idle` on connecting,
+      // before the turn had begun, is not the end of it.
+      expect(seen.types()).toEqual([
+        'started',
+        'turn_started',
+        'started',
+        'message',
+        'turn_done',
+        'idle',
+      ])
+      expect(seen.signals.find((s) => s.type === 'message')).toMatchObject({
+        text: 'heard: -a message that starts like a flag',
+      })
+      const session = sessionIdFor('app/fix')
+      // What it ran for the turns, past asking what pays for them.
+      const turns = () => stand.ran().filter((line) => !line.startsWith('auth list'))
+      const [create, turn] = turns()
+      expect(create).toContain(`api session.create --standalone -d {"id":"${session}"`)
+      expect(turn).toMatch(
+        new RegExp(`^--standalone run --format json -s ${session} --auto -- -a message`),
+      )
+      // Nothing of the thing you talk to is gated, and its own tool server is
+      // the one it was handed — never an agent's in its place.
+      const env = seen.env()
+      expect(env.approvals).toBe('bypass')
+      expect(env.home).toBe('/home/me/.tade')
+      const config = JSON.parse(env.config) as Record<string, unknown>
+      expect(config.permissions).toBeUndefined()
+      expect(config.mcp).toEqual({
+        servers: { tade: { type: 'local', command: ['node', 'tools'], codemode: false } },
+      })
+
+      // The next thing said is the next turn, on a session already made.
+      await one.prompt(RUN, 'and then')
+      await until(() => seen.idles() === 2, { timeout: 15_000 })
+      expect(turns().slice(2)).toEqual([expect.stringMatching(/ --auto -- and then \|/)])
+      expect(await one.list()).toHaveLength(1)
+      await one.stop(RUN)
+      expect(await one.list()).toEqual([])
+    })
+
+    it('steers the turn that is running, keeps what is queued for the next, and says a turn that ended without a word', async () => {
+      const stand = standIn()
+      const one = adapter(stand.bin)
+      const seen = watch(one, stand.dir)
+      const hold = join(stand.dir, 'hold')
+      writeFileSync(hold, '')
+      await one.start(spec(tmp('tade-opencode-cwd-'), { prompt: 'first' }))
+      await until(() => seen.signals.filter((s) => s.type === 'started').length === 2, {
+        timeout: 15_000,
+      })
+      await one.prompt(RUN, 'after it', [], { whenBusy: 'queue' })
+      rmSync(hold)
+      await one.prompt(RUN, 'also this')
+      // The steer went into the turn; what was queued became the next one,
+      // with no `idle` between them.
+      await until(() => seen.signals.filter((s) => s.type === 'turn_done').length === 2, {
+        timeout: 15_000,
+      })
+      await until(() => seen.idles() === 1, { timeout: 15_000 })
+      expect(seen.heard()).toEqual([{ type: 'steer', message: 'also this' }])
+      expect(stand.ran().at(-1)).toMatch(/ --auto -- after it \|/)
+      expect(seen.types().slice(-3)).toEqual(['message', 'turn_done', 'idle'])
+
+      writeFileSync(join(stand.dir, 'crash'), '')
+      await one.prompt(RUN, 'break')
+      await until(() => seen.idles() === 2, { timeout: 15_000 })
+      expect(seen.signals.filter((s) => s.type === 'turn_done').at(-1)).toMatchObject({
+        status: 'error',
+        reason: 'the model is not connected',
+      })
+    })
+
+    it('stops a turn through its plugin, and holds a name and a model for the next one', async () => {
+      const stand = standIn()
+      const one = adapter(stand.bin)
+      const seen = watch(one, stand.dir)
+      writeFileSync(join(stand.dir, 'hold'), '')
+      await one.start(spec(tmp('tade-opencode-cwd-'), { prompt: '' }))
+      expect(seen.types()).toEqual(['started', 'idle'])
+      // Between turns there is no plugin to tell: the next turn's hears it.
+      await one.name(RUN, 'Mend the login')
+      await one.setModel(RUN, { provider: 'anthropic', id: 'claude-sonnet-5' })
+      await one.prompt(RUN, 'think for a long while')
+      await until(() => seen.heard().length === 2, { timeout: 15_000 })
+      expect(seen.heard()).toEqual([
+        { type: 'name', title: 'Mend the login' },
+        { type: 'model', provider: 'anthropic', id: 'claude-sonnet-5' },
+      ])
+      await one.abort(RUN)
+      await until(() => seen.idles() === 2, { timeout: 15_000 })
+      expect(seen.heard().at(-1)).toEqual({ type: 'abort' })
+      expect(seen.signals.find((s) => s.type === 'turn_done')).toMatchObject({ status: 'aborted' })
+      // Nothing running, nothing to stop.
+      await one.abort(RUN)
+      expect(seen.idles()).toBe(2)
     })
   })
 

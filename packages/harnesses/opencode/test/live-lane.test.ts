@@ -291,4 +291,88 @@ describe.runIf(opencode)('OpenCode in a lane', () => {
     const sent = history.items.filter((item) => item.kind === 'sent').map((item) => item.text)
     expect(sent.at(-1)).toBe('one more thing')
   }, 240_000)
+
+  it('runs headless as the thing you talk to: a turn a process on one conversation, ungated, steered and stopped', async () => {
+    let release = (): void => {}
+    let holding = false
+    model = await startFakeModel({
+      tool: {
+        name: 'shell',
+        arguments: { command: 'echo hi > ungated.txt', description: 'write' },
+      },
+      finalText: 'Said.',
+      main: own,
+      hold: () =>
+        holding
+          ? new Promise<void>((resolve) => {
+              release = resolve
+            })
+          : Promise.resolve(),
+    })
+    const account = accountFor(model)
+    const cwd = tmp('tade-opencode-work-')
+    // Under approvals, which an agent in a lane would be gated by.
+    const one = make(account, 'policy')
+    const spec = {
+      run: 'app/oc-head/agent',
+      task: 'app/oc-head',
+      cwd,
+      prompt: 'write the file',
+      model: { provider: 'tade-test', id: 'fake' },
+    }
+    const signals: WorkerSignal[] = []
+    one.onSignal(spec.run, (signal) => signals.push(signal))
+    const failing = (err: unknown) => {
+      throw new Error(`${(err as Error).message}\n${JSON.stringify(signals)}`)
+    }
+    const idles = () => signals.filter((s) => s.type === 'idle').length
+    const asked = (text: string) =>
+      model?.requests.some((r) => own(r) && JSON.stringify(r.messages).includes(text)) ?? false
+
+    await one.start(spec)
+    await until(() => idles() === 1, { timeout: 60_000 }).catch(failing)
+    // Nothing of it is gated: the call ran, and nobody was asked.
+    expect(signals.some((s) => s.type === 'permission_request')).toBe(false)
+    expect(existsSync(join(cwd, 'ungated.txt'))).toBe(true)
+    expect(signals.find((s) => s.type === 'turn_done')).toMatchObject({ status: 'ok' })
+    expect(signals.find((s) => s.type === 'message')).toMatchObject({ text: 'Said.' })
+    // Its turn is Tade's to begin and end, so `idle` is said once, at its end.
+    expect(signals.filter((s) => s.type === 'turn_started')).toHaveLength(1)
+    expect(signals.at(-1)?.type).toBe('idle')
+
+    // Steered while the model is still thinking: taken into that turn.
+    holding = true
+    await one.prompt(spec.run, 'think about it')
+    await until(() => asked('think about it'), { timeout: 30_000 }).catch(failing)
+    await until(() => signals.filter((s) => s.type === 'started').length >= 3, {
+      timeout: 30_000,
+    }).catch(failing)
+    await one.prompt(spec.run, 'and this as well')
+    holding = false
+    release()
+    await until(() => idles() === 2, { timeout: 60_000 }).catch(failing)
+    expect(asked('and this as well')).toBe(true)
+    expect(signals.filter((s) => s.type === 'turn_started')).toHaveLength(2)
+
+    // Stopped while it waits on its model.
+    holding = true
+    await one.prompt(spec.run, 'take a long while')
+    await until(() => asked('take a long while'), { timeout: 30_000 }).catch(failing)
+    await one.abort(spec.run)
+    await until(() => idles() === 3, { timeout: 30_000 }).catch(failing)
+    expect(signals.filter((s) => s.type === 'turn_done').at(-1)).toMatchObject({
+      status: 'aborted',
+    })
+    holding = false
+    release()
+
+    // One conversation, in OpenCode's own record.
+    const history = await one.history(spec.task, cwd, { limit: 30 })
+    expect(history.items.filter((item) => item.kind === 'sent').map((item) => item.text)).toEqual([
+      'write the file',
+      'think about it',
+      'and this as well',
+      'take a long while',
+    ])
+  }, 240_000)
 })

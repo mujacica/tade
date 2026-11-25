@@ -275,7 +275,7 @@ export const HARNESS_CHOICES: readonly {
     about:
       'OpenCode 2 in a private server of its own, on the ChatGPT, Copilot or Go plan it is signed in to, supervised by Tade',
     ready: true,
-    orchestrates: false,
+    orchestrates: true,
   },
 ]
 

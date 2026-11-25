@@ -1,3 +1,4 @@
+import { type ChildProcess, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -8,6 +9,7 @@ import { type RequiredProgram, runProgram, type ThinkingLevel, type ToolEffect }
 import { TOOLS_PATH } from '@tade/harnesses-acp'
 import {
   type AccountStatus,
+  endHeadless,
   forgetRunFiles,
   type HarnessAccount,
   type HarnessModel,
@@ -24,6 +26,7 @@ import {
   type PlanLimits,
   promptWithImages,
   type RunId,
+  reaped,
   runFolderName,
   SESSIONS_LISTED,
   SignalChannel,
@@ -71,6 +74,12 @@ import {
 // The ledger is OpenCode's own record of the session, read through the one
 // interface it promises for it, `opencode session export` (`record.ts`), and
 // never its database.
+//
+// Headless — the thing you talk to — it is a process per turn on the same
+// session (`opencode run -s <id>`), each its own private server with the same
+// plugin in it, so the signals are the plugin's whichever way it runs. Tade
+// says when a turn begins and when it is over, since a process that connects
+// says `idle` before its turn has begun; nothing of it is gated.
 
 /** The plugin's folder: OpenCode loads a local plugin from a folder, never from a file. */
 export const PLUGIN_DIR = fileURLToPath(new URL('./plugin', import.meta.url))
@@ -146,6 +155,12 @@ const LAUNCHER = [
   'exec "$bin" --standalone "$@"',
 ].join('\n')
 
+/** How long a headless turn is given to stop once it is told to, before it is ended. */
+const ABORT_MS = 5_000
+
+/** How long a headless turn's last words are waited for once its process has gone. */
+const SETTLE_MS = 2_000
+
 /** How long OpenCode's `auth list` is believed: one turn's usage asks it, so not every one. */
 const CONNECTIONS_MS = 60_000
 
@@ -174,8 +189,37 @@ interface Run {
   /** What reaches the run, in the order it arrived: a usage asks what pays for it first. */
   order: Promise<void>
   /** Said before the plugin was there to hear it, said once it is. */
-  queued: { type: 'steer' | 'queue'; message: string }[]
+  queued: Told[]
   model: string | null
+  /** Run headless (`start`) rather than in a lane. */
+  headless: Headless | null
+}
+
+/** A signal as Tade says it of a run, before it is stamped with the run and the time. */
+type Said = WorkerSignal extends infer One
+  ? One extends WorkerSignal
+    ? Omit<One, 'run' | 'at'>
+    : never
+  : never
+
+type Told =
+  | { type: 'steer' | 'queue'; message: string }
+  | { type: 'name'; title: string }
+  | { type: 'model'; provider: string; id: string }
+
+/** A headless run between and during its turns: a process each. */
+interface Headless {
+  child: ChildProcess | null
+  /** The plugin of this turn's process has said it is there. */
+  listening: boolean
+  /** The plugin said this turn is over. */
+  ended: boolean
+  aborting: boolean
+  /** The line made the session already, so later turns need not. */
+  made: boolean
+  stderr: string
+  /** Said for after the turn that is running: the next turn's words. */
+  waiting: string[]
 }
 
 export class OpenCodeAdapter implements WorkerAdapter {
@@ -561,7 +605,7 @@ export class OpenCodeAdapter implements WorkerAdapter {
         ...(this.opts.approvals === 'policy' ? [] : ['--auto']),
         ...this.opts.args,
       ],
-      env: this.runEnv(spec, files),
+      env: this.runEnv(spec, files, false),
       // Its first message, said at the first launch only, by the plugin into
       // the session the line made for it.
       ...(spec.prompt
@@ -597,6 +641,7 @@ export class OpenCodeAdapter implements WorkerAdapter {
       order: Promise.resolve(),
       queued: [],
       model: spec.model ? modelSaid(spec.model) : null,
+      headless: null,
     }
     this.runs.set(spec.run, run)
     // What pays for its turns, asked before the first of them ends.
@@ -604,8 +649,38 @@ export class OpenCodeAdapter implements WorkerAdapter {
     return { ...run.handle }
   }
 
-  async start(_spec: WorkerSpec): Promise<WorkerHandle> {
-    throw new Error(`OpenCode ${this.capabilities.why.headless}`)
+  /**
+   * Run OpenCode as a child of ours rather than in a lane: what the thing you
+   * talk to needs, since Tade draws that conversation itself. A process per
+   * turn (`opencode run`) on the task's one session, so it is one
+   * conversation, with Tade's plugin in each for the signals and for what is
+   * said into a turn that is running. Nothing is gated: it is Tade's own
+   * interface.
+   */
+  async start(spec: WorkerSpec): Promise<WorkerHandle> {
+    const handle = await this.supervise(spec)
+    const entry = this.require(spec.run)
+    entry.headless = {
+      child: null,
+      listening: false,
+      ended: false,
+      aborting: false,
+      made: false,
+      stderr: '',
+      waiting: [],
+    }
+    this.tadeSays(entry, {
+      type: 'started',
+      sessionId: handle.sessionId,
+      model: entry.model,
+      thinking: null,
+    })
+    const opening = spec.prompt.trim()
+      ? promptWithImages(spec.prompt, spec.images, this.filesDir(spec.run))
+      : ''
+    if (opening) this.turnOf(entry, opening)
+    else this.tadeSays(entry, { type: 'idle' })
+    return handle
   }
 
   async prompt(
@@ -616,15 +691,15 @@ export class OpenCodeAdapter implements WorkerAdapter {
   ): Promise<void> {
     const entry = this.require(run)
     const text = promptWithImages(message, images, this.filesDir(run))
-    this.tell(entry, opts.whenBusy === 'queue' ? 'queue' : 'steer', text)
+    this.say(entry, opts.whenBusy === 'queue' ? 'queue' : 'steer', text)
   }
 
   async steer(run: RunId, message: string): Promise<void> {
-    this.tell(this.require(run), 'steer', message)
+    this.say(this.require(run), 'steer', message)
   }
 
   async queue(run: RunId, message: string): Promise<void> {
-    this.tell(this.require(run), 'queue', message)
+    this.say(this.require(run), 'queue', message)
   }
 
   async decide(run: RunId, requestId: string, decision: PermissionDecision): Promise<void> {
@@ -648,15 +723,21 @@ export class OpenCodeAdapter implements WorkerAdapter {
 
   async setModel(run: RunId, model: WorkerModel): Promise<void> {
     const entry = this.require(run)
-    if (!entry.channel.connected) throw new Error(`${run} is not connected: open its agent first`)
     const said = modelSaid(model)
     const ref = modelRef(said)
     if (!ref) throw new Error(`OpenCode runs a model as provider/model, and was given ${said}`)
-    entry.channel.send({
+    const told: Told = {
       type: 'model',
       provider: ref.providerID,
       id: `${ref.id}${ref.variant ? `#${ref.variant}` : ''}`,
-    })
+    }
+    // Headless, between turns there is no plugin to tell: the next turn's is.
+    if (entry.headless && !entry.headless.listening) {
+      entry.queued.push(told)
+      return
+    }
+    if (!entry.channel.connected) throw new Error(`${run} is not connected: open its agent first`)
+    entry.channel.send(told)
   }
 
   async setThinking(_run: RunId, _level: ThinkingLevel): Promise<void> {
@@ -673,12 +754,34 @@ export class OpenCodeAdapter implements WorkerAdapter {
     const entry = this.require(run)
     const flat = title.replace(/\s+/g, ' ').trim()
     if (!flat) return
+    if (entry.headless && !entry.headless.listening) {
+      entry.queued.push({ type: 'name', title: flat })
+      return
+    }
     if (!entry.channel.connected) throw new Error(`${run} is not connected: open its agent first`)
     entry.channel.send({ type: 'name', title: flat })
   }
 
   async abort(run: RunId): Promise<void> {
-    this.require(run).channel.send({ type: 'abort' })
+    const entry = this.require(run)
+    const headless = entry.headless
+    if (!headless) {
+      entry.channel.send({ type: 'abort' })
+      return
+    }
+    const child = headless.child
+    if (!child) return
+    headless.aborting = true
+    // OpenCode stops the turn and keeps the session, and the process ends
+    // with it; one that cannot be told, or does not stop, is ended.
+    if (!headless.listening) {
+      endHeadless(child)
+      return
+    }
+    entry.channel.send({ type: 'abort' })
+    setTimeout(() => {
+      if (headless.child === child) endHeadless(child)
+    }, ABORT_MS).unref?.()
   }
 
   async compact(run: RunId): Promise<void> {
@@ -689,8 +792,10 @@ export class OpenCodeAdapter implements WorkerAdapter {
   async stop(run: RunId): Promise<void> {
     const entry = this.runs.get(run)
     if (!entry) return
-    // The process is the lane's: closing the lane is what ends it.
+    // The process is the lane's: closing the lane is what ends it. A headless
+    // turn has no lane, and is ended here.
     entry.channel.send({ type: 'shutdown' })
+    if (entry.headless?.child) endHeadless(entry.headless.child)
     await this.forget(entry)
   }
 
@@ -708,9 +813,15 @@ export class OpenCodeAdapter implements WorkerAdapter {
     return [...this.runs.values()].map((run) => ({ ...run.handle }))
   }
 
-  /** Let go of every agent without ending it: they carry on in their lanes. */
+  /**
+   * Let go of every agent without ending it: they carry on in their lanes. A
+   * headless turn has no lane to carry on in, so letting go of it is ending it.
+   */
   async detach(): Promise<void> {
-    for (const run of [...this.runs.values()]) await this.forget(run)
+    for (const run of [...this.runs.values()]) {
+      if (run.headless?.child) endHeadless(run.headless.child)
+      await this.forget(run)
+    }
   }
 
   async shutdown(): Promise<void> {
@@ -731,6 +842,14 @@ export class OpenCodeAdapter implements WorkerAdapter {
   }
 
   private async deliver(entry: Run, signal: WorkerSignal): Promise<void> {
+    const headless = entry.headless
+    if (headless) {
+      // Its turns are Tade's to begin and end: each process's plugin says
+      // `idle` as it connects, before the turn it was started for has begun.
+      if (signal.type === 'idle' || signal.type === 'turn_started') return
+      if (signal.type === 'turn_done') headless.ended = true
+      if (signal.type === 'started') headless.listening = true
+    }
     if (signal.type === 'started') {
       if (signal.model) entry.model = signal.model
       this.emit(entry, signal)
@@ -751,6 +870,11 @@ export class OpenCodeAdapter implements WorkerAdapter {
     this.emit(entry, signal)
   }
 
+  /** What Tade says of a headless run itself, rather than its plugin. */
+  private tadeSays(entry: Run, said: Said): void {
+    this.emit(entry, { ...said, run: entry.handle.run, at: Date.now() } as WorkerSignal)
+  }
+
   private emit(entry: Run, signal: WorkerSignal): void {
     for (const listener of this.listeners.get(entry.handle.run) ?? []) {
       try {
@@ -766,6 +890,116 @@ export class OpenCodeAdapter implements WorkerAdapter {
   private tell(entry: Run, type: 'steer' | 'queue', message: string): void {
     if (entry.channel.connected) entry.channel.send({ type, message })
     else entry.queued.push({ type, message })
+  }
+
+  /**
+   * Something said to the agent. Headless, it begins a turn when none is
+   * running; into one that is, it is steered by that turn's plugin — and
+   * anything for after it, or for a turn that has already said it is over,
+   * is the next turn's.
+   */
+  private say(entry: Run, type: 'steer' | 'queue', message: string): void {
+    const headless = entry.headless
+    if (!headless) this.tell(entry, type, message)
+    else if (!headless.child) this.turnOf(entry, message)
+    else if (type === 'queue' || headless.ended) headless.waiting.push(message)
+    else if (headless.listening) entry.channel.send({ type, message })
+    else entry.queued.push({ type, message })
+  }
+
+  /** One headless turn: an `opencode run` on the task's session, until its process ends. */
+  private turnOf(entry: Run, message: string): void {
+    const headless = entry.headless
+    if (!headless) return
+    const spec = entry.spec
+    const files = this.filesFor(spec)
+    const key = this.opts.account?.kind === 'api-key' ? (this.opts.account.key ?? '') : ''
+    // It has no lane to carry on in and nobody could find it again, so it
+    // does not outlive Tade — however Tade ends.
+    const launch = reaped({
+      command: '/bin/sh',
+      args: [
+        '-c',
+        LAUNCHER,
+        'tade-opencode',
+        this.opts.bin,
+        headless.made ? '' : files.create,
+        key,
+        'run',
+        '--format',
+        'json',
+        '-s',
+        sessionIdFor(spec.task),
+        '--auto',
+        ...this.opts.args,
+        '--',
+        message,
+      ],
+    })
+    headless.made = true
+    headless.listening = false
+    headless.ended = false
+    headless.aborting = false
+    headless.stderr = ''
+    const env = { ...this.accountEnv(), ...spec.env, ...this.runEnv(spec, files, true) }
+    const child = spawn(launch.command, launch.args, {
+      cwd: spec.cwd,
+      env,
+      stdio: ['ignore', 'ignore', 'pipe'],
+      detached: true,
+    })
+    headless.child = child
+    this.tadeSays(entry, { type: 'turn_started' })
+    child.stderr?.setEncoding('utf8')
+    child.stderr?.on('data', (chunk: string) => {
+      headless.stderr = (headless.stderr + chunk).slice(-4_000)
+    })
+    let over = false
+    const finish = (said: Said | null) => {
+      if (over) return
+      over = true
+      void this.settled(entry).then(() => {
+        if (headless.child === child) headless.child = null
+        if (this.runs.get(spec.run) !== entry) return
+        if (said) this.tadeSays(entry, said)
+        if (!headless.ended) {
+          // A turn whose plugin never said it was over says why from what the
+          // process wrote, rather than leaving a caller waiting on it.
+          const reason = lastLine(headless.stderr) || 'OpenCode ended the turn without saying why'
+          this.tadeSays(entry, {
+            type: 'turn_done',
+            status: headless.aborting ? 'aborted' : 'error',
+            ...(headless.aborting ? {} : { reason }),
+          })
+        }
+        // What was said for after it, and what its plugin never got to hear,
+        // is the next turn; a name or a model is still the next plugin's.
+        const unheard = entry.queued.flatMap((one) =>
+          one.type === 'steer' || one.type === 'queue' ? [one.message] : [],
+        )
+        entry.queued = entry.queued.filter((one) => one.type !== 'steer' && one.type !== 'queue')
+        const next = [...unheard, ...headless.waiting.splice(0)].join('\n\n')
+        if (next) this.turnOf(entry, next)
+        else this.tadeSays(entry, { type: 'idle' })
+      })
+    }
+    child.on('error', (err) =>
+      finish({ type: 'problem', text: `could not start OpenCode: ${err.message}` }),
+    )
+    child.on('exit', () => finish(null))
+  }
+
+  /**
+   * Once a headless turn's process has gone, what it said is read to its end:
+   * its plugin's socket closes after its last line, which may be after the
+   * process is seen to exit.
+   */
+  private async settled(entry: Run): Promise<void> {
+    const deadline = Date.now() + SETTLE_MS
+    while (entry.channel.connected && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    await entry.order
   }
 
   // --- bookkeeping ----------------------------------------------------------------
@@ -884,7 +1118,9 @@ export class OpenCodeAdapter implements WorkerAdapter {
     return { ...env, ...this.accountVars() }
   }
 
-  private runEnv(spec: WorkerSpec, files: Files): Record<string, string> {
+  /** What a run is told: a lane's is gated under approvals, a headless one's never. */
+  private runEnv(spec: WorkerSpec, files: Files, headless: boolean): Record<string, string> {
+    const gated = !headless && this.opts.approvals === 'policy'
     const vars = this.accountVars()
     // What the agent's own commands see of the folders the account moved:
     // as they were, or not set, put back by the plugin.
@@ -895,7 +1131,7 @@ export class OpenCodeAdapter implements WorkerAdapter {
     const env: Record<string, string> = {
       ...vars,
       [WORKER_ENV.socket]: runSocket(this.opts.socketDir, spec.run),
-      [WORKER_ENV.approvals]: this.opts.approvals,
+      [WORKER_ENV.approvals]: gated ? 'policy' : 'bypass',
       [WORKER_ENV.run]: spec.run,
       [WORKER_ENV.task]: spec.task,
       TADE_OPENCODE_SESSION: sessionIdFor(spec.task),
@@ -906,11 +1142,12 @@ export class OpenCodeAdapter implements WorkerAdapter {
       OPENCODE_CONFIG_CONTENT: JSON.stringify(
         configFor({
           plugin: PLUGIN_DIR,
-          tools: { command: process.execPath, args: [TOOLS_PATH] },
+          // Headless, Tade's own tool server is among those it was handed.
+          tools: headless ? null : { command: process.execPath, args: [TOOLS_PATH] },
           servers: spec.extras?.mcp ?? [],
           instructions: files.instructions,
           skills: spec.extras?.skills ?? [],
-          gated: this.opts.approvals === 'policy',
+          gated,
           onWarning: this.opts.onWarning,
         }),
       ),
@@ -994,6 +1231,11 @@ export function runSocket(dir: string, run: string): string {
 export function modelSaid(model: WorkerModel): string {
   if (model.id.includes('/') || !model.provider) return model.id
   return `${model.provider}/${model.id}`
+}
+
+/** The last thing a process wrote that is not blank. */
+function lastLine(text: string): string {
+  return text.trim().split('\n').filter(Boolean).at(-1)?.trim() ?? ''
 }
 
 /** A folder that is there, or null: a command is never started in one that is gone. */

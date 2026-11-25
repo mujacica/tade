@@ -62,6 +62,20 @@ describe('what one OpenCode run is handed', () => {
     expect(serversIn('/nonexistent/servers.json', (said) => warned.push(said))).toEqual({})
   })
 
+  it('takes the `tade` it was handed as Tade’s own where there is no agent’s, outside Code Mode', () => {
+    const file = join(tmp('tade-opencode-mcp-'), 'servers.json')
+    writeFileSync(
+      file,
+      JSON.stringify({
+        mcpServers: { tade: { type: 'stdio', command: '/node', args: ['/mcp.ts'] } },
+      }),
+    )
+    expect(configFor({ ...base, tools: null, gated: false, servers: [file] })).toEqual({
+      plugins: ['/tade/plugin'],
+      mcp: { servers: { tade: { type: 'local', command: ['/node', '/mcp.ts'], codemode: false } } },
+    })
+  })
+
   it('spells a model as OpenCode’s session takes one', () => {
     expect(modelRef('openai/gpt-5.5')).toEqual({ providerID: 'openai', id: 'gpt-5.5' })
     expect(modelRef('openrouter/anthropic/claude-sonnet-5#high')).toEqual({

@@ -41,7 +41,9 @@ export const OPENCODE_CAPABILITIES: WorkerCapabilities = {
   skills: true,
   tools: true,
   mcp: true,
-  headless: false,
+  // A process per turn (`opencode run`) on the task's one session, with the
+  // same plugin in each: the thing you talk to.
+  headless: true,
   spend: { usd: 'estimate', tokens: true, limits: 'anytime' },
   accounts: true,
   compact: 'none',
@@ -53,14 +55,12 @@ export const OPENCODE_CAPABILITIES: WorkerCapabilities = {
     images: 'is shown a picture as a file it is told about, since its terminal cannot take one',
     nativeExtensions:
       'has no place for pi extensions: their tools and skills still reach it, their own code does not',
-    headless:
-      'runs in a lane, with its own terminal: Tade does not yet drive it as the thing you talk to',
     spend:
       'says what each step cost as the endpoint reported it or as its own catalog prices it, and records a plan’s steps — ChatGPT, GitHub Copilot, OpenCode Go — as costing nothing, which Tade counts as a plan’s and never as money',
     limits:
       'can say how much of a plan is used only for OpenCode Go, signed in with an OpenCode account; it reads no ChatGPT or Copilot limits at all',
     compact:
-      'compacts by itself, or when /compact is typed into its own terminal; Tade drives no conversation of it to compact',
+      'compacts by itself when its context fills, or when /compact is typed into its own terminal; Tade cannot ask it to',
     conversation:
       'keeps its conversation in its own database, which Tade cannot merge across machines, so each machine has its own',
   },

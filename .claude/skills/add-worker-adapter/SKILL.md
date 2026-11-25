@@ -416,6 +416,14 @@ that is a server with a TUI in front. Each line was seen in OpenCode 2.4.1 in a 
   person's shell commands see (`TADE_OPENCODE_SHELL_ENV`, `shell.hook('create.before')`).
 - **The ledger is `opencode session export`**, never the database: a promised JSON document, an
   `idle` line at every turn's end, which is also how a run taken back knows it is between turns.
+- **Headless is a process per turn, with the same plugin**: `opencode --standalone run -s <id>
+  --auto -- <message>`, its JSON output ignored. `opencode serve --stdio` is not it — it binds a
+  fixed port and loads no plugin until something asks it about a folder. The plugin says `idle` as
+  it connects, before its turn has begun, so the adapter drops the plugin's `idle` and
+  `turn_started` and says both itself, from the process; a turn whose plugin never said
+  `turn_done` is said from its stderr. The orchestrator's own tool server is also named `tade`, so
+  headless there is no agent's tool server (`configFor({ tools: null })`) and the one handed over
+  goes through.
 
 ## Being the thing you talk to
 
