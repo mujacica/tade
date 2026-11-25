@@ -63,7 +63,7 @@ staged_style() {
   } | git checkout-index -f -z --stdin --prefix="$staged/" || return 1
   git diff --cached --name-only -z --diff-filter=d |
     (cd "$staged" && xargs -0 "$root/node_modules/.bin/biome" ci --vcs-enabled=false \
-      --diagnostic-level=error --files-ignore-unknown=true --no-errors-on-unmatched)
+      --diagnostic-level=error --files-ignore-unknown=true --no-errors-on-unmatched --)
 }
 if [ -n "${GIT_INDEX_FILE:-}" ]; then
   if [ -n "$(git diff --cached --name-only --diff-filter=d)" ]; then
