@@ -1,0 +1,10 @@
+#!/bin/sh
+# Refuses a push that carries this machine's host name — in a commit message,
+# a trailer or a diff — read from `hostname` at push time, in every form it
+# travels in. `scripts/push-guard.ts` is the whole of it and says why.
+#
+# Installed by `pnpm hooks`, with pre-commit. Skip one push with
+# `git push --no-verify`.
+
+here=$(cd "$(dirname "$0")/.." && pwd)
+exec node "$here/scripts/push-guard.ts" "$1"
