@@ -131,6 +131,35 @@ export const PAGE_REEL = {
   phoneHold: 6,
 } as const
 
+/**
+ * The away view's Machines, alone: the overview's section of that name on a
+ * laptop with the menu folded to its rail, over a world where the laptop is
+ * busy and the server it links to is quiet (`scenarios/away-machines.ts`).
+ */
+export const MACHINES_PAGE = {
+  file: 'away-machines.svg',
+  about:
+    'The away view’s Machines: this laptop, busy, with its processors at 92% in red and its ' +
+    'memory at 84% in amber, and the server it links to, quiet at 4% and 11% with 1.6 TB of ' +
+    'its disk free — each with a sparkline, its disk, and what Tade and its agents use of it.',
+  width: 960,
+  height: 560,
+  at: 'localhost:7654',
+  world: {
+    module: new URL('../test/screens/scenarios/away-machines.ts', import.meta.url).href,
+    name: 'MACHINES_WORLD',
+  } satisfies WorldAt,
+  visit: {
+    device: DESK.id,
+    width: 960,
+    height: 560,
+    pointer: 'fine',
+    folded: ['menu', 'side', 'tade'],
+    only: 'MACHINES',
+    paths: ['/'],
+  } satisfies Visit,
+} as const
+
 export const PICTURES: readonly Picture[] = [
   {
     file: 'window.svg',
@@ -395,6 +424,22 @@ async function drawPage(): Promise<Drawn> {
   }
 }
 
+/** The away view's Machines: one still, one frame. */
+async function drawMachines(): Promise<Drawn> {
+  const stills = await stillsOf(MACHINES_PAGE.world, [MACHINES_PAGE.visit])
+  return {
+    file: MACHINES_PAGE.file,
+    svg: pageReel(
+      [{ stills, hold: 1, caption: `${MACHINES_PAGE.at}/`, about: 'Machines on a laptop' }],
+      {
+        width: MACHINES_PAGE.width,
+        height: MACHINES_PAGE.height,
+        label: 'Tade’s away view: Machines',
+      },
+    ),
+  }
+}
+
 /**
  * Every picture the README uses, drawn.
  *
@@ -424,7 +469,7 @@ export async function drawPictures(): Promise<Drawn[]> {
       ),
     })
   }
-  drawn.push(await drawPage())
+  drawn.push(...(await Promise.all([drawPage(), drawMachines()])))
   return drawn
 }
 

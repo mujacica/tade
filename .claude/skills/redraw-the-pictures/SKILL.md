@@ -126,6 +126,10 @@ Without it every screen is `unrun` and it exits 2.
 A new screen in the reel is a path on `PAGE_REEL.desk` or `.phone` (`pictures.test.ts` holds
 each to a route the page knows), and whatever it reads added to the world.
 
+A picture of **one part of a long screen** is a visit of its own with `only`, the heading of the
+section it is about (`MACHINES_PAGE`, over `scenarios/away-machines.ts`): its sibling sections are
+left out, never cropped by a rectangle, which the reader's fonts would move.
+
 ## Adding a picture
 
 1. Add a scenario to the file for what it is about under `packages/app/test/screens/scenarios/` —

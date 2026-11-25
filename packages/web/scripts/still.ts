@@ -50,6 +50,12 @@ export interface Visit {
    * page that ask how much room they have (`StillDocument.measured`).
    */
   measured?: Readonly<Record<string, number>>
+  /**
+   * The heading of the one section of each screen the picture is about: its
+   * sibling sections are left out, so a part of a long screen is framed by
+   * what it is rather than by a rectangle a reader's fonts would move.
+   */
+  only?: string
   paths: readonly string[]
 }
 

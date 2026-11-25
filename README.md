@@ -137,6 +137,12 @@ from the Mac.
 
 ![Projects on this Mac and on two servers, and an agent list read from the VPS](https://raw.githubusercontent.com/mujacica/tade/main/images/machines.svg)
 
+The away view puts the machines side by side — processors, memory and disk, and what Tade and its
+agents use of each — so a laptop running hot beside a quiet server is plain at a glance. One that
+closed, slept or went silent says so, with the figures it last sent.
+
+![The away view's Machines: a busy laptop beside a quiet server, with processors, memory and disk for each](https://raw.githubusercontent.com/mujacica/tade/main/images/away-machines.svg)
+
 ## Context-rich search
 
 `ctrl+k` finds agents, files and lines in every worktree, documents and actions — and what is

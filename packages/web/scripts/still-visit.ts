@@ -40,6 +40,7 @@ async function visited(world: World, visit: Visit): Promise<Still[]> {
       await page.settle()
     }
     drewItself(doc, path)
+    if (visit.only !== undefined) alone(doc, visit.only, path)
     shot.push({
       path,
       width: visit.width,
@@ -75,6 +76,21 @@ function drewItself(doc: StillDocument, path: string): void {
     throw new Error(`the page drew "${doc.title}" at ${path}`)
   if (doc.querySelector('.dot.is-live') === null)
     throw new Error(`the page at ${path} never went live; it says: ${said}`)
+}
+
+/**
+ * The section headed `heading`, alone among its siblings: the others are taken
+ * out, as the page leaves out a section with nothing in it. A heading the
+ * screen does not have throws rather than becoming a picture of an empty page.
+ */
+function alone(doc: StillDocument, heading: string, path: string): void {
+  const wanted = heading.toLowerCase()
+  const found = doc
+    .querySelectorAll('section.section')
+    .find((one) => one.querySelector('h2')?.textContent.trim().toLowerCase() === wanted)
+  if (found === undefined) throw new Error(`the page at ${path} has no section headed ${heading}`)
+  for (const sibling of [...(found.parentNode?.children ?? [])])
+    if (sibling !== found) sibling.remove()
 }
 
 /** A Response, as far as `boot.js`'s `ask` reads one. */
