@@ -250,6 +250,22 @@ describe('looking at what is here', () => {
       expect(failed).not.toHaveProperty('lacks')
     })
 
+    it('offers where to get one that can, never the same package moved forward', async () => {
+      // apt's next nodejs is built the same way, so what Settings › Updates
+      // and `tade update` show under the row is what `tade setup --check`
+      // says: the declaration's own word, not this copy's manager's line.
+      const instead = 'nodejs.org, or a version manager: mise, nvm, volta'
+      const declared = { ...node, install: { instead } }
+      const [debian] = await lookAtPrograms([declared], { exec: answering('false') })
+      expect(debian?.update).toEqual({ cannot: instead })
+      const [old] = await lookAtPrograms([{ ...declared, oldest: '99.0' }], {
+        exec: answering('false'),
+      })
+      expect(old).toMatchObject({ tooOld: true, update: { cannot: instead } })
+      const [fine] = await lookAtPrograms([declared], { exec: answering('strip') })
+      expect(fine?.update).not.toEqual({ cannot: instead })
+    })
+
     it('reads the Node running this as able, as Tade’s own declaration asks it', async () => {
       // This suite is .ts run by Node itself, so the real answer here is yes.
       const declared = (await programsNeeded(config, HOME)).find((one) => one.command === 'node')

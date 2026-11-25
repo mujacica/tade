@@ -9,6 +9,7 @@ import {
   type Declared,
   type Install,
   installOf,
+  installWith,
   isBehind,
   neededPrograms,
   npxKeyOf,
@@ -347,7 +348,14 @@ export async function lookAtPrograms(
         // The same program moves forward differently per platform: the
         // system's own copy is macOS's on a Mac and the distribution's
         // package on Linux, which is why the machine is asked.
-        update: (tooOld ? upgradeWith : updateWith)(install, need.install, installersHere(env)),
+        //
+        // One built without something is never brought forward by its own
+        // manager: Ubuntu's next nodejs is built without TypeScript too. So,
+        // as `tade setup --check` says it, the line is where to get one that
+        // is not — whatever its floor, since that copy clears it as well.
+        update: lacks
+          ? installWith(need.install, installersHere(env))
+          : (tooOld ? upgradeWith : updateWith)(install, need.install, installersHere(env)),
         behind: false,
         tooOld,
         ...(lacks ? { lacks } : {}),
