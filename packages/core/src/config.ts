@@ -7,7 +7,7 @@ import { IntakeSurface } from './intake.ts'
 import { NotesConfigSchema } from './memory.ts'
 import { PrepareConfigSchema } from './prepare.ts'
 import { ModelPriceSchema } from './prices.ts'
-import { GIVE_WAY_MAX } from './priority.ts'
+import { GIVE_WAY_DEFAULT, GIVE_WAY_MAX } from './priority.ts'
 import { PUSH_MODES } from './project.ts'
 import { MachineName, RemotesSchema } from './remotes.ts'
 import { PROJECT_SYNC } from './sync.ts'
@@ -687,13 +687,15 @@ export const ConfigSchema = z
          */
         keep_awake: z.boolean().default(false),
         /**
-         * Start agents and check runs this many steps below the window's own
-         * OS priority (POSIX `nice`), so a keystroke does not wait behind a
-         * `tsc`. 0 is off. Off by default because lowering a check suite is
-         * not free: a check with a timeout can go from slow to `timed out`.
-         * `priority.ts` carries the rest of the argument.
+         * Start agents and check runs this many `nice` steps below the
+         * window, with a utility QoS clamp on macOS and best-effort `ionice`
+         * on Linux, so a keystroke — and the window's own `git` and `ps` — do
+         * not wait behind a `tsc`. 0 is off. On by default: Tade first is what
+         * was asked for, and agents and suites sit at one level, so a suite's
+         * timeouts still compare like with like. `priority.ts` carries the
+         * rest of the argument.
          */
-        give_way: z.number().int().min(0).max(GIVE_WAY_MAX).default(0),
+        give_way: z.number().int().min(0).max(GIVE_WAY_MAX).default(GIVE_WAY_DEFAULT),
       })
       .prefault({}),
     /**

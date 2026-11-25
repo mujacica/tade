@@ -4,10 +4,11 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import {
   type Config,
+  type GivesWay,
   givesWay,
   type LaneId,
   LaneKind,
-  niced,
+  lowered,
   type Setup,
   setupLine,
   taskDir,
@@ -312,13 +313,13 @@ export class LaneRegistry {
    * all, because the alternative is a setting somebody turned on that does
    * nothing and never says so.
    */
-  private lowerBy(req: SpawnRequest): number {
-    const { by, problem } = givesWay(req.kind, req.giveWay ?? 0)
-    if (problem && !this.saidNoNice) {
+  private lowerBy(req: SpawnRequest): GivesWay {
+    const way = givesWay(req.kind, req.giveWay ?? 0)
+    if (way.problem && !this.saidNoNice) {
       this.saidNoNice = true
-      void this.log.append({ type: 'warning', detail: { message: problem } }).catch(() => {})
+      void this.log.append({ type: 'warning', detail: { message: way.problem } }).catch(() => {})
     }
-    return by
+    return way
   }
 
   async spawn(req: SpawnRequest): Promise<LaneRecord> {
@@ -331,11 +332,11 @@ export class LaneRegistry {
     // the kind is what decides, not the caller.
     const line = { command: req.command, args: [...(req.args ?? []), ...(req.opening ?? [])] }
     const prepared = req.before ? setupLine({ ...req.before, node: process.execPath, line }) : line
-    const lowered = niced(prepared, this.lowerBy(req))
+    const launched = lowered(prepared, this.lowerBy(req))
     const spec: LaneSpec = {
       id: req.id,
       cwd: req.cwd,
-      ...lowered,
+      ...launched,
       ...(req.env ? { env: req.env } : {}),
       ...(req.cols ? { cols: req.cols } : {}),
       ...(req.rows ? { rows: req.rows } : {}),

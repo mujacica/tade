@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ACTING_IS_NOT_YOU, ACTING_IS_NOT_YOU_SHORT } from '../src/away.ts'
 import { ConfigSchema } from '../src/config.ts'
+import { GIVE_WAY_DEFAULT } from '../src/priority.ts'
 import { PUSH_BY_DEFAULT } from '../src/project.ts'
 import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from '../src/secrets.ts'
 import {
@@ -151,8 +152,9 @@ describe('what there is to change', () => {
     for (const words of [['slow'], ['priority'], ['give', 'way'], ['laggy']]) {
       expect(settingFound(group, setting, words)).toBe(true)
     }
-    // Off is nought, which is what a config that says nothing reads as.
-    expect(setting.value).toBe('0')
+    // On by default, and what a config that says nothing reads as.
+    expect(setting.value).toBe(String(GIVE_WAY_DEFAULT))
+    expect(setting.fallback).toBe(String(GIVE_WAY_DEFAULT))
     expect(parseSetting(setting, '5')).toBe(5)
     // Nought is taken: undefined is what every caller refuses, so a row that
     // read 0 as "not written" could never be put back to off.
@@ -163,7 +165,9 @@ describe('what there is to change', () => {
     // could not: from 1, left is off, and that is what gets written.
     const one = find('agents.give_way', { agents: { give_way: 1 } })
     expect(stepped(one, -1)).toBe('0')
-    expect(stepped(setting, 1)).toBe('1')
+    expect(stepped(setting, 1)).toBe(String(GIVE_WAY_DEFAULT + 1))
+    const off = find('agents.give_way', { agents: { give_way: 0 } })
+    expect(stepped(off, 1)).toBe('1')
   })
 
   it('offers only values the schema would accept', () => {

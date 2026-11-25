@@ -16,7 +16,7 @@ import {
   SLEPT,
   summaryOf,
 } from '@tade/checks-core'
-import { givesWay, machineLabel, nicedLine } from '@tade/core'
+import { type GivesWay, givesWay, loweredLine, machineLabel } from '@tade/core'
 import { awakeAt, startAwake } from './awake.ts'
 import { stop } from './stop.ts'
 
@@ -33,8 +33,8 @@ import { stop } from './stop.ts'
 // terminal is never retitled after a check, and a group signal is the only
 // thing that reaches the `pnpm` a command started. Where the machine asks it
 // to, the whole group gives way to whatever a person is looking at
-// (`nicedLine`) — the shell and everything under it, because half a niced
-// check is not a niced check.
+// (`loweredLine`) — the shell and everything under it, because half a
+// lowered check is not a lowered check.
 
 /** How long a stopped check is given to end politely before it is killed. */
 const GRACE_MS = 2_000
@@ -58,7 +58,7 @@ export function makeLocalRunner(options: RunnerOptions = {}): Runner {
   // `nice` does not change between two checks of one run, and the answer is a
   // PATH walk. Nothing is said when it cannot — the lane registry is what says
   // that, once a window, and a line per check run would be the same news again.
-  const { by: giveWay } = givesWay('checks', options.giveWay ?? 0)
+  const giveWay = givesWay('checks', options.giveWay ?? 0)
   let counter = 0
 
   const id = (check: Check, commit: string) => `${commit.slice(0, 7)}:${check.id}:here:${++counter}`
@@ -175,8 +175,8 @@ async function one(
     now: () => number
     host: string
     tailKept: number
-    /** Nice steps below the window, already decided (`givesWay`). */
-    giveWay: number
+    /** How far below the window, already decided (`givesWay`). */
+    giveWay: GivesWay
     idOf: (check: Check, commit: string) => string
   },
 ): Promise<CheckLog> {
@@ -194,9 +194,9 @@ async function one(
 
   // A shell, because a check is a command line as a person writes it
   // ("pnpm exec vitest run"), not an argument vector. Still one, lowered:
-  // `nicedLine` hands back the same line when nothing is giving way, so the
+  // `loweredLine` hands back the same line when nothing is giving way, so the
   // ordinary case is the line the project wrote and nothing else.
-  const child = spawn(nicedLine(check.run, opts.giveWay), {
+  const child = spawn(loweredLine(check.run, opts.giveWay), {
     shell: true,
     cwd: check.cwd ? join(project.root, check.cwd) : project.root,
     detached: true,

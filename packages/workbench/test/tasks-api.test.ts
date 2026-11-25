@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 
 import { join } from 'node:path'
 import {
   documentsIn,
+  givesWay,
   producedClause,
   producesPath,
   taskDir,
@@ -577,8 +578,12 @@ describe('task and run RPC', () => {
     // What was actually launched: the wrapper, with the agent's own line
     // behind it, so the whole process tree under it gives way too.
     const launched = (await client.driver.list()).find((one) => one.id === lane.id)
-    expect(launched?.spec.command).toBe('nice')
-    expect(launched?.spec.args.slice(0, 3)).toEqual(['-n', '3', process.execPath])
+    // `nice -n 3` first, then the QoS clamp or the I/O class where this
+    // machine has them (`givesWay`), then the agent.
+    const { wrap } = givesWay('agent', 3)
+    expect(wrap.slice(0, 3)).toEqual(['nice', '-n', '3'])
+    const line = launched ? [launched.spec.command, ...launched.spec.args] : []
+    expect(line.slice(0, wrap.length + 1)).toEqual([...wrap, process.execPath])
     // And what is written down: the line that says what is running. A stored
     // `nice` would be read as the harness's name by anything that has none
     // (`laneSignal`), and would survive the setting being turned off.

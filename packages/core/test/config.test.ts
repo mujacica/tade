@@ -6,6 +6,7 @@ import { awayProblems } from '../src/away.ts'
 import { checksFor } from '../src/checks.ts'
 import { ConfigSchema, updateCheckEvery } from '../src/config.ts'
 import { loadConfig, parseConfig, unknownSays, writeSetting } from '../src/config-file.ts'
+import { GIVE_WAY_DEFAULT } from '../src/priority.ts'
 import {
   accountFor,
   isOwnSignIn,
@@ -298,15 +299,18 @@ projects:
     expect(wrong.issues[0]?.path).toBe('projects.app.close_when_done')
   })
 
-  it('lowers the agents only by as much as somebody asked for', () => {
-    // Off is the decision again, and for a sharper reason than keep_awake's:
-    // a lowered check suite takes longer under load, and a check with a
-    // timeout can go from slow to `timed out`, which is a worse answer than a
-    // slow green one.
+  it('lowers the agents by default, and by as much as somebody asked for', () => {
+    // On, because the window going slow while agents build is the complaint
+    // and Tade first is what was asked for; agents and suites sit at one
+    // level, so a suite's timeouts compare like with like (`priority.ts`).
     const none = parseConfig('')
-    expect(none.ok && none.config.agents.give_way).toBe(0)
+    expect(none.ok && none.config.agents.give_way).toBe(GIVE_WAY_DEFAULT)
+    expect(GIVE_WAY_DEFAULT).toBeGreaterThan(0)
     const five = parseConfig('agents:\n  give_way: 5\n')
     expect(five.ok && five.config.agents.give_way).toBe(5)
+    // And off is still a value somebody can write.
+    const off = parseConfig('agents:\n  give_way: 0\n')
+    expect(off.ok && off.config.agents.give_way).toBe(0)
     // Past what nice itself can do, and refused by the dotted path rather
     // than clamped silently into something nobody wrote.
     const far = parseConfig('agents:\n  give_way: 25\n')

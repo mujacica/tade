@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { getPriority } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { GIVE_WAY_DEFAULT } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { CI_WORKFLOW, ciWorkflow } from '../../../test/fixtures/workflow.ts'
@@ -92,7 +93,9 @@ describe('tade checks', () => {
     // running niced, and what is under test is the step down. Clamped at 19,
     // where the kernel clamps it.
     expect(await of(3)).toBe(Math.min(19, getPriority() + 3))
-    expect(await of(null)).toBe(getPriority())
+    // A config that says nothing lowers by the default; one that says 0 does not.
+    expect(await of(null)).toBe(Math.min(19, getPriority() + GIVE_WAY_DEFAULT))
+    expect(await of(0)).toBe(getPriority())
   })
 
   it('exits non-zero on a red check, and says which', async () => {

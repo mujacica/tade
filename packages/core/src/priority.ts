@@ -14,37 +14,78 @@ import { resolveCommand, stringEnv } from './which.ts'
 // are things you come back to, and three seconds either way is nothing to
 // them, while thirty milliseconds is everything to a cursor.
 //
-// **What this is, exactly.** POSIX `nice`, which every macOS and Linux
-// machine has, needs no privilege to lower a process, and is inherited — so
-// one wrapper on the shell is the whole subtree under it. Nothing else:
+// **What this is, exactly.** One wrapper in front of the command, built of
+// programs that each lower the process they are in and then `exec` the rest
+// of the line — so one wrapper on the shell is the whole subtree under it,
+// and nothing needs privilege, because lowering never does:
 //
-//   - **Not `taskpolicy -b`** (macOS background QoS) as a first move. It
-//     throttles disk I/O as well as CPU, and an agent writing files is doing
-//     real I/O; a setting that makes `git status` slow is a setting people
-//     turn off and never try again. Measure `nice` first, and only then.
-//   - **Not `os.setPriority`**, which looks tidier and cannot do the job: the
-//     tmux driver has no pid to set it on at the moment it opens a lane
-//     (`handle.pid` is null until tmux is asked), and setting it after the
-//     spawn races the shell forking its first child. `nice` is applied before
-//     the program starts, by the kernel, and there is no window to race.
+//   - **`nice`**, POSIX, on every macOS and Linux machine. The floor: where
+//     it is missing nothing is lowered, and that is said (`NO_NICE_HERE`).
+//   - **`taskpolicy -c utility`**, where the machine has it (macOS). A Mac
+//     schedules by QoS first, and a process started from a terminal runs at
+//     the default one, the same as every compiler beside it: `nice -n 10`
+//     leaves its base priority at 31, a utility clamp takes it to 20 (`ps -o
+//     pri` says so, unprivileged, which is what the tests read). With 28
+//     busy processes on 14 cores, `ps -axo` from the window went 50 → 90 ms
+//     at p50 with the load at the default and back to 49 with it clamped,
+//     and keystroke-to-echo p99 1171 ms → 5.7 (`pnpm bench window --lowered`). Utility and not `background` (`-b`, `-c background`): background
+//     is base priority 4, efficiency cores only and throttled disk, which is
+//     an agent you are waiting on crawling; utility still has the performance
+//     cores whenever the window and the frontmost app do not want them, and
+//     its disk tier follows its QoS — below the window's, not starved.
+//   - **`ionice -c 2 -n 7`**, where the machine has it (Linux, util-linux):
+//     best-effort at its lowest level, so the window's `git status` is served
+//     ahead of an agent's build on a scheduler that reads I/O priority (BFQ;
+//     `none` and `mq-deadline` ignore it, which costs nothing). Best-effort
+//     and not idle, because idle can be starved outright by other agents'
+//     best-effort I/O, and an agent whose `git add` never completes is an
+//     agent that looks hung. No `-t`: busybox's `ionice` has none, and
+//     lowering to best-effort is never refused.
 //
-// **What it does not touch, and why that is the point.** `nice` wraps a
-// command: it calls `setpriority` and then `execvp`, in the same process. So
-// the pid is the same pid, the process group is the same group, and
-// `detach()`, `shutdown()`, `reaped()` and `process.kill(-pid)` all mean
-// exactly what they meant before. There is no extra process to reap and
-// nothing anywhere holds a priority — which is what makes this safe to put
-// behind a setting somebody can change at any time.
+// Looked for, never decided by platform (`caffeineHold`'s argument): the
+// question is whether the program is here.
 //
-// **It is off by default, and that is the decision rather than the absence of
-// one.** Lowering a check suite is not free: it takes longer under load, and
-// a check with a timeout is a check that can go from slow to `timed out`,
-// which is a worse answer than a slow green one. So the person turns it on
-// when their machine is the kind of machine that needs it, and they get to
-// pick how far.
+// **Not `os.setPriority`**, which looks tidier and cannot do the job: the
+// tmux driver has no pid to set it on at the moment it opens a lane
+// (`handle.pid` is null until tmux is asked), setting it after the spawn
+// races the shell forking its first child, and Node has no QoS call at all.
+// The wrapper is applied before the program starts, by the kernel, and there
+// is no window to race.
+//
+// **Raising the window instead is not possible.** An unprivileged process
+// cannot lower its own niceness, and nothing in Node sets a thread's QoS. So
+// the window and everything *it* runs for itself — `git` and `ps` for the
+// probes, the reaper, the tool host's work, the orchestrator — stay at the
+// priority the window was started at, and everything that is batch work is
+// put below it. An agent's tool call is answered in the window's own process
+// (`harnesses/claude/src/mcp.ts` only relays it), so what an agent asks Tade
+// for runs at the window's priority, not the agent's; only the relay itself
+// is lowered, with the agent that started it.
+//
+// **What it does not touch, and why that is the point.** Every one of these
+// calls its syscall and then `execvp`, in the same process. So the pid is the
+// same pid, the process group is the same group, and `detach()`,
+// `shutdown()`, `reaped()` and `process.kill(-pid)` all mean exactly what
+// they meant before. There is no extra process to reap and nothing anywhere
+// holds a priority — which is what makes this safe to put behind a setting
+// somebody can change at any time.
+//
+// **It is on by default** (`GIVE_WAY_DEFAULT`): a window that goes slow while
+// the agents build is the complaint, and the person asked for Tade first in
+// so many words. What it costs a check suite is contention with the window
+// and the frontmost app, not with the agents, which sit at the same level —
+// so a suite's own timeouts compare like with like. 0 turns it off.
 
-/** The program that lowers a process's priority. Nothing else here knows its name. */
+/** The programs that lower a process's priority. Nothing else here knows their names. */
 export const NICE = 'nice'
+/** macOS's: a QoS clamp, which is what the scheduler there actually weighs. */
+export const QOS = 'taskpolicy'
+/** Linux's (util-linux): the I/O half, which `nice` only implies. */
+export const IONICE = 'ionice'
+
+/** What the clamp and the I/O class are, wherever their programs are found. */
+const QOS_ARGS = ['-c', 'utility'] as const
+const IONICE_ARGS = ['-c', '2', '-n', '7'] as const
 
 /**
  * As far as `nice` goes without privilege, and as far as this will ever ask.
@@ -55,6 +96,14 @@ export const NICE = 'nice'
  * actually use is the person's, and the research's starting point is 5.
  */
 export const GIVE_WAY_MAX = 19
+
+/**
+ * What a config that says nothing gives way by. Halfway down, and well clear
+ * of 19: with the QoS clamp doing the work on a Mac, the number is mostly
+ * Linux's, where 10 below the window weighs 110 to its 1024 on a contended
+ * core (CFS) — the window first, and an agent still making progress.
+ */
+export const GIVE_WAY_DEFAULT = 10
 
 /**
  * What Tade started, for the one question of whether it gives way.
@@ -106,7 +155,7 @@ const GIVES_WAY: ReadonlySet<Started> = new Set<Started>(['agent', 'checks', 'te
 
 /** What `nice` here means, in the one sentence read wherever somebody is deciding. */
 export const GIVE_WAY_MEANS =
-  'agents and check runs are started at a lower OS priority, so the window stays quick while the machine is busy; it applies to the next one started, and needs POSIX nice'
+  'agents and check runs are started below the window — nice, plus a utility QoS clamp on macOS and best-effort ionice on Linux — so the window and its own git and ps stay quick while the machine is busy; 0 is off, and it applies to the next one started'
 
 /**
  * Why nothing gives way here, where something was asked to and cannot.
@@ -131,9 +180,18 @@ function niceAt(env: NodeJS.ProcessEnv): string | null {
 export interface GivesWay {
   /** Nice steps below the window. 0 is "not at all", and is always a valid answer. */
   by: number
+  /**
+   * What goes in front of the command to lower it, as an argument vector:
+   * `nice`, and the clamp and the I/O class where this machine has them.
+   * Empty exactly when `by` is 0.
+   */
+  wrap: readonly string[]
   /** Why `by` is 0 although something was asked for. Null whenever nothing is wrong. */
   problem: string | null
 }
+
+/** Nothing gives way: the answer for what a person is waiting on, and for off. */
+export const KEEPS_PACE: GivesWay = { by: 0, wrap: [], problem: null }
 
 /**
  * How much what Tade is about to start should give way to the window.
@@ -153,11 +211,21 @@ export function givesWay(
   asked: number,
   env: NodeJS.ProcessEnv = process.env,
 ): GivesWay {
-  if (!GIVES_WAY.has(what) || !Number.isFinite(asked) || asked <= 0) {
-    return { by: 0, problem: null }
-  }
-  if (niceAt(env) === null) return { by: 0, problem: NO_NICE_HERE }
-  return { by: Math.min(Math.round(asked), GIVE_WAY_MAX), problem: null }
+  if (!GIVES_WAY.has(what) || !Number.isFinite(asked) || asked <= 0) return KEEPS_PACE
+  if (niceAt(env) === null) return { ...KEEPS_PACE, problem: NO_NICE_HERE }
+  const by = Math.min(Math.round(asked), GIVE_WAY_MAX)
+  // `round` can come back with nought from a fraction below a half, which is
+  // off and not "nice by nought".
+  if (by <= 0) return KEEPS_PACE
+  const here = (program: string) => resolveCommand(program, stringEnv(env)) !== null
+  const wrap = [
+    NICE,
+    '-n',
+    String(by),
+    ...(here(QOS) ? [QOS, ...QOS_ARGS] : []),
+    ...(here(IONICE) ? [IONICE, ...IONICE_ARGS] : []),
+  ]
+  return { by, wrap, problem: null }
 }
 
 /** A command as something starts it: what to run, and the arguments it is run with. */
@@ -169,22 +237,26 @@ export interface Launched {
 /**
  * The same launch, lowered.
  *
- * Pure, and `by` is what `givesWay` already answered — so a caller that has
+ * Pure, and `way` is what `givesWay` already answered — so a caller that has
  * not asked it cannot accidentally wrap something that should never be
- * wrapped. `by` of 0 hands back exactly what it was given, which is what
+ * wrapped. An empty wrap hands back exactly what it was given, which is what
  * makes "the setting is off" the same code path as "there is no setting".
  */
-export function niced<T extends Launched>(launch: T, by: number): T & { args: string[] } {
+export function lowered<T extends Launched>(
+  launch: T,
+  way: Pick<GivesWay, 'wrap'>,
+): T & { args: string[] } {
   const args = [...launch.args]
-  if (by <= 0) return { ...launch, args }
-  return { ...launch, command: NICE, args: ['-n', String(by), launch.command, ...args] }
+  const [first, ...rest] = way.wrap
+  if (first === undefined) return { ...launch, args }
+  return { ...launch, command: first, args: [...rest, launch.command, ...args] }
 }
 
 /**
  * The shell a command line is handed to, spelled out.
  *
  * This is exactly what `spawn(line, { shell: true })` does on a POSIX machine.
- * It is named here because `niced` can only lower a command it is handed, and
+ * It is named here because `lowered` can only lower a command it is handed, and
  * what has to give way for a check is the shell *and everything under it*: a
  * line like `a && b` runs `b` as a child of the shell, so nicing the first
  * word of it would lower one half of a check and leave the other alone.
@@ -197,17 +269,17 @@ function quoted(word: string): string {
 }
 
 /**
- * A command line for a shell to run, lowered — the same line when `by` is 0.
+ * A command line for a shell to run, lowered — the same line when nothing gives way.
  *
- * The other shape of `niced`, for the place a command is a line somebody
+ * The other shape of `lowered`, for the place a command is a line somebody
  * would type rather than an argument vector. It stays a line, so the caller
  * goes on using the shell it already used and nothing about quoting, globbing
  * or `&&` changes; `exec` is there so the pid that ends up niced is the pid
  * the caller is holding, which is what keeps `process.kill(-pid)` reaching
  * the whole of a check.
  */
-export function nicedLine(line: string, by: number): string {
-  if (by <= 0) return line
-  const { command, args } = niced({ command: SHELL, args: ['-c', line] }, by)
+export function loweredLine(line: string, way: Pick<GivesWay, 'wrap'>): string {
+  if (way.wrap.length === 0) return line
+  const { command, args } = lowered({ command: SHELL, args: ['-c', line] }, way)
   return `exec ${[command, ...args].map(quoted).join(' ')}`
 }

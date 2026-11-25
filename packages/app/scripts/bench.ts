@@ -3,7 +3,14 @@ import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { cpus, loadavg } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { LaneId } from '@tade/core'
+import {
+  GIVE_WAY_DEFAULT,
+  type GivesWay,
+  givesWay,
+  KEEPS_PACE,
+  type LaneId,
+  lowered,
+} from '@tade/core'
 import { PtyDriver } from '@tade/drivers-pty'
 import { type Span, Timings, table } from '../src/timing.ts'
 import {
@@ -31,6 +38,7 @@ import { benchOpen } from './open.ts'
 //   pnpm bench --steady 4          how many runs of each screen with a lane printing (frames)
 //   pnpm bench --keys 40           how many keystrokes each echo round sends (window)
 //   pnpm bench --load 12           how many busy processes "loaded" means
+//   pnpm bench window --lowered    and loaded again with the load started as agents are
 //
 // Two instruments, because the question has two halves.
 //
@@ -177,6 +185,35 @@ const LANE = args.includes('--lane')
  */
 const LOAD = numberArg('load', cpus().length * 3, 0)
 
+/**
+ * Load the machine a second time with the busy processes started the way an
+ * agent is (`givesWay('agent', GIVE_WAY_DEFAULT)` — `nice`, and the QoS clamp
+ * or the I/O class where this machine has them), so the two loaded halves are
+ * the window before and after `agents.give_way`.
+ *
+ * Each loaded half also times `ps` — the status probe's own call — from this
+ * process, which is at the window's priority: the probe the window waits on
+ * hardest under load, and the one that went to ~470 ms on an afternoon with
+ * twenty-six agents.
+ */
+const LOWERED = args.includes('--lowered')
+
+/** How many times each half asks `ps`. */
+const PS_ROUNDS = 20
+
+/** What `processes.ts` asks for, timed from spawn to close. */
+async function timePs(timings: Timings): Promise<void> {
+  for (let n = 0; n < PS_ROUNDS; n++) {
+    const at = performance.now()
+    await new Promise<void>((done) => {
+      const kid = spawn('ps', ['-axo', 'pid=,ppid=,args='], { stdio: 'ignore' })
+      kid.once('error', () => done())
+      kid.once('close', () => done())
+    })
+    timings.sample('ps -axo pid=,ppid=,args=', performance.now() - at)
+  }
+}
+
 const say = (text: string): void => {
   process.stdout.write(`${text}\n`)
 }
@@ -269,10 +306,12 @@ function dearest(spans: Record<string, Span>, prefix: string, many: number): Rec
  * forty-two spinning shells behind on a signal is worse than no bench: the
  * next thing anybody measures on this machine is measuring them.
  */
-function induce(many: number): { started: number; stop: () => void } {
-  const kids = Array.from({ length: many }, () =>
-    spawn('sh', ['-c', 'while :; do :; done'], { stdio: 'ignore', detached: true }),
-  )
+function induce(many: number, way: GivesWay = KEEPS_PACE): { started: number; stop: () => void } {
+  const kids = Array.from({ length: many }, () => {
+    // The wrapper execs in place, so the pid killed below is the spinner's.
+    const launch = lowered({ command: 'sh', args: ['-c', 'while :; do :; done'] }, way)
+    return spawn(launch.command, launch.args, { stdio: 'ignore', detached: true })
+  })
   const started = kids.filter((kid) => kid.pid !== undefined).length
   const stop = () => {
     for (const kid of kids) {
@@ -527,24 +566,33 @@ async function window(
 
 async function windows(sizes: readonly Size[]): Promise<void> {
   for (const size of sizes) {
-    for (const how of ['idle', 'loaded'] as const) {
-      if (how === 'loaded' && LOAD === 0) continue
-      const load = how === 'loaded' ? induce(LOAD) : { started: 0, stop: () => {} }
+    const halves = LOWERED
+      ? (['idle', 'loaded', 'loaded, lowered'] as const)
+      : (['idle', 'loaded'] as const)
+    for (const how of halves) {
+      const loaded = how !== 'idle'
+      if (loaded && LOAD === 0) continue
+      const way = how === 'loaded, lowered' ? givesWay('agent', GIVE_WAY_DEFAULT) : KEEPS_PACE
+      const load = loaded ? induce(LOAD, way) : { started: 0, stop: () => {} }
       try {
-        if (how === 'loaded' && load.started === 0) {
+        if (loaded && load.started === 0) {
           // Said, never passed over: a loaded half that is secretly the idle
           // half again is the one reading of this bench that could mislead.
           say('\ncould not start a single busy process, so there is no loaded half to report')
           continue
         }
-        if (how === 'loaded') {
+        if (loaded) {
           // Long enough for the scheduler to have noticed them.
           await new Promise((done) => setTimeout(done, 2_000))
         }
+        const ps = new Timings(true)
+        await timePs(ps)
         const { echo, spans, missed, note } = await window(size, KEYS)
+        const lowering = way.wrap.length > 0 ? `, started as \`${way.wrap.join(' ')}\`` : ''
         heading(
-          `the window at ${size.name}, ${how}${how === 'loaded' ? ` — ${load.started} busy processes on ${cpus().length} cores` : ''}`,
+          `the window at ${size.name}, ${how}${loaded ? ` — ${load.started} busy processes on ${cpus().length} cores${lowering}` : ''}`,
         )
+        say(table(ps.spans()))
         if (note) say(`! ${note}`)
         const typed = LANE ? KEYS * 2 : KEYS
         if (missed > 0) say(`! ${missed} of ${typed} keys were never echoed inside three seconds`)

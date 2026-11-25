@@ -6,7 +6,7 @@ import {
   THINKING_LEVELS,
   type ThinkingLevel,
 } from './config.ts'
-import { GIVE_WAY_MAX, GIVE_WAY_MEANS } from './priority.ts'
+import { GIVE_WAY_DEFAULT, GIVE_WAY_MAX, GIVE_WAY_MEANS } from './priority.ts'
 import { PUSH_BY_DEFAULT, PUSH_MODES, pushDefault } from './project.ts'
 import { machineNameByDefault } from './remotes.ts'
 import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from './secrets.ts'
@@ -304,13 +304,13 @@ export function settingsOf(
           title: 'How much agents give way',
           means: GIVE_WAY_MEANS,
           value: String(config.agents.give_way),
-          fallback: '0',
+          fallback: String(GIVE_WAY_DEFAULT),
           // A number rather than a switch, because how far to go is a fact
-          // about one machine: 5 is where the measurements started and 19 is
-          // "only when nothing else wants the machine", which is a real answer
-          // for a long suite and the wrong one for an agent you are waiting on.
-          // From nought, which is off and the default, and is written as a 0
-          // like any other answer: refused as a value, off was unreachable.
+          // about one machine: 10 is the default and 19 is "only when nothing
+          // else wants the machine", which is a real answer for a long suite
+          // and the wrong one for an agent you are waiting on. From nought,
+          // which is off, and is written as a 0 like any other answer:
+          // refused as a value, off was unreachable.
           type: { kind: 'number', unit: `steps below the window, up to ${GIVE_WAY_MAX}`, from: 0 },
           live: true,
           // `wordsFor` would only ever find this as `give_way`, which is not

@@ -1,9 +1,22 @@
+import { execFileSync, spawn } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { getPriority } from 'node:os'
 import { join } from 'node:path'
-import { type LaneId, type LaneKind, NO_NICE_HERE, taskDir } from '@tade/core'
+import {
+  GIVE_WAY_DEFAULT,
+  IONICE,
+  type LaneId,
+  type LaneKind,
+  NO_NICE_HERE,
+  QOS,
+  resolveCommand,
+  stringEnv,
+  taskDir,
+} from '@tade/core'
+import type { WorkspaceDriver } from '@tade/drivers-core'
 import { isRunning, until } from '@tade/drivers-core/conformance'
 import { PtyDriver } from '@tade/drivers-pty'
+import { TmuxDriver } from '@tade/drivers-tmux'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { EventLog } from '../src/events.ts'
@@ -168,5 +181,170 @@ describe('what gives way to the window', () => {
     // be a window that lies about why your build is slow.
     const { said } = await nicenessOf('app/five/shell', 'shell', 9)
     expect(said).toBe(getPriority())
+  }, 30_000)
+})
+
+// What the kernel holds about a lowered lane *and what it starts*, read the
+// way anybody would read it — `ps`, `ionice -p` — and under each driver,
+// because the wrapper reaches the program by a different road under each:
+// node-pty's own spawn, and tmux's server running the line it was handed.
+//
+// The child is the half that matters. An agent's cost is its builds, tests
+// and `git`, none of which Tade starts, so what is proved here is that they
+// inherit: the lane's program starts one, and that one is read too.
+
+/** Starts a child that will outlive the asking, and says both pids. */
+const SAYS_ITS_PIDS = [
+  '-e',
+  "const k = require('node:child_process').spawn('sleep', ['60'], { stdio: 'ignore' }); process.stdout.write(`PIDS=${process.pid},${k.pid}\\n`); setInterval(() => {}, 1000)",
+]
+
+const here = (program: string) => resolveCommand(program, stringEnv(process.env)) !== null
+
+/** `ps`'s answer for one pid: niceness, and macOS's base priority, which QoS sets. */
+function psOf(pid: number): { nice: number; pri: number } {
+  const [nice, pri] = execFileSync('ps', ['-o', 'nice=,pri=', '-p', String(pid)], {
+    encoding: 'utf8',
+  })
+    .trim()
+    .split(/\s+/)
+    .map((word) => Number.parseInt(word, 10))
+  return { nice: nice ?? Number.NaN, pri: pri ?? Number.NaN }
+}
+
+/**
+ * The base priority a utility clamp holds a process to on macOS. Default QoS
+ * is 31 and background 4; 20 is what `ps -o pri` says, unprivileged, of
+ * anything started under `taskpolicy -c utility`.
+ */
+const UTILITY_PRI = 20
+
+const DRIVERS: Array<[string, () => WorkspaceDriver]> = [
+  ['pty', () => new PtyDriver()],
+  ...(here('tmux')
+    ? [
+        [
+          'tmux',
+          () => new TmuxDriver({ socket: `tade-priority-${process.pid}`, session: 'p' }),
+        ] as [string, () => WorkspaceDriver],
+      ]
+    : []),
+]
+
+describe.each(DRIVERS)('what an agent and its children are started at, under %s', (_, make) => {
+  let home: string
+  let log: EventLog
+  let driver: WorkspaceDriver
+  let registry: LaneRegistry
+  /** What this process starts with nothing lowering it: the window's own level. */
+  let own: { nice: number; pri: number }
+
+  beforeEach(async () => {
+    home = tmp('tade-priority-tree-')
+    log = await EventLog.open({ path: join(home, 'events.jsonl') })
+    driver = make()
+    registry = await LaneRegistry.open({ driver, log, home, path: join(home, 'lanes.json') })
+    // Asked of a child rather than of this process, because a helper the
+    // window starts — `git`, `ps` — is what it is being compared with, and a
+    // node test worker's own threads can carry a QoS of their own.
+    const kid = spawn('sleep', ['60'], { stdio: 'ignore' })
+    try {
+      await until(() => kid.pid !== undefined && isRunning(kid.pid), { timeout: 5_000 })
+      own = psOf(kid.pid ?? 0)
+    } finally {
+      kid.kill('SIGKILL')
+    }
+  })
+
+  afterEach(async () => {
+    await registry.shutdown().catch(() => {})
+    await driver.shutdown().catch(() => {})
+    await log.close().catch(() => {})
+  })
+
+  /** Open a lane of `kind` that starts a child, and read both from outside. */
+  async function treeOf(id: string, kind: LaneKind, giveWay: number) {
+    const task = id.split('/').slice(0, 2).join('/')
+    mkdirSync(taskDir(home, task), { recursive: true })
+    writeFileSync(join(taskDir(home, task), 'task.yaml'), `id: ${task}\n`)
+    let seen = ''
+    await registry.spawn({
+      id: id as LaneId,
+      task,
+      kind,
+      cwd: home,
+      command: process.execPath,
+      args: SAYS_ITS_PIDS,
+      cols: 80,
+      rows: 24,
+      giveWay,
+    })
+    const stop = registry.onOutput(
+      id as LaneId,
+      (chunk) => {
+        seen += Buffer.from(chunk).toString('utf8')
+      },
+      { replay: true },
+    )
+    try {
+      await until(() => /PIDS=\d+,\d+/.test(seen), { timeout: 20_000 })
+      const [lane, child] = (/PIDS=(\d+),(\d+)/.exec(seen) ?? [])
+        .slice(1)
+        .map((n) => Number.parseInt(n, 10)) as [number, number]
+      const io = (pid: number) =>
+        here(IONICE) ? execFileSync(IONICE, ['-p', String(pid)], { encoding: 'utf8' }).trim() : null
+      return {
+        lane: psOf(lane),
+        child: psOf(child),
+        io: { lane: io(lane), child: io(child) },
+        childPid: child,
+      }
+    } finally {
+      stop()
+      await registry.close(id as LaneId)
+    }
+  }
+
+  it('lowers an agent and everything it starts, by the default', async () => {
+    const tree = await treeOf('app/tree/agent', 'agent', GIVE_WAY_DEFAULT)
+    try {
+      const nice = Math.min(19, own.nice + GIVE_WAY_DEFAULT)
+      expect(tree.lane.nice).toBe(nice)
+      expect(tree.child.nice).toBe(nice)
+      if (here(QOS)) {
+        // At most utility's, and never above what this process starts at:
+        // a suite that is itself run lowered starts its helpers at utility
+        // already, and the clamp cannot go below where it is.
+        expect(tree.lane.pri).toBeLessThanOrEqual(Math.min(own.pri, UTILITY_PRI))
+        expect(tree.child.pri).toBeLessThanOrEqual(Math.min(own.pri, UTILITY_PRI))
+      }
+      if (here(IONICE)) {
+        expect(tree.io.lane).toBe('best-effort: prio 7')
+        expect(tree.io.child).toBe('best-effort: prio 7')
+      }
+    } finally {
+      try {
+        process.kill(tree.childPid, 'SIGKILL')
+      } catch {
+        // Gone with its lane, which is as good.
+      }
+    }
+  }, 30_000)
+
+  it('starts a terminal at the window’s own level, child and all', async () => {
+    // The contrast that makes the line above mean something: what a person
+    // types into is never lowered, so its children are the window's peers.
+    const tree = await treeOf('app/tree/shell', 'terminal', GIVE_WAY_DEFAULT)
+    try {
+      expect(tree.lane.nice).toBe(own.nice)
+      expect(tree.child.nice).toBe(own.nice)
+      expect(tree.child.pri).toBe(own.pri)
+    } finally {
+      try {
+        process.kill(tree.childPid, 'SIGKILL')
+      } catch {
+        // Gone with its lane.
+      }
+    }
   }, 30_000)
 })

@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { availableParallelism, cpus, loadavg } from 'node:os'
 import type { LaneId } from '@tade/core'
-import { niced } from '@tade/core'
+import { givesWay, lowered } from '@tade/core'
 import { PtyDriver } from '@tade/drivers-pty'
 
 // How long a keystroke takes to come back, and whether nicing the agents
@@ -106,7 +106,9 @@ function options(argv: readonly string[]): Options {
 /** Busy processes, at this priority, and how to end them. */
 function compete(count: number, by: number): () => void {
   const children = Array.from({ length: count }, () => {
-    const launch = niced({ command: process.execPath, args: BUSY }, by)
+    // As an agent is started: `nice`, and the QoS clamp or the I/O class
+    // where this machine has them (`givesWay`).
+    const launch = lowered({ command: process.execPath, args: BUSY }, givesWay('agent', by))
     const child = spawn(launch.command, launch.args, { stdio: 'ignore', detached: true })
     // A spawn that fails does so asynchronously, and an unhandled `error`
     // would take the probe down mid-measurement.
