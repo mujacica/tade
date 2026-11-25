@@ -26,6 +26,7 @@ import {
   AWAY_WARNED_AFTER_MS,
   HubAway,
   type HubLink,
+  HubStarting,
   LEASE_WAITED_AT_MOST_MS,
   OneConversation,
 } from '../src/one-conversation.ts'
@@ -992,6 +993,86 @@ describe('what goes wrong around a turn, said rather than lost', () => {
       // And none once the turn is over.
       tick()
       expect(renewals).toHaveLength(3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('takes a renewal the hub did not answer as its window restarting, and writes it down only past three minutes with the link up (TADE-H)', async () => {
+    // Paced by the interval, as above: each `tick` is one renewal, and the
+    // clock the warning counts by is the one the test moves.
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    try {
+      const mac = machine('mac')
+      const vps = machine('vps')
+      const hub = gated(vps, () => null)
+      let renewing: 'answered' | 'away' | 'starting' = 'answered'
+      let now = Date.parse('2026-11-25T18:39:00.000Z')
+      const inFlight: Promise<unknown>[] = []
+      const link: HubLink = {
+        name: 'vps',
+        up: true,
+        downSince: null,
+        send: (ask) => {
+          const sent = (async () => {
+            if (ask.lease?.op === 'renew' && renewing === 'away')
+              throw new HubAway('vps did not answer within 20s')
+            if (ask.lease?.op === 'renew' && renewing === 'starting') throw new HubStarting('vps')
+            return hub.one.answer(ask)
+          })()
+          inFlight.push(sent)
+          return sent
+        },
+      }
+      const said: string[] = []
+      const one = new OneConversation({
+        shared: mac.shared,
+        hub: () => link,
+        reload: async () => {},
+        say: (text) => said.push(text),
+        warn: (text) => said.push(`warn: ${text}`),
+        now: () => now,
+        clock: () => '18:39',
+        pause: async () => {},
+      })
+      // Each renewal is waited for to its end, and then its handler, before the next.
+      const tick = async () => {
+        vi.advanceTimersByTime(RENEW_MS)
+        await Promise.allSettled(inFlight.splice(0))
+        await new Promise((resolve) => setImmediate(resolve))
+      }
+      const warned = () => said.filter((line) => line.startsWith('warn:'))
+      await one.before(true)
+
+      renewing = 'away'
+      await tick()
+      now += AWAY_WARNED_AFTER_MS - 1
+      await tick()
+      renewing = 'starting'
+      await tick()
+      expect(warned()).toEqual([])
+      expect(said.filter((line) => line.includes('vps did not answer'))).toEqual([
+        "vps did not answer (vps did not answer within 20s): carrying on here; what is not given yet goes at the next exchange once it answers, and this conversation is merged with vps's then.",
+      ])
+
+      // One that went through starts the count again.
+      renewing = 'answered'
+      await tick()
+      renewing = 'away'
+      await tick()
+      now += AWAY_WARNED_AFTER_MS - 1
+      await tick()
+      expect(warned()).toEqual([])
+
+      // Past three minutes unanswered with the link up: written down, once.
+      now += 1
+      await tick()
+      now += 30_000
+      await tick()
+      expect(warned()).toEqual([
+        'warn: the turn lease could not be renewed at vps for 3 minutes while its link is up: vps did not answer within 20s',
+      ])
+      await one.after()
     } finally {
       vi.useRealTimers()
     }

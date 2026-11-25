@@ -433,17 +433,30 @@ export class OneConversation {
     if (this.renewing) clearInterval(this.renewing)
     this.renewing = setInterval(() => {
       const hub = this.opts.hub()
-      if (!hub?.up) return
+      if (!hub?.up) {
+        if (hub) this.away = null
+        return
+      }
       void hub
         .send({
           from: this.opts.shared.me,
           harness: this.opts.shared.harness,
           lease: { op: 'renew', key: this.key },
         })
-        // Said, and not fatal: a lease not renewed runs out, and the next turn takes it again.
-        .catch((err: unknown) =>
-          this.opts.warn(`the turn lease at ${hub.name} could not be renewed: ${why(err)}`),
-        )
+        .then(() => {
+          this.away = null
+        })
+        // Not fatal: a lease not renewed runs out, and the next turn takes it again.
+        // A hub whose window is restarting is not trouble while it lasts, as
+        // with every exchange (TADE-H); anything else is written down.
+        .catch((err: unknown) => {
+          if (err instanceof HubStarting) return
+          if (err instanceof HubAway) {
+            this.unreached(hub, err, 'the turn lease could not be renewed at')
+            return
+          }
+          this.opts.warn(`the turn lease at ${hub.name} could not be renewed: ${why(err)}`)
+        })
     }, RENEW_MS)
     this.renewing.unref?.()
   }
