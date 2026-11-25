@@ -93,7 +93,7 @@ export const KEEP_EVERY_MS = 5_000
 
 /** A whole link out of a transport. */
 export function linkOver(transport: Transport, options: LinkOptions): RemoteLink {
-  return new Links(transport, options.now ?? Date.now, options.home, options.figures)
+  return new Links(transport, options.now ?? Date.now, options.home, options.figures, options.name)
 }
 
 /** What keeping one remote's projection on disk stands at. */
@@ -118,17 +118,20 @@ class Links implements RemoteLink {
   private readonly home: string
   private readonly keeping = new Map<string, Keeping>()
   private readonly figures: () => unknown
+  private readonly name: (() => string) | undefined
 
   constructor(
     transport: Transport,
     now: () => number,
     home: string,
     figures: () => unknown = () => null,
+    name?: () => string,
   ) {
     this.transport = transport
     this.now = now
     this.home = home
     this.figures = figures
+    this.name = name
     this.id = transport.id
     this.capabilities = transport.capabilities
     this.programs = transport.programs
@@ -215,6 +218,7 @@ class Links implements RemoteLink {
       now: this.now,
       changed: () => this.told(remote.name),
       figures: this.figures,
+      ...(this.name && { name: this.name }),
     })
     follower.press(this.pressedAt)
     this.followers.set(remote.name, follower)

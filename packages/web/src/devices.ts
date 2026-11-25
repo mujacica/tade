@@ -228,6 +228,28 @@ const ProvedLine = z.strictObject({
   counter: z.int().min(0).max(0xffffffff),
 })
 
+/**
+ * What a machine that links here may call itself: what `machineLabel` makes
+ * there — letters, digits, dots, dashes, underscores and spaces — bounded as a
+ * label is. A grammar rather than any text, because the device's own word
+ * about itself lands in every list that names it.
+ */
+export const DEVICE_NAME = /^[A-Za-z0-9._ -]{1,60}$/
+
+/**
+ * A device's own word for what it is called now (`seen.ts`): the label it
+ * paired with, replaced — so a machine that paired under its host name, before
+ * it had a name of its own, is not called by it for as long as it stays
+ * paired. Only the device itself writes one, about itself; nothing else
+ * about it moves.
+ */
+const NamedLine = z.strictObject({
+  kind: z.literal('named'),
+  device: z.string().regex(/^[0-9a-f]{16}$/),
+  at: z.string(),
+  label: z.string().regex(DEVICE_NAME),
+})
+
 const Line = z.discriminatedUnion('kind', [
   PairedLine,
   RevokedLine,
@@ -238,6 +260,7 @@ const Line = z.discriminatedUnion('kind', [
   ClaimedLine,
   PasskeyLine,
   ProvedLine,
+  NamedLine,
 ])
 export type DeviceLine = z.infer<typeof Line>
 export type Paired = z.infer<typeof PairedLine>
@@ -377,6 +400,8 @@ export function devicesIn(text: string): {
       devices.set(parsed.device, { ...held, scopes })
     } else if (parsed.kind === 'granted') {
       devices.set(parsed.device, { ...held, granted: parsed.granted })
+    } else if (parsed.kind === 'named') {
+      devices.set(parsed.device, { ...held, label: parsed.label })
     } else if (parsed.kind === 'passkey') {
       const at = Date.parse(parsed.at)
       const { kind: _kind, device: _device, at: _at, ...kept } = parsed
@@ -478,6 +503,21 @@ export async function grantDevice(
     at: at.toISOString(),
     granted: Granted.parse(granted),
   })
+}
+
+/**
+ * A device said what it is called now (`seen.ts`): written down where that is
+ * not what the list already calls it. Whether one was written.
+ */
+export async function nameDevice(
+  home: string,
+  device: Pick<Device, 'id' | 'label'>,
+  label: string,
+  at: Date,
+): Promise<boolean> {
+  if (label === device.label) return false
+  await appendDevice(home, { kind: 'named', device: device.id, at: at.toISOString(), label })
+  return true
 }
 
 /**

@@ -422,4 +422,10 @@ export interface LinkOptions {
    * absent, sends none.
    */
   figures?: () => unknown
+  /**
+   * What this machine is called, said with its word that it is up, so the
+   * remote stops calling it by the label it paired with. Absent is
+   * `machineLabel()`, asked at every word.
+   */
+  name?: () => string
 }

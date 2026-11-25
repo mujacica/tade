@@ -8,6 +8,7 @@ import {
   devicesIn,
   devicesPath,
   grantDevice,
+  nameDevice,
   readDevices,
   revokeAll,
   writeDevices,
@@ -164,6 +165,40 @@ describe('the fold', () => {
     expect(found?.until).toBe(Date.parse(later))
     expect(found?.digest).toBe(one.digest)
     expect(found?.revoked).toBeNull()
+  })
+
+  it('renames a device on a named line, in a label’s grammar, and nothing else', () => {
+    const one = pairedLine({ label: 'LAPTOP-A1B2C3' })
+    const named = { kind: 'named', device: one.device, at: new Date(NOW + 1).toISOString() }
+    const text = [JSON.stringify(one), JSON.stringify({ ...named, label: 'laptop' })].join('\n')
+    const found = devicesIn(text).devices[0]
+    expect(found?.label).toBe('laptop')
+    expect(found?.digest).toBe(one.digest)
+    expect(found?.until).toBe(Date.parse(String(one.until)))
+    // A name that is not a label's is skipped, and the device keeps the one it had.
+    for (const label of ['', 'x'.repeat(61), 'mac\u202e', '<b>mac</b>', 'a/b']) {
+      const read = devicesIn([JSON.stringify(one), JSON.stringify({ ...named, label })].join('\n'))
+      expect(read.skipped, label).toBe(1)
+      expect(read.devices[0]?.label).toBe('LAPTOP-A1B2C3')
+    }
+  })
+
+  it('writes a new name down only where it is not the one the list has', async () => {
+    const dir = await home()
+    const one = pairedLine({ label: 'LAPTOP-A1B2C3' })
+    await writeDevices(dir, [one as never])
+    const [device] = (await readDevices(dir)).devices
+    if (device === undefined) throw new Error('no device')
+    expect(await nameDevice(dir, device, 'laptop', new Date(NOW))).toBe(true)
+    const [renamed] = (await readDevices(dir)).devices
+    expect(renamed?.label).toBe('laptop')
+    if (renamed === undefined) throw new Error('no device')
+    expect(await nameDevice(dir, renamed, 'laptop', new Date(NOW))).toBe(false)
+    const lines = (await readFile(devicesPath(dir), 'utf8')).trim().split('\n')
+    expect(lines).toHaveLength(2)
+    // Pairing again is a new label, whatever the device called itself since.
+    await appendDevice(dir, { ...one, label: 'studio' } as never)
+    expect((await readDevices(dir)).devices[0]?.label).toBe('studio')
   })
 
   it('ignores a revoked line for a device nothing introduced', () => {

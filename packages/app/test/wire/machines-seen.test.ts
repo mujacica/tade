@@ -84,6 +84,38 @@ describe('a machine that links here', () => {
   })
 })
 
+describe('a machine that links here saying a name of its own', () => {
+  it('moves its record to the name, says the one it replaces once, and keeps its figures', () => {
+    const { seen, lines } = holder()
+    const host = { at: 'now', cpu: 3 } as never
+    seen.heard('LAPTOP-A1B2C3', { state: 'up', slept: null }, T, host)
+    seen.heard('laptop', { state: 'up', slept: null }, T + 10_000, host, 'LAPTOP-A1B2C3')
+    seen.heard('laptop', { state: 'up', slept: null }, T + 20_000, host)
+    expect(lines).toEqual([
+      { machine: 'LAPTOP-A1B2C3', way: 'from', state: 'up' },
+      { machine: 'laptop', way: 'from', state: 'up', was: 'LAPTOP-A1B2C3' },
+    ])
+    expect(seen.rows()).toEqual([
+      { name: 'laptop', way: 'from', state: 'up', since: T + 10_000, host },
+    ])
+  })
+
+  it('is never lost under the name it had, and an earlier window’s record of it is let go', async () => {
+    const { seen, lines, at } = holder([
+      { machine: 'LAPTOP-A1B2C3', way: 'from', state: 'closed', at: T - 86_400_000, since: null },
+    ])
+    await seen.seed()
+    seen.heard('laptop', { state: 'up', slept: null }, T, null, 'LAPTOP-A1B2C3')
+    at(LOST_AFTER_MS + 1)
+    seen.beat()
+    expect(lines.map((one) => [one.machine, one.state])).toEqual([
+      ['laptop', 'up'],
+      ['laptop', 'lost'],
+    ])
+    expect(seen.rows().map((one) => one.name)).toEqual(['laptop'])
+  })
+})
+
 describe('a machine this one links to', () => {
   it('is up while its link is live, closed after its goodbye, lost without one, and nothing while dialled', () => {
     const { seen, lines } = holder()

@@ -94,12 +94,39 @@ export class MachinesSeen {
    * A machine that links here said something of itself (`/api/seen`), at `at`
    * in this clock — with its figures, where its word that it is up carried any.
    * A goodbye leaves the last ones it sent, drawn as of when it looked.
+   *
+   * `was` is what it was called here until now, where it has just said a name
+   * of its own (`seen.ts`): its record moves to the new name — how it stood,
+   * its figures — and the first line under it says `was`, so the journal read
+   * back forgets the old one (`machinesSeenFrom`) rather than drawing it lost.
    */
-  heard(machine: string, word: SeenWord, at: number, host: Host | null = null): void {
+  heard(machine: string, word: SeenWord, at: number, host: Host | null = null, was?: string): void {
     const name = seenName(machine)
+    const old = was === undefined ? null : seenName(was)
+    const renamed = old !== null && old !== name
+    if (renamed) this.forget(old)
     if (word.state !== 'closed' && host !== null) this.figures.set(keyOf('from', name), host)
-    const was = this.inbound.get(name) ?? this.fromLine(name)
-    this.moved(name, inboundSaid(name, was, word, at))
+    const before = this.inbound.get(name) ?? this.fromLine(name)
+    const moved = inboundSaid(name, before, word, at)
+    if (!renamed) {
+      this.moved(name, moved)
+      return
+    }
+    // A name it had not been heard under: one line under it whatever moved,
+    // carrying the name it replaces, because that line is what forgets it.
+    const lines =
+      moved.lines.length > 0
+        ? moved.lines
+        : [{ machine: name, way: 'from' as const, state: word.state, at, since: null }]
+    this.moved(name, { now: moved.now, lines: lines.slice(1) }, lines[0], old)
+  }
+
+  /** Let go of everything held under one name of a machine that links here. */
+  private forget(name: string): void {
+    const key = keyOf('from', name)
+    this.last.delete(key)
+    this.inbound.delete(name)
+    this.figures.delete(key)
   }
 
   /** The beat: a machine that links here and has said nothing past its slack is lost. */
@@ -159,16 +186,18 @@ export class MachinesSeen {
     return line === undefined ? null : { state: line.state, heardAt: line.at }
   }
 
-  private moved(name: string, moved: InboundMoved): void {
+  private moved(name: string, moved: InboundMoved, first?: MachineSeen, was?: string): void {
     if (moved.now === null) this.inbound.delete(name)
     else this.inbound.set(name, moved.now)
+    if (first !== undefined) this.write(first, was)
     for (const line of moved.lines) this.write(line)
   }
 
-  private write(seen: MachineSeen): void {
+  private write(seen: MachineSeen, was?: string): void {
     this.last.set(keyOf(seen.way, seen.machine), seen)
     this.deps.draw()
-    this.deps.append({ type: 'machine_seen', detail: seenDetail(seen) }).catch((err: unknown) => {
+    const detail = { ...seenDetail(seen), ...(was === undefined ? {} : { was }) }
+    this.deps.append({ type: 'machine_seen', detail }).catch((err: unknown) => {
       this.deps.say(
         `that ${seen.machine} is ${seen.state} could not be written down: ${String(err)}`,
       )

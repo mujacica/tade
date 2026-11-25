@@ -39,6 +39,7 @@ import type { Wiring } from '../../src/wire/context.ts'
 import { Earlier } from '../../src/wire/earlier.ts'
 import { Away } from '../../src/wire/web.ts'
 import { type FactoryHeld, nothingHandedOver } from '../../src/wire/web-beat.ts'
+import type { AwayDeps } from '../../src/wire/web-deps.ts'
 import { capabilities } from './away-capabilities.ts'
 import { homeConfig, INTAKE } from './away-intake.ts'
 import { type AgentLanes, laneDoor, lifecycleFor } from './away-lifecycle.ts'
@@ -227,6 +228,8 @@ export interface MachineOptions {
   history?: (ask: HistoryAsk) => Promise<HistoryPage>
   /** An agent's record, a page at a time, where a test reads its conversation. */
   agentHistory?: (task: string, ask: HistoryAsk) => Promise<HistoryPage>
+  /** The person's other machines, where a test has one link here (`/api/seen`). */
+  machines?: AwayDeps['machines']
 }
 
 /** Off here unless a test turns one on, though each is on by default: nothing rides along. */
@@ -433,6 +436,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
   const earlier = new Earlier(wire)
   const away = new Away(wire, {
     ...(over.history === undefined ? {} : { earlier: () => earlier.more() }),
+    ...(over.machines === undefined ? {} : { machines: over.machines }),
     decided: () => {},
     news: (one) => news.push(one),
     talk: {
@@ -787,6 +791,14 @@ export function carried(
   body: Record<string, unknown>,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   return send(port, '/api/carry', body)
+}
+
+/** One owner's word that its machine is up or closing, as its link sends it. */
+export function seen(
+  port: number,
+  body: Record<string, unknown>,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  return send(port, '/api/seen', body)
 }
 
 /** One owner's share of the person's notes, as its link sends it. */

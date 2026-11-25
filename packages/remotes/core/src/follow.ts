@@ -1,5 +1,5 @@
 import { type ClientRequest, request } from 'node:http'
-import { SEEN_EVERY_MS } from '@tade/core'
+import { machineLabel, SEEN_EVERY_MS } from '@tade/core'
 import { COOKIE, idFor } from '@tade/web'
 import { FRAME_MOST, framesIn } from './frames.ts'
 import {
@@ -63,6 +63,12 @@ export interface FollowOptions {
   changed: (held: Held) => void
   /** This machine's own figures, said with its word that it is up; null for none. */
   figures?: () => unknown
+  /**
+   * What this machine is called, said with its word that it is up, so the
+   * remote calls it that rather than the label it paired with: by default
+   * `machineLabel()`, read at every word, so a name changed since is said.
+   */
+  name?: () => string
 }
 
 export class Follower {
@@ -93,6 +99,8 @@ export class Follower {
    * its stream opens again, and the word that it is up still gets through.
    */
   private figuresRefused = false
+  /** Whether the remote refused this machine's name with its word, for `figuresRefused`'s reason. */
+  private nameRefused = false
   /** When this machine went to sleep, where it woke from one: told once the link is back. */
   private went: number | null = null
 
@@ -162,14 +170,21 @@ export class Follower {
     try {
       const body = went === null ? { state: 'up' } : { state: 'up', slept: Math.max(0, now - went) }
       const figures = this.figuresRefused ? null : (this.opts.figures?.() ?? null)
+      const withFigures = figures === null ? body : { ...body, host: figures }
+      const name = this.nameRefused ? null : (this.opts.name ?? machineLabel)()
       let status = await post(
         door,
         '/api/seen',
-        figures === null ? body : { ...body, host: figures },
+        name === null ? withFigures : { ...withFigures, name },
         this.remote,
       )
-      // An older Tade there, which reads figures as a malformed body: said
-      // again without them, so the word that this machine is up gets through.
+      // An older Tade there, which reads a name or figures as a malformed
+      // body: said again without the name, then without the figures, so the
+      // word that this machine is up gets through.
+      if (status === 400 && name !== null) {
+        this.nameRefused = true
+        status = await post(door, '/api/seen', withFigures, this.remote)
+      }
       if (status === 400 && figures !== null) {
         this.figuresRefused = true
         status = await post(door, '/api/seen', body, this.remote)
@@ -318,6 +333,7 @@ export class Follower {
       this.seenAt = null
       this.seenRefused = false
       this.figuresRefused = false
+      this.nameRefused = false
       res.setEncoding('utf8')
       let rest = ''
       res.on('data', (chunk: string) => {

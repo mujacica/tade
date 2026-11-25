@@ -701,7 +701,7 @@ export interface SnapshotInput {
 
 /** One of the person's other machines, as the window hands it over. */
 export interface MachineIn {
-  /** Its name here: `remotes.<name>`, or the label a machine that links here paired with. */
+  /** Its name here: `remotes.<name>`, or what a machine that links here last said it is called (`seen.ts`), else the label it paired with. */
   name: string
   way: MachineWay
   state: MachineState

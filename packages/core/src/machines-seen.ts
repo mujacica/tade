@@ -51,7 +51,7 @@ export const SLEPT_MOST_MS = 7 * 86_400_000
 
 /** One machine as last seen, by one way. */
 export interface MachineSeen {
-  /** Its name here: `remotes.<name>` for `to`, the label its link paired with for `from`. */
+  /** Its name here: `remotes.<name>` for `to`; for `from`, what it last said it is called, else the label its link paired with. */
   machine: string
   way: MachineWay
   state: MachineState
@@ -84,7 +84,9 @@ export function seenDetail(seen: MachineSeen): Record<string, string> {
 /**
  * Every machine as last seen, each way, out of the journal: one entry per
  * machine and way, in the order each was first seen. A line that is not one
- * (an unknown state, no name) is skipped, never guessed at.
+ * (an unknown state, no name) is skipped, never guessed at. A line that says
+ * `was` is a machine that links here saying a name of its own: what it was
+ * called until then is forgotten, never drawn as a second machine gone lost.
  */
 export function machinesSeenFrom(events: readonly TadeEvent[]): MachineSeen[] {
   const last = new Map<string, MachineSeen>()
@@ -92,6 +94,10 @@ export function machinesSeenFrom(events: readonly TadeEvent[]): MachineSeen[] {
     if (event.type !== 'machine_seen') continue
     const seen = seenOf(event)
     if (seen === null) continue
+    const was = event.detail.was
+    if (seen.way === 'from' && typeof was === 'string' && was !== seen.machine) {
+      last.delete(`from ${was}`)
+    }
     const key = `${seen.way} ${seen.machine}`
     // Re-set keeps the first-seen order a Map already has.
     last.set(key, seen)

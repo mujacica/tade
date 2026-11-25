@@ -53,6 +53,20 @@ describe('the record of machines', () => {
     ])
   })
 
+  it('forgets what a machine that links here was called once it says a name of its own', () => {
+    const renamed = line({ machine: 'laptop', way: 'from', state: 'up', at: T + 2, since: null }, 3)
+    const events: TadeEvent[] = [
+      line({ machine: 'LAPTOP-A1B2C3', way: 'from', state: 'up', at: T, since: null }, 1),
+      line({ machine: 'LAPTOP-A1B2C3', way: 'to', state: 'up', at: T + 1, since: null }, 2),
+      { ...renamed, detail: { ...renamed.detail, was: 'LAPTOP-A1B2C3' } },
+    ]
+    // Only the one that links here: a machine this one links to by that name is another.
+    expect(machinesSeenFrom(events).map((one) => [one.machine, one.way])).toEqual([
+      ['LAPTOP-A1B2C3', 'to'],
+      ['laptop', 'from'],
+    ])
+  })
+
   it('keeps a since that is not when it was seen, and reads it back', () => {
     const went = T - 3_600_000
     const [one] = machinesSeenFrom([

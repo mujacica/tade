@@ -1,5 +1,5 @@
 import { homedir } from 'node:os'
-import type { Arming, Config } from '@tade/core'
+import type { Arming, Config, SeenWord } from '@tade/core'
 import type { ToolAnswer } from '@tade/harnesses-core'
 import {
   AGENT,
@@ -12,8 +12,10 @@ import {
   connectWhere,
   type Device,
   factsOf,
+  type Host,
   has,
   MOMENTS,
+  nameDevice,
   type PairingAsk,
   type Places,
   type Projector,
@@ -284,7 +286,7 @@ export class Away implements Subject {
       earlier: this.earlierHalf(),
       present: (device, at) => this.presences.seen(device, at),
       ...(this.deps.machines && {
-        seen: (device, word, at, host) => this.deps.machines?.heard(device.label, word, at, host),
+        seen: (device, word, at, host, name) => this.seen(device, word, at, host, name),
       }),
       looking: (device, at) => this.push.looking(device, at),
       since: this.presences.since(),
@@ -518,6 +520,41 @@ export class Away implements Subject {
       this.problem = `${read.skipped} line(s) of the paired-device list could not be read`
     }
     this.wire.draw()
+  }
+
+  /** The devices whose new name could not be written down, said once each. */
+  private readonly unnamed = new Set<string>()
+
+  /**
+   * A machine that links here said it is up or closing (`/api/seen`), and
+   * perhaps what it is called now: a name that is not the label it paired
+   * with is written on its device (`nameDevice`) and its record moves to it
+   * (`MachinesSeen.heard`'s `was`), so the host name it paired under before it
+   * had a name of its own stops being what it is called here.
+   */
+  private seen(
+    device: Pick<Device, 'id' | 'label'>,
+    word: SeenWord,
+    at: number,
+    host: Host | null,
+    name: string | null,
+  ): void {
+    const machines = this.deps.machines
+    if (machines === undefined) return
+    if (name === null || name === device.label) {
+      machines.heard(device.label, word, at, host)
+      return
+    }
+    machines.heard(name, word, at, host, device.label)
+    nameDevice(this.wire.opts.home, device, name, new Date(at))
+      .then(() => this.reread())
+      .catch((err: unknown) => {
+        if (this.unnamed.has(device.id)) return
+        this.unnamed.add(device.id)
+        this.deps.news(
+          `that ${device.label} is called ${name} now could not be written down: ${String(err)}`,
+        )
+      })
   }
 
   /**
