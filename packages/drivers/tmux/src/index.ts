@@ -21,7 +21,7 @@ import {
   type LaneScreen,
   type LaneSpec,
   type PointerReport,
-  pasteBytes,
+  pastedText,
   pointerBytes,
   type WheelTurn,
   type WorkspaceCapabilities,
@@ -161,6 +161,8 @@ export class TmuxDriver implements WorkspaceDriver {
   private timer: NodeJS.Timeout | null = null
   private started = false
   private making: Promise<void> | null = null
+  /** Names each paste's buffer, so two pastes at once never share one. */
+  private pastes = 0
   private polling = false
 
   constructor(opts: TmuxDriverOptions = {}) {
@@ -305,9 +307,16 @@ export class TmuxDriver implements WorkspaceDriver {
 
   async write(id: LaneId, data: Uint8Array): Promise<void> {
     const lane = this.live(id)
-    // Queued synchronously, so writes made in order arrive in order however
-    // long each one takes: every write here is a separate process.
-    const done = lane.queue.then(() => this.send(lane, data))
+    return this.inTurn(lane, () => this.send(lane, data))
+  }
+
+  /**
+   * Queued synchronously, so writes and pastes made in order arrive in order
+   * however long each one takes: every one here is a separate process. The
+   * caller has the failure; the queue only waits for it to be over.
+   */
+  private inTurn(lane: Lane, run: () => Promise<void>): Promise<void> {
+    const done = lane.queue.then(run)
     lane.queue = done.catch(() => {})
     return done
   }
@@ -395,15 +404,41 @@ export class TmuxDriver implements WorkspaceDriver {
     if (bytes.length > 0) await this.write(id, bytes)
   }
 
+  /**
+   * Through a buffer and `paste-buffer -p`, because tmux knows whether the
+   * program turned bracketed paste on and wraps the paste exactly then: no
+   * format says so before tmux 3.7 (`#{bracket_paste_flag}` is empty on 3.6,
+   * which read as off and typed every paste). tmux turns each LF into Enter
+   * on the way, wrapped or not, as a terminal sends a pasted line break.
+   * Queued with the writes, so a paste and the key after it arrive in order.
+   */
   async paste(id: LaneId, text: string): Promise<void> {
-    const pane = await this.paneNow(id)
-    const bytes = pasteBytes(text, pane.bracketed)
-    if (bytes.length > 0) await this.write(id, bytes)
+    const lane = this.live(id)
+    const clean = pastedText(text)
+    if (clean === '') return
+    const buffer = `tade-paste-${++this.pastes}`
+    return this.inTurn(lane, () =>
+      this.tmux([
+        'set-buffer',
+        '-b',
+        buffer,
+        '--',
+        literal(clean),
+        ';',
+        'paste-buffer',
+        '-p',
+        '-d',
+        '-b',
+        buffer,
+        '-t',
+        lane.window,
+      ]).then(() => {}),
+    )
   }
 
   /**
-   * What the pane is like right now, for the calls that answer the pointer and
-   * the one that pastes. Asked again rather than remembered from the last look: a program
+   * What the pane is like right now, for the calls that answer the pointer.
+   * Asked again rather than remembered from the last look: a program
    * that has just let go of the mouse would otherwise be typed at, and what
    * it wants is one short answer from tmux away.
    */

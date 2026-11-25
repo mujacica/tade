@@ -62,4 +62,16 @@ describe('opening lanes on tmux', () => {
     const kept = spawnSync('tmux', asked, { encoding: 'utf8' })
     expect(kept.stdout.split('\n')).toContain(id)
   })
+
+  // A paste is an argument too: `set-buffer` is handed the text, so one
+  // ending in `;` lost it to the same split.
+  it('pastes text ending in `;` whole', async () => {
+    const { driver } = fresh('pasted')
+    const id = 'pasted/semi' as LaneId
+    await driver.open({ id, cwd: tmp('tade-tmux-paste-'), command: 'cat', args: [] })
+    let heard = ''
+    driver.onOutput(id, (c) => (heard += Buffer.from(c).toString()), { replay: true })
+    await driver.paste(id, 'a;b;')
+    await until(() => heard.includes('a;b;'))
+  })
 })
