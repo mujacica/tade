@@ -485,6 +485,11 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
     reaching: { kind: 'needs', grant: 'tidy' },
     project: (p) => projectOfTask(p.task),
   },
+  // Closing one that is not running, never forced: what is not kept elsewhere stays.
+  'worker/close': {
+    reaching: { kind: 'needs', grant: 'tidy' },
+    project: (p) => projectOfTask(p.task),
+  },
 
   'task/create': never(EXECUTES),
   'check/propose': never(EXECUTES),

@@ -17,7 +17,7 @@ import { KEY } from './verbs.ts'
 // to decide, and it is the steer and tidy tiers (Q3b).
 //
 // **This door names the presses too**, a short list it maps to that
-// machine's tool methods itself: steer, stop, park, a note, and pausing or
+// machine's tool methods itself: steer, stop, close, park, a note, and pausing or
 // resuming queued work. Nothing a page sends becomes a method name, so a
 // page — or anything that took one over — can ask for nothing else of the
 // door either, whatever the far gate would say.
@@ -47,6 +47,8 @@ const On = { machine: Machine, key: z.string().regex(KEY) }
 const PressText = z.discriminatedUnion('verb', [
   z.strictObject({ ...On, verb: z.literal('steer'), task: Task, said: typed(BOUNDS.said) }),
   z.strictObject({ ...On, verb: z.literal('stop'), task: Task, confirm: z.literal(true) }),
+  // Closing one that is not running, never forced: that machine keeps what is not merged.
+  z.strictObject({ ...On, verb: z.literal('close'), task: Task }),
   z.strictObject({ ...On, verb: z.literal('park'), task: Task, parked: z.boolean() }),
   z.strictObject({ ...On, verb: z.literal('note'), task: Task, text: typed(BOUNDS.text) }),
   z.strictObject({
@@ -66,7 +68,15 @@ const PressText = z.discriminatedUnion('verb', [
 export type PressThere = z.infer<typeof PressText>
 
 /** The presses this door carries to another machine, by the word the page sends. */
-export const PRESSES_THERE = ['steer', 'stop', 'park', 'note', 'queue', 'queue project'] as const
+export const PRESSES_THERE = [
+  'steer',
+  'stop',
+  'close',
+  'park',
+  'note',
+  'queue',
+  'queue project',
+] as const
 
 /** One of that machine's tool methods and its parameters, for a press: this door's own mapping. */
 export function methodOf(press: PressThere): { method: string; params: Record<string, unknown> } {
@@ -75,6 +85,8 @@ export function methodOf(press: PressThere): { method: string; params: Record<st
       return { method: 'worker/steer', params: { task: press.task, message: press.said } }
     case 'stop':
       return { method: 'worker/stop', params: { task: press.task } }
+    case 'close':
+      return { method: 'worker/close', params: { task: press.task } }
     case 'park':
       return { method: 'task/park', params: { task: press.task, parked: press.parked } }
     case 'note':

@@ -30,6 +30,7 @@ const MAPPED: [PressThere, string, Record<string, unknown>][] = [
     'worker/stop',
     { task: 'tade/fix-it' },
   ],
+  [{ ...ON, verb: 'close', task: 'tade/fix-it' }, 'worker/close', { task: 'tade/fix-it' }],
   [
     { ...ON, verb: 'park', task: 'tade/fix-it', parked: false },
     'task/park',
@@ -53,7 +54,7 @@ const MAPPED: [PressThere, string, Record<string, unknown>][] = [
 ]
 
 describe('the presses this door carries to another machine', () => {
-  it('maps each of the six to that machine’s method itself', () => {
+  it('maps each of the seven to that machine’s method itself', () => {
     expect(MAPPED.map(([press]) => press.verb)).toEqual([...PRESSES_THERE])
     for (const [press, method, params] of MAPPED) {
       expect(methodOf(press), press.verb).toEqual({ method, params })
@@ -172,7 +173,7 @@ describe('POST /api/there/press', () => {
     expect(handed).toEqual([])
   })
 
-  it('refuses every body that is not one of its six presses, as text', async () => {
+  it('refuses every body that is not one of its seven presses, as text', async () => {
     const { one, handed } = await door()
     const phone = await theirs(one)
     const steer = { ...ON, verb: 'steer', task: 'tade/fix-it', said: 'go on' }
@@ -182,7 +183,8 @@ describe('POST /api/there/press', () => {
       { ...ON, verb: 'terminal/open', task: 'tade/fix-it' },
       { ...ON, verb: 'answer', task: 'tade/fix-it', allow: true },
       { ...ON, verb: 'start', task: 'tade/fix-it' },
-      { ...ON, verb: 'close', task: 'tade/fix-it' },
+      { ...ON, verb: 'close', task: 'tade/fix-it', force: true },
+      { ...ON, verb: 'remove', task: 'tade/fix-it' },
       // Each press's own fields, and nothing beside them.
       { ...steer, also: 1 },
       { ...steer, said: '   ' },

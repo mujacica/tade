@@ -325,7 +325,13 @@ describe('what a remote turn may reach', () => {
     ]) {
       expect(allowMethod(method, { task: 'sentry/flake' }, outbox).ok, method).toBe(false)
     }
-    for (const method of ['worker/steer', 'task/park', 'memory/remember', 'worker/stop']) {
+    for (const method of [
+      'worker/steer',
+      'task/park',
+      'memory/remember',
+      'worker/stop',
+      'worker/close',
+    ]) {
       expect(allowMethod(method, { task: 'sentry/flake' }, outbox).ok, method).toBe(true)
     }
   })
@@ -358,6 +364,7 @@ describe('what a remote turn may reach', () => {
     })
     expect(phone).toMatchObject({ may: ['answer', 'steer'] })
     expect(allowMethod('worker/stop', { task: 'sentry/flake' }, phone).ok).toBe(false)
+    expect(allowMethod('worker/close', { task: 'sentry/flake' }, phone).ok).toBe(false)
     expect(allowMethod('queue/change', { task: 'sentry/flake', change: 'pause' }, phone)).toEqual({
       ok: false,
       said: '`queue/change` needs this device to have been granted tidy at the machine, and it was not.',

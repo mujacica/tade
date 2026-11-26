@@ -75,7 +75,8 @@ const ANSWERS_KEPT_MS = 30 * 60_000
 /**
  * What an act taken from a hub's outbox may reach here (ONE-AWAY-VIEW Q3b):
  * a paired device's steer tier — steer, park, a note — and the tidy tier no
- * device has — stop an agent, pause or resume queued work and a schedule — in
+ * device has — stop an agent, close one that is not running and whose work is
+ * kept, pause or resume queued work and a schedule — in
  * every project, judged method by method (`REMOTE_METHODS`). Each of those
  * only ever makes less happen here. Not `answer`, because approving a command
  * an agent here is waiting on is running it; and nothing that starts an

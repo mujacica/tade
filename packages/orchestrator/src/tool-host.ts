@@ -14,6 +14,7 @@ import {
   pastLimitSays,
   planReport,
   type When,
+  type Workspace,
 } from '@tade/core'
 import type { PermissionDecision, RunId, WorkerImage } from '@tade/harnesses-core'
 import {
@@ -530,6 +531,7 @@ export class ToolHost {
         await tade.stopAgent(String(p.task))
         return { ok: true }
       },
+      'worker/close': async (p) => closeFinished(tade, opts, String(p.task)),
       'worker/decide': async (p) => {
         await tade.decideApproval(
           String(p.run) as RunId,
@@ -774,6 +776,30 @@ function watchesOf(opts: ToolHostOptions): NonNullable<ToolHostOptions['watches'
       'watches need the Tade window open: a watch is a schedule, and nothing runs one without it',
     )
   return opts.watches
+}
+
+/**
+ * Close an agent that is not running, its task off the list — the tidy tier's
+ * close (ONE-AWAY-VIEW Q3b). Unlike the window's Remove agent it is never
+ * forced: work uncommitted or not merged anywhere is refused (`removeTask`),
+ * so whoever asked can only ever tidy away what is already kept.
+ */
+async function closeFinished(tade: Workbench, opts: ToolHostOptions, task: string) {
+  if (!opts.status) throw new Error('this Tade has no window to ask')
+  const workspace = (await opts.status()) as Workspace
+  const project = workspace.projects.find((one) => one.tasks.some((t) => t.id === task))
+  const found = project?.tasks.find((t) => t.id === task)
+  if (!project || !found) throw new Error(`there is no task called ${task}`)
+  if (found.lanes.some((lane) => lane.kind === 'agent' && lane.alive))
+    throw new Error(`${task}'s agent is running: stop it first, then close it`)
+  const result = await tade.removeTask({
+    root: project.root,
+    worktree: found.worktree,
+    branch: found.branch,
+    task,
+  })
+  if (!result.removed) throw new Error(`${task} is kept: ${result.reason}. Close it at its machine`)
+  return { ok: true, said: `closed ${task}` }
 }
 
 /** The window's queue, or why there is none to use. */
