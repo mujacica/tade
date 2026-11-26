@@ -1,5 +1,12 @@
 import { homedir } from 'node:os'
-import { type CheckLog, type CheckRun, latestAt, readChecks, sleptThrough } from '@tade/checks-core'
+import {
+  type CheckLog,
+  type CheckRun,
+  latestAt,
+  ranOutOfDisk,
+  readChecks,
+  sleptThrough,
+} from '@tade/checks-core'
 import { batchDue, type Culprit, expandHome, joined, workspaceFor } from '@tade/core'
 import { git } from '@tade/status'
 import {
@@ -190,6 +197,14 @@ export class Batches {
       if (!batch.busy) this.sayOnce(project, batch.problem)
       return false
     }
+    const disk = diskSaid(batch.runs)
+    if (disk !== null) {
+      // The machine's disk, not anybody's commit: no proposal, said once, and
+      // tried again after `RETRY_MS`, since a full disk is not emptied by a look.
+      this.tried.set(project, { head, at: this.wire.now() })
+      this.sayOnce(project, disk)
+      return false
+    }
     this.said.delete(project)
     const failed = batch.runs.filter(
       (run) => run.required && (run.state === 'failed' || run.state === 'timed out'),
@@ -247,9 +262,10 @@ export class Batches {
 
 /**
  * Whether a batch has answered HEAD: one ran there, and the newest batch run of
- * each check is not one the machine slept through. That one said nothing about
- * the code (`SLEPT`), so the batch runs again now the machine is awake, and the
- * first one that stays awake answers it, red or green.
+ * each check is not one the machine slept through or ran out of disk in. Those
+ * said nothing about the code (`SLEPT`, `OUT_OF_DISK`), so the batch runs again
+ * — once the machine is awake, or after `RETRY_MS` for a full disk — and the
+ * first one that the machine did not get in the way of answers it, red or green.
  */
 export function answered(
   at: readonly CheckRun[],
@@ -260,7 +276,18 @@ export function answered(
   const newest = latestAt(runs.filter(ours), head)
   const carried = at.filter(ours)
   if (newest.length === 0 && carried.length === 0) return false
-  return !newest.some(sleptThrough) && !carried.some(sleptThrough)
+  const saidNothing = (run: CheckRun) => sleptThrough(run) || ranOutOfDisk(run)
+  return !newest.some(saidNothing) && !carried.some(saidNothing)
+}
+
+/**
+ * What is said of a batch whose required run found the disk full, or null:
+ * that is the machine's (`OUT_OF_DISK`), so it is nobody's proposal.
+ */
+export function diskSaid(runs: readonly CheckLog[]): string | null {
+  const full = runs.filter((run) => run.required && ranOutOfDisk(run))
+  if (full.length === 0) return null
+  return `the machine ran out of disk while ${joined(full.map((run) => run.check))} ran, so they say nothing about the code. Free some space — the temp folder, or where the project is — and they run again`
 }
 
 interface RedFacts {

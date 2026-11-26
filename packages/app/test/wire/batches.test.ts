@@ -1,13 +1,21 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { type CheckRun, type CheckState, readRuns, SLEPT, writeRun } from '@tade/checks-core'
+import {
+  type CheckLog,
+  type CheckRun,
+  type CheckState,
+  OUT_OF_DISK,
+  readRuns,
+  SLEPT,
+  writeRun,
+} from '@tade/checks-core'
 import { ConfigSchema, recordsDir, SETTLE_MS } from '@tade/core'
 import { readTaskFile, Workbench } from '@tade/workbench'
 import { afterEach, describe, expect, it } from 'vitest'
 import { mkrepo } from '../../../../test/fixtures/mkrepo.ts'
 import { CI_WORKFLOW, ciWorkflow } from '../../../../test/fixtures/workflow.ts'
 import { type AppState, initialState } from '../../src/model.ts'
-import { answered, BATCH_LOOK_MS, Batches } from '../../src/wire/batches.ts'
+import { answered, BATCH_LOOK_MS, Batches, diskSaid } from '../../src/wire/batches.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 
 // The full checks once a batch, from the window: nothing until HEAD has sat
@@ -267,5 +275,40 @@ describe('whether a batch answered HEAD', () => {
     expect(answered([], [run('failed', 1)], 'abc')).toBe(true)
     // Another reason a run was cancelled is still that batch's answer.
     expect(answered([], [run('cancelled', 1, { summary: null })], 'abc')).toBe(true)
+  })
+
+  it('not by a batch the disk was full for, and by the next one that had room', () => {
+    const full = run('cancelled', 1, { summary: OUT_OF_DISK })
+    expect(answered([], [full], 'abc')).toBe(false)
+    expect(answered([full], [], 'abc')).toBe(false)
+    expect(answered([], [full, run('failed', 2)], 'abc')).toBe(true)
+  })
+})
+
+describe('a batch the disk was full for', () => {
+  const log = (over: Partial<CheckLog>): CheckLog => ({
+    id: 'abc:tests:here:1',
+    check: 'tests',
+    commit: 'abc',
+    state: 'cancelled',
+    where: { kind: 'here', runner: 'local', host: 'here' },
+    required: true,
+    startedAt: null,
+    finishedAt: null,
+    code: 1,
+    summary: OUT_OF_DISK,
+    by: 'batch',
+    tail: 'fatal: Unable to create index.lock: No space left on device',
+    ...over,
+  })
+
+  it('is said as the machine’s disk, naming the check, rather than made anybody’s red', () => {
+    expect(diskSaid([log({})])).toContain('the machine ran out of disk while tests ran')
+  })
+
+  it('is not, for a red run, a run nobody needs, or another reason to cancel', () => {
+    expect(diskSaid([log({ state: 'failed', summary: '827 files failed' })])).toBeNull()
+    expect(diskSaid([log({ required: false })])).toBeNull()
+    expect(diskSaid([log({ summary: SLEPT })])).toBeNull()
   })
 })
