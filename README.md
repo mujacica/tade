@@ -97,6 +97,8 @@ fix what is red and answer the bots; nothing merges unless you asked for exactly
 
 What every agent cost in tokens, runtime and dollars, per project against its budget. A subscription
 is shown as how much of its window is used and when it resets — never added to the money.
+`tade spend --fleet` adds every machine of yours into one bottom line, a row each, marked `≥` where
+one of them could not say all of it.
 
 ![Spend: every agent with its model, tokens, runtime and cost, each subscription's window, and each project against its budget](https://raw.githubusercontent.com/mujacica/tade/main/images/spend.svg)
 

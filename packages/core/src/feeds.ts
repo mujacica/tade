@@ -34,8 +34,10 @@ import { type EventType, type TadeEvent, typeNow } from './events.ts'
 // **Folds over feeds read each feed by itself.** A `seq` means something only
 // inside the file and epoch it came from, so anything comparing numbers — the
 // queue above all — reads only this machine's own lines (`ownLines`), and a
-// fold across machines labels each line with its machine and never adds up
-// what each machine says by its own clock (spend, runtime).
+// fold across machines labels each line with its machine. Money and tokens are
+// added across machines in one place only (`fleet-spend.ts`): each machine
+// folded by itself, placed by its own clock, and the total marked a floor
+// wherever a machine could not say all of it. Runtime is never added.
 
 /**
  * The kinds of line another machine is given. Every other kind is in

@@ -31,6 +31,7 @@ import {
 import { readJournal } from '@tade/workbench/events'
 import type { Command } from 'commander'
 import type { Io } from '../io.ts'
+import { fleetLines, fleetSpendHere } from './spend-fleet.ts'
 
 // What the agents have cost, and how long they were at it.
 //
@@ -63,8 +64,12 @@ export function registerSpend(program: Command, io: Io): void {
     .description('What the agents have cost and how long they ran, today or over the last few days')
     .option('-d, --days <n>', 'how many days back', '1')
     .option('--json', 'machine-readable output')
+    .option(
+      '--fleet',
+      'every machine of yours too: a row each out of its journal as kept here, and a total that adds them',
+    )
     .option('-c, --config <path>', 'config file path', defaultConfigPath())
-    .action(async (opts: { days: string; json?: boolean; config: string }) => {
+    .action(async (opts: { days: string; json?: boolean; fleet?: boolean; config: string }) => {
       const days = Math.max(1, Number(opts.days) || 1)
       const now = Date.now()
       const since = startOfToday(now) - (days - 1) * 86_400_000
@@ -95,6 +100,27 @@ export function registerSpend(program: Command, io: Io): void {
         runs: facts,
       })
 
+      // Every machine of the person's, each folded by itself, and one bottom
+      // line across them that says where it is a floor (`fleetSpendFrom`).
+      const fleet = opts.fleet
+        ? await fleetSpendHere(
+            tadeHome(),
+            {
+              since,
+              prices: pricesFrom(cfg.ok ? cfg.config.prices : {}),
+              ...(cfg.ok ? { accounts: cfg.config.accounts } : {}),
+            },
+            now,
+          )
+        : null
+      const fleetShown = () => {
+        if (fleet === null) return
+        io.out('')
+        for (const said of fleetLines(fleet, (name, width, spend) => line(name, width, spend))) {
+          io.out(said)
+        }
+      }
+
       if (opts.json) {
         io.out(
           JSON.stringify(
@@ -104,6 +130,7 @@ export function registerSpend(program: Command, io: Io): void {
               runtime: ran,
               produced: made,
               plans,
+              ...(fleet === null ? {} : { fleet }),
             },
             null,
             2,
@@ -120,6 +147,7 @@ export function registerSpend(program: Command, io: Io): void {
       )
       if (projects.length === 0) {
         io.out(days === 1 ? 'nothing spent or run today' : `nothing spent or run in ${days} days`)
+        fleetShown()
         return
       }
 
@@ -155,6 +183,7 @@ export function registerSpend(program: Command, io: Io): void {
       // The machine's own budget is the total's, every project together (`budget.ts`).
       const machine = against(report.total, cfg.ok ? cfg.config.budget : undefined)
       io.out(`  ${line('total', width, report.total, ran.total)}${machine}`)
+      fleetShown()
 
       if (models.length > 1) {
         io.out('')

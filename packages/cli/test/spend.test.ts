@@ -1,4 +1,6 @@
 import { spawn } from 'node:child_process'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PRICES_TAKEN } from '@tade/core'
 import { Workbench } from '@tade/workbench'
@@ -260,4 +262,72 @@ it('says how close each plan ran to its ceiling, out of what was written down as
     { label: '5h', used: 93 },
     { label: '7d', used: 20 },
   ])
+}, 30_000)
+
+it('adds every machine’s spend into one bottom line with --fleet, a row each, and says where it is a floor', async () => {
+  const home = tmp('tade-cli-spend-fleet-')
+  window = await Workbench.open({ home })
+  await window.log.append({
+    type: 'usage',
+    task: 'app/refunds',
+    detail: { model: 'claude-opus-5', tokens: 1_000, usd: 0.5 },
+  })
+  // Another machine's journal, kept here as its feed would keep it.
+  const ipax = '22222222-2222-4222-8222-222222222222'
+  const dir = join(home, 'machines', ipax)
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(
+    join(dir, 'feed.json'),
+    JSON.stringify({
+      machine: ipax,
+      name: 'ipax',
+      epoch: { id: '0123456789abcdef', at: new Date().toISOString() },
+      forks: [],
+    }),
+  )
+  const line = (seq: number) =>
+    JSON.stringify({
+      seq,
+      ts: new Date().toISOString(),
+      type: 'usage',
+      urgency: 'routine',
+      task: 'tade/one',
+      lane: null,
+      run: `r${seq}`,
+      detail: { model: 'claude-opus-5', tokens: 500, usd: 0.25 },
+    })
+  writeFileSync(join(dir, 'events.jsonl'), `${line(1)}\n${line(2)}\n`)
+
+  const run = (args: string[]) =>
+    new Promise<{ code: number | null; stdout: string }>((resolve) => {
+      const child = spawn(process.execPath, [bin, 'spend', ...args], {
+        env: { ...process.env, TADE_HOME: home, HOME: home },
+      })
+      let stdout = ''
+      child.stdout.setEncoding('utf8')
+      child.stdout.on('data', (chunk: string) => {
+        stdout += chunk
+      })
+      child.on('exit', (code) => resolve({ code, stdout }))
+    })
+  const json = await run(['--fleet', '--json'])
+  expect(json.code).toBe(0)
+  const report = JSON.parse(json.stdout) as {
+    total: { usd: number }
+    fleet: {
+      rows: { name: string; here: boolean; spend: { usd: number } }[]
+      total: { usd: number; tokens: number }
+    }
+  }
+  // This machine's own figures are as they always were; the fleet's are beside them.
+  expect(report.total.usd).toBe(0.5)
+  expect(report.fleet.rows.map((one) => [one.here, one.spend.usd])).toEqual([
+    [true, 0.5],
+    [false, 0.5],
+  ])
+  expect(report.fleet.total).toMatchObject({ usd: 1, tokens: 2_000 })
+
+  const text = await run(['--fleet'])
+  expect(text.stdout).toContain('every machine, each by its own journal')
+  expect(text.stdout).toMatch(/every machine +\$1\.00/)
 }, 30_000)
