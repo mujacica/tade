@@ -1,7 +1,10 @@
 import { noSpend, type Spend } from '@tade/core'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { StillDocument } from '../scripts/still-dom.ts'
+import { spendScreen } from '../src/assets/pages/spend.js'
 import {
   leadOf,
+  machinesShape,
   moneySaid,
   noMoneyWhy,
   onPlanSaid,
@@ -12,9 +15,10 @@ import {
   usesSaid,
   wentOf,
 } from '../src/assets/pages/spend-shape.js'
-import { spendFold } from '../src/assets/store.js'
+import { applyCopy, applySnapshot, emptyStore, spendFold } from '../src/assets/store.js'
+import { PROTOCOL_VERSION } from '../src/protocol.ts'
 import { snapshotOf } from '../src/snapshot.ts'
-import { EVERY, input, NOW, plan, project, reach, task } from './fixtures.ts'
+import { EVERY, input, NOW, plan, project, reach, spend, task } from './fixtures.ts'
 
 // What the spend page draws, against **real projected rows** rather than shapes
 // a test assembled: every figure goes through `snapshotOf`, so a field the
@@ -362,5 +366,75 @@ describe('the plans', () => {
     const plans = snapshotOf(input({ reach: reach(['spend']) }), NOW).plans
     expect(plans[0]?.uses).toBeNull()
     expect(plansShape(plans, NOW)[0]?.uses).toBe('')
+  })
+})
+
+describe('every machine’s spend on the page', () => {
+  /** This door with one agent at $1.25, and mac's copy with two at $2 each, mac as it is seen. */
+  function store(state: 'up' | 'closed') {
+    const held = emptyStore()
+    const machines = [{ name: 'mac', way: 'from' as const, state, since: NOW - 60_000 }]
+    applySnapshot(held, snapshotOf(input({ reach: reach(EVERY), machines, tasks: [task()] }), NOW))
+    const theirs = snapshotOf(
+      input({
+        reach: reach(EVERY),
+        tasks: [
+          task({ id: 'tade/one', project: 'tade', spend: spend(2) }),
+          task({ id: 'tade/two', project: 'tade', spend: spend(2) }),
+        ],
+      }),
+      NOW - 60_000,
+    )
+    applyCopy(held, { v: PROTOCOL_VERSION, machine: 'mac', kind: 'whole', snapshot: theirs })
+    return held
+  }
+
+  it('is a row a machine, this one first, and a bottom line adding each kind of money to its own', () => {
+    const every = machinesShape(store('up'))
+    expect(every?.rows.map((one) => [one.machine, one.money])).toEqual([
+      ['This machine', '$1.25'],
+      ['mac', '$4.00'],
+    ])
+    expect(every?.total).toMatchObject({ machine: 'Every machine', money: '$5.25', said: '' })
+  })
+
+  it('is at least, and names the machine, where one is not up — its row as of its last word', () => {
+    const every = machinesShape(store('closed'))
+    expect(every?.rows[1]?.said).toMatch(/^as of /)
+    expect(every?.total).toMatchObject({ money: '≥$5.25', said: 'not all of mac' })
+  })
+
+  const was = { document: Reflect.get(globalThis, 'document') }
+  afterEach(() => {
+    Object.defineProperty(globalThis, 'document', {
+      value: was.document,
+      configurable: true,
+      writable: true,
+    })
+  })
+
+  it('is drawn as its own section, the bottom line last', () => {
+    const doc = new StillDocument()
+    Object.defineProperty(globalThis, 'document', {
+      value: doc,
+      configurable: true,
+      writable: true,
+    })
+    const screen = spendScreen()
+    doc.body.append(screen.node)
+    screen.update({ store: store('up'), standing: 'live', asOf: NOW, frozen: false })
+    const rows = [...doc.querySelectorAll('.spend-machines > li')]
+    expect(rows.map((one) => one.querySelector('.spend-machine-name')?.textContent)).toEqual([
+      'This machine',
+      'mac',
+      'Every machine',
+    ])
+    expect(rows.at(-1)?.classList.contains('spend-machines-total')).toBe(true)
+  })
+
+  it('is nothing where the page holds no other machine', () => {
+    const held = emptyStore()
+    applySnapshot(held, snapshotOf(input({ reach: reach(EVERY), tasks: [task()] }), NOW))
+    expect(machinesShape(held)).toBeNull()
   })
 })

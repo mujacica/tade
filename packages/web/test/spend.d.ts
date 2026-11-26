@@ -63,6 +63,8 @@ declare module '*/assets/pages/spend-shape.js' {
   export const GROUPS: { key: string; word: string; noun: [string, string] }[]
   export const UNRECORDED: string
   export function spentAny(fold: Fold): boolean
+  type MachineRow = { machine: string; money: string; tokens: string; said: string }
+  export function machinesShape(store: any): { rows: MachineRow[]; total: MachineRow } | null
   export function moneySaid(fold: Fold): string | null
   export function onPlanSaid(fold: Fold): string | null
   export function noMoneyWhy(fold: Fold, granted: boolean): string
@@ -77,4 +79,8 @@ declare module '*/assets/pages/spend-shape.js' {
       | null
       | undefined,
   ): string
+}
+
+declare module '*/assets/pages/spend.js' {
+  export function spendScreen(): { node: any; update(view: unknown): void }
 }

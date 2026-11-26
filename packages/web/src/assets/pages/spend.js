@@ -21,6 +21,7 @@ import { stateBox, stateBoxIn } from '../ui.js'
 import {
   GROUPS,
   leadOf,
+  machinesShape,
   periodOf,
   plansShape,
   pressureSaid,
@@ -45,7 +46,16 @@ export function spendScreen() {
   const money = moneyView()
   const plans = plansView()
   const went = wentView()
-  into(made.body, coming, closed, money.made.node, plans.made.node, went.made.node)
+  const machines = machinesView()
+  into(
+    made.body,
+    coming,
+    closed,
+    money.made.node,
+    machines.made.node,
+    plans.made.node,
+    went.made.node,
+  )
   into(node, made.node)
 
   return {
@@ -83,10 +93,14 @@ export function spendScreen() {
       const open = had && granted && !bare
       money.made.node.hidden = !open
       plans.made.node.hidden = !open
+      // Every machine, where there is another to draw: a row each and the bottom line.
+      const every = open ? machinesShape(store) : null
+      machines.made.node.hidden = every === null
       // Nothing spent is said once, by the lead, and there is nothing to ask it by.
       went.made.node.hidden = !open || !spent
       if (!open) return
       money.fill(lead, period)
+      if (every !== null) machines.fill(every)
       plans.fill(view)
       if (spent) went.fill(tasks, partial)
     },
@@ -277,6 +291,45 @@ function fillPlan(item, card) {
 }
 
 /* ── where it went ─────────────────────────────────────────────────────────── */
+
+/* ── every machine ─────────────────────────────────────────────────────────── */
+
+function machinesView() {
+  const made = section('EVERY MACHINE')
+  const list = el('ul', { class: 'ui-panel spend-machines' })
+  into(made.body, list)
+  return {
+    made,
+    fill(every) {
+      textIn(made.figure, 'each by its own day')
+      keyed(list, [...every.rows, every.total], (row) => row.machine, machineRow, fillMachine)
+      // The bottom line, drawn as one: it is the last row, set apart.
+      const last = list.lastElementChild
+      for (const one of list.children) classOn(one, 'spend-machines-total', one === last)
+    },
+  }
+}
+
+function machineRow() {
+  const node = el('li', { class: 'spend-machine' })
+  into(
+    node,
+    el('span', { class: 'spend-machine-name' }),
+    el('span', { class: 'spend-machine-money' }),
+    el('span', { class: 'spend-machine-tokens' }),
+    el('span', { class: 'spend-machine-said' }),
+  )
+  return node
+}
+
+function fillMachine(node, row) {
+  const [name, money, toks, said] = node.children
+  textIn(name, row.machine)
+  textIn(money, row.money)
+  textIn(toks, row.tokens)
+  textIn(said, row.said)
+  said.hidden = row.said === ''
+}
 
 function wentView() {
   const made = section('WHERE IT WENT')

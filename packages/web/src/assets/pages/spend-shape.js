@@ -17,7 +17,7 @@ import {
   untilSaid,
 } from '../figures.js'
 import { pathOf, taskPath } from '../routes.js'
-import { spendFold } from '../store.js'
+import { omitted, rowsOf, spendFold } from '../store.js'
 
 /** Who worked a figure out, as the one character before it. A mix carries the guess's. */
 export const MARKS = { exact: '', estimate: '~', listed: '≈', mixed: '~', none: '' }
@@ -309,4 +309,65 @@ export function plansShape(rows, now) {
 /** A card's pill: only the plan about to stop somebody — filling is its gauge's to say. */
 export function pressureSaid(card) {
   return card.pressure === 'tight' ? 'nearly out' : ''
+}
+
+/* ── every machine ─────────────────────────────────────────────────────────── */
+
+/** One store's agents folded: its own tasks, `≥` where it held some back. */
+function foldOf(store) {
+  return spendFold(rowsOf(store, 'tasks'), omitted(store, 'tasks') > 0)
+}
+
+/** Each kind of money to its own kind, every count to its own. */
+function addFold(total, one) {
+  for (const key of Object.keys(total)) {
+    if (typeof total[key] === 'number') total[key] += one[key] ?? 0
+  }
+  total.hasCost = total.hasCost || one.hasCost
+}
+
+/**
+ * Every machine's agents, a row each, and the bottom line that adds them
+ * (ONE-AWAY-VIEW §2.6, Amir's decision): this machine first, then each other
+ * machine the page holds a copy of, each folded out of its own copy by its own
+ * day — never one fold across them. The bottom line adds each kind of money to
+ * its own kind and is `≥` wherever one machine could not say all of it: one
+ * not up (what it said may have moved since), one that held tasks back, or
+ * one with tasks it could not price — and names them. Null where the page
+ * holds no other machine, which is a page that has one row to draw.
+ */
+export function machinesShape(store) {
+  const copies = store?.copies instanceof Map ? store.copies : new Map()
+  if (copies.size === 0) return null
+  const seen = new Map(
+    (Array.isArray(store.machines) ? store.machines : []).map((row) => [row.name, row]),
+  )
+  const total = spendFold([])
+  const short = []
+  const rowOfFold = (machine, fold, said) => ({
+    machine,
+    money: moneySaid(fold) ?? '—',
+    tokens: fold.tokens > 0 ? `${fold.partial ? '≥' : ''}${tokens(fold.tokens)}` : '',
+    said,
+  })
+  const here = foldOf(store)
+  addFold(total, here)
+  if (here.partial) short.push('this machine')
+  const rows = [rowOfFold('This machine', here, '')]
+  for (const [machine, copy] of [...copies].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+    const fold = foldOf(copy)
+    const up = seen.get(machine)?.state === 'up'
+    if (!up || fold.partial || fold.unknown > 0) short.push(machine)
+    addFold(total, fold)
+    rows.push(rowOfFold(machine, fold, up ? '' : `as of ${shortClockOf(copy.fresh?.at ?? null)}`))
+  }
+  total.partial = short.length > 0
+  return {
+    rows,
+    total: rowOfFold(
+      'Every machine',
+      total,
+      short.length === 0 ? '' : `not all of ${short.join(', ')}`,
+    ),
+  }
 }

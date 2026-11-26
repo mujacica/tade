@@ -263,3 +263,63 @@
     padding-inline: var(--s4);
   }
 }
+
+/*
+  Every machine: a row each, this one first, and the bottom line that adds
+  them set apart by a rule — money and tokens in columns that line up, and
+  why a machine is short of its whole said under its name, never as a cell.
+  On a phone held upright the tokens go under the money rather than squeeze
+  the name.
+*/
+.spend-machines {
+  display: grid;
+  padding: var(--s1) var(--inset);
+}
+
+.spend-machine {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  column-gap: var(--s3);
+  align-items: baseline;
+  padding-block: var(--s2);
+}
+
+.spend-machine + .spend-machine {
+  border-block-start: var(--border);
+}
+
+.spend-machine-name {
+  overflow-wrap: anywhere;
+}
+
+.spend-machine-money,
+.spend-machine-tokens {
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.spend-machine-tokens {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.spend-machine-said {
+  grid-column: 1 / -1;
+  color: var(--heading);
+  font-size: var(--step--1);
+  overflow-wrap: anywhere;
+}
+
+.spend-machine.spend-machines-total {
+  font-weight: var(--w-label);
+}
+
+@media (max-width: 379px) {
+  .spend-machine {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .spend-machine-tokens {
+    grid-column: 2;
+  }
+}
