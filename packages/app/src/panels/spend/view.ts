@@ -10,7 +10,7 @@ import {
   type Runtime,
   workedOf,
 } from '@tade/core'
-import type { Machine } from '../../machines.ts'
+import type { Machine, MachineSpend } from '../../machines.ts'
 import { type AgentPane, glyph, MARK_TONES, markOf } from '../../model.ts'
 import type { Skin } from '../../skin.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendBy } from '../../spend.ts'
@@ -611,10 +611,14 @@ const MARK = MONEY_MARK
  *
  * Agents, on every row alike: a remote's orchestrator is on none of its tasks,
  * so its figure leaves that out, and this machine's does too, so the rows are
- * one kind of claim. **No total under them**: two machines' figures added in
- * silence is the sum this page never draws. `≥` is a
- * remote that held some of its tasks back, and a remote that is not up says as
- * of when, or why there is nothing.
+ * one kind of claim. `≥` is a remote that held some of its tasks back, and a
+ * remote that is not up says as of when, or why there is nothing.
+ *
+ * **Then the bottom line, every machine added** (ONE-AWAY-VIEW §2.6, Amir's
+ * decision): each kind of money to its own kind, so it says what it is made
+ * of, and never a silent sum — `≥` wherever a machine could not say all of
+ * it, and those machines named after it (`everyMachine`). Whether a machine
+ * is heard is its link's own word, never when a file last moved.
  */
 function machineRows(ctx: PanelContext, inner: number, row: () => Row): Line[] {
   const machines = ctx.machines
@@ -668,7 +672,61 @@ function machineRows(ctx: PanelContext, inner: number, row: () => Row): Line[] {
     lines.push(line(machine.name, said, tokenCount(spent.tokens), note))
     lines.push(...plansThere(machine, ctx, row))
   }
+  const all = everyMachine(ctx.today, machines.remotes)
+  if (all === null) lines.push(line('every machine', '—', '', 'not read yet'))
+  else {
+    const priced = pricedOf({ ...noSpend(), ...all.spend })
+    const floor = all.short.length > 0 ? '≥' : ''
+    const said = priced === 'none' ? '—' : `${floor}${cost(priced, all.spend.usd)}`
+    const note = all.short.length === 0 ? '' : `not all of ${all.short.join(', ')}`
+    lines.push(line('every machine', said, tokenCount(all.spend.tokens), note))
+  }
   return lines
+}
+
+/**
+ * Every machine's agents today, added: this machine's own and each remote's,
+ * each kind of money to its own kind — or null before this machine's own
+ * journal is read, when no total can be said at all. `short` names each
+ * machine that makes it a floor: one that held some of its tasks back, one
+ * whose link is not up (what it said may have moved since), and one never
+ * heard, which adds nothing it can vouch for.
+ */
+export function everyMachine(
+  today: PanelContext['today'],
+  remotes: readonly Machine[],
+): { spend: Omit<MachineSpend, 'partial'>; short: string[] } | null {
+  if (today === undefined) return null
+  const spend = {
+    usd: 0,
+    usdExact: 0,
+    usdEstimated: 0,
+    usdListed: 0,
+    usdOnPlan: today.usdOnPlan ?? 0,
+    tokens: 0,
+    hasCost: today.hasCost,
+  }
+  for (const one of Object.values(today.byTask)) {
+    spend.usd += one.usd
+    spend.usdExact += one.usdExact ?? 0
+    spend.usdEstimated += one.usdEstimated ?? 0
+    spend.usdListed += one.usdListed ?? 0
+    spend.tokens += one.tokens
+  }
+  const short: string[] = []
+  for (const machine of remotes) {
+    const spent = machine.spend
+    if (spent === null || spent.partial || machine.link !== 'live') short.push(machine.name)
+    if (spent === null) continue
+    spend.usd += spent.usd
+    spend.usdExact += spent.usdExact
+    spend.usdEstimated += spent.usdEstimated
+    spend.usdListed += spent.usdListed
+    spend.usdOnPlan += spent.usdOnPlan
+    spend.tokens += spent.tokens
+    spend.hasCost ||= spent.hasCost
+  }
+  return { spend, short }
 }
 
 /**

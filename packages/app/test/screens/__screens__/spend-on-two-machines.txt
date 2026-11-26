@@ -18,13 +18,13 @@
               │   claude-code           5h   ██████░░░░  64%  resets in 2h 10m                         █│               
  ▾ FILES      │                         7d   ██░░░░░░░░  21%  resets in 4d 0h                          █│               
    ▾ src/     │ lab                        —                                                           █│               
-       webhook│                                                                                        █│               
-       webhook│ PLAN                                                                                   ▕│               
-   ▸ test/    │ ▸ claude-code        5h  ██████░░  78%  resets in 1h 22m said 6m ago     ≈$3.74 at list▕│               
-━   orchestrat│                      7d  ██░░░░░░  31%  resets in 3d 0h                                ▕│━   ↑     ↓   ━
-              │   claude-code        7d  ███████░  93%  resets in 1d 0h  said 22m ago                  ▕│               
+       webhook│ every machine         ≥$5.48  4.4M tokens not all of vps, lab                          █│               
+       webhook│                                                                                        ▕│               
+   ▸ test/    │ PLAN                                                                                   ▕│               
+━   orchestrat│ ▸ claude-code        5h  ██████░░  78%  resets in 1h 22m said 6m ago     ≈$3.74 at list▕│━   ↑     ↓   ━
+              │                      7d  ██░░░░░░  31%  resets in 3d 0h                                ▕│               
+              │   claude-code        7d  ███████░  93%  resets in 1d 0h  said 22m ago                  ▕│              ▕
               │   @personal                                                                            ▕│              ▕
-              │   orchestrator                                                                         ▕│              ▕
               │                                                                                         │              ▕
               │ ↑↓ reads · ←→ ranges · tab groups                                               Done    │              ▕
  ❯ what you sa╰─────────────────────────────────────────────────────────────────────────────────────────╯              ▕

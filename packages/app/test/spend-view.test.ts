@@ -3,7 +3,7 @@ import type { PlanSource, TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { drawPanel, type PanelContext } from '../src/panels/context.ts'
 import { type SpendPanel, spendPanel } from '../src/panels/spend/state.ts'
-import { nameLines, SPEND_WIDTH, spendColumns } from '../src/panels/spend/view.ts'
+import { everyMachine, nameLines, SPEND_WIDTH, spendColumns } from '../src/panels/spend/view.ts'
 import { COLOUR } from '../src/skin.ts'
 import { type SpendBy, spendView } from '../src/spend.ts'
 
@@ -941,3 +941,54 @@ function wrapped(rows: readonly string[], name: string): boolean {
   }
   return false
 }
+
+describe('every machine’s agents today, added', () => {
+  const remote = (
+    name: string,
+    link: 'live' | 'down',
+    spend: { usd: number; tokens: number; partial?: boolean } | null,
+  ) =>
+    ({
+      name,
+      link,
+      spend:
+        spend === null
+          ? null
+          : {
+              usdExact: spend.usd,
+              usdEstimated: 0,
+              usdListed: 0,
+              usdOnPlan: 0,
+              hasCost: true,
+              partial: false,
+              ...spend,
+            },
+    }) as unknown as Parameters<typeof everyMachine>[1][number]
+  const today = {
+    tokens: 0,
+    usd: 0,
+    hasCost: true,
+    byTask: { 'app/a': { tokens: 100, usd: 1, usdExact: 1 } },
+  }
+
+  it('adds this machine’s and every remote’s, each kind of money to its own', () => {
+    const all = everyMachine(today, [remote('vps', 'live', { usd: 2.5, tokens: 300 })])
+    expect(all?.spend).toMatchObject({ usd: 3.5, usdExact: 3.5, tokens: 400 })
+    expect(all?.short).toEqual([])
+  })
+
+  it('names each machine that makes it a floor: down, holding work back, or never heard', () => {
+    const all = everyMachine(today, [
+      remote('vps', 'down', { usd: 2, tokens: 10 }),
+      remote('lab', 'live', null),
+      remote('box', 'live', { usd: 1, tokens: 10, partial: true }),
+      remote('mini', 'live', { usd: 1, tokens: 10 }),
+    ])
+    expect(all?.short).toEqual(['vps', 'lab', 'box'])
+    expect(all?.spend.usd).toBe(5)
+  })
+
+  it('is nothing at all before this machine’s own journal is read', () => {
+    expect(everyMachine(undefined, [remote('vps', 'live', { usd: 1, tokens: 1 })])).toBeNull()
+  })
+})

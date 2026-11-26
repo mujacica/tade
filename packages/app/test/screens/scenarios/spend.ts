@@ -209,7 +209,8 @@ export const SPEND_SCREENS: Scenario[] = [
     about:
       'With other machines linked, the Spend page has a row for each: what this Mac’s agents ' +
       'spent today, and what each remote’s did by its own clock — the VPS as of when its link ' +
-      'went down, the lab box with nothing spent — and no total adding the machines together.',
+      'went down, the lab box with nothing spent — and under them every machine added, marked as ' +
+      'at least where one of them could not say all of it, naming which.',
     state: { ...base(), panel: spendPanel() },
     frame: frame({
       spend: strip,
