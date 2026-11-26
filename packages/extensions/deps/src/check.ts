@@ -251,6 +251,16 @@ export function installCommands(files: readonly string[]): string[] {
   return commands
 }
 
+/**
+ * The versioned dependencies whose registry could not be asked — timed out,
+ * refused, not found — which are neither current nor behind but unknown.
+ */
+export function uncheckedOf(report: Report): Finding[] {
+  return report.findings.filter(
+    (finding) => finding.problem && finding.leftAlone !== 'names no version',
+  )
+}
+
 /** The report, as something to read. */
 export function describeReport(project: string, report: Report, limit = 80): string {
   const { findings } = report
@@ -263,11 +273,19 @@ export function describeReport(project: string, report: Report, limit = 80): str
   // Workspace packages, paths and git URLs have no release to be behind.
   const versioned = findings.filter((finding) => finding.leftAlone !== 'names no version')
   const local = findings.length - versioned.length
+  // One whose registry could not be asked is not current: it is unknown.
+  const missed = uncheckedOf(report).length
+  const checked = versioned.length - missed
   const summary = [
     `${versioned.length} dependencies in ${report.manifests.length} manifest${report.manifests.length === 1 ? '' : 's'}${local > 0 ? ` (and ${local} from the workspace, a path or git)` : ''}`,
-    behindOnes.length === 0
-      ? 'all current'
-      : `${behindOnes.length} behind (${[`${count('major')} major`, `${count('minor')} minor`, `${count('patch')} patch`].filter((part) => !part.startsWith('0 ')).join(', ')})`,
+    behindOnes.length > 0
+      ? `${behindOnes.length} behind (${[`${count('major')} major`, `${count('minor')} minor`, `${count('patch')} patch`].filter((part) => !part.startsWith('0 ')).join(', ')})`
+      : missed === 0
+        ? 'all current'
+        : checked === 0
+          ? 'none could be checked'
+          : `none behind of the ${checked} checked`,
+    ...(missed > 0 && checked > 0 ? [`${missed} could not be checked`] : []),
     report.checkedVulnerabilities
       ? `${vulnerable.length} with known vulnerabilities`
       : 'vulnerabilities not checked',

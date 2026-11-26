@@ -329,6 +329,39 @@ describe('checking and updating a project', () => {
       describeReport('x', { manifests: [], findings: [], checkedVulnerabilities: false }),
     ).toContain('all current')
   })
+
+  it('never calls a dependency current when its registry could not be asked', async () => {
+    const repo = project()
+    const timedOut = (async () => {
+      throw new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+    }) as typeof fetch
+    const nobody = await host(repo.root, timedOut)
+    const checked = await nobody.call(
+      'deps_check',
+      { project: 'shop' },
+      { caller: { kind: 'you' } },
+    )
+    expect(checked.text).toContain('none could be checked')
+    expect(checked.text).not.toContain('all current')
+    await expect(
+      nobody.call('deps_update', { project: 'shop', level: 'patch' }, { caller: { kind: 'you' } }),
+    ).rejects.toThrow('Could not check any of the 4 dependencies')
+
+    // The one that answered is current, so there is nothing to move among
+    // what answered — and it says how many did not.
+    const some = await host(
+      repo.root,
+      registry({ 'https://registry.npmjs.org/vitest': npm('4.0.1') }),
+    )
+    const partly = await some.call(
+      'deps_update',
+      { project: 'shop', level: 'patch' },
+      { caller: { kind: 'you' } },
+    )
+    expect(partly.text).toContain('among the 1 that could be checked; 3 could not be')
+    expect(partly.text).toContain('none behind of the 1 checked · 3 could not be checked')
+    expect(partly.text).not.toContain('all current')
+  })
 })
 
 describe('a release younger than pnpm installs', () => {

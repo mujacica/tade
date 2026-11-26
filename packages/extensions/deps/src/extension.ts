@@ -15,6 +15,7 @@ import {
   installCommands,
   type Level,
   planUpdate,
+  uncheckedOf,
 } from './check.ts'
 import { report } from './look.ts'
 import { dependencyUpdates } from './updates.ts'
@@ -168,18 +169,41 @@ export const depsExtension: TadeExtension = {
         const at = where(input, ctx)
         const found = await report(ctx, at.root, ctx.progress)
         const changes = planUpdate(found.report, level, only)
+        const unchecked = uncheckedOf(found.report).filter(
+          (finding) => only.length === 0 || only.includes(finding.dependency.name),
+        )
+        const described = describeReport(at.project.name, found.report)
         if (changes.length === 0) {
+          // A registry that could not be asked found nothing out, which is not
+          // finding everything current: a tool fails by throwing.
+          const asked = found.report.findings.filter(
+            (finding) =>
+              finding.leftAlone !== 'names no version' &&
+              (only.length === 0 || only.includes(finding.dependency.name)),
+          )
+          if (unchecked.length > 0 && unchecked.length === asked.length) {
+            throw new Error(
+              `Could not check any of the ${asked.length} dependencies asked about in ${at.project.name}, so whether any is behind is unknown and nothing was updated.\n\n${described}`,
+            )
+          }
           return {
-            text: `Nothing to update in ${at.project.name} up to ${level} releases.\n\n${describeReport(at.project.name, found.report)}`,
+            text: `Nothing to update in ${at.project.name} up to ${level} releases${unchecked.length > 0 ? ` among the ${asked.length - unchecked.length} that could be checked; ${unchecked.length} could not be, and may be behind` : ''}.\n\n${described}`,
           }
         }
+        const missedLine =
+          unchecked.length > 0
+            ? `\n\n${unchecked.length} could not be checked and were left as written: ${unchecked
+                .slice(0, 10)
+                .map((finding) => `${finding.dependency.name} (${finding.problem})`)
+                .join(', ')}${unchecked.length > 10 ? ', …' : ''}.`
+            : ''
         const install = installCommands(found.files)
         const listed = changeList(changes)
 
         if (ctx.caller.kind === 'agent') {
           applyUpdate(at.root, found.report, changes)
           return {
-            text: `Updated ${changes.length} requirement${changes.length === 1 ? '' : 's'} in your worktree:\n\n${listed}\n\nNow run ${install.join(' and ') || 'the install'}${at.project.test ? `, then \`${at.project.test}\`` : ', then the tests'}.`,
+            text: `Updated ${changes.length} requirement${changes.length === 1 ? '' : 's'} in your worktree:\n\n${listed}\n\nNow run ${install.join(' and ') || 'the install'}${at.project.test ? `, then \`${at.project.test}\`` : ', then the tests'}.${missedLine}`,
           }
         }
         if (!ctx.tade) throw new Error('updating starts an agent, which needs the Tade window open')
@@ -213,12 +237,12 @@ export const depsExtension: TadeExtension = {
             '',
             '## Before the update',
             '',
-            describeReport(at.project.name, found.report),
+            described,
           ].join('\n'),
           prepare: async (worktree) => applyUpdate(worktree, found.report, changes),
         })
         return {
-          text: `Started ${started.task} on ${changes.length} update${changes.length === 1 ? '' : 's'} (${majors.length} major). It installs, runs the tests and fixes what breaks, in ${started.worktree}.\n\n${listed}`,
+          text: `Started ${started.task} on ${changes.length} update${changes.length === 1 ? '' : 's'} (${majors.length} major). It installs, runs the tests and fixes what breaks, in ${started.worktree}.\n\n${listed}${missedLine}`,
           data: { task: started.task, changes },
         }
       },
