@@ -71,6 +71,7 @@ import {
   machineTone,
   machineWay,
   noFiguresSaid,
+  wantsElsewhere,
 } from '../machines.js'
 import { quickActs } from '../quick.js'
 import { pathOf, taskPath } from '../routes.js'
@@ -99,9 +100,12 @@ export function nowScreen(ctx = null) {
   const wants = section('NEEDS YOU')
   wants.node.setAttribute('id', 'wants')
   const wantList = el('ol', { class: 'ov-wants ui-panel' })
+  // What wants you on every other machine that is up, under this one's.
+  const elseList = el('ol', { class: 'ov-wants ov-elsewhere ui-panel' })
+  elseList.hidden = true
   const inbox = inboxRow()
   const clear = clearLine()
-  into(wants.body, wantList, inbox.node, clear.node)
+  into(wants.body, wantList, elseList, inbox.node, clear.node)
 
   const failed = section('FAILED')
   const failList = el('ol', { class: 'ov-wants ov-failed ui-panel' })
@@ -167,10 +171,12 @@ export function nowScreen(ctx = null) {
       // What needs you: the rows, the inbox's requests under them, and a
       // calm line where there is neither.
       const rows = wantsYou(store)
+      const others = wantsElsewhere(store)
+      const all = rows.length + others.length
       const waiting = intakeWaiting(store).length
-      textIn(wants.figure, rows.length === 0 ? '' : String(rows.length))
-      toneOn(wants.figure, rows.length > 0 ? 't-wants' : '')
-      wants.figure.setAttribute('aria-label', `${rows.length} wanting you`)
+      textIn(wants.figure, all === 0 ? '' : String(all))
+      toneOn(wants.figure, all > 0 ? 't-wants' : '')
+      wants.figure.setAttribute('aria-label', `${all} wanting you`)
       keyed(
         wantList,
         rows,
@@ -178,8 +184,16 @@ export function nowScreen(ctx = null) {
         () => createWant(ctx),
         (one, task) => fillWant(one, task, view),
       )
+      elseList.hidden = others.length === 0
+      keyed(
+        elseList,
+        others,
+        (one) => `${one.machine}\u0000${one.task.id}`,
+        () => createWant(null),
+        (node, one) => fillElsewhere(node, one, view),
+      )
       inbox.update(waiting)
-      clear.update(figures, had && rows.length === 0 && waiting === 0)
+      clear.update(figures, had && all === 0 && waiting === 0)
 
       const broke = failedOf(store)
       failed.node.hidden = broke.length === 0
@@ -453,6 +467,19 @@ function fillWant(node, task, view) {
   age.setAttribute('aria-label', moved === null ? 'never moved' : `moved ${moved} ago`)
   textIn(why, task.reason)
   node.quick?.update(task, view)
+}
+
+/**
+ * Another machine's row that wants you: read only until a press can reach
+ * that machine from this page (ONE-AWAY-VIEW §2.5) — no link to a page here,
+ * which is this machine's tasks by id, and no presses — and its machine named
+ * before its project.
+ */
+function fillElsewhere(node, one, view) {
+  fillWant(node, one.task, view)
+  const [, link] = node.children
+  link.removeAttribute('href')
+  textIn(link.children[1], `${one.machine} · ${one.task.project}`)
 }
 
 /** The inbox's requests, waiting for a yes: somebody else blocked on this machine. */

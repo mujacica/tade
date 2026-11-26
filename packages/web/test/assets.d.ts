@@ -979,6 +979,9 @@ declare module '*/assets/machines.js' {
   export function wasWorking(copy: CopyIn | null | undefined): { mark?: string }[]
   export function wasDoingSaid(row: MachineRowIn, copy: CopyIn | null | undefined): string | null
   export function lastWordSaid(row: MachineRowIn, copy: CopyIn | null | undefined): string | null
+  export function wantsElsewhere(
+    store: { machines?: readonly MachineRowIn[]; copies?: Map<string, unknown> } | null,
+  ): { machine: string; task: { id: string } }[]
   export function agentsElsewhere(
     store: { machines?: readonly MachineRowIn[]; copies?: Map<string, unknown> } | null,
   ): {
@@ -1000,4 +1003,11 @@ declare module '*/assets/room.js' {
     }
   }
   export function roomOn(root?: RoomRoot): void
+}
+
+declare module '*/assets/pages/overview.js' {
+  export function nowScreen(ctx?: null): {
+    node: any
+    update(view: unknown): void
+  }
 }

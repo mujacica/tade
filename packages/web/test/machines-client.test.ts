@@ -16,6 +16,7 @@ import {
   noFiguresSaid,
   percentSaid,
   roomSaid,
+  wantsElsewhere,
   wasDoingSaid,
   wasWorking,
 } from '../src/assets/machines.js'
@@ -296,5 +297,51 @@ describe('every other machine’s agents', () => {
     expect(agentsElsewhere({ machines: [], copies: new Map() })).toEqual([])
     expect(agentsElsewhere({ machines: [] })).toEqual([])
     expect(agentsElsewhere(null)).toEqual([])
+  })
+})
+
+describe('what wants you on every other machine', () => {
+  const copy = (tasks: readonly [string, string, boolean][]) => ({
+    rows: { tasks: new Map(tasks.map(([id, mark, wantsYou]) => [id, { id, mark, wantsYou }])) },
+  })
+  const seen = (name: string, state: 'up' | 'closed') => ({
+    name,
+    way: 'from' as const,
+    state,
+    since: AT,
+  })
+
+  it('is each up machine’s own wanting, in its own order, by machine name', () => {
+    const store = {
+      machines: [seen('mac', 'up'), seen('box', 'up')],
+      copies: new Map([
+        [
+          'mac',
+          copy([
+            ['app/b', 'failed', true],
+            ['app/a', 'needs-you', true],
+            ['app/c', 'working', false],
+          ]),
+        ],
+        ['box', copy([['app/z', 'needs-you', true]])],
+      ]),
+    }
+    expect(wantsElsewhere(store).map((one) => `${one.machine} ${one.task.id}`)).toEqual([
+      'box app/z',
+      'mac app/a',
+      'mac app/b',
+    ])
+  })
+
+  it('leaves out a machine that is not up, or that the page has no row for', () => {
+    const store = {
+      machines: [seen('mac', 'closed')],
+      copies: new Map([
+        ['mac', copy([['app/a', 'needs-you', true]])],
+        ['ghost', copy([['app/g', 'needs-you', true]])],
+      ]),
+    }
+    expect(wantsElsewhere(store)).toEqual([])
+    expect(wantsElsewhere(null)).toEqual([])
   })
 })

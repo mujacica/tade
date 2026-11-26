@@ -7,7 +7,7 @@
 // (`seenSaid` in `@tade/core`), held equal by `test/machines-client.test.ts`.
 
 import { shortClockOf } from './figures.js'
-import { agentsOf } from './store.js'
+import { agentsOf, wantsYou } from './store.js'
 
 /** Every machine, the ones that are not up first, then by name. */
 export function machinesOf(store) {
@@ -254,4 +254,23 @@ export function agentsElsewhere(store) {
     })
   }
   return out.sort((a, b) => (a.machine < b.machine ? -1 : a.machine > b.machine ? 1 : 0))
+}
+
+/**
+ * What wants the person on every other machine that is up, as that machine's
+ * own `wantsYou` orders it, by machine name: each its machine and its task. A
+ * machine that is not up is left out — nothing there can be answered until it
+ * is back, and its card on the overview already says what it was doing.
+ */
+export function wantsElsewhere(store) {
+  const copies = store?.copies instanceof Map ? store.copies : new Map()
+  const up = new Set(
+    (Array.isArray(store?.machines) ? store.machines : [])
+      .filter((row) => row.state === 'up')
+      .map((row) => row.name),
+  )
+  return [...copies]
+    .filter(([machine]) => up.has(machine))
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .flatMap(([machine, copy]) => wantsYou(copy).map((task) => ({ machine, task })))
 }

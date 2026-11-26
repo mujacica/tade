@@ -3,6 +3,7 @@ import { StillDocument } from '../scripts/still-dom.ts'
 import { agentsScreen, byProject, runsOn } from '../src/assets/agents.js'
 import { WHY_SAID, withHeld } from '../src/assets/pages/agent-pane.js'
 import { UNREAD_SAID } from '../src/assets/pages/agent-said.js'
+import { nowScreen } from '../src/assets/pages/overview.js'
 import { applyCopy, applySnapshot, emptyStore } from '../src/assets/store.js'
 import { CONVERSATION_WHY, PROTOCOL_VERSION, SCREEN_WHY } from '../src/protocol.ts'
 import { snapshotOf } from '../src/snapshot.ts'
@@ -146,5 +147,46 @@ describe('another machine’s agents on the Agents page', () => {
     const working = rows.find((one) => one.textContent?.includes('working'))
     expect(working?.textContent).toContain('was working at')
     expect(working?.textContent).not.toContain('4 files touched')
+  })
+})
+
+describe('what wants you on another machine, on the overview', () => {
+  const was = { document: Reflect.get(globalThis, 'document') }
+  afterEach(() => {
+    Object.defineProperty(globalThis, 'document', {
+      value: was.document,
+      configurable: true,
+      writable: true,
+    })
+  })
+
+  it('is drawn under this machine’s, its machine before its project, leading to no page here', () => {
+    const doc = new StillDocument()
+    Object.defineProperty(globalThis, 'document', {
+      value: doc,
+      configurable: true,
+      writable: true,
+    })
+    const store = emptyStore()
+    const machines = [
+      { name: 'mac', way: 'from' as const, state: 'up' as const, since: NOW - 60_000 },
+    ]
+    applySnapshot(store, snapshotOf(input({ reach: reach(EVERY), machines }), NOW))
+    const blocked = task({ id: 'tade/stuck', project: 'tade', state: 'blocked' })
+    applyCopy(store, {
+      v: PROTOCOL_VERSION,
+      machine: 'mac',
+      kind: 'whole',
+      snapshot: snapshotOf(input({ reach: reach(EVERY), tasks: [blocked] }), NOW),
+    })
+    const screen = nowScreen()
+    doc.body.append(screen.node)
+    screen.update({ store, standing: 'live', asOf: NOW, frozen: false })
+    const rows = doc.querySelectorAll('.ov-elsewhere > li')
+    expect(rows.length).toBe(1)
+    const link = rows[0]?.querySelector('.ov-want-link')
+    expect(link?.getAttribute('href')).toBeNull()
+    expect(link?.querySelector('.ov-want-project')?.textContent).toBe('mac · tade')
+    expect(rows[0]?.querySelector('.ov-want-acts')).toBeNull()
   })
 })

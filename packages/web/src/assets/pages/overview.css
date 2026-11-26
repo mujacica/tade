@@ -226,6 +226,11 @@ its words stand level with the label of the cell beside it.
   display: none;
 }
 
+/* Every other machine's, under this one's: the same rows, a gap between. */
+.page-overview .ov-wants:not(:empty) + .ov-elsewhere:not(:empty) {
+  margin-block-start: var(--s2);
+}
+
 /*
 A row: its mark in a square of its own tone, the name (the link, stretched over
 the row) with the project after it, how long ago at the end, why under the
