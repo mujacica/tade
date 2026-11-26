@@ -706,6 +706,14 @@ export class Heart {
     void this.duties.begin()
     // What Tade's own checkout is as it starts, before an agent can commit to it.
     void this.ownCode.begin()
+    // Who each sign-in is, once, where another machine reads its plans: the
+    // mark that says one subscription on two machines is one plan
+    // (`identityOf`). Asked again whenever somebody looks at the accounts.
+    if (Object.keys(config.remotes).length > 0 || config.surfaces.web.enabled) {
+      void this.wire.opts.client.accounts().catch((err: unknown) => {
+        this.told.note(`Who each sign-in is could not be asked: ${why(err)}`)
+      })
+    }
     const live = await Live.start({
       client: this.opts.client,
       config: this.opts.config,

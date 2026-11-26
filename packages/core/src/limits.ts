@@ -94,6 +94,13 @@ export interface PlanSource {
   said: PlanSaid | null
   /** Who runs as it when nobody chose otherwise (`signInUse`), where whoever gathered it knew. */
   uses?: SignInUse
+  /**
+   * Whose subscription it is, as a mark the same on every machine signed in
+   * as the same — the harness and the address it said it is signed in as,
+   * hashed (`identityOf`), never the address — so one plan used on two
+   * machines is drawn as one. Null or absent where nobody has asked who it is.
+   */
+  identity?: string | null
 }
 
 /** How one account's plan stands: what is used of it, or why nobody can say. */
@@ -111,6 +118,8 @@ export interface PlanStanding {
   cannotTell: string | null
   /** Who runs as it, carried from its source. */
   uses?: SignInUse
+  /** Whose subscription it is, carried from its source (`PlanSource.identity`). */
+  identity?: string | null
 }
 
 const SAYS_NOTHING = 'does not say how much of a plan is used'
@@ -133,6 +142,7 @@ export function planStandings(sources: readonly PlanSource[], now: number): Plan
       pays: source.pays,
       ...(source.ownName ? { ownName: source.ownName } : {}),
       ...(source.uses ? { uses: source.uses } : {}),
+      ...(source.identity ? { identity: source.identity } : {}),
     }
     const nothing = (why: string): PlanStanding => ({
       ...where,

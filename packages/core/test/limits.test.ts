@@ -645,3 +645,15 @@ describe('how close a plan ran to its ceiling', () => {
     expect(peaks).toEqual([])
   })
 })
+
+describe('whose subscription a plan is', () => {
+  it('carries the mark from its source, whatever can be said of its windows', () => {
+    expect(planStandings([source({ identity: '0123456789abcdef' })], NOW)[0]?.identity).toBe(
+      '0123456789abcdef',
+    )
+    expect(
+      planStandings([source({ identity: '0123456789abcdef', said: null })], NOW)[0]?.identity,
+    ).toBe('0123456789abcdef')
+    expect(planStandings([source()], NOW)[0]).not.toHaveProperty('identity')
+  })
+})

@@ -109,6 +109,18 @@ function projection(): Snapshot {
         ],
         at: THERE(0),
         cannotTell: null,
+        identity: '0123456789abcdef',
+      },
+      // A mark that is not the shape one is, which is read as none.
+      {
+        id: 'codex/0',
+        harness: 'codex',
+        account: null,
+        pays: 'plan',
+        windows: [],
+        at: null,
+        cannotTell: 'has not said',
+        identity: 'amir@example.invalid',
       },
     ],
   } as unknown as Snapshot
@@ -212,6 +224,17 @@ describe('everything else another machine says', () => {
         windows: [{ label: '5h', used: 42, resetsAt: NOW + 3_600_000 }],
         at: NOW,
         cannotTell: null,
+        identity: '0123456789abcdef',
+      },
+      {
+        id: 'codex/0',
+        harness: 'codex',
+        account: null,
+        pays: 'plan',
+        windows: [],
+        at: null,
+        cannotTell: 'has not said',
+        identity: null,
       },
     ])
   })

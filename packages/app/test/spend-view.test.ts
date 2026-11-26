@@ -3,7 +3,13 @@ import type { PlanSource, TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { drawPanel, type PanelContext } from '../src/panels/context.ts'
 import { type SpendPanel, spendPanel } from '../src/panels/spend/state.ts'
-import { everyMachine, nameLines, SPEND_WIDTH, spendColumns } from '../src/panels/spend/view.ts'
+import {
+  everyMachine,
+  nameLines,
+  SPEND_WIDTH,
+  sharedWith,
+  spendColumns,
+} from '../src/panels/spend/view.ts'
 import { COLOUR } from '../src/skin.ts'
 import { type SpendBy, spendView } from '../src/spend.ts'
 
@@ -990,5 +996,33 @@ describe('every machine’s agents today, added', () => {
 
   it('is nothing at all before this machine’s own journal is read', () => {
     expect(everyMachine(undefined, [remote('vps', 'live', { usd: 1, tokens: 1 })])).toBeNull()
+  })
+})
+
+describe('one subscription on two machines', () => {
+  const MARK = '0123456789abcdef'
+  const machine = (name: string, identity: string | null) =>
+    ({
+      name,
+      detail: {
+        plans: [
+          {
+            id: 'claude-code/0',
+            harness: 'claude-code',
+            account: null,
+            pays: 'plan',
+            windows: [],
+            at: null,
+            cannotTell: null,
+            identity,
+          },
+        ],
+      },
+    }) as unknown as Parameters<typeof sharedWith>[1][number]
+
+  it('names the machines signed in as the same, and none where nobody asked who it is', () => {
+    const remotes = [machine('vps', MARK), machine('lab', 'fedcba9876543210'), machine('box', null)]
+    expect(sharedWith({ identity: MARK }, remotes)).toEqual(['vps'])
+    expect(sharedWith({ identity: null }, remotes)).toEqual([])
   })
 })

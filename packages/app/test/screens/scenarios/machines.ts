@@ -145,6 +145,7 @@ const vps = (over: Partial<Machine> = {}): Machine => ({
         harness: 'claude-code',
         account: null,
         pays: 'plan',
+        identity: null,
         windows: [
           { label: '5h', used: 64, resetsAt: NOW + 2 * 3_600_000 + 10 * MINUTE },
           { label: '7d', used: 21, resetsAt: NOW + 4 * 86_400_000 },

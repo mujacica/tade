@@ -454,6 +454,7 @@ function planRow({ plan, id }: KeyedPlan, reach: Reach, budget: Budget): PlanRow
     at: ISO_OR(plan.at),
     cannotTell: plan.cannotTell,
     uses: has(reach, 'accounts') ? usesOf(plan.uses, reach, budget) : null,
+    ...(has(reach, 'accounts') && plan.identity ? { identity: plan.identity } : {}),
   }
 }
 

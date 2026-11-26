@@ -175,6 +175,12 @@ export interface PlanRow {
    * say — never read as nobody.
    */
   uses: SignInUse | null
+  /**
+   * Whose subscription it is (`PlanSource.identity`), so another machine's
+   * plan signed in as the same is drawn as this one rather than as another.
+   * Null where nobody has asked who it is.
+   */
+  identity: string | null
 }
 
 export interface BudgetRow {
@@ -508,6 +514,7 @@ function planRows(sources: readonly PlanSource[], now: number, report: SpendRepo
       usdOnPlan: spent.usdOnPlan,
       onPlan: onPlanOf(spent),
       uses: standing.uses ?? null,
+      identity: standing.identity ?? null,
     }
   })
 }

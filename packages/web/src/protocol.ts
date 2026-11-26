@@ -590,6 +590,13 @@ export const PlanRowSchema = z.strictObject({
   /** Why there is nothing to show, in words. Null when there is something. */
   cannotTell: z.string().nullable(),
   /**
+   * Whose subscription it is, as a mark the same on every machine signed in
+   * as the same (`identityOf` in `@tade/workbench`), so a page or another
+   * machine draws one plan used on two machines once. Absent where nobody
+   * asked who it is, and for a device not granted `accounts`.
+   */
+  identity: z.string().max(64).optional(),
+  /**
    * Who runs as it, as the window's Accounts page says: whether new agents do,
    * and which of the projects this device reads name it as theirs. Null where
    * the device was not granted `accounts` — which sign-in a project's agents

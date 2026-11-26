@@ -157,6 +157,8 @@ export interface PlanThere {
   at: number | null
   /** Why there is nothing to show, in that machine's words. */
   cannotTell: string | null
+  /** Whose subscription it is (`PlanRow.identity`): the same mark as a plan here signed in as the same. */
+  identity: string | null
 }
 
 /** How one check has gone in one tree of a project there: its newest answer and its streak. */
@@ -531,6 +533,7 @@ function plansIn(
           }),
         at: at(row.at),
         cannotTell: cannot === '' ? null : cannot,
+        identity: /^[0-9a-f]{16}$/.test(String(row.identity)) ? String(row.identity) : null,
       },
     ]
   })

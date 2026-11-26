@@ -99,6 +99,7 @@ import {
   askPlans,
   carryRefused,
   harnessAccount,
+  identityOf,
   listAccounts,
   noConversationSays,
   planSources,
@@ -334,6 +335,8 @@ export class Workbench {
   readonly machine: MachineFile
   /** The schedules as told: `kept` rather than `schedules`, which is the method that lists them. */
   private readonly kept: Schedules
+  /** Whose subscription each sign-in said it is when last asked (`accounts`), by harness and name. */
+  private readonly identities = new Map<string, string>()
   private readonly lock: HomeLock
   private readonly version: string
   /** One adapter per harness there is, the same ones the supervisor answers runs with. */
@@ -949,7 +952,10 @@ export class Workbench {
 
   /** Every sign-in's plan as its harness last said (`planSources`), or once asked (`askPlans`). */
   planUsage(): PlanSource[] {
-    return planSources(this.config, { adapterFor: this.adapterFor.bind(this) })
+    return planSources(this.config, {
+      adapterFor: this.adapterFor.bind(this),
+      identity: (harness, name) => this.identities.get(`${harness}\u0000${name ?? ''}`) ?? null,
+    })
   }
 
   askPlans(timeoutMs: number, only?: PlanChoice): Promise<PlanSource[]> {
@@ -2130,11 +2136,20 @@ export class Workbench {
    */
   async accounts(): Promise<AccountView[]> {
     const running = this.workers.list()
-    return listAccounts(this.config, {
+    const views = await listAccounts(this.config, {
       adapterFor: (harness, name) => this.adapterFor(harness, name ?? undefined),
       agentsOn: (adapter) =>
         running.filter((run) => this.workers.adapterOf(run.run) === adapter).length,
     })
+    // Who each said it is, kept as the mark its plan carries (`identityOf`):
+    // asked only here, where somebody asked, never on a beat.
+    for (const view of views) {
+      const key = `${view.harness}\u0000${view.name ?? ''}`
+      const mark = identityOf(view.harness, view.status)
+      if (mark === null) this.identities.delete(key)
+      else this.identities.set(key, mark)
+    }
+    return views
   }
 
   /**

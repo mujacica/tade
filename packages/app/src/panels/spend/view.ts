@@ -13,7 +13,7 @@ import {
 import type { Machine, MachineSpend } from '../../machines.ts'
 import { type AgentPane, glyph, MARK_TONES, markOf } from '../../model.ts'
 import type { Skin } from '../../skin.ts'
-import { SPEND_BY, SPEND_WINDOWS, type SpendBy } from '../../spend.ts'
+import { type PlanRow, SPEND_BY, SPEND_WINDOWS, type SpendBy } from '../../spend.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
 import { cap, pad, padTo, wrapTo } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
@@ -163,7 +163,7 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     }
   }
 
-  rows.push(...machineRows(ctx, inner, row))
+  rows.push(...machineRows(ctx, inner, row, view?.plan ?? []))
 
   // What a subscription has left, under what it cost: money and a plan are
   // different currencies with no rate between them, so this is its own list
@@ -294,6 +294,16 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     // default somebody looks for when a plan is nearly gone.
     if (standing.uses?.orchestrator) {
       drawn.push(row().space(LEAD).text('orchestrator', skin.hint).build())
+    }
+    // The same subscription signed in on other machines: one plan, drawn here once.
+    const elsewhere = sharedWith(standing, ctx.machines?.remotes ?? [])
+    if (elsewhere.length > 0) {
+      drawn.push(
+        row()
+          .space(LEAD)
+          .text(`also on ${elsewhere.join(', ')}`, skin.hint)
+          .build(),
+      )
     }
     rows.push(...drawn)
   }
@@ -620,7 +630,12 @@ const MARK = MONEY_MARK
  * it, and those machines named after it (`everyMachine`). Whether a machine
  * is heard is its link's own word, never when a file last moved.
  */
-function machineRows(ctx: PanelContext, inner: number, row: () => Row): Line[] {
+function machineRows(
+  ctx: PanelContext,
+  inner: number,
+  row: () => Row,
+  here: readonly PlanRow[],
+): Line[] {
   const machines = ctx.machines
   if (machines === undefined || machines.remotes.length === 0) return []
   const { skin } = ctx
@@ -670,7 +685,7 @@ function machineRows(ctx: PanelContext, inner: number, row: () => Row): Line[] {
     const priced = pricedOf({ ...noSpend(), ...spent })
     const said = priced === 'none' ? '—' : `${spent.partial ? '≥' : ''}${cost(priced, spent.usd)}`
     lines.push(line(machine.name, said, tokenCount(spent.tokens), note))
-    lines.push(...plansThere(machine, ctx, row))
+    lines.push(...plansThere(machine, ctx, row, here))
   }
   const all = everyMachine(ctx.today, machines.remotes)
   if (all === null) lines.push(line('every machine', '—', '', 'not read yet'))
@@ -734,11 +749,30 @@ export function everyMachine(
  * windows by its own numbers, never added to this machine's PLAN list below —
  * a plan there is that machine's subscription, and as fresh as its last word.
  */
-function plansThere(machine: Machine, ctx: PanelContext, row: () => Row): Line[] {
+function plansThere(
+  machine: Machine,
+  ctx: PanelContext,
+  row: () => Row,
+  here: readonly PlanRow[],
+): Line[] {
   const { skin } = ctx
   const lines: Line[] = []
   for (const plan of machine.detail.plans) {
     const who = plan.account === null ? plan.harness : `${plan.harness} · ${plan.account}`
+    // One subscription signed in here as well is one plan (ONE-AWAY-VIEW §2.6
+    // rule 4): drawn once, in the PLAN list, and named here rather than again.
+    const same =
+      plan.identity === null ? undefined : here.find((one) => one.identity === plan.identity)
+    if (same !== undefined) {
+      lines.push(
+        row()
+          .space(3)
+          .text(padTo(cap(who, 22), 22))
+          .text(cap(`the same plan as ${same.label} here, under PLAN`, 48), skin.hint)
+          .build(),
+      )
+      continue
+    }
     if (plan.windows.length === 0) {
       const why = plan.cannotTell ?? 'cannot tell'
       lines.push(
@@ -796,4 +830,12 @@ function tokenCount(count: number, unit = true): string {
 
 function shortModel(model: string): string {
   return model.split('/').at(-1) ?? model
+}
+
+/** The other machines whose sign-in is the same subscription as this one, by name. */
+export function sharedWith(plan: Pick<PlanRow, 'identity'>, remotes: readonly Machine[]): string[] {
+  if (plan.identity === null) return []
+  return remotes
+    .filter((machine) => machine.detail.plans.some((one) => one.identity === plan.identity))
+    .map((machine) => machine.name)
 }

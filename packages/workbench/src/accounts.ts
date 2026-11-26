@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import {
   type Config,
@@ -137,16 +138,22 @@ export function signIns(config: Config): { harness: string; name: string | null 
  */
 export function planSources(
   config: Config,
-  opts: { adapterFor: (harness: string, name: string | null) => WorkerAdapter },
+  opts: {
+    adapterFor: (harness: string, name: string | null) => WorkerAdapter
+    /** Whose subscription each sign-in is, as it last said (`identityOf`), where it has been asked. */
+    identity?: (harness: string, name: string | null) => string | null
+  },
 ): PlanSource[] {
   return signIns(config).map(({ harness, name }) => {
     const adapter = opts.adapterFor(harness, name)
     const can = adapter.capabilities.spend.limits
     const said = can === 'none' ? null : adapter.limits()
     const ownName = name === null ? ownSignInName(config, harness) : null
+    const identity = opts.identity?.(harness, name) ?? null
     return {
       harness,
       account: name,
+      ...(identity ? { identity } : {}),
       ...(ownName ? { ownName } : {}),
       can,
       pays: paysFor(config, name, adapter),
@@ -325,4 +332,16 @@ export async function listAccounts(
     })
   }
   return views
+}
+
+/**
+ * Whose subscription a sign-in is, as a mark: the harness, how it is signed
+ * in and who it said it is, hashed and cut short — so two machines signed in
+ * as the same compare equal, and nothing that reads a plan is handed the
+ * address itself. Null where it is not signed in or did not say who.
+ */
+export function identityOf(harness: string, status: AccountStatus): string | null {
+  if (!status.signedIn || status.who === null || status.who.trim() === '') return null
+  const said = [harness, status.method ?? '', status.who.trim().toLowerCase()].join('\n')
+  return createHash('sha256').update(said).digest('hex').slice(0, 16)
 }

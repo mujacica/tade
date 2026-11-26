@@ -434,3 +434,16 @@ describe('the budget', () => {
     expect(textOf(null, 3)).toBeNull()
   })
 })
+
+describe('whose subscription a plan is, on the page', () => {
+  it('is sent to a device granted the accounts, and to nobody else', () => {
+    const row = (granted: Grant[]) =>
+      snapshotOf(
+        input({ reach: reach(granted), plans: [plan({ identity: '0123456789abcdef' })] }),
+        NOW,
+        {},
+      ).plans[0]
+    expect(row(['spend', 'accounts'])?.identity).toBe('0123456789abcdef')
+    expect(row(['spend'])).not.toHaveProperty('identity')
+  })
+})

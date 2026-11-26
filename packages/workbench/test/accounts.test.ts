@@ -4,7 +4,7 @@ import { ConfigSchema, type InstallersHere, type LaneId } from '@tade/core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
-import { harnessAccount, listAccounts } from '../src/accounts.ts'
+import { harnessAccount, identityOf, listAccounts } from '../src/accounts.ts'
 import { HARNESS_ADAPTERS } from '../src/harnesses.ts'
 import { Workbench } from '../src/workbench.ts'
 
@@ -484,3 +484,35 @@ function unstamped(detail: Record<string, unknown>): Record<string, unknown> {
   const { hlc: _hlc, over: _over, ...said } = detail
   return said
 }
+
+describe('whose subscription a sign-in is', () => {
+  const status = (who: string | null, signedIn = true, method: string | null = 'claude.ai') => ({
+    signedIn,
+    who,
+    plan: 'max',
+    method,
+    problem: null,
+  })
+
+  it('is one mark for one address however it is written, and never the address', () => {
+    const mark = identityOf('claude-code', status('Amir@Example.invalid'))
+    expect(mark).toMatch(/^[0-9a-f]{16}$/)
+    expect(identityOf('claude-code', status(' amir@example.invalid '))).toBe(mark)
+    expect(mark).not.toContain('example')
+  })
+
+  it('is another mark for another harness, another way in, or another address', () => {
+    const mark = identityOf('claude-code', status('amir@example.invalid'))
+    expect(identityOf('codex', status('amir@example.invalid'))).not.toBe(mark)
+    expect(identityOf('claude-code', status('amir@example.invalid', true, 'api-key'))).not.toBe(
+      mark,
+    )
+    expect(identityOf('claude-code', status('other@example.invalid'))).not.toBe(mark)
+  })
+
+  it('is nothing where it is not signed in, or did not say who', () => {
+    expect(identityOf('claude-code', status('amir@example.invalid', false))).toBeNull()
+    expect(identityOf('claude-code', status(null))).toBeNull()
+    expect(identityOf('claude-code', status('  '))).toBeNull()
+  })
+})
