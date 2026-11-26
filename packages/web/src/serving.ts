@@ -21,6 +21,7 @@ import type { WebMachine } from './machine.ts'
 import type { WebMachines } from './machines.ts'
 import type { WebOpening } from './opened.ts'
 import type { Streams } from './peers.ts'
+import type { WebPressThere } from './pressed-there.ts'
 import type { Pieces, WebProjectionTold } from './projection-told.ts'
 import type { WebPushing } from './pushing.ts'
 import type { Grant, Reach } from './reach.ts'
@@ -304,6 +305,12 @@ export interface ServerOptions {
    * the `404` of a path nobody wired.
    */
   acts?: WebActs
+  /**
+   * A press on another machine's row, put in the outbox for that machine and
+   * answered once it has run it (`pressed-there.ts`). Absent, the route is the
+   * `404` of a path nobody wired.
+   */
+  pressThere?: WebPressThere
   /**
    * Where each project is checked out here and the branches its work is on,
    * for an owner's window on another machine to fetch (`repositories.ts`).
