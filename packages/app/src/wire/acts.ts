@@ -141,6 +141,8 @@ export class MachineActs {
   private readonly waiting = new Map<string, (answer: ActAnswer) => void>()
   /** Each act in an outbox, by key: one pressed again while it waits waits on the same answer. */
   private readonly inBox = new Map<string, Promise<ActAnswer>>()
+  /** Told the name of a machine that links here whenever an act goes in its outbox (`wakes`). */
+  private woke: ((name: string) => void) | null = null
   /** Acts done here, by key, so one sent again is answered again and not done again. */
   private readonly answered = new Map<string, { answer: ActAnswer; at: number }>()
   private readonly running = new Map<string, Promise<ActAnswer>>()
@@ -156,6 +158,11 @@ export class MachineActs {
   /** This machine's own gate (`ToolHost.act`), once the orchestrator's tools are up. */
   useRunner(runner: ActRunner | null): void {
     this.runner = runner
+  }
+
+  /** Who wakes a machine that links here when an act goes in its outbox: the away view's stream. */
+  wakes(woke: (name: string) => void): void {
+    this.woke = woke
   }
 
   /** How the window reaches its remotes. Never set under `tade serve`, which dials nobody. */
@@ -296,6 +303,7 @@ export class MachineActs {
     this.inBox.set(act.key, waits)
     const gone = () => this.inBox.delete(act.key)
     waits.then(gone, gone)
+    this.woke?.(name)
     return waits
   }
 
@@ -369,6 +377,22 @@ export class MachineActs {
   private asking = new Set<string>()
   /** Hubs whose last outbox answer was not one, so the strip says it once rather than every beat. */
   private readonly malformed = new Set<string>()
+  /** Each hub's last `outbox` frame, so one frame is one ask; and hubs woken while being asked. */
+  private readonly woken = new Map<string, number>()
+  private readonly again = new Set<string>()
+
+  /**
+   * A hub's link as last held: an `outbox` frame on its stream (`outboxAt`)
+   * is asked for at once rather than on the next beat — and asked again after
+   * an ask already under way, which may have gone before the act was put in.
+   */
+  heard(held: { remote: string; outboxAt: number | null }): void {
+    const at = held.outboxAt
+    if (at === null || this.woken.get(held.remote) === at) return
+    this.woken.set(held.remote, at)
+    if (this.asking.has(held.remote)) this.again.add(held.remote)
+    else this.beat([held.remote])
+  }
 
   /** The beat: ask each machine this window links to for acts waiting here, and run them. Never throws. */
   beat(names: readonly string[]): void {
@@ -378,7 +402,10 @@ export class MachineActs {
       const held = reach(name)
       if (!held?.live || this.asking.has(name)) continue
       this.asking.add(name)
-      void this.ask(name, held.link).finally(() => this.asking.delete(name))
+      void this.ask(name, held.link).finally(() => {
+        this.asking.delete(name)
+        if (this.again.delete(name)) this.beat([name])
+      })
     }
   }
 

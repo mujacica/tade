@@ -230,7 +230,18 @@ describe('what a frame does', () => {
       const one = heard(upAt3(), frame(event, '{}'), NOW + 7)
       expect(one.next, event).toBe('go on')
       expect(one.held.heardAt, event).toBe(NOW + 7)
+      expect(one.held.outboxAt, event).toBeNull()
     }
+  })
+
+  it('writes down when the remote said its outbox holds something, the projection untouched', () => {
+    const was = upAt3()
+    const one = heard(was, frame('outbox', '{}'), NOW + 9)
+    expect(one.next).toBe('go on')
+    expect(one.held.outboxAt).toBe(NOW + 9)
+    expect(one.held.heardAt).toBe(NOW + 9)
+    expect(one.held.projection).toBe(was.projection)
+    expect(one.held.cursor).toEqual(was.cursor)
   })
 })
 

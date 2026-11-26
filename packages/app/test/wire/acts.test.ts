@@ -371,6 +371,33 @@ describe('acting on another machine through its own gate', () => {
     expect(mac.ran.map((one) => one.method)).toEqual(['task/park'])
   })
 
+  it('wakes the machine an act waits for, which collects it on that word with no beat of its own', async () => {
+    const vps = machine('vps', [])
+    const mac = machine('mac', [], { vps: REMOTE })
+    vps.seen.push({ machine: 'mac', way: 'from', state: 'up', at: Date.now(), since: null })
+    mac.acts.withReach(link(mac, vps))
+    // The hub's stream, standing in: each wake is an `outbox` frame the Mac's link hears.
+    let frames = 0
+    vps.acts.wakes((name) => {
+      expect(name).toBe('mac')
+      frames += 1
+      mac.acts.heard({ remote: 'vps', outboxAt: frames })
+    })
+    const parked = vps.acts.pressed({
+      machine: 'mac',
+      key: 'phone-press-2',
+      method: 'task/park',
+      params: { task: 'api/one', parked: true },
+    })
+    await expect(parked).resolves.toBe('task/park done on mac')
+    expect(frames).toBe(1)
+    expect(mac.ran.map((one) => one.method)).toEqual(['task/park'])
+    // The same frame heard again, as every other change to the link is, asks nothing more.
+    mac.acts.heard({ remote: 'vps', outboxAt: frames })
+    mac.acts.heard({ remote: 'vps', outboxAt: null })
+    expect(mac.ran).toHaveLength(1)
+  })
+
   it('refuses a machine that is down, saying since when, and one it neither links to nor is linked by', async () => {
     const mac = machine('mac', ['park it on the vps', 'and on the laptop'], { vps: REMOTE })
     mac.seen.push({

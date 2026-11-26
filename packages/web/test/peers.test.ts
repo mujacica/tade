@@ -212,6 +212,19 @@ describe('who gets what', () => {
     live.gone(one.opened.kind === 'open' ? one.opened.peer : (null as never))
     expect(live.listening().sort()).toEqual(['aaaa0000bbbb1111', 'cccc2222dddd3333'])
   })
+
+  it('wakes every stream of the machine link whose outbox holds something, and nobody else', () => {
+    const live = streams()
+    const mac = [
+      open(live, { device: 'aaaa0000bbbb1111' }),
+      open(live, { device: 'aaaa0000bbbb1111' }),
+    ]
+    const phone = open(live, { device: 'cccc2222dddd3333' })
+    live.wake('aaaa0000bbbb1111')
+    for (const one of mac) expect(events(one.sink)).toEqual(['snapshot', 'outbox'])
+    expect(events(phone.sink)).toEqual(['snapshot'])
+    for (const one of [...mac, phone]) expect(one.sink.ended).toBe(false)
+  })
 })
 
 describe('the beat', () => {

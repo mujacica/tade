@@ -262,6 +262,12 @@ export interface Held {
    * not being written is said rather than found out after a restart.
    */
   kept: string | null
+  /**
+   * When, in this machine's clock, the remote last said its outbox holds
+   * something for this machine (an `outbox` frame), or null for never: what
+   * has the acts here collected at once rather than on the next beat.
+   */
+  outboxAt: number | null
 }
 
 /** Every way an implementation refuses, with a sentence somebody can act on. */

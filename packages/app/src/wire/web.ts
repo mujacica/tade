@@ -59,6 +59,7 @@ import type { ActAnswer } from './acts.ts'
 import { type Actions, notify, type Subject, type Submits, type Wiring, why } from './context.ts'
 import { hooksFor } from './doorbell.ts'
 import { evaluationsAnswer } from './evaluations.ts'
+import { seenName } from './machines-seen.ts'
 import { armingFor, seenFrom } from './web-asking.ts'
 import { type AwayHeld, nothingYet, partsFrom, talkFor, upSinceOf } from './web-beat.ts'
 import { carryingFor } from './web-carry.ts'
@@ -139,6 +140,8 @@ export class Away implements Subject {
   private readonly streams = new Streams({ tell: (told) => void this.log(told) })
   /** What every page of the person's own has been sent of each other machine (`copies.ts`). */
   private readonly copies = new Copies()
+  /** The owner link each machine that links here last asked its outbox as, by its name: who a wake goes to. */
+  private readonly outboxAsker = new Map<string, string>()
   /** The epoch this machine's own projection is told under while no listener has one (`own`). */
   private readonly offEpoch = randomUUID()
   private readonly tickets = new Tickets()
@@ -195,6 +198,12 @@ export class Away implements Subject {
       news: (said) => deps.news(said),
       draw: () => wire.draw(),
       now: () => wire.now(),
+    })
+    // An act put in the outbox for a machine that links here wakes its link's
+    // stream, so that machine collects it now rather than on its next beat.
+    deps.acts?.wakes((name) => {
+      const device = this.outboxAsker.get(name)
+      if (device !== undefined) this.streams.wake(device)
     })
     this.signIn = new OrchestratorSignIn(wire, {
       ...(deps.restartOrchestrator && { restart: deps.restartOrchestrator }),
@@ -352,9 +361,10 @@ export class Away implements Subject {
         acts: {
           take: (act, _device, label) =>
             this.deps.acts?.take({ ...act, from: label }) as Promise<ActAnswer>,
-          outbox: async (answers, _device, label) => ({
-            acts: this.deps.acts?.outboxFor(label, answers) ?? [],
-          }),
+          outbox: async (answers, device, label) => {
+            this.outboxAsker.set(seenName(label), device)
+            return { acts: this.deps.acts?.outboxFor(label, answers) ?? [] }
+          },
         },
         // A press on another machine's row from this door's page: sent as this
         // window's own press is, and what that machine said — or why it was

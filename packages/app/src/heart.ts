@@ -627,7 +627,11 @@ export class Heart {
     })
     this.remotes = remotesFor(this.wire, {
       ...face.remotes,
-      seen: (held) => this.machinesSeen.linked(held),
+      seen: (held) => {
+        this.machinesSeen.linked(held)
+        // An `outbox` frame from a hub: what waits there for this machine is collected now.
+        this.acts.heard(held)
+      },
       figures: () => this.machinesSeen.host(),
       inventory: () => this.inventory.latest(),
       synced: (project) => this.sync.poke(project),

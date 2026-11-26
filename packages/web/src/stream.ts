@@ -80,6 +80,8 @@ export const STREAM_EVENTS = [
   // Another of the person's machines, as this door holds a copy of it
   // (`copies.ts`): only ever sent to the person's own device.
   'machine',
+  // An owner link's outbox holds something here (`Streams.wake`): collect it now.
+  'outbox',
 ] as const
 export type StreamEvent = (typeof STREAM_EVENTS)[number]
 

@@ -64,6 +64,7 @@ export function heldFor(remote: string): Held {
     presence: null,
     bye: null,
     kept: null,
+    outboxAt: null,
   }
 }
 
@@ -207,6 +208,8 @@ export function heard(held: Held, frame: StreamFrame, now: number): Heard {
         next: 'drop',
       }
     }
+    case 'outbox':
+      return { held: { ...touched(held, now), outboxAt: now }, next: 'go on' }
     case 'revoked':
       return { held: ended(held, saidIn(frame.data, SIGNED_OUT), now), next: 'drop' }
     case 'too_many':

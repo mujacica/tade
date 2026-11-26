@@ -89,7 +89,7 @@ export interface AwayDeps {
    * from this door's page, sent there as this window's own press would be
    * (`pressed`): into the outbox for a machine that links here.
    */
-  acts?: Pick<MachineActs, 'take' | 'outboxFor' | 'pressed'>
+  acts?: Pick<MachineActs, 'take' | 'outboxFor' | 'pressed' | 'wakes'>
   /** What the approve/deny keys do when no device is waiting to be let in. */
   decided(allow: boolean): void | Promise<void>
   /** Said in the strip, where somebody who was not looking at the panel sees it. */

@@ -343,6 +343,17 @@ export class Streams {
   }
 
   /**
+   * A machine that links here is told its outbox holds something, on the
+   * streams its owner link follows, so it collects at once rather than on its
+   * next beat (ONE-AWAY-VIEW §2.5). Only a nudge: what it takes is still asked
+   * for and read as text (`shared-acts.ts`), and an older Tade ignores it.
+   */
+  wake(device: string): void {
+    const frame = sseFrame({ event: 'outbox', data: {} })
+    for (const peer of [...this.peers]) if (peer.device === device) peer.send(frame, peer.wroteAt)
+  }
+
+  /**
    * Every open page is told its own files changed, and goes on streaming.
    *
    * Only ever called by a listener running from the repository, when the
