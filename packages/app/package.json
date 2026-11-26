@@ -9,7 +9,7 @@
     "./*": "./src/*.ts"
   },
   "dependencies": {
-    "@earendil-works/pi-tui": "1.6.0",
+    "@earendil-works/pi-tui": "1.6.1",
     "highlight.js": "11.12.0",
     "@tade/core": "workspace:*",
     "@tade/checks-core": "workspace:*",
