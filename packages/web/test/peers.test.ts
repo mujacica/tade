@@ -290,7 +290,9 @@ describe('a client that stops reading', () => {
     for (let rev = 1; rev <= 200; rev++) live.push('aaaa0000bbbb1111', delta(rev), NOW)
     sink.keeping = true
     live.drained(opened.peer, NOW)
-    expect(events(sink).at(-1)).toBe('resync')
+    // The resync and the snapshot it promises: without that snapshot, the
+    // deltas after it would be applied to a tree that missed the dropped ones.
+    expect(events(sink).slice(-2)).toEqual(['resync', 'snapshot'])
     // Exactly one, however many deltas were dropped.
     expect(events(sink).filter((name) => name === 'resync')).toHaveLength(1)
   })
@@ -441,5 +443,68 @@ describe('a sink that throws on the way out', () => {
     const other = open(live, { device: 'cccc2222dddd3333' })
     expect(() => live.closeAll('closing')).not.toThrow()
     expect(other.sink.ended).toBe(true)
+  })
+})
+
+describe('the other machines’ copies', () => {
+  const COPY = 'event: machine\ndata: {"machine":"ipax"}\n\n'
+
+  function openWith(live: Streams, device: string, copies: () => readonly string[]) {
+    const sink = fake()
+    const opened = live.open({
+      device,
+      until: NOW + 86_400_000,
+      cursor: null,
+      sink,
+      snapshot: snapshotOf,
+      copies,
+      rev: 0,
+      now: NOW,
+    })
+    return { sink, opened }
+  }
+
+  it('opens with every copy whole, after the door’s own snapshot', () => {
+    const live = streams()
+    const { sink } = openWith(live, 'aaaa0000bbbb1111', () => [COPY])
+    expect(events(sink)).toEqual(['snapshot', 'machine'])
+  })
+
+  it('sends them whole after a replay too, because they are not in the ring', () => {
+    const live = streams()
+    open(live)
+    live.push('aaaa0000bbbb1111', delta(5), NOW)
+    const sink = fake()
+    live.open({
+      device: 'aaaa0000bbbb1111',
+      until: NOW + 86_400_000,
+      cursor: { epoch: EPOCH, rev: 4 },
+      sink,
+      snapshot: snapshotOf,
+      copies: () => [COPY],
+      rev: 5,
+      now: NOW,
+    })
+    expect(events(sink)).toEqual(['delta', 'machine'])
+  })
+
+  it('pushes a change only to the devices named', () => {
+    const live = streams()
+    const mine = openWith(live, 'aaaa0000bbbb1111', () => [])
+    const theirs = openWith(live, 'cccc2222dddd3333', () => [])
+    live.pushCopies(new Set(['aaaa0000bbbb1111']), [COPY], NOW)
+    expect(events(mine.sink)).toEqual(['snapshot', 'machine'])
+    expect(events(theirs.sink)).toEqual(['snapshot'])
+  })
+
+  it('sends them again with the snapshot a page that fell behind is owed', () => {
+    const live = streams()
+    const { sink, opened } = openWith(live, 'aaaa0000bbbb1111', () => [COPY])
+    if (opened.kind !== 'open') throw new Error('it should have opened')
+    sink.keeping = false
+    for (let rev = 1; rev <= 200; rev++) live.push('aaaa0000bbbb1111', delta(rev), NOW)
+    sink.keeping = true
+    live.drained(opened.peer, NOW)
+    expect(events(sink).slice(-3)).toEqual(['resync', 'snapshot', 'machine'])
   })
 })

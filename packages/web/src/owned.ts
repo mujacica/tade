@@ -19,6 +19,7 @@ import { type MachineAnswer, machineHere } from './machine.ts'
 import { type MachinesAnswer, machinesHere, machinesPressHere } from './machines.ts'
 import { type OpenAnswer, openHere } from './opened.ts'
 import { carryPresence } from './presence.ts'
+import { type ProjectionAnswer, projectionHere } from './projection-told.ts'
 import { type RecordsAnswer, recordsHere } from './records.ts'
 import { type RepositoriesAnswer, repositoriesHere } from './repositories.ts'
 import {
@@ -54,7 +55,7 @@ import { type WatchSeenAnswer, watchSeenHere } from './watch-seen.ts'
 // into one file (`machines.ts`), Tade started again on the code on disk now
 // (`restarted.ts`) or its orchestrator alone, its orchestrator's sign-in driven
 // from the phone (`signing-in.ts`), Settings › Accounts for this machine and
-// every one it links to, with an account's own sign-in (`accounts.ts`), what another machine of theirs has (`inventory-told.ts`), what one of its watches has already found (`watch-seen.ts`), its public name's records looked at now (`records.ts`),
+// every one it links to, with an account's own sign-in (`accounts.ts`), what another machine of theirs has (`inventory-told.ts`), its whole projection for this machine's page to draw (`projection-told.ts`), what one of its watches has already found (`watch-seen.ts`), its public name's records looked at now (`records.ts`),
 // work it hands this machine to start here (`taken.ts`), and
 // a project it is moving here, opened (`opened.ts`). One door in `server.ts` for all of them (`OWNED_DOOR`),
 // because each is the SSH key's word and nothing an ordinary phone's session
@@ -92,6 +93,7 @@ export const OWNED_DOOR: ReadonlySet<string> = new Set([
   'accounts',
   'accounts sign-in',
   'inventory',
+  'projection',
   'watch seen',
   'duties',
   'document',
@@ -130,6 +132,7 @@ export async function carryOwned(
     | 'orchestratorSignIn'
     | 'accounts'
     | 'inventoryTold'
+    | 'projectionTold'
     | 'document'
     | 'tool'
     | 'records'
@@ -160,6 +163,7 @@ export async function carryOwned(
         | AccountsAnswer
         | AccountSignInStanding
         | InventoryToldAnswer
+        | ProjectionAnswer
         | WatchSeenAnswer
         | DutiesAnswer
         | DocumentAnswer
@@ -192,6 +196,7 @@ export async function carryOwned(
   if (route === 'accounts') return accountsHere(req, device, opts.accounts)
   if (route === 'accounts sign-in') return accountSignInHere(req, device, opts.accounts)
   if (route === 'inventory') return inventoryToldHere(req, device, opts.inventoryTold, now)
+  if (route === 'projection') return projectionHere(req, device, opts.projectionTold)
   if (route === 'watch seen') return watchSeenHere(req, device, opts.watchSeen)
   if (route === 'duties') return dutiesHere(req, device, opts.duties)
   if (route === 'seen') return seenHere(req, device, now, opts.seen)

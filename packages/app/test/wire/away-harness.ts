@@ -230,6 +230,8 @@ export interface MachineOptions {
   agentHistory?: (task: string, ask: HistoryAsk) => Promise<HistoryPage>
   /** The person's other machines, where a test has one link here (`/api/seen`). */
   machines?: AwayDeps['machines']
+  /** Every other machine's projection as this one holds it, where a test has some. */
+  copies?: AwayDeps['copies']
 }
 
 /** Off here unless a test turns one on, though each is on by default: nothing rides along. */
@@ -437,6 +439,7 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
   const away = new Away(wire, {
     ...(over.history === undefined ? {} : { earlier: () => earlier.more() }),
     ...(over.machines === undefined ? {} : { machines: over.machines }),
+    ...(over.copies === undefined ? {} : { copies: over.copies }),
     decided: () => {},
     news: (one) => news.push(one),
     talk: {

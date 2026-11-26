@@ -488,6 +488,7 @@ function freshnessOf(input: SnapshotInput, now: number, budget: Budget): Freshne
     // in it. `withoutPaths` is why *the away view adds no path of its own*
     // stays true of a sentence this package did not write.
     warnings: warningsIn(input.warnings, budget),
+    ...(input.detach === undefined ? {} : { detach: input.detach }),
   }
 }
 

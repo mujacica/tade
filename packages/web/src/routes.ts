@@ -703,6 +703,18 @@ export const OWNED: readonly Route[] = [
     here: true,
     theirs: true,
   },
+  // Another machine's whole projection, told here in pieces (`projection-told.ts`):
+  // kept as a copy in this home for this machine's page to draw that machine —
+  // so an owner's, as an edit to a file in this home over SSH is.
+  {
+    method: 'POST',
+    path: '/api/projection',
+    name: 'projection',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
   // One orchestrator conversation on every machine (`shared-conversation.ts`):
   // what it gives is kept as a copy in this home, apart from this machine's
   // own record and checked against the chain over its lines; what it asks for

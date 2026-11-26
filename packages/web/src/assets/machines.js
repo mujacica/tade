@@ -164,3 +164,48 @@ export function figuresAsOf(row, figures) {
   if (row.state === 'up' || figures?.at == null) return null
   return `as of ${shortClockOf(figures.at)}, when it last said them`
 }
+
+/* ── what a machine that is not up was doing ──────────────────────────────── */
+
+// Another machine's copy (`copiesOf` in `store.js`) is what it last said, and
+// a machine that is not up says nothing more: so its agents are drawn as of
+// then, in words that say what became of them. **Read off what that machine
+// said of itself** (`fresh.detach`, its driver's `capabilities.detach`),
+// never off a driver's name: where its agents die with its window, a working
+// one is stopped and reopens when the window does; where they outlive it, it
+// may well have moved on; and an older Tade that says neither is drawn as of
+// its last word and nothing more. Never *working*: a machine nobody can hear
+// is not known to be doing anything.
+
+/** Its agents that were working at its last word, out of its copy. */
+export function wasWorking(copy) {
+  const tasks = copy?.rows?.tasks
+  if (!(tasks instanceof Map)) return []
+  return [...tasks.values()].filter((task) => task.mark === 'working')
+}
+
+/** What became of an agent that was working there, in words — or null where the machine is up. */
+export function wasDoingSaid(row, copy) {
+  if (row.state === 'up' || copy == null) return null
+  const at = shortClockOf(row.since)
+  const outlives = copy.fresh?.detach
+  if (outlives === false) {
+    return `stopped with the window, ${at} — reopens when ${row.name}’s window opens`
+  }
+  if (outlives === true) return `was working at ${at}; may have moved on`
+  return `was working at ${at}, as of its last word`
+}
+
+/** The card's one line about its work: `closed 14:02 · 3 agents were working` — or null where it is up. */
+export function lastWordSaid(row, copy) {
+  if (row.state === 'up' || copy == null) return null
+  const at = shortClockOf(row.since)
+  const state = row.state === 'asleep' ? `asleep since ${at}` : `${row.state} ${at}`
+  const n = wasWorking(copy).length
+  if (n === 0) return `${state} · nothing was working`
+  const agents = n === 1 ? '1 agent was working' : `${n} agents were working`
+  const outlives = copy.fresh?.detach
+  if (outlives === false) return `${state} · ${agents}; they reopen when its window opens`
+  if (outlives === true) return `${state} · ${agents}; they may have moved on`
+  return `${state} · ${agents}`
+}

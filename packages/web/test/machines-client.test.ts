@@ -5,6 +5,7 @@ import {
   figuresAsOf,
   figuresOf,
   hereOf,
+  lastWordSaid,
   machineFix,
   machineSaid,
   machinesOf,
@@ -14,6 +15,8 @@ import {
   noFiguresSaid,
   percentSaid,
   roomSaid,
+  wasDoingSaid,
+  wasWorking,
 } from '../src/assets/machines.js'
 
 // The person's other machines on the page: which are up, and which closed,
@@ -173,5 +176,58 @@ describe('what each machine is doing, on the page', () => {
     expect(roomSaid(840 * 1024 ** 2)).toBe('840 MB')
     expect(percentSaid(91)).toBe('91%')
     expect(percentSaid(2.5)).toBe('2.5%')
+  })
+})
+
+describe('what a machine that is not up was doing', () => {
+  /** A copy as the page holds one (`store.js`): its tasks by id, and what it said of itself. */
+  const copy = (marks: readonly string[], detach?: boolean | null) => ({
+    rows: { tasks: new Map(marks.map((mark, at) => [`app/t${at}`, { id: `app/t${at}`, mark }])) },
+    fresh: detach === undefined ? {} : { detach },
+  })
+  const row = (state: 'up' | 'closed' | 'asleep' | 'lost') => ({
+    name: 'mac',
+    way: 'from' as const,
+    state,
+    since: AT,
+  })
+  const at = shortClockOf(AT)
+
+  it('counts the agents that were working at its last word, and none from no copy', () => {
+    expect(wasWorking(copy(['working', 'done', 'working', 'needs-you']))).toHaveLength(2)
+    expect(wasWorking(undefined)).toEqual([])
+  })
+
+  it('says a working agent stopped with the window where that machine’s agents die with it', () => {
+    expect(wasDoingSaid(row('closed'), copy(['working'], false))).toBe(
+      `stopped with the window, ${at} — reopens when mac’s window opens`,
+    )
+    expect(lastWordSaid(row('closed'), copy(['working', 'working', 'done'], false))).toBe(
+      `closed ${at} · 2 agents were working; they reopen when its window opens`,
+    )
+  })
+
+  it('says it may have moved on where they outlive the window, and as of its last word where nothing said', () => {
+    expect(wasDoingSaid(row('lost'), copy(['working'], true))).toBe(
+      `was working at ${at}; may have moved on`,
+    )
+    expect(lastWordSaid(row('asleep'), copy(['working'], true))).toBe(
+      `asleep since ${at} · 1 agent was working; they may have moved on`,
+    )
+    expect(wasDoingSaid(row('lost'), copy(['working']))).toBe(
+      `was working at ${at}, as of its last word`,
+    )
+    expect(lastWordSaid(row('lost'), copy(['working'], null))).toBe(
+      `lost ${at} · 1 agent was working`,
+    )
+  })
+
+  it('says nothing of a machine that is up, or of one this page holds no copy of', () => {
+    expect(wasDoingSaid(row('up'), copy(['working'], false))).toBeNull()
+    expect(lastWordSaid(row('up'), copy(['working'], false))).toBeNull()
+    expect(lastWordSaid(row('closed'), undefined)).toBeNull()
+    expect(lastWordSaid(row('closed'), copy(['done'], false))).toBe(
+      `closed ${at} · nothing was working`,
+    )
   })
 })

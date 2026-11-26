@@ -64,6 +64,7 @@ import {
   figuresAsOf,
   figuresOf,
   hereOf,
+  lastWordSaid,
   machineFix,
   machineSaid,
   machinesOf,
@@ -235,7 +236,7 @@ export function nowScreen(ctx = null) {
         seen,
         (row) => `${row.way} ${row.name}`,
         createMachine,
-        (one, row) => fillMachine(one, row),
+        (one, row) => fillMachine(one, row, store.copies?.get(row.name)),
       )
 
       const agents = workingOf(store)
@@ -589,6 +590,7 @@ function createMachine() {
     el('span', { class: 'aside' }),
     el('span', { class: 'under' }),
     el('span', { class: 'under ov-fix' }),
+    el('span', { class: 'under ov-last' }),
     figs,
     el('span', { class: 'ov-figs-line' }),
   )
@@ -621,8 +623,8 @@ function fillTile(node, one, drawn) {
   shape.hidden = drawn === false
 }
 
-function fillMachine(node, row) {
-  const [glyph, name, said, way, fix, figs, line] = node.children
+function fillMachine(node, row, copy) {
+  const [glyph, name, said, way, fix, last, figs, line] = node.children
   textIn(glyph, row.state === 'up' ? '●' : '○')
   toneOn(glyph, machineTone(row))
   textIn(name, row.name)
@@ -630,6 +632,9 @@ function fillMachine(node, row) {
   textIn(way, machineWay(row))
   textIn(fix, machineFix(row) ?? '')
   fix.hidden = fix.textContent === ''
+  // Not up, what its work was at its last word (`copies.ts`), where this page holds a copy.
+  textIn(last, lastWordSaid(row, copy) ?? '')
+  last.hidden = last.textContent === ''
   const figures = figuresOf(row.host ?? null)
   figs.hidden = figures === null
   if (figures !== null) {

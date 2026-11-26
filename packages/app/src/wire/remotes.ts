@@ -17,6 +17,7 @@ import {
   writtenAt,
 } from '@tade/core'
 import type { Held, MakeRemoteLink, Remote, RemoteLink } from '@tade/remotes-core'
+import type { Snapshot } from '@tade/web'
 import type { TakenWrite } from '@tade/workbench/carry'
 import { heldIn } from '@tade/workbench/config-changes'
 import type { HeldChange, NoteChange } from '@tade/workbench/memory'
@@ -81,6 +82,7 @@ import {
 } from './notes-shared.ts'
 import type { Places } from './placing.ts'
 import type { ProjectDoor } from './project-moves.ts'
+import { ProjectionShared } from './projection-shared.ts'
 import { type RemoteAgentDeps, RemoteAgents, type ThereDoor } from './remote-agent.ts'
 import { RemoteMachines } from './remote-machine.ts'
 import { closeThere, remoteProjectItems } from './remote-project.ts'
@@ -246,6 +248,8 @@ export class Remotes implements Subject {
   private about: RemoteMachines | null = null
   /** Work moved to another machine (`moves.ts`), where the window moves any. */
   private moves: Moves | null = null
+  /** This machine's projection, told every machine it links to (`projection-shared.ts`). */
+  private projection: ProjectionShared | null = null
 
   constructor(deps: RemotesDeps) {
     this.deps = deps
@@ -443,6 +447,12 @@ export class Remotes implements Subject {
   }
 
   /** Hand it the heart's journals of other machines, shared with each machine this one links to. */
+  /** Tell every machine linked here this one's projection, so a page there draws it. */
+  withProjection(shared: ProjectionShared): this {
+    this.projection = shared
+    return this
+  }
+
   withFeeds(feeds: FleetFeeds | undefined): this {
     this.feeds = feeds ?? null
     return this
@@ -799,6 +809,7 @@ export class Remotes implements Subject {
     this.carries.beat([...this.holder.keys()])
     void this.notes?.beat([...this.holder.keys()])
     void this.feeds?.beat([...this.holder.keys()], (name) => this.reachFor(name))
+    this.projection?.beat([...this.holder.keys()], (name) => this.reachFor(name))
     void this.mirrors?.beat([...this.holder.keys()])
     this.about?.beat([...this.holder.keys()])
     this.sayBehind()
@@ -1019,6 +1030,8 @@ export function remotesFor(
     oneWith?: () => string | null
     /** Another machine's own tool calls, through its gate (`acts.ts`): what a press on a schedule there is. */
     acts?: () => Pick<MachineActs, 'pressed'>
+    /** This machine's own projection, told every machine it links to so a page there draws it. */
+    own?: () => Snapshot | null
   },
 ): Remotes {
   const say = (said: string) => {
@@ -1115,6 +1128,9 @@ export function remotesFor(
       sharedNotesFor(wire, (name) => remotes.reachFor(name), say, subjects.waiting),
     )
     .withFeeds(subjects.feeds)
+    .withProjection(
+      new ProjectionShared({ own: subjects.own ?? (() => null), now: () => wire.now(), say }),
+    )
     .withMirrors((remotes) =>
       mirrorsFor(wire, (name) => remotes.reachFor(name), say, subjects.synced),
     )

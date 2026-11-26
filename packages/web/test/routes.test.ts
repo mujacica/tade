@@ -396,7 +396,7 @@ describe('the owner’s table', () => {
     // each handler refuses every other session (`test/carried.test.ts`,
     // `test/attached.test.ts`, `test/since.test.ts`, `test/shared-notes.test.ts`,
     // `test/repositories.test.ts`, `test/machine.test.ts`, `test/machines.test.ts`,
-    // `test/records.test.ts`,
+    // `test/records.test.ts`, `test/projection-told.test.ts`,
     // `test/taken.test.ts`, `test/opened.test.ts`).
     expect(OWNED.map((route) => `${route.method} ${route.path}`)).toEqual([
       'POST /api/carry',
@@ -404,6 +404,7 @@ describe('the owner’s table', () => {
       'POST /api/since',
       'POST /api/notes/share',
       'POST /api/feeds/share',
+      'POST /api/projection',
       'POST /api/conversation',
       'POST /api/acts',
       'POST /api/acts/outbox',

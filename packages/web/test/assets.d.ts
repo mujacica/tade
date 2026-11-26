@@ -160,6 +160,8 @@ declare module '*/assets/store.js' {
   export function emptyStore(): Store
   export function applySnapshot(store: Store, snapshot: unknown): string | null
   export function applyDelta(store: Store, delta: unknown): string | null
+  export function applyCopy(store: Store, frame: unknown): string | null
+  export function copiesOf(store: Store): readonly { machine: string; copy: Store }[]
   export function rowsOf(store: Store, collection: string): readonly any[]
   export function wantsYou(store: Store): readonly any[]
   export function wantingIds(store: Store): Set<string>
@@ -966,6 +968,13 @@ declare module '*/assets/machines.js' {
   export function megabytesSaid(bytes: number): string
   export function roomSaid(bytes: number): string
   export function percentSaid(value: number): string
+  interface CopyIn {
+    rows?: { tasks?: Map<string, { mark?: string }> }
+    fresh?: { detach?: boolean | null }
+  }
+  export function wasWorking(copy: CopyIn | null | undefined): { mark?: string }[]
+  export function wasDoingSaid(row: MachineRowIn, copy: CopyIn | null | undefined): string | null
+  export function lastWordSaid(row: MachineRowIn, copy: CopyIn | null | undefined): string | null
 }
 
 declare module '*/assets/room.js' {

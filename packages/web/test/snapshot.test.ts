@@ -28,6 +28,13 @@ describe('the projection', () => {
     ])
   })
 
+  it('says whether this machine’s agents outlive its window, and nothing where it was not told', () => {
+    // What another machine's page reads once this one goes quiet (`machines.js`'s `wasDoingSaid`).
+    expect(snapshotOf(input({ reach: reach(EVERY), detach: false }), NOW).fresh.detach).toBe(false)
+    expect(snapshotOf(input({ reach: reach(EVERY), detach: true }), NOW).fresh.detach).toBe(true)
+    expect('detach' in snapshotOf(input({ reach: reach(EVERY) }), NOW).fresh).toBe(false)
+  })
+
   it('says how many more could not be read rather than carrying all of them', () => {
     // The freshness rides on every frame, so this is the one collection whose
     // budget is about what a connected phone pays for ever rather than about

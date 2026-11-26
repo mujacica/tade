@@ -77,6 +77,9 @@ export const STREAM_EVENTS = [
   // Its own code changed under such a listener, which nothing reloads, so the
   // page is told Tade has to be restarted.
   'restart',
+  // Another of the person's machines, as this door holds a copy of it
+  // (`copies.ts`): only ever sent to the person's own device.
+  'machine',
 ] as const
 export type StreamEvent = (typeof STREAM_EVENTS)[number]
 

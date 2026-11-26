@@ -78,7 +78,19 @@ const COLLECTIONS = [
 export function emptyStore() {
   const rows = {}
   for (const name of COLLECTIONS) rows[name] = new Map()
-  return { rows, pages: {}, fresh: null, you: null, machines: [], host: null, rev: -1, had: false }
+  return {
+    rows,
+    pages: {},
+    fresh: null,
+    you: null,
+    machines: [],
+    host: null,
+    rev: -1,
+    had: false,
+    // Every other machine's projection, as the door holds a copy of it: a
+    // store of the same shape per machine, by its name in `machines`.
+    copies: new Map(),
+  }
 }
 
 /**
@@ -134,6 +146,46 @@ export function applyDelta(store, delta) {
   if (delta.host !== undefined) store.host = delta.host
   store.rev = delta.rev
   return null
+}
+
+/**
+ * Another machine's copy, as the door passes it on (`copies.ts`): whole,
+ * what changed since the revision the page's copy is at, or gone.
+ *
+ * **A store per machine and never one merged tree**: each machine's rows are
+ * its own fold, and a selector that draws them side by side asks each. A
+ * change that does not start where the page's copy is keeps the copy as it
+ * was and marks it `behind` — the door sends it whole again on the next
+ * stream or resync — rather than applying it to a tree it was not made from.
+ */
+export function applyCopy(store, frame) {
+  if (frame.v !== SPEAKS) return refuse(frame.v)
+  if (typeof frame.machine !== 'string') return 'a machine frame named no machine'
+  if (frame.kind === 'gone') {
+    store.copies.delete(frame.machine)
+    return null
+  }
+  if (frame.kind === 'whole') {
+    const copy = emptyStore()
+    const refused = applySnapshot(copy, frame.snapshot)
+    if (refused !== null) return refused
+    copy.behind = false
+    store.copies.set(frame.machine, copy)
+    return null
+  }
+  if (frame.kind !== 'change') return null
+  const copy = store.copies.get(frame.machine)
+  if (copy === undefined) return null
+  if (copy.rev !== frame.from) {
+    copy.behind = true
+    return null
+  }
+  return applyDelta(copy, frame.delta)
+}
+
+/** Every other machine's copy the page holds, by name, in the order they were first heard. */
+export function copiesOf(store) {
+  return [...store.copies].map(([machine, copy]) => ({ machine, copy }))
 }
 
 function refuse(version) {

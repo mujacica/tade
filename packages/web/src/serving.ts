@@ -21,6 +21,7 @@ import type { WebMachine } from './machine.ts'
 import type { WebMachines } from './machines.ts'
 import type { WebOpening } from './opened.ts'
 import type { Streams } from './peers.ts'
+import type { Pieces, WebProjectionTold } from './projection-told.ts'
 import type { WebPushing } from './pushing.ts'
 import type { Grant, Reach } from './reach.ts'
 import type { WebReading } from './reading.ts'
@@ -248,6 +249,13 @@ export interface ServerOptions {
    * (`inventory-told.ts`). Absent, the route is the `404` of a path nobody wired.
    */
   inventoryTold?: WebInventoryTold
+  /**
+   * Another machine's whole projection, told here in pieces for this
+   * machine's page to draw (`projection-told.ts`): the pieces put back
+   * together, and the window's half that keeps each revision. Absent, the
+   * route is the `404` of a path nobody wired.
+   */
+  projectionTold?: { pieces: Pieces; take: WebProjectionTold }
   /**
    * A paired device saying its own page is in front of somebody, as a moment
    * in this machine's clock (`looking.ts`): only ever about what that device

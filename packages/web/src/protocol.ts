@@ -76,6 +76,14 @@ export const FreshnessSchema = z.strictObject({
   spendSince: z.string().nullable(),
   /** Status's own warnings, with anything path-shaped taken out. Metadata. */
   warnings: z.array(z.string()),
+  /**
+   * Whether this machine's agents outlive its window — its driver's
+   * `capabilities.detach`, never its name. What another machine's page reads
+   * when this one goes quiet: under `pty` a working agent stopped with the
+   * window, under `tmux` it may have moved on. Absent from an older Tade,
+   * and null where nothing said: drawn as of its last word and nothing more.
+   */
+  detach: z.boolean().nullable().optional(),
 })
 export type Freshness = z.infer<typeof FreshnessSchema>
 

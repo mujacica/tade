@@ -665,6 +665,12 @@ export interface SnapshotInput {
   /** When the machine came up, or null where it could not be read: `unknown`, not nought. */
   machineUpSince: number | null
   /**
+   * Whether this machine's agents outlive its window: its driver's
+   * `capabilities.detach`. Absent says nothing, which a page reads as
+   * *as of its last word* when this machine goes quiet.
+   */
+  detach?: boolean
+  /**
    * The moment every `TaskIn.spend` is folded from, or null for nothing folded.
    *
    * **Carried because a figure without its period is not a figure.** The

@@ -59,6 +59,12 @@ export interface WebReading {
    */
   readonly rev: number
   /**
+   * The other machines' copies this device is sent, as the frames a stream
+   * opens with (`copies.ts`): none for a device that is not the person's own,
+   * and absent where this door holds none.
+   */
+  copies?(): readonly string[]
+  /**
    * The notes in one scope, newest first.
    *
    * Its own call rather than a field on the snapshot, because notes are the

@@ -75,6 +75,7 @@ import {
 import { shellBars } from './shell-bars.js'
 import {
   agentsOf,
+  applyCopy,
   applyDelta,
   applySnapshot,
   asOf,
@@ -523,6 +524,8 @@ function openStream() {
   })
   source.addEventListener('snapshot', (event) => took(event, applySnapshot))
   source.addEventListener('delta', (event) => took(event, applyDelta))
+  // Another machine of the person's, as this door holds it: only ever sent to their own device.
+  source.addEventListener('machine', (event) => took(event, applyCopy))
   source.addEventListener('resync', (event) => {
     // Said, not swallowed: this page fell behind and what follows replaces
     // what it held. A snapshot always follows one, so there is nothing to do

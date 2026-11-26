@@ -8,10 +8,14 @@ import {
   agentOf,
   type Confirmed,
   type ConnectWhere,
+  Copies,
   chatBefore,
   connectWhere,
+  copiesFor,
+  copyFrame,
   type Device,
   factsOf,
+  GRANTS,
   type Host,
   has,
   MOMENTS,
@@ -25,9 +29,11 @@ import {
   type Reach,
   reachOf,
   readDevices,
+  type Snapshot,
   type SnapshotInput,
   Streams,
   settingsFor,
+  sseFrame,
   surfaceOf,
   type TaskFacts,
   Tickets,
@@ -109,11 +115,26 @@ const PUBLIC_AGAIN_MS = 15_000
 // empty, so there is nothing to project for. `test/away.test.ts` asserts that as a count of calls
 // rather than as a sentence.
 
+/**
+ * What this machine's own projection is built for when it is told another
+ * machine of the person's: every project and every grant, as an owner device
+ * is sent — never a device in the list, so no page's projector is it.
+ */
+const OWN: Reach = {
+  device: 'every machine',
+  projects: { kind: 'every' },
+  granted: [...GRANTS],
+  answers: true,
+  theirs: true,
+}
+
 export class Away implements Subject {
   private readonly wire: Wiring
   private readonly deps: AwayDeps
   private server: WebServer | null = null
   private readonly streams = new Streams({ tell: (told) => void this.log(told) })
+  /** What every page of the person's own has been sent of each other machine (`copies.ts`). */
+  private readonly copies = new Copies()
   private readonly tickets = new Tickets()
   private readonly push: WebPush
   /** One projector per device, made on demand and dropped when it is revoked. */
@@ -318,6 +339,7 @@ export class Away implements Subject {
       // Settings › Accounts for every machine, and an account's sign-in from away.
       ...(this.deps.accounts && { accounts: this.deps.accounts }),
       ...(this.deps.feeds && { feeds: this.deps.feeds.web() }),
+      ...(this.deps.projections && { projectionTold: this.deps.projections.web() }),
       ...(this.deps.conversation && { conversation: this.deps.conversation.web() }),
       ...(this.deps.duties && { duties: this.deps.duties.door() }),
       ...(this.deps.acts && {
@@ -460,6 +482,7 @@ export class Away implements Subject {
       this.caughtUp.set(device, now)
       if (delta !== null) this.streams.push(device, delta, now)
     }
+    this.beatCopies(now)
     // Heartbeats, clients that stopped reading, sessions that ran out: all of
     // it on this beat and nowhere else, which is what "no unbounded timers"
     // means mechanically.
@@ -480,6 +503,49 @@ export class Away implements Subject {
     this.health.beat()
     this.publicAgain(now)
     if (this.asking !== null || this.streams.listening().length !== this.readers) this.wire.draw()
+  }
+
+  /**
+   * This machine's own projection as an owner of it is sent: what it tells
+   * every machine it links to (`projection-shared.ts`), so a page there draws
+   * this machine's work. Built at most once a beat, by a projector of its own,
+   * and only when asked. Null while the away view is off here, whose epoch is
+   * the cursor it is told under.
+   */
+  own(): Snapshot | null {
+    if (this.server === null) return null
+    const held = this.projectorFor(OWN)
+    if (this.caughtUp.get(OWN.device) !== this.beatAt) {
+      this.caughtUp.set(OWN.device, this.beatAt)
+      held.beat(this.inputFor(OWN), this.wire.now())
+    }
+    return held.snapshot()
+  }
+
+  /**
+   * The other machines' copies, moved on for every page of the person's own
+   * that is open — and for nobody else. With none open, nothing is compared:
+   * what was sent is let go, so the next page to open is sent each copy whole
+   * on the beat after it does.
+   */
+  private beatCopies(now: number): void {
+    const to = new Set(this.streams.listening().filter((device) => this.sentCopies(device)))
+    if (to.size === 0) {
+      this.copies.beat([])
+      return
+    }
+    const frames = this.copies.beat(this.deps.copies?.() ?? [])
+    this.streams.pushCopies(
+      to,
+      frames.map((frame) => sseFrame(copyFrame(frame))),
+      now,
+    )
+  }
+
+  /** Whether this device is sent the other machines' copies: the person's own, and not a link. */
+  private sentCopies(device: string): boolean {
+    const held = this.paired(device)
+    return held !== undefined && copiesFor(reachOf(held), held.owner)
   }
 
   /**
@@ -830,6 +896,7 @@ export class Away implements Subject {
       get rev() {
         return held.rev
       },
+      copies: () => (this.sentCopies(reach.device) ? this.copies.opening() : []),
       notes: (scope, after) => {
         this.catchUp(reach, held)
         return held.notes(scope, after)
@@ -1035,6 +1102,8 @@ export class Away implements Subject {
       machines: this.deps.machines?.rows() ?? [],
       // And this machine's own figures: its processors, memory and disk, and Tade's share of them.
       host: this.deps.machines?.host() ?? null,
+      // Whether its agents outlive this window, for another machine's page once this one goes quiet.
+      detach: this.wire.opts.client.driver.capabilities.detach,
       reach,
       lifetime: {
         // The **server's** epoch, so a snapshot's freshness and a delta's `id`

@@ -44,6 +44,7 @@ import { Orchestrator, type OrchestratorDeps } from './wire/orchestrator.ts'
 import { OwnCode } from './wire/own-code.ts'
 import type { Places } from './wire/placing.ts'
 import { type ProjectSync, projectSyncFor } from './wire/project-sync.ts'
+import { copiesJoined, ProjectionsHeld } from './wire/projection-shared.ts'
 import { Projects, type ProjectsDeps, type ProjectTools } from './wire/projects.ts'
 import { Queue, type QueueTools } from './wire/queue.ts'
 import { Schedules, type WatchTools } from './wire/schedules.ts'
@@ -89,7 +90,7 @@ export type ProjectsFace = Pick<ProjectsDeps, 'rememberWindow'>
 /** The conversation's screen: where it is scrolled, what is said aloud, the line it was typed on. */
 export type OrchestratorFace = Omit<OrchestratorDeps, 'useConfig' | 'nobodyHere'>
 /** The pairing link's `Copy`, which is a clipboard. */
-export type AwayFace = Pick<AwayDeps, 'copy' | 'reloadStops' | 'reloadAll'>
+export type AwayFace = Pick<AwayDeps, 'copy' | 'reloadStops' | 'reloadAll' | 'copies'>
 
 /** What a face adds to the heart. */
 export interface Face {
@@ -390,6 +391,8 @@ export class Heart {
   readonly ownCode: OwnCode
   /** The person's other machines as this one has seen them: up, asleep, closed, lost (`machines-seen.ts`). */
   readonly machinesSeen: MachinesSeen
+  /** What every machine that links here told this one of its projection, for the page (`projection-shared.ts`). */
+  readonly projections: ProjectionsHeld
   /** Each project's branch kept in step with origin and the person's other machines (`project-sync.ts`). */
   readonly sync: ProjectSync
   /** What this machine has, and what each of the person's others said it has (`inventory.ts`). */
@@ -526,6 +529,11 @@ export class Heart {
     this.wire.opts.extensions?.useConnected(lending(this.linear))
     this.earlier = new Earlier(this.wire)
     this.machinesSeen = machinesSeenFor(this.wire)
+    this.projections = new ProjectionsHeld({
+      home: this.wire.opts.home,
+      now: () => this.now(),
+      say: (said) => this.told.note(said),
+    })
     this.sync = projectSyncFor(this.wire, () => this.told, this.duties)
     this.inventory = new Inventories(this.wire, {
       news: (words) => this.told.note(words),
@@ -590,6 +598,10 @@ export class Heart {
       restartOrchestrator: () => this.orchestrator.moveAccount(true),
       // Every machine's accounts, from the phone and another machine's Settings.
       accounts: this.accounts,
+      // Every other machine's projection on the person's own page: what this
+      // window's links hold, and what each machine that links here told it.
+      projections: this.projections,
+      copies: () => copiesJoined(this.projections.copies(), face.away.copies?.() ?? []),
     })
   }
 
@@ -639,6 +651,8 @@ export class Heart {
     this.put(withProjects(this.current, Object.keys(config.projects), titlesOf(config)))
     // Which machines were up when this one last looked, read back before anything links.
     void this.machinesSeen.seed()
+    // And what each machine that links here last said it was doing, drawn as of then.
+    void this.projections.open()
     // Which repository each project is, for whose each duty is (`duties.ts`).
     void this.duties.begin()
     // What Tade's own checkout is as it starts, before an agent can commit to it.
@@ -668,6 +682,7 @@ export class Heart {
         this.conversation.beat(this.orchestrator.busy())
         this.duties.beat()
         this.acts.beat(Object.keys(this.wire.opts.config.remotes))
+        this.projections.beat()
         this.away.beat()
         // Once a minute at most, and never again once owed: the strip, the
         // away bar and `tade_updates` all read it from here.

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { allowDevice, appendDevice, grantDevice } from '../src/devices.ts'
 import { type Asking, allowed, type Guarding } from '../src/guard.ts'
+import { Pieces } from '../src/projection-told.ts'
 import { GRANTS } from '../src/reach.ts'
 import { CSRF_HEADER } from '../src/request.ts'
 import { CONNECTS, OWNED, ROUTES, type Route } from '../src/routes.ts'
@@ -29,6 +30,7 @@ const THEIRS = [
   'since',
   'share notes',
   'share feeds',
+  'projection',
   'conversation',
   'acts',
   'acts outbox',
@@ -333,6 +335,7 @@ async function wired(): Promise<{ one: Running; asked: string[] }> {
         },
         accounts: { carry: heard('accounts'), signIn: heard('accounts sign-in') },
         inventoryTold: heard('inventory'),
+        projectionTold: { pieces: new Pieces(), take: heard('projection') },
         seen: heard('seen'),
         watchSeen: heard('watch seen'),
         duties: heard('duties'),

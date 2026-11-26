@@ -78,6 +78,13 @@ export interface OpenRequest {
    */
   snapshot: () => Snapshot
   /**
+   * The other machines' copies, as the frames a stream opens with
+   * (`Copies.opening`) — written after the door's own projection, and again
+   * after a snapshot owed to a page that fell behind. Absent is none: only the
+   * person's own device is sent any (`copiesFor`).
+   */
+  copies?: () => readonly string[]
+  /**
    * The revision this device's projection has reached.
    *
    * The window's, out of its own projector, and **not** read off the ring: a
@@ -201,7 +208,10 @@ export class Streams {
     }
 
     const ring = this.ringFor(req.device)
-    const held = new Held(req.device, req.until, req.sink, req.now)
+    const held = new Held(req.device, req.until, req.sink, req.now, {
+      snapshot: req.snapshot,
+      copies: req.copies ?? (() => []),
+    })
     this.peers.push(held)
     held.send(STREAM_OPENING, req.now)
     // A page that opens after the code changed is told too: it is the one
@@ -216,7 +226,9 @@ export class Streams {
       // A client that was already level gets nothing but the keep-alive
       // rhythm, which is correct and is the case a test has to cover: the
       // tempting shape — always open with a snapshot — is a whole projection
-      // down a phone's connection every time a tunnel blinks.
+      // down a phone's connection every time a tunnel blinks. The other
+      // machines' copies are not in the ring, so they go whole.
+      held.sendCopies(req.now)
       return { kind: 'open', peer: held }
     }
     if (resume.kind === 'resync') {
@@ -230,7 +242,21 @@ export class Streams {
       this.warn(`a stream resynced: ${resume.why}`, req.device)
     }
     held.send(sseFrame(snapshotFrame(req.snapshot())), req.now)
+    held.sendCopies(req.now)
     return { kind: 'open', peer: held }
+  }
+
+  /**
+   * The other machines' copies moved: each frame to every stream of the
+   * devices named, which are the ones sent copies at all. Not in a ring — a
+   * stream that opens is sent every copy whole — and not to anybody else.
+   */
+  pushCopies(devices: ReadonlySet<string>, frames: readonly string[], now: number): void {
+    if (this.stopping || frames.length === 0) return
+    for (const peer of this.peers) {
+      if (!devices.has(peer.device)) continue
+      for (const frame of frames) peer.send(frame, now)
+    }
   }
 
   /**
@@ -395,12 +421,26 @@ class Held implements Peer {
   private pending: Pending = { frames: 0, bytes: 0 }
   /** Whether it owes a `resync` once it catches up. */
   private owed = false
+  /** What it is sent whole: the door's projection, and the other machines' copies. */
+  private readonly whole: { snapshot: () => Snapshot; copies: () => readonly string[] }
 
-  constructor(device: string, until: number, sink: Sink, now: number) {
+  constructor(
+    device: string,
+    until: number,
+    sink: Sink,
+    now: number,
+    whole: { snapshot: () => Snapshot; copies: () => readonly string[] },
+  ) {
     this.device = device
     this.until = until
     this.sink = sink
     this.wroteAt = now
+    this.whole = whole
+  }
+
+  /** Every other machine's copy, whole. */
+  sendCopies(now: number): void {
+    for (const frame of this.whole.copies()) this.send(frame, now)
   }
 
   renew(until: number): void {
@@ -442,7 +482,12 @@ class Held implements Peer {
     this.catchUp(now)
   }
 
-  /** Hand over the `resync` a dropped run of deltas owes, once it can be sent. */
+  /**
+   * Hand over the `resync` a dropped run of deltas owes, once it can be sent —
+   * and the snapshot it promises, then every copy whole. A `resync` says a
+   * snapshot follows (`boot.js` waits for it): without one, the deltas after
+   * it would be applied to a tree that missed the ones dropped.
+   */
   catchUp(now: number): void {
     if (!this.owed || !this.open || overBudget(this.pending)) return
     this.owed = false
@@ -453,6 +498,8 @@ class Held implements Peer {
       }),
       now,
     )
+    this.send(sseFrame(snapshotFrame(this.whole.snapshot())), now)
+    this.sendCopies(now)
   }
 
   /** How long it has not been keeping up, which is nought while it is. */

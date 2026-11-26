@@ -243,6 +243,7 @@ export async function start(
       | 'orchestratorSignIn'
       | 'accounts'
       | 'inventoryTold'
+      | 'projectionTold'
       | 'seen'
       | 'watchSeen'
       | 'duties'

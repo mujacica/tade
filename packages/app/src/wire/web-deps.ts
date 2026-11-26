@@ -1,5 +1,5 @@
 import type { InboxRow } from '@tade/core'
-import type { WebAccounts } from '@tade/web'
+import type { CopyIn, WebAccounts } from '@tade/web'
 import type { MachineActs } from './acts.ts'
 import type { FleetConversation } from './conversation.ts'
 import type { Waking } from './doorbell.ts'
@@ -9,6 +9,7 @@ import type { Inventories } from './inventory.ts'
 import type { LinearTokens } from './linear-tokens.ts'
 import type { MachinesSeen } from './machines-seen.ts'
 import type { WaitingThere } from './notes-shared.ts'
+import type { ProjectionsHeld } from './projection-shared.ts'
 import type { Settings } from './settings.ts'
 import type { Talking } from './web-asking.ts'
 import type { FactoryHeld } from './web-beat.ts'
@@ -31,6 +32,20 @@ export interface AwayDeps {
    * machine and no figures.
    */
   machines?: Pick<MachinesSeen, 'heard' | 'rows' | 'host'>
+  /**
+   * Every other machine's projection, as this machine holds a copy of it: what
+   * its links follow (`Remotes.held`), each by the name its row in `machines`
+   * has. Handed to the person's own devices as frames of their own
+   * (`@tade/web`'s `copies.ts`), never folded into this machine's. Absent,
+   * the page draws this machine alone.
+   */
+  copies?: () => readonly CopyIn[]
+  /**
+   * What each machine that links here tells this one of its projection
+   * (`/api/projection`, `projection-shared.ts`): the route's half. Absent,
+   * the route is the `404` of a path nobody wired.
+   */
+  projections?: Pick<ProjectionsHeld, 'web'>
   /**
    * What this machine has, as its last look found it, for `/api/machine`; and
    * what another machine of the person's tells it it has, kept here

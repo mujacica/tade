@@ -246,6 +246,10 @@ export class App {
         reloadStops: () => this.window.reloadStops(),
         // And reloads every machine, as the strip's reload does.
         reloadAll: () => this.fleet.reload(),
+        // Every machine this window links to, as its link holds it: the page
+        // draws them beside this one's own work (`copies.ts`).
+        copies: () =>
+          this.remotes.held().map((held) => ({ name: held.remote, projection: held.projection })),
       },
     })
     this.wire = this.heart.wire
@@ -351,6 +355,8 @@ export class App {
       waiting: this.heart.waitingThere,
       oneWith: () => this.heart.conversation.oneWith(),
       acts: () => this.heart.acts,
+      // This machine's own work, told every machine it links to for their pages.
+      own: () => this.heart.away.own(),
     })
     this.fleet = new FleetReload({
       home: opts.home,

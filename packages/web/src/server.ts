@@ -520,6 +520,7 @@ export function webServer(opts: ServerOptions): WebServer {
       cursor: cursorOf(header(req, 'last-event-id')),
       sink,
       snapshot: () => reading.snapshot(),
+      copies: () => reading.copies?.() ?? [],
       rev: reading.rev,
       now: now(),
     })
