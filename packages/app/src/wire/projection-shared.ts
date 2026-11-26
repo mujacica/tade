@@ -166,7 +166,13 @@ export class ProjectionsHeld {
     for (const [name, one] of due) {
       const folder = machineFolder(name)
       one.dirty = false
-      if (folder === null) continue
+      if (folder === null) {
+        // Drawn while it is heard, and said once: nothing of it outlives a restart here.
+        const said = `${name} is drawn here but not kept: its name makes no folder in this home`
+        if (this.said.get(name) !== said) this.deps.say(said)
+        this.said.set(name, said)
+        continue
+      }
       try {
         await writeKept(this.deps.home, folder, {
           projection: one.projection,

@@ -143,7 +143,7 @@ describe('what the page holds of each, frame by frame', () => {
     expect(applyCopy(store, { ...moved, from: 3 })).toBeNull()
     const [held] = copiesOf(store)
     expect(held?.copy.behind).toBe(true)
-    expect(rowsOf(held?.copy ?? emptyStore(), 'tasks')[0]?.title).toBe('Fix the parser')
+    expect(rowsOf(held?.copy ?? emptyStore(), 'tasks')[0]?.title?.words).toBe('Fix the parser')
   })
 
   it('lets go of a machine that is gone, and refuses a version it does not speak', () => {

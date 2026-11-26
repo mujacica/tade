@@ -209,6 +209,26 @@ describe('what ipax keeps of the Mac', () => {
     expect(back.heardAt('laptop')).toBe(50_000)
   })
 
+  it('says once that a machine whose name makes no folder is drawn and not kept', async () => {
+    const said: string[] = []
+    const held = new ProjectionsHeld({
+      home: home(),
+      now: () => KEEP_EVERY_MS,
+      say: (one) => said.push(one),
+    })
+    const told = {
+      kind: 'whole',
+      epoch: EPOCH,
+      rev: 4,
+      text: JSON.stringify(snap(4, ['a'])),
+    } as const
+    held.take(told, '★★★')
+    held.beat()
+    await until('it said', async () => said.length > 0)
+    expect(said).toEqual(['★★★ is drawn here but not kept: its name makes no folder in this home'])
+    expect(tasksOf(held, '★★★')).toEqual(['a'])
+  })
+
   it('reads back what is kept under its folder, and holds it by its own name once told again', async () => {
     const where = home()
     await writeKept(where, 'mac-mini', { projection: snap(4, ['a']), heardAt: 1, cursor: null })
