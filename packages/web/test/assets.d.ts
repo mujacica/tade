@@ -811,6 +811,10 @@ declare module '*/assets/desk.js' {
 }
 
 declare module '*/assets/agents.js' {
+  export function agentsScreen(ctx?: null): {
+    node: any
+    update(view: unknown): void
+  }
   export function byProject<T extends { project: string }>(
     agents: readonly T[],
   ): { project: string; agents: T[] }[]
@@ -975,6 +979,16 @@ declare module '*/assets/machines.js' {
   export function wasWorking(copy: CopyIn | null | undefined): { mark?: string }[]
   export function wasDoingSaid(row: MachineRowIn, copy: CopyIn | null | undefined): string | null
   export function lastWordSaid(row: MachineRowIn, copy: CopyIn | null | undefined): string | null
+  export function agentsElsewhere(
+    store: { machines?: readonly MachineRowIn[]; copies?: Map<string, unknown> } | null,
+  ): {
+    machine: string
+    up: boolean
+    asOf: number | null
+    said: string | null
+    working: string | null
+    agents: { id: string }[]
+  }[]
 }
 
 declare module '*/assets/room.js' {

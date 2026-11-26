@@ -7,6 +7,7 @@
 // (`seenSaid` in `@tade/core`), held equal by `test/machines-client.test.ts`.
 
 import { shortClockOf } from './figures.js'
+import { agentsOf } from './store.js'
 
 /** Every machine, the ones that are not up first, then by name. */
 export function machinesOf(store) {
@@ -208,4 +209,49 @@ export function lastWordSaid(row, copy) {
   if (outlives === false) return `${state} · ${agents}; they reopen when its window opens`
   if (outlives === true) return `${state} · ${agents}; they may have moved on`
   return `${state} · ${agents}`
+}
+
+/* ── every other machine's agents ──────────────────────────────────────────── */
+
+// The Agents page draws every machine (ONE-AWAY-VIEW step 4): this one's
+// first, as it always was, then a group for each other machine the page holds
+// a copy of, under that machine's name. **Out of each machine's own store,
+// never one merged list** — a copy's ids are that machine's, and a row of it
+// is never mistaken for one here. While a machine is up its rows are as live
+// as its copy; while it is not, they are drawn as of its last word, frozen at
+// that moment, and a working agent says what became of it (`wasDoingSaid`)
+// rather than *working*, which nobody can know.
+
+/**
+ * Each other machine with an agent in its copy, by name: its agents as
+ * `agentsOf` gives them there, whether it is up, the moment its rows are as
+ * of, and — where it is not up — the line said over them and under each
+ * agent that was working.
+ */
+export function agentsElsewhere(store) {
+  const copies = store?.copies instanceof Map ? store.copies : new Map()
+  const seen = new Map(
+    (Array.isArray(store?.machines) ? store.machines : []).map((row) => [row.name, row]),
+  )
+  const out = []
+  for (const [machine, copy] of copies) {
+    const agents = agentsOf(copy)
+    if (agents.length === 0) continue
+    const row = seen.get(machine) ?? null
+    const up = row?.state === 'up'
+    const at = typeof copy.fresh?.at === 'string' ? Date.parse(copy.fresh.at) : Number.NaN
+    out.push({
+      machine,
+      up,
+      asOf: Number.isNaN(at) ? null : at,
+      said: up
+        ? null
+        : row === null
+          ? `as of ${shortClockOf(copy.fresh?.at ?? null)}`
+          : lastWordSaid(row, copy),
+      working: up || row === null ? null : wasDoingSaid(row, copy),
+      agents,
+    })
+  }
+  return out.sort((a, b) => (a.machine < b.machine ? -1 : a.machine > b.machine ? 1 : 0))
 }

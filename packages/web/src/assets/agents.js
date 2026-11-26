@@ -24,6 +24,7 @@ import { agentMenu, agentPresses, holdOpens } from './agent-menu.js'
 import { classOn, el, empty, glyphOf, into, keyed, markIn, stateIn, textIn } from './dom.js'
 import { ageSaid, count } from './figures.js'
 import { rowMark, taskMark } from './glyphs.js'
+import { agentsElsewhere } from './machines.js'
 import { taskPath } from './routes.js'
 import { section } from './rows.js'
 import { agentsOf } from './store.js'
@@ -47,24 +48,34 @@ export function agentsScreen(ctx = null) {
   const made = section('AGENTS', { top: true })
   const groups = el('div')
   const none = empty('no agent is running')
-  into(made.body, groups, none)
+  // Every other machine's, after this one's: a group a machine (`machines.js`).
+  const elsewhere = el('div')
+  into(made.body, groups, none, elsewhere)
   const rest = el('p', { class: 'unknown' })
   into(node, made.node, rest)
   return {
     node,
     update(view) {
       const agents = agentsOf(view.store)
+      const others = agentsElsewhere(view.store)
       rows.clear()
       for (const task of agents) rows.set(task.id, task)
       textIn(made.figure, count(agents.length))
       made.figure.setAttribute('aria-label', `${agents.length} agents running`)
-      none.hidden = agents.length > 0
+      none.hidden = agents.length > 0 || others.length > 0
       keyed(
         groups,
         byProject(agents),
         (group) => group.project,
         createGroup,
         (one, group) => fillGroup(one, group, view, acting),
+      )
+      keyed(
+        elsewhere,
+        others,
+        (group) => group.machine,
+        createElsewhere,
+        (one, group) => fillElsewhere(one, group, view),
       )
       const idle = view.store.rows.tasks.size - agents.length
       // **Counted, never left out in silence**: a page of four agents that did
@@ -110,6 +121,48 @@ function fillGroup(node, group, view, acting) {
     (task) => task.id,
     () => agentRowWith(acting),
     (one, task) => fillAgentRow(one, task, view),
+  )
+}
+
+/* ── another machine's ─────────────────────────────────────────────────────── */
+
+// Read, and nothing more yet: its rows lead to no page here, which is this
+// machine's tasks by id, and carry no presses — what may be done to another
+// machine's agent from this page is its own step (ONE-AWAY-VIEW §2.5).
+
+function createElsewhere() {
+  const made = section('machine')
+  const said = el('p', { class: 'under elsewhere-said' })
+  const list = panel('ul', 'rows agent-list')
+  into(made.body, said, list)
+  made.node.classList.add('elsewhere')
+  return made.node
+}
+
+function fillElsewhere(node, group, view) {
+  const [head, body] = node.children
+  const [heading, figure] = head.children
+  const [said, list] = body.children
+  textIn(heading, group.machine)
+  heading.setAttribute('aria-label', `Machine ${group.machine}`)
+  textIn(figure, count(group.agents.length))
+  textIn(said, group.said ?? '')
+  said.hidden = group.said === null
+  classOn(node, 'down', !group.up)
+  // A machine nobody hears is drawn as of its last word, its ages frozen there.
+  const at = group.up || group.asOf === null ? view : { ...view, asOf: group.asOf, frozen: true }
+  keyed(
+    list,
+    group.agents,
+    (task) => task.id,
+    () => agentRowWith(null),
+    (one, task) => {
+      fillAgentRow(one, task, at)
+      const [link] = one.children
+      link.removeAttribute('href')
+      const why = link.children[4]
+      if (group.working !== null && task.mark === 'working') textIn(why, group.working)
+    },
   )
 }
 

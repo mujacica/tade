@@ -1,8 +1,12 @@
-import { describe, expect, it } from 'vitest'
-import { byProject, runsOn } from '../src/assets/agents.js'
+import { afterEach, describe, expect, it } from 'vitest'
+import { StillDocument } from '../scripts/still-dom.ts'
+import { agentsScreen, byProject, runsOn } from '../src/assets/agents.js'
 import { WHY_SAID, withHeld } from '../src/assets/pages/agent-pane.js'
 import { UNREAD_SAID } from '../src/assets/pages/agent-said.js'
-import { CONVERSATION_WHY, SCREEN_WHY } from '../src/protocol.ts'
+import { applyCopy, applySnapshot, emptyStore } from '../src/assets/store.js'
+import { CONVERSATION_WHY, PROTOCOL_VERSION, SCREEN_WHY } from '../src/protocol.ts'
+import { snapshotOf } from '../src/snapshot.ts'
+import { EVERY, input, NOW, reach, task } from './fixtures.ts'
 
 // The page's half of an agent looked into, as far as anything offline can see
 // it: the sentences it says for each absence, held equal to the words the
@@ -78,5 +82,69 @@ describe('the agents, as the side list draws them', () => {
     expect(runsOn({ ...one, account: { words: 'work@example.invalid' } })).toBe(
       'tade · pi (work@example.invalid) · claude-opus-5',
     )
+  })
+})
+
+describe('another machine’s agents on the Agents page', () => {
+  const was = { document: Reflect.get(globalThis, 'document') }
+  afterEach(() => {
+    Object.defineProperty(globalThis, 'document', {
+      value: was.document,
+      configurable: true,
+      writable: true,
+    })
+  })
+
+  /** The Agents page over this machine's one agent and a copy of mac's two, mac as it is seen. */
+  function drawn(state: 'up' | 'closed') {
+    const doc = new StillDocument()
+    Object.defineProperty(globalThis, 'document', {
+      value: doc,
+      configurable: true,
+      writable: true,
+    })
+    const store = emptyStore()
+    const machines = [{ name: 'mac', way: 'from' as const, state, since: NOW - 60_000 }]
+    applySnapshot(store, snapshotOf(input({ reach: reach(EVERY), machines }), NOW))
+    const theirs = snapshotOf(
+      input({
+        reach: reach(EVERY),
+        tasks: [
+          task({ id: 'tade/one', project: 'tade' }),
+          task({ id: 'tade/two', project: 'tade', state: 'review' }),
+        ],
+      }),
+      NOW - 60_000,
+    )
+    applyCopy(store, { v: PROTOCOL_VERSION, machine: 'mac', kind: 'whole', snapshot: theirs })
+    const screen = agentsScreen()
+    doc.body.append(screen.node)
+    screen.update({ store, standing: 'live', asOf: NOW, frozen: false })
+    return doc
+  }
+
+  it('draws them under the machine’s name, after this one’s, as rows that lead to no page here', () => {
+    const doc = drawn('up')
+    const group = doc.querySelector('section.elsewhere')
+    expect(group?.querySelector('h2')?.textContent).toBe('mac')
+    const links = group?.querySelectorAll('.agent-list > li > a') ?? []
+    expect(links.length).toBe(2)
+    for (const link of links) expect(link.getAttribute('href')).toBeNull()
+    expect(group?.classList.contains('down')).toBe(false)
+    expect(group?.querySelector('.agent-acts')).toBeNull()
+  })
+
+  it('dims a machine that is not up under its last word, and says what became of a working agent', () => {
+    const doc = drawn('closed')
+    const group = doc.querySelector('section.elsewhere')
+    expect(group?.classList.contains('down')).toBe(true)
+    expect(group?.querySelector('.elsewhere-said')?.textContent).toMatch(
+      /^closed .+ · 1 agent was working/,
+    )
+    // The agent that was working says what became of it, never the clause it was working on.
+    const rows = [...(group?.querySelectorAll('.agent-list > li > a') ?? [])]
+    const working = rows.find((one) => one.textContent?.includes('working'))
+    expect(working?.textContent).toContain('was working at')
+    expect(working?.textContent).not.toContain('4 files touched')
   })
 })

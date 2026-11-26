@@ -2,6 +2,7 @@ import { seenSaid } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { shortClockOf } from '../src/assets/figures.js'
 import {
+  agentsElsewhere,
   figuresAsOf,
   figuresOf,
   hereOf,
@@ -229,5 +230,71 @@ describe('what a machine that is not up was doing', () => {
     expect(lastWordSaid(row('closed'), copy(['done'], false))).toBe(
       `closed ${at} · nothing was working`,
     )
+  })
+})
+
+describe('every other machine’s agents', () => {
+  /** A store as the page holds one, with a copy per machine: tasks by id, agents counted. */
+  const copy = (tasks: readonly [string, string, number][], at = AT) => ({
+    rows: {
+      tasks: new Map(tasks.map(([id, mark, agents]) => [id, { id, mark, agents, project: 'app' }])),
+    },
+    fresh: { at, detach: false },
+  })
+  const seen = (name: string, state: 'up' | 'closed' | 'asleep' | 'lost') => ({
+    name,
+    way: 'from' as const,
+    state,
+    since: AT,
+  })
+  const at = shortClockOf(AT)
+
+  it('is a group a machine with an agent, by name, out of that machine’s own copy', () => {
+    const store = {
+      machines: [seen('mac', 'up'), seen('box', 'up')],
+      copies: new Map([
+        [
+          'mac',
+          copy([
+            ['app/b', 'working', 1],
+            ['app/a', 'done', 0],
+            ['app/c', 'idle', 1],
+          ]),
+        ],
+        ['box', copy([['app/z', 'working', 1]])],
+        ['quiet', copy([['app/q', 'done', 0]])],
+      ]),
+    }
+    const groups = agentsElsewhere(store)
+    expect(groups.map((one) => one.machine)).toEqual(['box', 'mac'])
+    expect(groups[1]?.agents.map((one) => one.id)).toEqual(['app/b', 'app/c'])
+    expect(groups[1]).toMatchObject({ up: true, said: null, working: null, asOf: Date.parse(AT) })
+  })
+
+  it('says over a machine that is not up what its agents were doing, and under each that was working', () => {
+    const store = {
+      machines: [seen('mac', 'closed')],
+      copies: new Map([['mac', copy([['app/b', 'working', 1]])]]),
+    }
+    expect(agentsElsewhere(store)[0]).toMatchObject({
+      up: false,
+      said: `closed ${at} · 1 agent was working; they reopen when its window opens`,
+      working: `stopped with the window, ${at} — reopens when mac’s window opens`,
+    })
+  })
+
+  it('draws a copy of a machine the page has no row for as of its last word, never as up', () => {
+    const store = { machines: [], copies: new Map([['mac', copy([['app/b', 'working', 1]])]]) }
+    expect(agentsElsewhere(store)[0]).toMatchObject({
+      up: false,
+      said: `as of ${at}`,
+      working: null,
+    })
+  })
+
+  it('is nothing for a page with no copies, or an older one that keeps none', () => {
+    expect(agentsElsewhere({ machines: [], copies: new Map() })).toEqual([])
+    expect(agentsElsewhere({ machines: [] })).toEqual([])
+    expect(agentsElsewhere(null)).toEqual([])
   })
 })
