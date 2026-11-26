@@ -485,6 +485,54 @@ function unstamped(detail: Record<string, unknown>): Record<string, unknown> {
   return said
 }
 
+describe('whose subscription a plan is, as the workbench keeps it', () => {
+  it('rides on each plan once its accounts were asked, and goes when it is signed out', async () => {
+    const repo = mkrepo()
+    const home = tmp('tade-accounts-whose-')
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    const make = HARNESS_ADAPTERS['claude-code']
+    if (!make) throw new Error('no claude-code in the registry')
+    let signedIn = true
+    const client = await Workbench.open({
+      home,
+      harnessHome: tmp('tade-own-home-'),
+      harnesses: {
+        'claude-code': (opts) => {
+          const adapter = make(opts)
+          adapter.account = async () => ({
+            signedIn,
+            who: 'made@example.com',
+            plan: 'max',
+            method: 'claude.ai',
+            problem: null,
+          })
+          return adapter
+        },
+      },
+    })
+    const mark = () => client.planUsage().find((one) => one.harness === 'claude-code')?.identity
+    try {
+      // Nobody has asked who it is: no mark, never a guess.
+      expect(mark()).toBeUndefined()
+      await client.accounts()
+      expect(mark()).toBe(
+        identityOf('claude-code', {
+          signedIn: true,
+          who: 'made@example.com',
+          plan: 'max',
+          method: 'claude.ai',
+          problem: null,
+        }),
+      )
+      signedIn = false
+      await client.accounts()
+      expect(mark()).toBeUndefined()
+    } finally {
+      await client.close()
+    }
+  })
+})
+
 describe('whose subscription a sign-in is', () => {
   const status = (who: string | null, signedIn = true, method: string | null = 'claude.ai') => ({
     signedIn,
