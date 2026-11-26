@@ -318,7 +318,11 @@ export function registerHost(program: Command, io: Io, setExit: (code: number) =
       '--to <version>',
       'move to this version, as another machine’s reload asks: only where this one is older',
     )
-    .action(async (opts: { yes?: boolean; backup?: boolean; to?: string }) => {
+    .option(
+      '--commit <id>',
+      'move this checkout to this commit, fast-forward only, as another machine’s reload asks after handing it over',
+    )
+    .action(async (opts: { yes?: boolean; backup?: boolean; to?: string; commit?: string }) => {
       const home = tadeHome()
       const loaded = await loadConfig(defaultConfigPath())
       const bin = fileURLToPath(new URL('../bin.ts', import.meta.url))
@@ -348,6 +352,7 @@ export function registerHost(program: Command, io: Io, setExit: (code: number) =
           asking,
           backup: opts.backup !== false,
           ...(opts.to === undefined ? {} : { to: opts.to }),
+          ...(opts.commit === undefined ? {} : { commit: opts.commit }),
         }),
       )
     })

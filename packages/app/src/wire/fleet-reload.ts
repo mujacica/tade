@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { printable } from '@tade/core'
 import type { Answer, Held, Remote, RemoteLink } from '@tade/remotes-core'
 import type { MachineAnswer, OrchestratorStanding } from '@tade/web'
+import { runningCheckout } from '@tade/workbench/programs'
 import {
   type Cause,
   type Checked,
@@ -15,6 +16,7 @@ import {
 import { versusHere } from '../machine-there.ts'
 import type { Ui } from '../screen.ts'
 import { why } from './context.ts'
+import { checkoutAt } from './fleet-checkout.ts'
 
 // Reload, every machine at once: the strip's reload, `/reload` and
 // `tade_reload` start this window again *and* the Tade on every machine this
@@ -24,6 +26,15 @@ import { why } from './context.ts'
 // answers by asking its unit to restart (`serve-restart.ts`) and a window by
 // reloading. Agents survive as they do here: a machine whose lanes would stop
 // is not restarted, and that is said.
+//
+// **A checkout moves by commit.** A machine that runs Tade from a checkout
+// says which commit (`MachineAnswer.checkout`), and where this one does too,
+// its version says nothing: it is moved to this machine's HEAD — handed that
+// commit over the link first (`git push`, into a ref of Tade's own), because
+// this machine's branch is often ahead of the upstream both follow — then
+// `tade host upgrade --commit` there fast-forwards, installs where the
+// lockfile moved, and restarts. Only forward: one that is not behind HEAD here
+// is restarted on what it has, and that is said.
 //
 // **Never silent.** Each step is said as it happens, machine by machine, in
 // the strip and the conversation — which the phone reads too — and one that
@@ -65,6 +76,16 @@ export const CHECK_FILE = 'reload-check.json'
 /** The far side's door that starts its Tade again (`@tade/web`'s `restarted.ts`). */
 const RESTART_DOOR = '/api/restart'
 
+/** This machine's Tade checkout, as a reload of a checkout there needs it (`fleet-checkout.ts`). */
+export interface CheckoutHere {
+  /** The commit its HEAD is at now, whole; null where it is no checkout, or git does not answer. */
+  head(): Promise<string | null>
+  /** Whether `commit` is `head` or before it here: false where this machine has not got it. */
+  behind(commit: string, head: string): Promise<boolean>
+  /** Hand `commit` to the repository at `root` there; null where it went, why not otherwise. */
+  hand(link: RemoteLink, remote: Remote, root: string, commit: string): Promise<string | null>
+}
+
 export interface FleetReloadDeps {
   home: string
   /** The remotes this machine's config names, in its order. */
@@ -85,6 +106,12 @@ export interface FleetReloadDeps {
   here(): OrchestratorStanding
   /** The Tade this window runs. */
   version(): string
+  /**
+   * This machine's Tade checkout: absent, the one this window runs from
+   * (`runningCheckout`), which for an install is none, and machines are then
+   * moved by version alone.
+   */
+  checkout?: CheckoutHere
   /** This machine in a sentence: `this Mac`. */
   hereName: string
   /** A terminal over the window, which a person sees: an update there runs in one. */
@@ -109,6 +136,7 @@ interface Outcome {
 
 export class FleetReload {
   private readonly deps: FleetReloadDeps
+  private readonly checkout: CheckoutHere
   private going: Promise<void> | null = null
   /** One terminal in front at a time: updates there run one after another. */
   private screen: Promise<unknown> = Promise.resolve()
@@ -127,6 +155,7 @@ export class FleetReload {
 
   constructor(deps: FleetReloadDeps) {
     this.deps = deps
+    this.checkout = deps.checkout ?? checkoutAt(runningCheckout()?.root ?? null)
   }
 
   /** The reload a cause is due for, as the strip's chip and `tade_updates` say it; null for none. */
@@ -203,15 +232,41 @@ export class FleetReload {
     }
     const epoch = this.epochOf(name)
     await this.asked(name)
-    const there = this.deps.answer(name)?.answer?.version ?? null
+    const told = this.deps.answer(name)?.answer ?? null
+    const there = told?.version ?? null
     const mine = this.deps.version()
-    const versus = there === null ? null : versusHere(there, mine, this.deps.hereName)
-    if (versus?.behind) {
-      const updated = await this.update(name, reach, there ?? '', mine)
-      if (updated !== null) return updated
-      // `tade host upgrade` restarts a service it can: watched for, so it is not restarted twice.
-      if ((await this.cameBack(name, epoch, this.time('upgraded', UPGRADED_MS))) === 'back') {
-        return this.backOn(name)
+    const checkout = told?.checkout ?? null
+    const head = checkout === null ? null : await this.headHere()
+    // The commit it should come back on: null where it is moved by version, or not at all.
+    let expected: string | null = null
+    if (checkout !== null && head !== null) {
+      const moved = await this.forward(name, reach, checkout, head)
+      if (typeof moved !== 'string') return moved
+      if (moved !== 'as it is') expected = head
+      if (
+        moved === 'moved' &&
+        (await this.cameBack(name, epoch, this.time('upgraded', UPGRADED_MS))) === 'back'
+      ) {
+        return this.backOn(name, expected)
+      }
+    } else {
+      const versus = there === null ? null : versusHere(there, mine, this.deps.hereName)
+      if (versus?.behind) {
+        const words = ['host', 'upgrade', '--yes', '--to', mine]
+        const updated = await this.update(name, reach, words, {
+          going: `${name} runs Tade ${there}: updating it to ${mine} first.`,
+          cannot: `${name} runs Tade ${there} and cannot be updated from here (its link opens no terminal): it is restarted on what it has — run \`tade host upgrade\` there.`,
+          title: `Tade on ${name}, moved to ${mine} and restarted`,
+          to: mine,
+        })
+        if (updated !== null && updated !== 'cannot') return updated
+        // `tade host upgrade` restarts a service it can: watched for, so it is not restarted twice.
+        if (
+          updated === null &&
+          (await this.cameBack(name, epoch, this.time('upgraded', UPGRADED_MS))) === 'back'
+        ) {
+          return this.backOn(name, null)
+        }
       }
     }
     let answer: Answer
@@ -236,37 +291,90 @@ export class FleetReload {
         said: `${name} has not come back ${minutes > 0 ? `in ${minutes} minutes` : 'in time'} after its restart: look at it there (\`tade host service\` says how its service stands)`,
       }
     }
-    return this.backOn(name)
+    return this.backOn(name, expected)
+  }
+
+  /** This machine's HEAD, where it runs from a checkout; null where it does not, or git did not say. */
+  private async headHere(): Promise<string | null> {
+    // A git that throws is said by `one`, as why this machine was not reloaded.
+    return await this.checkout.head()
   }
 
   /**
-   * Its Tade moved to this one's version by its own `tade host upgrade`, in a
+   * A checkout there moved to this machine's HEAD: handed the commit, then
+   * fast-forwarded and restarted by its own `tade host upgrade --commit`.
+   * `moved` where that ran, `already` where it is on HEAD, `as it is` where it
+   * is not behind HEAD here or cannot be moved from here — each then restarted
+   * through its door; how it ended where it went wrong.
+   */
+  private async forward(
+    name: string,
+    reach: { link: RemoteLink; remote: Remote },
+    checkout: { root: string; commit: string },
+    head: string,
+  ): Promise<Outcome | 'moved' | 'already' | 'as it is'> {
+    if (checkout.commit === head) return 'already'
+    const here = this.deps.hereName
+    const from = checkout.commit.slice(0, 9)
+    const to = head.slice(0, 9)
+    if (!(await this.checkout.behind(checkout.commit, head))) {
+      this.deps.say(
+        `${name} runs from ${from}, which is not behind ${here}’s ${to}: a checkout only moves forward, so it is restarted on what it has.`,
+      )
+      return 'as it is'
+    }
+    this.deps.say(`${name} runs from ${from}: moving it to ${here}’s ${to} first.`)
+    const words = ['host', 'upgrade', '--yes', '--commit', head]
+    // Asked before anything is handed: a commit pushed there that nothing moves to is clutter.
+    if (!reach.link.capabilities.terminals) {
+      this.deps.say(
+        `${name} cannot be moved from here (its link opens no terminal): it is restarted on what it has — run \`tade ${words.join(' ')}\` there.`,
+      )
+      return 'as it is'
+    }
+    const failed = await this.checkout
+      .hand(reach.link, reach.remote, checkout.root, head)
+      .catch((err: unknown) => why(err))
+    if (failed !== null) {
+      return {
+        name,
+        back: false,
+        said: `${to} could not be handed to ${name}, so it was not restarted: ${printable(failed)}`,
+      }
+    }
+    const updated = await this.update(name, reach, words, {
+      going: null,
+      cannot: null,
+      title: `Tade on ${name}, moved to ${to} and restarted`,
+      to,
+    })
+    return updated === null ? 'moved' : updated === 'cannot' ? 'as it is' : updated
+  }
+
+  /**
+   * Its Tade moved forward by its own `tade host upgrade` with `words`, in a
    * terminal over this window that the person sees. Null where that went, so
-   * the restart follows; otherwise how it ended.
+   * the restart follows; `cannot` where its link opens no terminal; otherwise
+   * how it ended.
    */
   private async update(
     name: string,
     reach: { link: RemoteLink; remote: Remote },
-    there: string,
-    mine: string,
-  ): Promise<Outcome | null> {
-    const words = ['host', 'upgrade', '--yes', '--to', mine]
+    words: readonly string[],
+    said: { going: string | null; cannot: string | null; title: string; to: string },
+  ): Promise<Outcome | 'cannot' | null> {
     const terminal = reach.link.terminal(reach.remote, words)
     if (terminal === null) {
-      this.deps.say(
-        `${name} runs Tade ${there} and cannot be updated from here (its link opens no terminal): it is restarted on what it has — run \`tade host upgrade\` there.`,
-      )
-      return null
+      if (said.cannot !== null) this.deps.say(said.cannot)
+      return 'cannot'
     }
-    this.deps.say(`${name} runs Tade ${there}: updating it to ${mine} first.`)
+    if (said.going !== null) this.deps.say(said.going)
     let code = 0
     const before = this.screen
     const turn = (async () => {
       await Promise.allSettled([before])
       await this.deps.onScreenWith(async (ui) => {
-        ui.say(
-          `  Tade on ${name}, moved to ${mine} and restarted: \`tade ${words.join(' ')}\` there.`,
-        )
+        ui.say(`  ${said.title}: \`tade ${words.join(' ')}\` there.`)
         code = await ui.run(`Tade on ${name}`, terminal.command, terminal.args, {})
       })
     })()
@@ -276,16 +384,32 @@ export class FleetReload {
       return {
         name,
         back: false,
-        said: `${name}’s update to ${mine} did not work (exit ${code}), so it was not restarted: what it printed is in its terminal`,
+        said: `${name}’s update to ${said.to} did not work (exit ${code}), so it was not restarted: what it printed is in its terminal`,
       }
     }
     return null
   }
 
-  /** It answered again after coming back: which Tade it runs now, said. */
-  private async backOn(name: string): Promise<Outcome> {
+  /** It answered again after coming back: which Tade it runs now — and on which commit, where one was expected — said. */
+  private async backOn(name: string, expected: string | null): Promise<Outcome> {
     await this.asked(name)
-    const now = this.deps.answer(name)?.answer?.version ?? null
+    const told = this.deps.answer(name)?.answer ?? null
+    const now = told?.version ?? null
+    if (expected !== null) {
+      const on = told?.checkout?.commit ?? null
+      if (on !== expected) {
+        return {
+          name,
+          back: true,
+          said: `${name} is back, on ${on?.slice(0, 9) ?? 'a commit it did not say'} rather than ${this.deps.hereName}’s ${expected.slice(0, 9)}: its update did not move it`,
+        }
+      }
+      return {
+        name,
+        back: true,
+        said: `${name} is back on ${expected.slice(0, 9)}, Tade ${now ?? 'a version it did not say'}.`,
+      }
+    }
     const mine = this.deps.version()
     const versus = now === null ? null : versusHere(now, mine, this.deps.hereName)
     if (versus?.behind) {

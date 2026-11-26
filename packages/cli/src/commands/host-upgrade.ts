@@ -57,10 +57,38 @@ export interface UpgradeOptions {
    * names `@latest`; elsewhere the command moves to its newest. Absent, the newest.
    */
   to?: string
+  /**
+   * The commit to move a checkout to: another machine's reload handing this
+   * one its own HEAD, which it pushed here first (`fleet-reload.ts`), because
+   * a checkout's version says nothing of where it is and its upstream may not
+   * have those commits yet. Fast-forward only; dependencies installed where
+   * the lockfile moved. Refused for an install.
+   */
+  commit?: string
 }
 
 /** A version as `--to` takes it: digits and dots, a pre-release after — never anything a shell reads. */
 export const VERSION_SHAPE = /^\d+\.\d+(?:\.\d+)*(?:-[0-9A-Za-z.]+)?$/
+
+/** A commit as `--commit` takes it: the whole id, and nothing a shell reads. */
+export const COMMIT_SHAPE = /^[0-9a-f]{40}$/
+
+/**
+ * The line that moves the checkout at `root` to `commit`: fetched from its
+ * upstream where it is not here already (nobody pushed it), fast-forward only
+ * so nothing anybody committed there is ever thrown away, then installed with
+ * the lockfile as it is, only where the lockfile moved.
+ */
+export function forwardTo(root: string, commit: string): string {
+  const at = `'${root.replace(/'/g, `'\\''`)}'`
+  return [
+    `cd ${at}`,
+    `{ git cat-file -e '${commit}^{commit}' 2>/dev/null || git fetch --quiet; }`,
+    'was=$(git rev-parse HEAD)',
+    `git merge --ff-only --quiet ${commit}`,
+    `{ git diff --quiet "$was" ${commit} -- pnpm-lock.yaml || pnpm install --frozen-lockfile; }`,
+  ].join(' && ')
+}
 
 /** The install's command moved to one version, where it names `@latest`; as it is otherwise. */
 export function pinnedTo(command: string, version: string): string {
@@ -122,29 +150,51 @@ export async function upgradeHere(
     ask.say(`  ${JSON.stringify(opts.to)} is not a version: --to takes one like 0.4.3`)
     return Exit.invalidInput
   }
-  const look = await place.look(true)
+  const commit = opts.commit
+  if (commit !== undefined && !COMMIT_SHAPE.test(commit)) {
+    ask.say(`  ${JSON.stringify(commit)} is not a commit: --commit takes one's whole id`)
+    return Exit.invalidInput
+  }
+  // Moving to a commit asks nobody what is newest: it is told.
+  const look = await place.look(commit === undefined)
   const where =
     look.from === 'checkout' ? `a checkout at ${look.where}` : (look.install?.said ?? look.where)
   ask.say(`Tade ${look.version}, ${where}`)
+  if (commit !== undefined && look.from !== 'checkout') {
+    ask.say('  --commit moves a checkout, and this Tade is an install: `--to` takes a version')
+    return Exit.invalidInput
+  }
   const holder = await place.held()
   const service = holder === null ? null : await place.service()
   const byService = holder !== null && holder === pidOf(service)
   const running = holder === null ? null : await place.opened(holder)
   // On disk already newer than what holds the home: an upgrade that was never restarted onto.
   const was = running?.version ?? null
-  const behindDisk = was !== null && compareVersions(was, look.version) < 0
+  // By commit, a checkout is behind what holds the home where that started on another one.
+  const ranOn = running?.commit ?? null
+  const behindDisk =
+    commit === undefined
+      ? was !== null && compareVersions(was, look.version) < 0
+      : running !== null && ranOn !== commit
   const target = opts.to
   const wanted =
-    target === undefined
-      ? look.newer !== null || look.cannotTell !== null
-      : compareVersions(look.version, target) < 0
+    commit !== undefined
+      ? look.commit === null || !commit.startsWith(look.commit)
+      : target === undefined
+        ? look.newer !== null || look.cannotTell !== null
+        : compareVersions(look.version, target) < 0
   if (!wanted && !behindDisk) {
     ask.say('  it is current: nothing to do')
     return Exit.ok
   }
   // Nothing to run is a refusal only where something was wanted of it.
   const given = 'command' in look.update ? look.update.command : null
-  const command = given !== null && target !== undefined ? pinnedTo(given, target) : given
+  const command =
+    commit !== undefined
+      ? forwardTo(look.where, commit)
+      : given !== null && target !== undefined
+        ? pinnedTo(given, target)
+        : given
   if (wanted && command === null) {
     ask.say(
       `  ${target === undefined ? (look.newer ?? look.cannotTell) : `${target} was asked for`}`,
@@ -157,9 +207,11 @@ export async function upgradeHere(
   let installed = false
   if (wanted && command !== null) {
     ask.say(
-      target === undefined
-        ? `  ${look.newer ?? `whether a newer one is out cannot be told: ${look.cannotTell}`}`
-        : `  ${target} was asked for, and this is ${look.version}`,
+      commit !== undefined
+        ? `  ${commit.slice(0, 9)} was asked for, and this checkout is on ${look.commit ?? 'no commit git names'}`
+        : target === undefined
+          ? `  ${look.newer ?? `whether a newer one is out cannot be told: ${look.cannotTell}`}`
+          : `  ${target} was asked for, and this is ${look.version}`,
     )
     if (opts.backup) {
       const backed = await place.backup()
@@ -193,6 +245,10 @@ export async function upgradeHere(
       return Exit.error
     }
     installed = true
+  } else if (commit !== undefined) {
+    ask.say(
+      `  this checkout is on ${commit.slice(0, 9)}, and the Tade holding this home started on ${ranOn?.slice(0, 9) ?? 'a commit it did not write down'}`,
+    )
   } else {
     ask.say(`  ${look.version} is installed, and the Tade holding this home still runs ${was}`)
   }
@@ -204,7 +260,9 @@ export async function upgradeHere(
     if (back) ask.say(`  to go back to ${was ?? look.version}: \`${back}\``)
     return Exit.error
   }
-  if (
+  if (installed && commit !== undefined) {
+    ask.say(`  moved to ${commit.slice(0, 9)}: Tade ${after.version}`)
+  } else if (
     installed &&
     after.version === look.version &&
     (look.newer !== null || target !== undefined)
@@ -223,8 +281,8 @@ export async function upgradeHere(
     )
     return Exit.ok
   }
-  if (was === after.version) {
-    ask.say(`  ${SERVICE} runs ${after.version} already`)
+  if (commit === undefined ? was === after.version : ranOn === commit) {
+    ask.say(`  ${SERVICE} runs ${commit?.slice(0, 9) ?? after.version} already`)
     return Exit.ok
   }
   const stops = await place.lanesWouldStop()
@@ -248,7 +306,7 @@ export async function upgradeHere(
     ask.say(`  the restart did not work — \`journalctl --user -u ${SERVICE}\` says why`)
     return Exit.error
   }
-  return said(ask, place, after.version, back)
+  return said(ask, place, after.version, back, commit ?? null)
 }
 
 /** Look until the service has said it is ready and the journal says which Tade opened. */
@@ -257,6 +315,7 @@ async function said(
   place: UpgradePlace,
   version: string,
   back: string | null,
+  commit: string | null,
 ): Promise<number> {
   for (let waited = 0; waited <= BACK_MS; waited += LOOK_MS) {
     const state = await place.service()
@@ -269,8 +328,16 @@ async function said(
         )
         return Exit.error
       }
+      // One that wrote no commit is an older Tade, which cannot have been this one.
+      if (commit !== null && opened.commit !== commit) {
+        ask.say(
+          `  ${SERVICE} came back on ${opened.commit?.slice(0, 9) ?? 'a Tade that says no commit'}, not ${commit.slice(0, 9)}`,
+        )
+        return Exit.error
+      }
       const lanes = opened.lanes === null ? '' : `, and took up its ${opened.lanes} lanes again`
-      ask.say(`  ${SERVICE} runs ${version} now${lanes}`)
+      const on = commit === null ? version : `${version} at ${commit.slice(0, 9)}`
+      ask.say(`  ${SERVICE} runs ${on} now${lanes}`)
       return Exit.ok
     }
     const trouble = state === null ? null : serviceTrouble(state)

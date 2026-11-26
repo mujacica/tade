@@ -593,6 +593,16 @@ each state a box can be in.
   the link (`RemoteLink.terminal`), pressed there as at its keyboard, and the link comes back on
   the restarted Tade by itself. Behind is said in the strip once per pair of versions
   (`Remotes.sayBehind`), and again only once either moves.
+- **A box can run Tade from a checkout, and then it moves by commit** — a dedicated clone, never
+  the project checkout its agents edit, so a half-done edit cannot break the server on restart.
+  `/api/machine` says the checkout and the commit it started on (`runningCheckout`, read off git's
+  files; `tade_opened` carries it too), since a checkout's version says nothing. Where both ends
+  run from checkouts, the reload of every machine (`fleet-reload.ts`) pushes this HEAD into the
+  clone's `refs/tade/reload` over the link (`fleet-checkout.ts`, `RemoteLink.repository`) — this
+  branch is often ahead of origin — then runs `tade host upgrade --yes --commit <id>` there:
+  fast-forward only (`forwardTo`), `pnpm install --frozen-lockfile` only where the lockfile moved,
+  restart, and the service must come back on that commit. One not behind HEAD here is restarted
+  as it is, and said. `remotes.<name>.tade` must run the checkout's CLI, or `--commit` is unknown.
 
 **Not proved**: a real upgrade from npm under systemd — the restart that keeps agents is the unit's
 own, proved in `tade-vps-jammy` ("Proving it"), and the journal's `tade_opened` after it is the new

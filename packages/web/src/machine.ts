@@ -149,6 +149,18 @@ export const MachineAnswerSchema = z.object({
   version: z.string().max(40),
   /** The Updates check's clause for a newer Tade, or null where none is known. */
   newer: Said.nullable(),
+  /**
+   * The checkout it runs from and the commit it started on, or null for an
+   * install: what a reload of every machine moves forward by commit, since a
+   * checkout's version says nothing of where it is. Absent from an older Tade.
+   */
+  checkout: z
+    .object({
+      root: z.string().min(1).max(4096),
+      commit: z.string().regex(/^[0-9a-f]{40}$/),
+    })
+    .nullable()
+    .optional(),
   /** Its public name and how it stands, or null for a machine with none. */
   public: z
     .object({
@@ -208,6 +220,7 @@ export function machineFor(all: MachineAnswer, reach: Reach): MachineAnswer {
     at: all.at,
     version: cut(all.version, 40),
     newer: said(all.newer),
+    ...(all.checkout === undefined ? {} : { checkout: all.checkout }),
     public:
       all.public === null
         ? null

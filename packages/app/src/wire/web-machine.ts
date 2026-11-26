@@ -23,7 +23,7 @@ import {
   withoutPaths,
 } from '@tade/web'
 import { documentsOf } from '@tade/workbench'
-import { lastUpdates, runningVersion } from '@tade/workbench/programs'
+import { lastUpdates, runningCheckout, runningVersion } from '@tade/workbench/programs'
 import type { ScheduleView } from '../model.ts'
 import { scheduleViews } from '../queue.ts'
 import { configPathOf, type Wiring, why } from './context.ts'
@@ -109,6 +109,7 @@ export function machineFrom(wire: Wiring, away: AwayStanding): WebMachine {
       at: new Date(now).toISOString(),
       version: runningVersion(),
       newer: kept?.tade.newer ?? null,
+      checkout: runningCheckout(),
       public: away.public(),
       // Tade's own words, and what a look of git said can hold a path.
       problems: problems.map((one) => ({ ...one, said: withoutPaths(one.said) })),

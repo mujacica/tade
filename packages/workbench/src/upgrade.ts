@@ -14,6 +14,8 @@ const TAIL = 8 * 1024 * 1024
 export interface Opened {
   version: string | null
   lanes: number | null
+  /** The commit of the checkout it ran from; null for an install, absent from an older Tade. */
+  commit?: string | null
 }
 
 /**
@@ -40,9 +42,11 @@ export async function openedAs(home: string, pid: number): Promise<Opened | null
   if (!found) return null
   const version = found.detail.version
   const lanes = found.detail.lanes
+  const commit = found.detail.commit
   return {
     version: typeof version === 'string' ? version : null,
     lanes: typeof lanes === 'number' ? lanes : null,
+    commit: typeof commit === 'string' ? commit : null,
   }
 }
 

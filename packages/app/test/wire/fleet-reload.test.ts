@@ -8,7 +8,9 @@ import { type FarEnd, startFarEnd } from '@tade/remotes-core/far'
 import { makeScriptedLink, type ScriptedRemote } from '@tade/remotes-scripted'
 import type { MachineAnswer, OrchestratorStanding } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
-import { CHECK_FILE, FleetReload } from '../../src/wire/fleet-reload.ts'
+import { mkrepo, runGit, tmp } from '../../../../test/fixtures/mkrepo.ts'
+import { checkoutAt, HANDED_REF } from '../../src/wire/fleet-checkout.ts'
+import { CHECK_FILE, type CheckoutHere, FleetReload } from '../../src/wire/fleet-reload.ts'
 import { RemoteMachines } from '../../src/wire/remote-machine.ts'
 import { Remotes } from '../../src/wire/remotes.ts'
 
@@ -99,7 +101,7 @@ const VROLTA: Inventory = {
  * reload of every machine over them. `tade` there is a line that writes down
  * what it was asked, as `tade host upgrade` would be run there.
  */
-async function mac(names: readonly string[], home?: string) {
+async function mac(names: readonly string[], home?: string, checkout?: CheckoutHere) {
   const fars = new Map<string, FarEnd>()
   for (const name of names) {
     const far = await startFarEnd({ projects: ['tade'] })
@@ -188,6 +190,8 @@ async function mac(names: readonly string[], home?: string) {
     oneWith: () => conversation.oneWith,
     here: () => ({ ...UP, joined: conversation.oneWith }),
     version: () => HERE,
+    // This Mac as an install, unless a test says it runs from a checkout.
+    checkout: checkout ?? checkoutAt(null),
     hereName: 'this Mac',
     // The terminal over the window, run as the person would watch it run.
     onScreenWith: async (flow) =>
@@ -325,6 +329,100 @@ describe('one press reloads every machine', () => {
     expect(after.said.find((one) => one.startsWith('After the reload:'))).toBe(
       'After the reload: ipax’s orchestrator did not start: Claude Code is not signed in here: `tade accounts sign-in claude-code`.',
     )
+  }, 60_000)
+})
+
+describe('a machine that runs from a checkout moves to this one’s HEAD', () => {
+  /** This Mac's checkout, a commit ahead of the clone ipax runs from; and that clone. */
+  function checkouts() {
+    const mine = mkrepo()
+    const there = `${tmp('tade-run-')}/tade-run`
+    runGit(mine.root, 'clone', '-q', mine.root, there)
+    const was = runGit(there, 'rev-parse', 'HEAD').trim()
+    mine.commit('ahead of origin', { 'a.txt': 'a\n' })
+    const head = runGit(mine.root, 'rev-parse', 'HEAD').trim()
+    return { mine, there, was, head }
+  }
+  const at = (root: string, commit: string) => ({ root, commit })
+
+  it('hands it this commit, moves it there by `--commit`, and says it is back on it', async () => {
+    const { mine, there, was, head } = checkouts()
+    const box = await mac(['ipax'], undefined, checkoutAt(mine.root))
+    const ipax = box.fars.get('ipax')!
+    // The same version on both: only the commit says it is behind.
+    ipax.machine = { ...machine(HERE, UP), checkout: at(there, was) }
+    await box.linked()
+    box.upgrading.set('ipax', () => {
+      ipax.machine = { ...machine(HERE, UP), checkout: at(there, head) }
+      void ipax.restart()
+    })
+    await box.fleet.reload()
+
+    expect(box.asked()).toBe(`host upgrade --yes --commit ${head}\n`)
+    // Handed into Tade's own ref, no branch there touched by it.
+    expect(runGit(there, 'rev-parse', HANDED_REF).trim()).toBe(head)
+    expect(runGit(there, 'rev-parse', 'main').trim()).toBe(was)
+    expect(box.said).toContain(
+      `ipax runs from ${was.slice(0, 9)}: moving it to this Mac’s ${head.slice(0, 9)} first.`,
+    )
+    expect(box.said).toContain(`ipax is back on ${head.slice(0, 9)}, Tade ${HERE}.`)
+    expect(ipax.restarted).toEqual([])
+    expect(box.reloaded).toHaveLength(1)
+  }, 60_000)
+
+  it('only restarts one already on this commit, and says if it came back on another', async () => {
+    const { mine, there, head } = checkouts()
+    const box = await mac(['ipax'], undefined, checkoutAt(mine.root))
+    const ipax = box.fars.get('ipax')!
+    ipax.machine = { ...machine(HERE, UP), checkout: at(there, head) }
+    await box.linked()
+    await box.fleet.reload()
+    expect(box.asked()).toBe('')
+    expect(ipax.restarted).toHaveLength(1)
+    expect(box.said).toContain(`ipax is back on ${head.slice(0, 9)}, Tade ${HERE}.`)
+  }, 60_000)
+
+  it('never moves one back: a checkout not behind this HEAD is restarted on what it has, and that is said', async () => {
+    const { mine, there, head } = checkouts()
+    runGit(
+      there,
+      '-c',
+      'user.name=T',
+      '-c',
+      'user.email=t@t.invalid',
+      'commit',
+      '-q',
+      '--allow-empty',
+      '-m',
+      'its own',
+    )
+    const theirs = runGit(there, 'rev-parse', 'HEAD').trim()
+    const box = await mac(['ipax'], undefined, checkoutAt(mine.root))
+    const ipax = box.fars.get('ipax')!
+    ipax.machine = { ...machine(HERE, UP), checkout: at(there, theirs) }
+    await box.linked()
+    await box.fleet.reload()
+    expect(box.asked()).toBe('')
+    expect(() => runGit(there, 'rev-parse', '--verify', '--quiet', HANDED_REF)).toThrow()
+    expect(box.said).toContain(
+      `ipax runs from ${theirs.slice(0, 9)}, which is not behind this Mac’s ${head.slice(0, 9)}: a checkout only moves forward, so it is restarted on what it has.`,
+    )
+    expect(ipax.restarted).toHaveLength(1)
+    expect(box.said).toContain(`ipax is back on Tade ${HERE}.`)
+  }, 60_000)
+
+  it('restarts nothing where the commit could not be handed over', async () => {
+    const { mine, head } = checkouts()
+    const box = await mac(['ipax'], undefined, checkoutAt(mine.root))
+    const ipax = box.fars.get('ipax')!
+    const was = runGit(mine.root, 'rev-parse', 'HEAD~1').trim()
+    ipax.machine = { ...machine(HERE, UP), checkout: at(join(tmp('tade-gone-'), 'nothing'), was) }
+    await box.linked()
+    await box.fleet.reload()
+    expect(box.asked()).toBe('')
+    expect(ipax.restarted).toEqual([])
+    const said = box.said.find((one) => one.startsWith(`${head.slice(0, 9)} could not be handed`))
+    expect(said).toMatch(/^\w+ could not be handed to ipax, so it was not restarted: /)
   }, 60_000)
 })
 

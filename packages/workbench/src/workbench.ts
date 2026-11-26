@@ -126,7 +126,7 @@ import { type RetireRequest, retireNote, settleNotes } from './notes.ts'
 import { notStartable, type ParkedBy, park } from './parked.ts'
 import { makePlan, type PlanMade } from './plans.ts'
 import { preparedDetail, setupBefore, setupTold } from './prepare.ts'
-import { runningVersion } from './programs.ts'
+import { runningCheckout, runningVersion } from './programs.ts'
 import {
   changeQueued,
   dropSilentWaits,
@@ -548,6 +548,8 @@ export class Workbench {
           driver: driver.id,
           lanes: registry.list().length,
           version: runningVersion(),
+          // And the commit, where it runs from a checkout, whose version says nothing of where it is.
+          commit: runningCheckout()?.commit ?? null,
         },
       })
       // Pick the agents that kept working back up: the channel first, so their

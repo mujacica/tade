@@ -1,9 +1,13 @@
+import { spawnSync } from 'node:child_process'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { SERVICE, type ServiceState, START } from '@tade/core'
 import type { TadeLook } from '@tade/workbench/programs'
 import type { Opened } from '@tade/workbench/upgrade'
 import { describe, expect, it } from 'vitest'
+import { gitEnv, mkrepo, runGit, tmp } from '../../../test/fixtures/mkrepo.ts'
 import type { Asker } from '../src/commands/host-service.ts'
 import {
+  forwardTo,
   goingBack,
   pinnedTo,
   type UpgradeOptions,
@@ -370,5 +374,184 @@ describe('upgrading to the version another machine runs (`--to`)', () => {
     expect(await upgradeHere(ask, box(), { ...TO, to: '0.2.5; rm -rf ~' })).toBe(2)
     expect(ask.ran).toEqual([])
     expect(ask.said[0]).toContain('is not a version')
+  })
+})
+
+describe('moving a checkout to the commit another machine handed it (`--commit`)', () => {
+  const BY = { yes: true, asking: false, backup: false }
+  const OLD = 'a'.repeat(40)
+  const NEW = 'b'.repeat(40)
+  const CHECKOUT = looked({
+    from: 'checkout',
+    where: '/home/tade/tade-run',
+    branch: 'main',
+    commit: OLD.slice(0, 7),
+    newer: null,
+    cannotTell: 'nobody has been asked what is current',
+    update: { command: 'git -C /home/tade/tade-run pull --ff-only && pnpm install' },
+  })
+  const service = (pid: number) => [ready(10), ready(pid)]
+
+  it('fast-forwards to it, restarts the service onto it, and checks it came back on that commit', async () => {
+    const ask = recorder()
+    const place = box({
+      look: CHECKOUT,
+      held: 10,
+      services: service(11),
+      opened: {
+        10: { version: '0.2.3', lanes: 2, commit: OLD },
+        11: { version: '0.2.3', lanes: 2, commit: NEW },
+      },
+      starts: { version: '0.2.3', said: null },
+    })
+    expect(await upgradeHere(ask, place, { ...BY, commit: NEW })).toBe(0)
+    // Its version did not move, and it is restarted all the same: the commit did.
+    expect(ask.ran).toEqual([forwardTo('/home/tade/tade-run', NEW), START])
+    expect(ask.said).toContain(
+      `  ${NEW.slice(0, 9)} was asked for, and this checkout is on aaaaaaa`,
+    )
+    expect(ask.said).toContain(`  moved to ${NEW.slice(0, 9)}: Tade 0.2.3`)
+    expect(ask.said.at(-1)).toBe(
+      `  ${SERVICE} runs 0.2.3 at ${NEW.slice(0, 9)} now, and took up its 2 lanes again`,
+    )
+  })
+
+  it('says so where the service came back on another commit', async () => {
+    const ask = recorder()
+    const place = box({
+      look: CHECKOUT,
+      held: 10,
+      services: service(11),
+      opened: {
+        10: { version: '0.2.3', lanes: 2, commit: OLD },
+        11: { version: '0.2.3', lanes: 2, commit: OLD },
+      },
+      starts: { version: '0.2.3', said: null },
+    })
+    expect(await upgradeHere(ask, place, { ...BY, commit: NEW })).toBe(1)
+    expect(ask.said.at(-1)).toBe(
+      `  ${SERVICE} came back on ${OLD.slice(0, 9)}, not ${NEW.slice(0, 9)}`,
+    )
+  })
+
+  it('restarts without moving where the checkout is there already and the service started before it', async () => {
+    const ask = recorder()
+    const place = box({
+      look: { ...CHECKOUT, commit: NEW.slice(0, 7) },
+      held: 10,
+      services: service(11),
+      opened: {
+        10: { version: '0.2.3', lanes: 0, commit: OLD },
+        11: { version: '0.2.3', lanes: 0, commit: NEW },
+      },
+      starts: { version: '0.2.3', said: null },
+    })
+    expect(await upgradeHere(ask, place, { ...BY, commit: NEW })).toBe(0)
+    expect(ask.ran).toEqual([START])
+  })
+
+  it('does nothing where the service runs that commit already', async () => {
+    const ask = recorder()
+    const place = box({
+      look: { ...CHECKOUT, commit: NEW.slice(0, 7) },
+      held: 10,
+      services: [ready(10)],
+      opened: { 10: { version: '0.2.3', lanes: 0, commit: NEW } },
+    })
+    expect(await upgradeHere(ask, place, { ...BY, commit: NEW })).toBe(0)
+    expect(ask.ran).toEqual([])
+    expect(ask.said.at(-1)).toBe('  it is current: nothing to do')
+  })
+
+  it('refuses an install, and anything that is not a whole commit id', async () => {
+    const install = recorder()
+    expect(await upgradeHere(install, box(), { ...BY, commit: NEW })).toBe(2)
+    expect(install.ran).toEqual([])
+    expect(install.said.at(-1)).toContain('--commit moves a checkout')
+    for (const commit of [NEW.slice(0, 12), `${NEW}; rm -rf ~`, 'HEAD']) {
+      const ask = recorder()
+      expect(await upgradeHere(ask, box({ look: CHECKOUT }), { ...BY, commit })).toBe(2)
+      expect(ask.ran).toEqual([])
+      expect(ask.said[0]).toContain('is not a commit')
+    }
+  })
+})
+
+describe('the line that moves a checkout (`forwardTo`), run by a real shell on real git', () => {
+  /** A machine's runtime clone of `repo`, at what `repo` was on when it was cloned. */
+  function cloneOf(root: string): string {
+    const at = `${tmp('tade-run-')}/it's here`
+    runGit(root, 'clone', '-q', root, at)
+    return at
+  }
+  const run = (line: string) =>
+    spawnSync('/bin/sh', ['-c', line], {
+      encoding: 'utf8',
+      env: gitEnv({ PATH: process.env.PATH }),
+    })
+
+  it('moves to a commit it was handed, fast-forward, and installs nothing where the lockfile did not move', () => {
+    const repo = mkrepo()
+    const clone = cloneOf(repo.root)
+    repo.commit('ahead', { 'a.txt': 'a\n' })
+    const head = runGit(repo.root, 'rev-parse', 'HEAD').trim()
+    // Handed as the reload hands it, into Tade's own ref rather than a branch.
+    runGit(repo.root, 'push', '-q', clone, `${head}:refs/tade/reload`)
+    // No pnpm on PATH: were it run, this would fail.
+    const ran = run(forwardTo(clone, head))
+    expect(ran.status, ran.stderr).toBe(0)
+    expect(runGit(clone, 'rev-parse', 'HEAD').trim()).toBe(head)
+    expect(runGit(clone, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe('main')
+  })
+
+  it('fetches it from upstream where nobody handed it', () => {
+    const repo = mkrepo()
+    const clone = cloneOf(repo.root)
+    repo.commit('ahead', { 'a.txt': 'a\n' })
+    const head = runGit(repo.root, 'rev-parse', 'HEAD').trim()
+    const ran = run(forwardTo(clone, head))
+    expect(ran.status, ran.stderr).toBe(0)
+    expect(runGit(clone, 'rev-parse', 'HEAD').trim()).toBe(head)
+  })
+
+  it('throws nothing away: a checkout that went its own way is not moved', () => {
+    const repo = mkrepo()
+    const clone = cloneOf(repo.root)
+    repo.commit('ahead here', { 'a.txt': 'a\n' })
+    const head = runGit(repo.root, 'rev-parse', 'HEAD').trim()
+    runGit(
+      clone,
+      '-c',
+      'user.name=T',
+      '-c',
+      'user.email=t@t.invalid',
+      'commit',
+      '-q',
+      '--allow-empty',
+      '-m',
+      'there',
+    )
+    const theirs = runGit(clone, 'rev-parse', 'HEAD').trim()
+    runGit(repo.root, 'push', '-q', clone, `${head}:refs/tade/reload`)
+    const ran = run(forwardTo(clone, head))
+    expect(ran.status).not.toBe(0)
+    expect(runGit(clone, 'rev-parse', 'HEAD').trim()).toBe(theirs)
+  })
+
+  it('installs with the lockfile as it is where the lockfile moved', () => {
+    const repo = mkrepo()
+    const clone = cloneOf(repo.root)
+    repo.commit('lock', { 'pnpm-lock.yaml': 'lockfileVersion: 9\n' })
+    const head = runGit(repo.root, 'rev-parse', 'HEAD').trim()
+    // A pnpm that writes down what it was asked: the line's own, found on PATH.
+    const bin = tmp('tade-pnpm-')
+    const asked = `${bin}/asked`
+    writeFileSync(`${bin}/pnpm`, `#!/bin/sh\necho "$@" > '${asked}'\n`, { mode: 0o755 })
+    const ran = spawnSync('/bin/sh', ['-c', forwardTo(clone, head)], {
+      encoding: 'utf8',
+      env: gitEnv({ PATH: `${bin}:${process.env.PATH}` }),
+    })
+    expect(ran.status, ran.stderr).toBe(0)
+    expect(readFileSync(asked, 'utf8').trim()).toBe('install --frozen-lockfile')
   })
 })

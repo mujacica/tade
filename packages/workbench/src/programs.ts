@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { readFile, rename, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   BACKUP_PROGRAMS,
@@ -522,6 +522,74 @@ export function runningVersion(): string {
   return running
 }
 let running: string | undefined
+
+/** Tade running out of a checkout: where it is, and the commit it was started on. */
+export interface CheckoutRunning {
+  root: string
+  /** The full commit id. */
+  commit: string
+}
+
+/**
+ * The checkout the running Tade was started from, and its commit then, or
+ * null for an install — read once, as early as it is asked, because the
+ * checkout can move under a running process and what runs is what it started
+ * on. What another machine's reload reads to move this one to its own HEAD
+ * (`@tade/app`'s `fleet-reload.ts`). Read off git's files rather than asked of
+ * git, so nothing waits on a child for it.
+ */
+export function runningCheckout(): CheckoutRunning | null {
+  if (checkout === undefined) {
+    const root = tadeRoot()
+    const commit = headIn(root)
+    checkout = commit === null ? null : { root, commit }
+  }
+  return checkout
+}
+let checkout: CheckoutRunning | null | undefined
+
+const SHA = /^[0-9a-f]{40}$/
+
+/**
+ * The commit HEAD is at in the repository at `root`, by git's own files: a
+ * detached HEAD, a loose ref, or one packed — in a worktree, its common
+ * directory's. Null where `root` is no repository, or HEAD names nothing yet.
+ */
+export function headIn(root: string): string | null {
+  const read = (path: string) => {
+    try {
+      return readFileSync(path, 'utf8')
+    } catch (err) {
+      // Not there, or a directory where a file might be: anything else is not "no commit".
+      if (['ENOENT', 'EISDIR', 'ENOTDIR'].includes((err as NodeJS.ErrnoException).code ?? '')) {
+        return null
+      }
+      throw err
+    }
+  }
+  const dotGit = join(root, '.git')
+  // A directory does not read as a file; a worktree's `.git` is a file naming its own.
+  const pointer = read(dotGit)
+  const named = pointer === null ? null : (/^gitdir:\s*(.+)$/m.exec(pointer)?.[1]?.trim() ?? '')
+  if (named === '') return null
+  const dir = named === null ? dotGit : isAbsolute(named) ? named : join(root, named)
+  const head = read(join(dir, 'HEAD'))?.trim() ?? null
+  if (head === null) return null
+  if (SHA.test(head)) return head
+  const ref = /^ref:\s*(refs\/\S+)$/.exec(head)?.[1]
+  if (ref === undefined) return null
+  const common = read(join(dir, 'commondir'))?.trim()
+  const dirs = common ? [dir, join(dir, common)] : [dir]
+  for (const one of dirs) {
+    const loose = read(join(one, ref))?.trim()
+    if (loose && SHA.test(loose)) return loose
+    const packed = read(join(one, 'packed-refs'))
+    const line = packed?.split('\n').find((l) => l.endsWith(` ${ref}`))
+    const sha = line?.slice(0, 40)
+    if (sha && SHA.test(sha)) return sha
+  }
+  return null
+}
 
 /** git, in Tade's own checkout. Empty when it would not answer. */
 async function inRepo(root: string, args: readonly string[]): Promise<string> {
