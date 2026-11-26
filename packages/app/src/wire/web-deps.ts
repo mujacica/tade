@@ -85,9 +85,11 @@ export interface AwayDeps {
    * Another machine of the person's acting here through this machine's own
    * gate (`acts.ts`): `/api/acts`, and the outbox a machine that links here
    * asks for what this one's orchestrator wants done there. Absent, both are
-   * the `404` of a path nobody wired.
+   * the `404` of a path nobody wired. And a press on another machine's row
+   * from this door's page, sent there as this window's own press would be
+   * (`pressed`): into the outbox for a machine that links here.
    */
-  acts?: Pick<MachineActs, 'take' | 'outboxFor'>
+  acts?: Pick<MachineActs, 'take' | 'outboxFor' | 'pressed'>
   /** What the approve/deny keys do when no device is waiting to be let in. */
   decided(allow: boolean): void | Promise<void>
   /** Said in the strip, where somebody who was not looking at the panel sees it. */

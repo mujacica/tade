@@ -757,6 +757,19 @@ export const OWNED: readonly Route[] = [
     here: true,
     theirs: true,
   },
+  // A press on another machine's row from this door's page — the Mac's agent
+  // on ipax's — put in the outbox for that machine and answered once it ran it
+  // through its own gate (`pressed-there.ts`): the person's own device's, as
+  // every other machine's row on the page is.
+  {
+    method: 'POST',
+    path: '/api/there/press',
+    name: 'press there',
+    needs: 'read',
+    mutates: true,
+    here: true,
+    theirs: true,
+  },
   // Where each project is checked out here and the branches its work is on
   // (`repositories.ts`): a path on this machine, which no phone reads, for the
   // fetch another machine of the person's makes over the same SSH. A read.
