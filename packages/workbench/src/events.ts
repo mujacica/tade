@@ -481,6 +481,26 @@ async function readAll(path: string): Promise<TadeEvent[]> {
   return out
 }
 
+/**
+ * How much of the journal one read asks the file for: Node takes a read's
+ * length only as a 32-bit integer and asserts — a core dump, not a throw —
+ * on anything longer, and a journal opened from the start is read whole. On
+ * 26 Nov ipax's passed 2^31 bytes and its service died at every start.
+ */
+export const JOURNAL_CHUNK = 64 * 1024 * 1024
+
+/** The file a journal read reads, so a test can hand one of any size (`readJournalSince`). */
+export interface JournalFile {
+  stat(): Promise<{ size: number }>
+  read(
+    buffer: Buffer,
+    offset: number,
+    length: number,
+    position: number,
+  ): Promise<{ bytesRead: number }>
+  close(): Promise<void>
+}
+
 /** What a read got to, so the next one can start there. */
 export interface JournalRead {
   events: TadeEvent[]
@@ -523,12 +543,15 @@ export async function readJournalSince(
   home: string,
   filter: Omit<EventFilter, 'limit'> = {},
   from = 0,
+  /** The file and how much of it one read asks for: a test's own, of any size. */
+  io: { open?: (path: string) => Promise<JournalFile>; chunk?: number } = {},
 ): Promise<JournalRead> {
   const nothing = { events: [], readFrom: from, readTo: from }
   const path = join(home, 'events.jsonl')
-  let handle: FileHandle
+  const chunk = Math.max(1, Math.min(io.chunk ?? JOURNAL_CHUNK, JOURNAL_CHUNK))
+  let handle: JournalFile | FileHandle
   try {
-    handle = await open(path, 'r')
+    handle = await (io.open ?? ((at: string) => open(at, 'r')))(path)
   } catch {
     // No journal yet is an empty journal, not a failure.
     return nothing
@@ -537,27 +560,42 @@ export async function readJournalSince(
     const { size } = await handle.stat()
     // Shorter than what we read means it is not the file we read.
     const start = size < from ? 0 : from
-    if (size <= start) return { events: [], readFrom: start, readTo: start }
-    const buf = Buffer.alloc(size - start)
-    const { bytesRead } = await handle.read(buf, 0, buf.length, start)
-    // Shorter than the stat said means it shrank under us: nothing to consume,
-    // and the next read finds it shorter than `from` and starts over.
-    if (bytesRead === 0) return { events: [], readFrom: start, readTo: start }
-    // Only whole lines are consumed. A newline never appears inside a
-    // multi-byte character, so cutting there is also safe to decode.
-    const end = buf.lastIndexOf(0x0a, bytesRead - 1)
-    if (end < 0) return { events: [], readFrom: start, readTo: start }
     const events: TadeEvent[] = []
-    for (const line of buf.toString('utf8', 0, end).split('\n')) {
-      if (!line.trim()) continue
-      try {
-        const event = JSON.parse(line) as TadeEvent
-        if (matchesFilter(event, filter)) events.push(event)
-      } catch {
-        // A line that will not parse is skipped, never thrown over.
+    // A chunk at a time, never more than one read may ask for: what a chunk
+    // ends with past its last newline is carried into the next, and only
+    // whole lines are consumed. A newline never appears inside a multi-byte
+    // character, so cutting there is also safe to decode.
+    let at = start
+    let carried = Buffer.alloc(0)
+    while (at < size) {
+      const want = Math.min(chunk, size - at)
+      const buf = Buffer.alloc(want)
+      const { bytesRead } = await handle.read(buf, 0, want, at)
+      // Shorter than the stat said means it shrank under us: what was read
+      // stands, and the next read finds it shorter than `from` and starts over.
+      if (bytesRead === 0) break
+      at += bytesRead
+      const piece =
+        carried.length === 0
+          ? buf.subarray(0, bytesRead)
+          : Buffer.concat([carried, buf.subarray(0, bytesRead)])
+      const end = piece.lastIndexOf(0x0a)
+      if (end < 0) {
+        carried = piece
+        continue
       }
+      for (const line of piece.toString('utf8', 0, end).split('\n')) {
+        if (!line.trim()) continue
+        try {
+          const event = JSON.parse(line) as TadeEvent
+          if (matchesFilter(event, filter)) events.push(event)
+        } catch {
+          // A line that will not parse is skipped, never thrown over.
+        }
+      }
+      carried = Buffer.from(piece.subarray(end + 1))
     }
-    return { events, readFrom: start, readTo: start + end + 1 }
+    return { events, readFrom: start, readTo: at - carried.length }
   } catch {
     return nothing
   } finally {
