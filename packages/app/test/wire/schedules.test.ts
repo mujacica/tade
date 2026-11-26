@@ -645,4 +645,65 @@ describe('the window, and what it watches', () => {
     ).toContain('Rain is back on in app')
     expect(client.schedules()).toMatchObject([{ id: 'rain', paused: false }])
   })
+
+  it('looks once, not every beat, with a watch whose project is not open while another machine has its duty', async () => {
+    // ipax, 24–26 Nov: `hello` closed there, the hub's duty for its outside
+    // watch with another machine. The quiet "nothing to watch" look leaves it
+    // nowhere, so it was "handed over" again at every beat — seven million
+    // looks written down, and a journal too big to open.
+    let checked = 0
+    const extensions = await ExtensionHost.load({
+      builtin: [
+        {
+          name: 'weather',
+          title: 'Weather',
+          description: 'Whether it is raining.',
+          watches: [
+            {
+              id: 'rain',
+              title: 'Rain',
+              means: 'Asks the radar, which is somewhere else.',
+              every: '1h',
+              about: 'repository' as const,
+              check: async () => {
+                checked++
+                return { found: [] }
+              },
+            },
+          ],
+        },
+      ],
+      config: { extensions: {}, projects: { app: { root: repo.root } } },
+      home,
+    })
+    const window = await start({ extensions, thinker: { ask: async () => 'ok' } })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const heart = (window as unknown as { heart: { duties: { watch: () => unknown } } }).heart
+    heart.duties.watch = () => ({ here: false, on: 'vps', said: 'vps has its duty' })
+    // Made while `hello` was open, which it no longer is: a closed project
+    // keeps its watches, so this is what the window holds — written where
+    // `setSchedule` would, past the check that the project is open now.
+    const kept = (client as unknown as { kept: { set(one: unknown, by: string): unknown } }).kept
+    kept.set(
+      {
+        id: 'rain-hello',
+        name: 'Rain',
+        project: 'hello',
+        said: '',
+        when: { every: '1h' },
+        does: { kind: 'watch', watch: 'weather.rain', input: {}, found: 'ask', most: 1 },
+        missed: 'skip',
+        by: 'you',
+        created: new Date().toISOString(),
+      },
+      'you',
+    )
+    const looks = async () =>
+      (await client.events({ types: ['watch_checked'] })).filter(
+        (one) => one.detail.schedule === 'rain-hello',
+      ).length
+    await beats(12)
+    expect(await looks()).toBeLessThanOrEqual(1)
+    expect(checked).toBe(0)
+  })
 })

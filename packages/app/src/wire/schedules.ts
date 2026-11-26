@@ -8,6 +8,7 @@ import {
   joined,
   madeByWords,
   newFindings,
+  nothingToWatch,
   type Schedule,
   type ScheduleDoes,
   scheduleIdOf,
@@ -364,9 +365,18 @@ export class Schedules implements Subject {
     return whereNow(this.wire, project, watch, looks, this.deps.twins?.(project) ?? noTwins())
   }
 
-  /** A watch another machine now looks with, whose newest look here did not leave it there. */
+  /**
+   * A watch another machine now looks with, whose newest look here did not
+   * leave it there. Never one whose project is not open here: its look is the
+   * quiet "nothing to watch", which leaves it nowhere, so it would never stop
+   * being handed over — a look every beat, each written down (ipax's journal
+   * took seven million of them in a day and a half, and then would not open).
+   */
   private handedOver(one: Schedule): boolean {
     if (one.does.kind !== 'watch' || this.lookingWith.has(one.id)) return false
+    if (nothingToWatch(one.project, Object.keys(this.wire.opts.config.projects)) !== null) {
+      return false
+    }
     const where = this.where(one.project, one.does.watch, one.id)
     if (where.here) return false
     return this.wire.live?.watchedOf(one.id).looks[0]?.on !== where.on
