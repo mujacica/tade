@@ -47,9 +47,10 @@ export interface Place {
   leave: () => Promise<void>
   /**
    * Given up at a deadline: set aside for `as` to take back (`takeBack`) for
-   * `KEPT_MS`, or left, for a place nobody named.
+   * `KEPT_MS`, or left, for a place nobody named. It holds its turn for
+   * `heldMs` (`HELD_MS`, the time an agent takes to ask again).
    */
-  keep: () => Promise<void>
+  keep: (heldMs?: number) => Promise<void>
 }
 
 /** Who is waiting, as a ticket says it, and — for a place that can be kept — on whose behalf. */
@@ -248,14 +249,14 @@ async function placeAt(
     name,
     at,
     leave,
-    keep: async () => {
+    keep: async (heldMs = HELD_MS) => {
       if (!holder.as) return leave()
       const kept = path.replace(/\.wait$/, '.kept')
       await writeAside(kept, {
         pid: process.pid,
         ...holder,
         at: new Date(at).toISOString(),
-        held: now() + HELD_MS,
+        held: now() + heldMs,
         until: now() + KEPT_MS,
       })
       holdUntilExit(kept)

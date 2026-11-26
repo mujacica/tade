@@ -403,6 +403,46 @@ describe('one suite on the machine, from any worktree', () => {
     expect(ran).toEqual(['task-f', 'task-a'])
   })
 
+  it('holds a place for the machine from when it asked, while it waits for the checkout', async () => {
+    // A checks_run asked at 17:45:19 and waited for the checkout behind the
+    // batch, with no place for the machine; a related run in another worktree
+    // that asked at 17:47:59, and one at 18:27:47, both had the machine
+    // before it once the batch let go.
+    const home = tmp('tade-run-home-')
+    const root = tmp('tade-run-')
+    const batch = await takeMachineSlot(home, 1, { what: 'tests', where: '/batch' })
+    if ('held' in batch) throw new Error('the slot should have been free')
+    const tree = await takeRunLock(root, 'pre-commit, format, types, tests', Date.now, '/batch')
+    if ('held' in tree) throw new Error('the checkout should have been free')
+    const ran: string[] = []
+    const waiting = runChecks({
+      runner: makeScriptedRunner({}),
+      project: { name: 'demo', root },
+      records: root,
+      checks: [check('related', { alone: true })],
+      commit: 'a1b2c3d4e5',
+      by: 'task-a',
+      waitMs: 20_000,
+      machine: { home, most: 1 },
+    }).then(() => ran.push('task-a'))
+    while (!waitsIn(runQueueDir(root))) await new Promise((done) => setTimeout(done, 2))
+    const newcomer = waitForMachineSlot(
+      home,
+      1,
+      { what: 'vitest, 243 files', where: '/work/other' },
+      { waitMs: 20_000, everyMs: 5 },
+    ).then(async (got) => {
+      ran.push('newcomer')
+      if (!('held' in got)) await got.release()
+    })
+    while (!waitsIn(queueDir(home))) await new Promise((done) => setTimeout(done, 2))
+    // Let go as a run lets go: the machine, then the checkout.
+    await batch.release()
+    await tree.release()
+    await Promise.all([waiting, newcomer])
+    expect(ran).toEqual(['task-a', 'newcomer'])
+  })
+
   it('takes nothing of the machine for checks that do not need it to themselves', async () => {
     const home = tmp('tade-run-home-')
     const root = tmp('tade-run-')

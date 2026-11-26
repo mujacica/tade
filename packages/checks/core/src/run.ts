@@ -5,7 +5,7 @@ import type { Check, CheckLog, CheckRun, Covered, ProjectRef, Runner } from './p
 import { RunnerError, settled } from './port.ts'
 import { writeRun } from './records.ts'
 import { clearRunning, type RunningCheck, type RunningNow, writeRunning } from './running.ts'
-import { HELD_MS, holdKept, KEPT_MS, STILL_MS } from './turn.ts'
+import { HELD_MS, holdKept, joinQueue, KEPT_MS, STILL_MS } from './turn.ts'
 
 // Running a project's checks the way Tade runs them: one run at a time in a
 // worktree and `checks.suites` on the machine, what is skipped said rather
@@ -105,18 +105,33 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
   // else: that is who has it, where it runs, as the lock says — the checkout
   // for a run there, the batch tree for one in it, which waits for the
   // checkout's lock all the same.
+  //
+  // One with no place kept is given one, from when it asked, the first time
+  // it waits for the checkout. Without it a run waiting for the checkout was
+  // nowhere in the machine's queue: one asked at 17:45:19 behind the batch,
+  // and two related runs in other worktrees that asked at 17:47:59 and
+  // 18:27:47 had the machine before it once the batch let go.
   const machine = request.machine
   const holding = machine
     ? (ms: number, held: LockHolder) =>
         holdKept(queueDir(machine.home), by, { waitingFor: [held], ms, now })
     : null
+  const meanwhile =
+    machine && holding
+      ? async (held: LockHolder) => {
+          if (await holding(STILL_MS, held)) return
+          const asking = { what, where: project.root, as: by }
+          await (await joinQueue(queueDir(machine.home), asking, now, asked)).keep(STILL_MS)
+          await holding(STILL_MS, held)
+        }
+      : null
   const lock = needsMachine
     ? await waitForRunLock(records, what, {
         waitMs: request.waitMs ?? 0,
         now,
         as: by,
         where: project.root,
-        ...(holding ? { meanwhile: (held: LockHolder) => holding(STILL_MS, held) } : {}),
+        ...(meanwhile ? { meanwhile } : {}),
       })
     : null
   if (lock && 'held' in lock) {
