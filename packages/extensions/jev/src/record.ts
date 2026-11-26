@@ -84,6 +84,12 @@ export async function recordOf(ctx: ExtensionContext, keepMs = 0): Promise<Revie
     looks.push(...watched.looks)
     findings.push(...watched.findings)
   }
+  // Each watch hands its looks over newest first, but jev.review, jev.verdicts
+  // and jev.mistakes are three watches, and three newest-first lists laid end
+  // to end are not one: `looks[0]` is what the strip and the brief read as the
+  // last look, so it has to be the newest of all of them, not the first
+  // watch's newest.
+  looks.sort((a, b) => b.at - a.at)
   const finished = new Set(
     events.filter((event) => event.type === 'task_done' && event.task).map((event) => event.task!),
   )

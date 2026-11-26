@@ -133,7 +133,7 @@ export function statusLine(record: ReviewRecord): {
   const today = record.reviews.filter((review) => Date.parse(review.at) >= since)
   const flagged = today.reduce((sum, review) => sum + review.raised.length, 0)
   const spent = today.reduce((sum, review) => sum + review.cost_usd, 0)
-  // `looks` is newest first, as `watchedFrom` hands it over.
+  // `looks` is newest first across every Jev watch, as `recordOf` sorts it.
   const last = record.looks[0]
   const cost = spent > 0 ? centsSaid(spent) : null
   const trouble = last?.problem ? ` · ${shortly(last.problem)}` : ''
