@@ -229,13 +229,21 @@ describe('what is on this machine’s disk in one of its projects, asked from an
 
   it('refuses a body past even a save’s bound unread, and never asks the window', async () => {
     const { one, asked } = await machine()
-    const said = await asOwner(one, await owner(one), {
-      project: 'tade',
-      agent: null,
-      what: 'save',
-      path: 'a',
-      text: 'x'.repeat(DISK_BODY_MAX),
-      was: { size: 1, mtimeMs: 1 },
+    const made = await owner(one)
+    // Declared and never sent: a server that read before refusing would wait
+    // here for ever, so the answer coming back is what proves "unread". Sending
+    // the body as well raced the 413's close — the client's next write met a
+    // closed socket, a `write EPIPE` nobody listened for (macOS runners).
+    const said = await ask(one, '/api/disk', {
+      method: 'POST',
+      headers: {
+        host: made.host,
+        origin: `http://${made.host}`,
+        cookie: `tade_away=${made.cookie}`,
+        'content-type': 'application/json',
+        'content-length': String(DISK_BODY_MAX + 1),
+        [CSRF_HEADER]: made.csrf,
+      },
     })
     expect(said.status).toBe(413)
     expect(asked).toEqual([])
