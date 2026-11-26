@@ -252,6 +252,7 @@ export async function start(
       | 'records'
       | 'taking'
       | 'opening'
+      | 'pressThere'
       | 'carrying'
       | 'answers'
       | 'earlier'

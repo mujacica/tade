@@ -34,6 +34,7 @@ const THEIRS = [
   'conversation',
   'acts',
   'acts outbox',
+  'press there',
   'repositories',
   'side',
   'disk',
@@ -344,6 +345,7 @@ async function wired(): Promise<{ one: Running; asked: string[] }> {
         records: heard('records'),
         taking: heard('take'),
         opening: heard('open'),
+        pressThere: { press: heard('press there') },
         // Never reached: its body is read before anything of it is.
         carrying: {} as never,
       },

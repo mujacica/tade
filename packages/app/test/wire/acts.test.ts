@@ -346,6 +346,31 @@ describe('acting on another machine through its own gate', () => {
     )
   })
 
+  it('waits a press sent again into an outbox on the one answer, and does it there once', async () => {
+    // ipax's page on the Mac's row: the phone presses, the link drops, it presses again with its key.
+    const vps = machine('vps', [])
+    const mac = machine('mac', [], { vps: REMOTE })
+    vps.seen.push({ machine: 'mac', way: 'from', state: 'up', at: Date.now(), since: null })
+    mac.acts.withReach(link(mac, vps))
+    const press = {
+      machine: 'mac',
+      key: 'phone-press-1',
+      method: 'task/park',
+      params: { task: 'api/one', parked: true },
+    }
+    const first = vps.acts.pressed(press)
+    const again = vps.acts.pressed(press)
+    await waitFor(async () => {
+      mac.acts.beat(['vps'])
+      return mac.ran.length > 0
+    })
+    await expect(Promise.all([first, again])).resolves.toEqual([
+      'task/park done on mac',
+      'task/park done on mac',
+    ])
+    expect(mac.ran.map((one) => one.method)).toEqual(['task/park'])
+  })
+
   it('refuses a machine that is down, saying since when, and one it neither links to nor is linked by', async () => {
     const mac = machine('mac', ['park it on the vps', 'and on the laptop'], { vps: REMOTE })
     mac.seen.push({

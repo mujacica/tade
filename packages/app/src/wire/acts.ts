@@ -138,6 +138,8 @@ export class MachineActs {
   private readonly outbox = new Map<string, Act[]>()
   /** Who is waiting on each act's answer, by its key. */
   private readonly waiting = new Map<string, (answer: ActAnswer) => void>()
+  /** Each act in an outbox, by key: one pressed again while it waits waits on the same answer. */
+  private readonly inBox = new Map<string, Promise<ActAnswer>>()
   /** Acts done here, by key, so one sent again is answered again and not done again. */
   private readonly answered = new Map<string, { answer: ActAnswer; at: number }>()
   private readonly running = new Map<string, Promise<ActAnswer>>()
@@ -268,10 +270,12 @@ export class MachineActs {
 
   /** Into the outbox for a machine that links here, answered when it asks, or refused when it never does. */
   private queued(name: string, act: Act): Promise<ActAnswer> {
+    const was = this.inBox.get(act.key)
+    if (was) return was
     const box = this.outbox.get(name) ?? []
     if (!box.some((one) => one.key === act.key)) box.push(act)
     this.outbox.set(name, box)
-    return new Promise<ActAnswer>((resolve, reject) => {
+    const waits = new Promise<ActAnswer>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.waiting.delete(act.key)
         const left = (this.outbox.get(name) ?? []).filter((one) => one.key !== act.key)
@@ -288,6 +292,10 @@ export class MachineActs {
         resolve(answer)
       })
     })
+    this.inBox.set(act.key, waits)
+    const gone = () => this.inBox.delete(act.key)
+    waits.then(gone, gone)
+    return waits
   }
 
   // ── The far side ──────────────────────────────────────────────────────────
