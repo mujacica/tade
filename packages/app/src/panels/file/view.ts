@@ -384,8 +384,9 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
     // Gone round an end is said in the colour a panel says things in, because
     // the press did something other than the one before it did.
     if (fits(where)) foot.text(where, where === span || !sent?.wrapped ? skin.hint : skin.waiting)
-    // A comment on a file there is nobody's to send, so it is not offered.
-    const offered = there ? hints.filter((one) => !one.includes('c comment')) : hints
+    // A comment on a file there goes to its agent there: on a checkout there it is nobody's to send.
+    const nobody = there && (ctx.commentTo?.length ?? 0) === 0
+    const offered = nobody ? hints.filter((one) => !one.includes('c comment')) : hints
     const keys = offered.find((one) => 1 + where.length + one.length + buttons + 2 <= inner)
     if (keys) foot.text(keys, skin.hint)
   }

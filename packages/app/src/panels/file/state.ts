@@ -86,9 +86,9 @@ export interface FilePanel {
   busy: false
   /**
    * The machine the file is on, where it is another's (`wire/remote-disk.ts`):
-   * read there and drawn here, typed into here and saved there — and never
-   * commented on or opened in an editor of this machine's, which would be this
-   * machine's disk.
+   * read there and drawn here, typed into here and saved there, commented on
+   * for its agent there (`Comments`) — and never opened in an editor of this
+   * machine's, which would be this machine's disk.
    */
   there?: string
 }
@@ -188,8 +188,9 @@ export function fileKey(
   if (panel.asking) return askKey(panel, panel.asking, key, data, inputs)
   if (panel.edit) return typingKey(panel, panel.edit, key, data, body, inputs)
   // Another machine's file is typed into from a click, and saved there: no
-  // comment, and no editor of this machine's.
-  if (panel.there !== undefined && THERE_ONLY_READS.has(key ?? '')) return stay(panel)
+  // editor of this machine's, and a comment only where an agent there is told it.
+  if (panel.there !== undefined && THERE_NEVER.has(key ?? '')) return stay(panel)
+  if (!commentable(panel, inputs) && COMMENTING.has(key ?? '')) return stay(panel)
   // Reading moves the view the wheel's way, through the window's one move:
   // stopped at its last line, it was a screen past the last one drawn.
   switch (key) {
@@ -267,7 +268,7 @@ function typingKey(
   // the two chords that `n` and `p` are while reading.
   if (key === 'ctrl+n' || key === 'ctrl+p') return stay(toChange(panel, key === 'ctrl+p', inputs))
   if (key === 'ctrl+r')
-    return panel.there === undefined ? stay(commentOn(panel, edit.row, inputs)) : stay(panel)
+    return commentable(panel, inputs) ? stay(commentOn(panel, edit.row, inputs)) : stay(panel)
   if (key === 'escape') return edit.dirty && !panel.warned ? stay(warn(panel)) : close
   const selected = fileSelection(panel)
   // With its modifiers in one order, because a terminal reports them in its
@@ -609,12 +610,25 @@ function inView(scroll: number, row: number, body: number): number {
   return scroll
 }
 
-/** The keys that comment or leave for an editor: nothing for a file on another machine. */
-const THERE_ONLY_READS: ReadonlySet<string> = new Set(['c', 'ctrl+r', 's', 'enter', 'e'])
+/** The keys that leave for an editor: nothing for a file on another machine. */
+const THERE_NEVER: ReadonlySet<string> = new Set(['enter', 'e'])
+
+/** The keys that write a comment or send them. */
+const COMMENTING: ReadonlySet<string> = new Set(['c', 'ctrl+r', 's'])
+
+/**
+ * Whether a comment can be written on the file: always here, and on another
+ * machine's only where it is an agent's change there, which the comments then
+ * offer as the one to tell (`Comments`) — a checkout there has nobody to send it to.
+ */
+function commentable(panel: FilePanel, inputs: PanelInputs): boolean {
+  return panel.there === undefined || (inputs.commentTo?.length ?? 0) > 0
+}
 
 export function fileClick(panel: FilePanel, control: string, inputs: PanelInputs): PanelOutcome {
-  // A comment on a file there is nobody's to send: the agents it would go to are that machine's.
-  if (panel.there !== undefined && control.startsWith('comment')) return stay(panel)
+  // A comment on a file there goes to its agent there, and on a checkout there to nobody.
+  if (!commentable(panel, inputs) && (control.startsWith('comment') || control === 'send'))
+    return stay(panel)
   // `caret:<line>:<cell>:<how>` — a click in the text, by the line it landed
   // on and how far into it. Which character that is depends on the tabs and
   // the wide characters before it, and on how far the view has slid to keep
@@ -721,6 +735,8 @@ function commentOn(panel: FilePanel, line: number, inputs: PanelInputs): FilePan
   const box = composeOn(
     { line: line + 1, side: 'new', git: from >= 0 ? from + 1 : null, text: lines[line] ?? '' },
     kept,
+    // Tade here, and on another machine's file the agent there whose change it is.
+    inputs.commentTo?.[0]?.to,
   )
   // Typing, the caret is already on the line, and stays where it was in it.
   const opened = asking(panel, { kind: 'comment', box })

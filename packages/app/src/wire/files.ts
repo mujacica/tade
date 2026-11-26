@@ -92,6 +92,11 @@ export class Files implements Subject {
   private readonly viewed = new Viewed()
   /** The diff the diff panel is showing, once git has answered. */
   private diff: ParsedDiff | null = null
+  /**
+   * The file open from another machine, as its path there and as git there
+   * names it from its tree's root (`openThere`): what a comment on it calls it.
+   */
+  private namedThere: { path: string; relative: string } | null = null
   /** How the patch reader open on another machine's change reads each file there (`patchThere`). */
   private readThere: {
     machine: string
@@ -425,8 +430,11 @@ export class Files implements Subject {
       task: string | null
       /** Opened as a change: with git's answer drawn in, on its first change. */
       inline: boolean
+      /** The file from the root of its tree there, as git there names it. */
+      relative: string
     },
   ): void {
+    this.namedThere = { path: file.path, relative: opened.relative }
     this.viewed.hold(file, !this.deps.skin.colour)
     const inline = opened.inline && opened.diff !== null && opened.line === null
     if (opened.diff !== null) this.viewed.tell(file.path, opened.task, opened.diff)
@@ -895,8 +903,8 @@ export class Files implements Subject {
     this.deps.applyPanel({ panel: diffPanel(task, files, at, machine), submit: false })
   }
 
-  /** A comment on a change there, kept or sent by the same comments as one here (`Comments`). */
-  commentThere(panel: DiffPanel, choice: 'comment' | 'send'): Promise<void> {
+  /** A comment on a change or a file there, kept or sent by the same comments as one here (`Comments`). */
+  commentThere(panel: FilePanel | DiffPanel, choice: 'comment' | 'send'): Promise<void> {
     return this.deps.comment(panel, choice)
   }
 
@@ -949,8 +957,16 @@ export class Files implements Subject {
         ...(panel.there === undefined ? {} : { there: panel.there }),
       }
     }
-    if (panel?.kind !== 'file' || panel.there !== undefined) return null
+    if (panel?.kind !== 'file') return null
     const task = this.viewed.about()
+    // A file there is commented on for the agent there whose change it is, and
+    // on that machine's checkout for nobody: no agent there did that work.
+    if (panel.there !== undefined) {
+      if (!task) return null
+      const named = this.namedThere
+      const path = named?.path === panel.path ? named.relative : panel.path
+      return { task, path, diff: this.viewed.diff(), there: panel.there }
+    }
     const root = (task ? this.wire.live?.worktreeOf(task) : null) ?? this.hereOnDisk()
     const inside = root ? relative(root, panel.path) : ''
     const path =

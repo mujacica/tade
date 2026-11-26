@@ -55,9 +55,10 @@ import {
 // machine's (`DiffPanel.there`), each file's diff read there as Show changes
 // reads it; asking the agent about a file is typed into the terminal here that
 // is that agent's lane there (`RemoteAgents.attach`), unsent, as it is typed
-// into an agent here, and a comment on a line of it is kept as one here is and
-// sent to that agent as that machine's `steer` (`Comments`). What needs this machine's desktop — an editor, a file
-// manager, search — is turned off and said.
+// into an agent here, and a comment on a line of it, or of an agent's file
+// opened in the viewer, is kept as one here is and sent to that agent as that
+// machine's `steer` (`Comments`). What needs this machine's desktop — an
+// editor, a file manager, search — is turned off and said.
 
 type What = Extract<MenuSubject, { kind: 'disk-there' }>['what']
 
@@ -87,6 +88,7 @@ export interface RemoteDiskDeps {
         diff: ParsedDiff | null
         task: string | null
         inline: boolean
+        relative: string
       },
     ): void
     branchesThere(machine: string, rows: readonly BranchRow[]): void
@@ -98,8 +100,8 @@ export interface RemoteDiskDeps {
       at: number,
       read: (path: string) => Promise<ParsedDiff | null>,
     ): void
-    /** A comment kept, or a review's sent, from the patch reader on a change there (`Comments`). */
-    commentThere(panel: DiffPanel, choice: 'comment' | 'send'): Promise<void>
+    /** A comment kept, or a review's sent, from the patch reader or the viewer on a change there (`Comments`). */
+    commentThere(panel: FilePanel | DiffPanel, choice: 'comment' | 'send'): Promise<void>
     /** What a file there typed into would hold, and what it was when read: null where nothing is. */
     editedThere(panel: FilePanel): { text: string; size: number; mtimeMs: number } | null
     /** A file there saved and read again, held as what is on that disk now. */
@@ -336,6 +338,10 @@ export class RemoteDisk implements Subject {
       },
       file: async (panel, choice) => {
         if (choice === 'save') return this.save(panel)
+        // A comment on it, for the agent there whose change it is.
+        if (choice === 'comment' || choice === 'send') {
+          return this.deps.files().commentThere(panel, choice)
+        }
         // Its path is that machine's: copying it is all this window does with it.
         if (choice === 'copy-path') await this.deps.copy(panel.path)
       },
@@ -547,6 +553,7 @@ export class RemoteDisk implements Subject {
       diff: read.diff === null ? null : parseDiff(read.diff),
       task: place.agent ?? null,
       inline: how.change,
+      relative: printable(read.relative),
     })
   }
 

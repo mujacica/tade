@@ -214,12 +214,18 @@ describe('a project on another machine, pressed as a project here', () => {
 
   it('opens a change and a file there in the viewer, and its branch’s menu with its own branches', async () => {
     const { far } = await standingInChange()
+    // Wide enough for the footer to say what a key does past `n/p change`.
+    terminal.resize(120, 60)
     await openTheChange()
     await until(said('the line it replaced'), () => shown('export const ring = 1'), 5_000)
     expect(far.diskAsked.at(-1)).toMatchObject({ project: 'tade', what: 'file', path: 'hook.ts' })
     // Another machine's file: typed into here and saved there, never in this machine's editor.
     expect(shown('Open in editor')).toBe(false)
     expect(shown('click to edit')).toBe(true)
+    // Its checkout's, no agent's: a comment has nobody there to go to, so `c`
+    // opens no box, and the escape after it closes the viewer itself.
+    expect(shown('c comment')).toBe(false)
+    terminal.press('c')
     terminal.press('\x1b')
     await until(said('the viewer closed'), () => !shown('export const ring = 2'), 20_000)
     // Its branch: its menu, all of it carried there, and Switch branch… with that machine's branches.
@@ -438,6 +444,23 @@ describe('a project on another machine, pressed as a project here', () => {
     expect(
       client.lanes().filter((lane) => lane.alive && lane.id.startsWith('remotes/vps/')),
     ).toHaveLength(1)
+    // The same change opened in the viewer: a comment on a line of it goes to that agent there too.
+    await openTheChange()
+    terminal.press('c')
+    await until(said('the viewer’s comment box'), () => shown('On line 1'), 20_000)
+    expect(shown('door on vps')).toBe(true)
+    for (const char of 'quieter') terminal.press(char)
+    terminal.press('\r')
+    await until(said('the comment kept'), () => shown('Send 1'), 20_000)
+    terminal.press('s')
+    const steers = () => far.acted.filter((one) => one.verb === 'steer')
+    await until(said('the viewer’s comment sent there'), () => steers().length === 2, 20_000)
+    const told = steers()[1]?.call as { task: string; said: string }
+    expect(told.task).toBe('tade/door')
+    expect(told.said).toContain('hook.ts:1')
+    expect(told.said).not.toContain(there.root)
+    expect(told.said).toContain('\nquieter')
+    await until(said('it said so'), () => shown('sent 1 comment to door on vps'), 20_000)
   })
 
   it('opens its shell tab there as a terminal here to that lane, in the pane under the tab', async () => {

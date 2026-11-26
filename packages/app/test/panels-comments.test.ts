@@ -231,4 +231,34 @@ describe('the file viewer', () => {
       choice: 'send',
     })
   })
+  it('writes on another machine’s file for its agent there, and on a checkout there not at all', () => {
+    const there: FilePanel = { ...changed, there: 'vps' }
+    const toThere: PanelInputs = {
+      ...given,
+      commentTo: [{ to: { agent: 'shop/pay' }, label: 'pay on vps' }],
+    }
+    const open = panelKey(there, 'c', 'c', toThere).panel as FilePanel
+    expect(open.asking).toMatchObject({
+      kind: 'comment',
+      box: { line: 2, to: { agent: 'shop/pay' } },
+    })
+    expect(panelKey(open, 'enter', '\r', toThere)).toMatchObject({
+      submit: true,
+      choice: 'comment',
+    })
+    const typing: FilePanel = { ...there, edit: editFrom(text, 0, 0) }
+    expect((panelKey(typing, 'ctrl+r', '\x12', toThere).panel as FilePanel).asking).toMatchObject({
+      kind: 'comment',
+    })
+    expect((panelClick(there, 'comment:3', toThere).panel as FilePanel).asking).not.toBeNull()
+    expect(panelKey(there, 's', 's', { ...toThere, drafted: 1 })).toMatchObject({ choice: 'send' })
+    // Still no editor of this machine's.
+    expect(panelKey(there, 'e', 'e', toThere).submit).toBe(false)
+    // A checkout there: nobody is offered, so nothing opens and nothing is sent.
+    const nobody: PanelInputs = { ...given, commentTo: [] }
+    expect((panelKey(there, 'c', 'c', nobody).panel as FilePanel).asking).toBeNull()
+    expect((panelKey(typing, 'ctrl+r', '\x12', nobody).panel as FilePanel).asking).toBeNull()
+    expect((panelClick(there, 'comment:3', nobody).panel as FilePanel).asking).toBeNull()
+    expect(panelKey(there, 's', 's', { ...nobody, drafted: 1 }).submit).toBe(false)
+  })
 })

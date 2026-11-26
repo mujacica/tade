@@ -1092,7 +1092,8 @@ drawn from what its away view sends — the projection the link holds.
   panel marked `there` is carried out only by `Subject.submitsThere`/`promptsThere`**, never by the
   handlers here, so nothing reaches this disk. Read as a patch is the patch reader marked
   `DiffPanel.there`, each file read there; Ask is typed, unsent, into the terminal here to that
-  agent's lane; a line comment on it goes only to that agent, as that machine's `steer`, its hunk
+  agent's lane; a line comment on it, or on that agent's file in the viewer, goes only to that agent
+  (a checkout there has nobody to tell, `commentable`), as that machine's `steer`, its hunk
   narrowed and the review packed to fit `BOUNDS.said` (`wire/comments.ts`). What needs this
   machine's desktop (editor, file manager, search) is off in its menus (`not from here`). Its ACTIONS
   tab is that machine's (`/api/side`'s `actions`, asked only while shown, kept under the carried
