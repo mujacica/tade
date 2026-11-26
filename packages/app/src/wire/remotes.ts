@@ -21,7 +21,7 @@ import type { Snapshot } from '@tade/web'
 import type { TakenWrite } from '@tade/workbench/carry'
 import { heldIn } from '@tade/workbench/config-changes'
 import type { HeldChange, NoteChange } from '@tade/workbench/memory'
-import { runningVersion } from '@tade/workbench/programs'
+import { runningCheckout, runningVersion } from '@tade/workbench/programs'
 import {
   type LinkWord,
   lineFor,
@@ -31,7 +31,7 @@ import {
   wordOf,
 } from '@tade/workbench/remotes'
 import type { Frame } from '../frame.ts'
-import { machineThere, type Versus, versusHere } from '../machine-there.ts'
+import { machineThere, type Versus, versusByCommit, versusHere } from '../machine-there.ts'
 import {
   goElsewhere,
   type Machine,
@@ -69,6 +69,8 @@ import {
   type Wiring,
 } from './context.ts'
 import type { FleetFeeds, FleetSync } from './feeds.ts'
+import { checkoutAt } from './fleet-checkout.ts'
+import type { CheckoutHere } from './fleet-reload.ts'
 import type { InventoryThere } from './inventory.ts'
 import { type Mirrors, mirrorsFor } from './mirrors.ts'
 import { Moves, type MoveTools } from './moves.ts'
@@ -189,6 +191,12 @@ export interface RemotesDeps {
   /** This machine's Tade, which each remote's is held against: `runningVersion` unless a test says. */
   version?: string
   /**
+   * This machine's Tade checkout, which a checkout there is held against by
+   * commit where the versions are the same: absent, the one this window runs
+   * from (`runningCheckout`), which for an install is none.
+   */
+  checkout?: CheckoutHere
+  /**
    * A link moved: what it says of the machine at its other end, for the
    * record of which machines are up (`machines-seen.ts`). Absent, nothing is
    * written of it.
@@ -200,6 +208,9 @@ export interface RemotesDeps {
    */
   figures?: () => unknown
 }
+
+/** How often a checkout there is held against HEAD here again, while it says the same commit. */
+const COMMIT_LOOK_MS = 60_000
 
 export class Remotes implements Subject {
   private readonly deps: RemotesDeps
@@ -218,6 +229,12 @@ export class Remotes implements Subject {
   private readonly unreachable = new Set<string>()
   /** Each remote whose Tade was said to be behind this one's, and which two versions it was said of. */
   private readonly behindSaid = new Map<string, string>()
+  /** This machine's checkout, which each checkout there is held against by commit. */
+  private readonly checkout: CheckoutHere
+  /** Each checkout there against HEAD here, by commit, and which commit and when it was asked of. */
+  private readonly commits = new Map<string, { of: string; at: number; versus: Versus | null }>()
+  /** The remotes whose commit is being asked of git now: one ask each at a time. */
+  private readonly askingCommit = new Set<string>()
   /** Why what is held of each remote could not be kept on disk, as last said: said once. */
   private readonly keptSaid = new Map<string, string | null>()
   /** What reading the file last said went wrong, so it is said once and not every beat. */
@@ -253,6 +270,7 @@ export class Remotes implements Subject {
 
   constructor(deps: RemotesDeps) {
     this.deps = deps
+    this.checkout = deps.checkout ?? checkoutAt(runningCheckout()?.root ?? null)
     this.carries = new Carries({
       ...deps.carrying,
       home: deps.home,
@@ -751,10 +769,53 @@ export class Remotes implements Subject {
     )
   }
 
-  /** One remote's Tade against this machine's, out of what it last said it is. */
+  /**
+   * One remote's Tade against this machine's, out of what it last said it is:
+   * by version, and where that says nothing, by its checkout's commit against
+   * HEAD here, as git last answered (`lookAtCommits`).
+   */
   private versusOf(machine: Machine | null): Versus | null {
-    const there = machine?.detail.about?.version
-    return there ? versusHere(there, this.deps.version ?? runningVersion(), this.deps.here) : null
+    const about = machine?.detail.about
+    if (machine === null || !about?.version) return null
+    const versus = versusHere(about.version, this.deps.version ?? runningVersion(), this.deps.here)
+    if (versus !== null || about.commit === null) return versus
+    const known = this.commits.get(machine.name)
+    return known?.of === about.commit ? known.versus : null
+  }
+
+  /**
+   * Each checkout there held against HEAD here, by commit, off the beat: git
+   * asked asynchronously, once for each commit it says and again every
+   * `COMMIT_LOOK_MS` as HEAD here moves, one ask a remote at a time, and drawn
+   * when the answer changes what the line says.
+   */
+  private lookAtCommits(now: number): void {
+    for (const machine of this.machines().remotes) {
+      const there = machine.detail.about?.commit ?? null
+      const name = machine.name
+      if (there === null || this.askingCommit.has(name)) continue
+      const known = this.commits.get(name)
+      if (known?.of === there && now - known.at < COMMIT_LOOK_MS) continue
+      this.askingCommit.add(name)
+      void this.commitVersus(there)
+        .then((versus) => {
+          const was = this.commits.get(name)
+          this.commits.set(name, { of: there, at: now, versus })
+          if (was?.of !== there || was.versus?.said !== versus?.said) this.deps.draw()
+        })
+        .finally(() => this.askingCommit.delete(name))
+    }
+  }
+
+  /**
+   * A commit there against HEAD here. Git that does not answer is no HEAD and
+   * not behind (`checkoutAt`), as the reload reads it: nothing is said.
+   */
+  private async commitVersus(there: string): Promise<Versus | null> {
+    const head = await this.checkout.head()
+    if (head === null) return null
+    const behind = there !== head && (await this.checkout.behind(there, head))
+    return versusByCommit(there, head, this.deps.here, behind)
   }
 
   /**
@@ -767,7 +828,8 @@ export class Remotes implements Subject {
       const versus = this.versusOf(machine)
       const there = machine.detail.about?.version ?? ''
       const key = `${there}<${this.deps.version ?? runningVersion()}`
-      if (!versus?.behind) {
+      // Behind by commit is the line's, not the strip's: a reload moves it, not an upgrade there.
+      if (!versus?.behind || versus.commit) {
         this.behindSaid.delete(machine.name)
         continue
       }
@@ -812,6 +874,7 @@ export class Remotes implements Subject {
     this.projection?.beat([...this.holder.keys()], (name) => this.reachFor(name))
     void this.mirrors?.beat([...this.holder.keys()])
     this.about?.beat([...this.holder.keys()])
+    this.lookAtCommits(now)
     this.sayBehind()
     this.agents?.beat()
     this.moves?.beat(this.waking.slept)
@@ -874,6 +937,7 @@ export class Remotes implements Subject {
       this.holder.delete(name)
       this.words.delete(name)
       this.skews.delete(name)
+      this.commits.delete(name)
       this.carries.forget(name)
       this.talks?.forget(name)
       this.notes?.forget(name)

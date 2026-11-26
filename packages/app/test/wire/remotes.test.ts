@@ -6,6 +6,7 @@ import { type FarEnd, startFarEnd } from '@tade/remotes-core/far'
 import { makeScriptedLink, type ScriptedRemote } from '@tade/remotes-scripted'
 import { Memory } from '@tade/workbench/memory'
 import { afterEach, describe, expect, it } from 'vitest'
+import type { CheckoutHere } from '../../src/wire/fleet-reload.ts'
 import { SharedNotes } from '../../src/wire/notes-shared.ts'
 import { RemoteMachines } from '../../src/wire/remote-machine.ts'
 import { Remotes, type RemotesDeps } from '../../src/wire/remotes.ts'
@@ -125,6 +126,7 @@ async function rig(
     go?: RemotesDeps['go']
     draw?: RemotesDeps['draw']
     version?: string
+    checkout?: CheckoutHere
     terminals?: boolean
     onScreenWith?: RemotesDeps['carrying']['onScreenWith']
     machines?: boolean
@@ -163,6 +165,7 @@ async function rig(
     },
     ...carrying(() => mac.config, said, opts.open, opts.onScreenWith),
     ...(opts.version ? { version: opts.version } : {}),
+    ...(opts.checkout ? { checkout: opts.checkout } : {}),
     ...(opts.go ? { go: opts.go } : {}),
     ...(opts.draw ? { draw: opts.draw } : {}),
   }
@@ -625,6 +628,57 @@ describe('a remote whose Tade is behind this one’s', () => {
     await until(one, 'link up', live(one, 'vps'))
     await one.remotes.action('remote:upgrade:vps')
     expect(one.said.at(-1)).toBe('vps cannot be upgraded from here: run `tade host upgrade` there')
+  })
+})
+
+describe('a remote whose checkout is behind this one’s by commit', () => {
+  const THERE = 'a'.repeat(40)
+  const HERE = 'b'.repeat(40)
+  /** This machine's checkout at HERE, with THERE among its ancestors, and what git was asked. */
+  const checkout = (asked: string[]): CheckoutHere => ({
+    head: async () => HERE,
+    behind: async (commit, head) => {
+      asked.push(`${commit}..${head}`)
+      return commit === THERE && head === HERE
+    },
+    hand: async () => null,
+  })
+
+  it('says so on its Tade line at the same version, offers no upgrade there and says nothing in the strip', async () => {
+    const north = await far(['api'])
+    north.machine = { ...quiet(), version: '0.2.3', checkout: { root: '/srv/tade', commit: THERE } }
+    const asked: string[] = []
+    const one = await rig(
+      { vps: await block('north', north) },
+      {
+        version: '0.2.3',
+        checkout: checkout(asked),
+        terminals: true,
+        machines: true,
+        open: { settings: true },
+      },
+    )
+    await until(one, 'the commit held against HEAD here', () =>
+      Boolean(one.remotes.panel()?.remotes?.[0]?.versus),
+    )
+    expect(one.remotes.panel()?.remotes?.[0]?.versus).toEqual({
+      behind: true,
+      commit: true,
+      said: 'at aaaaaaaaa, behind this Mac’s bbbbbbbbb: a reload moves it',
+    })
+    // `tade host upgrade` there follows its own upstream, so it is not what is offered.
+    expect(
+      (one.remotes.inputs().remoteActions ?? []).some((a) => a.id === 'remote:upgrade:vps'),
+    ).toBe(false)
+    expect(one.said.filter((line) => line.includes('runs Tade'))).toEqual([])
+    // Asked once for that commit, however many beats there were.
+    for (let beat = 0; beat < 5; beat++) one.remotes.beat()
+    await new Promise((done) => setTimeout(done, 25))
+    expect(asked).toEqual([`${THERE}..${HERE}`])
+    // Moved to HEAD here: nothing more to say.
+    north.machine = { ...quiet(), version: '0.2.3', checkout: { root: '/srv/tade', commit: HERE } }
+    await one.machines?.ask('vps')
+    await until(one, 'the new commit held', () => !one.remotes.panel()?.remotes?.[0]?.versus)
   })
 })
 

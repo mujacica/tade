@@ -141,6 +141,7 @@ const DETAIL: Partial<MachineDetail> = {
     roundTrip: 38,
     version: '0.2.3',
     newer: null,
+    commit: null,
     public: null,
     problems: [],
     schedules: [

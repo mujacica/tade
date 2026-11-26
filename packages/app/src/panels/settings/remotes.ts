@@ -179,9 +179,12 @@ export function remoteActions(remotes: readonly RemoteShown[]): RemoteAction[] {
       }
     }
     // Behind this machine, or behind what its own check says is out: upgraded
-    // there by its own `tade host upgrade`, in a terminal over the link.
+    // there by its own `tade host upgrade`, in a terminal over the link. Behind
+    // only by its checkout's commit is not offered it: that follows its own
+    // upstream, and what moves it to HEAD here is a reload (`Versus.commit`).
     const about = remote.machine?.detail.about ?? null
-    if (remote.live && about !== null && (remote.versus?.behind === true || about.newer !== null)) {
+    const behind = remote.versus?.behind === true && remote.versus.commit !== true
+    if (remote.live && about !== null && (behind || about.newer !== null)) {
       actions.push({ id: `remote:upgrade:${at}`, label: 'Upgrade Tade there', remote: at })
     }
     // What widens agents here, newer there: taken only on a press here (`takenOnAPress`).

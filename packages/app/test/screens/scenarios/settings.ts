@@ -419,6 +419,7 @@ function vpsShown(): RemoteShown {
           roundTrip: 41,
           version: '0.2.3',
           newer: 'Tade 0.2.4 is out',
+          commit: null,
           public: {
             name: 'tade.example.com',
             up: true,

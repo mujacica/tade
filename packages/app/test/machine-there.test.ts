@@ -2,7 +2,13 @@ import { isText } from '@tade/core'
 import { type Held, heldFor } from '@tade/remotes-core'
 import type { MachineAnswer, Snapshot } from '@tade/web'
 import { describe, expect, it } from 'vitest'
-import { aboutOf, detailIn, machineThere, versusHere } from '../src/machine-there.ts'
+import {
+  aboutOf,
+  detailIn,
+  machineThere,
+  versusByCommit,
+  versusHere,
+} from '../src/machine-there.ts'
 
 // Everything else another machine says about itself and its work, folded for
 // the window (`machine-there.ts`): its findings, requests, doors, plans,
@@ -306,5 +312,27 @@ describe('another machine’s Tade against this one’s', () => {
     expect(versusHere('0.2.3', '0.2.3', 'this Mac')).toBeNull()
     expect(versusHere('an unknown Tade', '0.2.3', 'this Mac')).toBeNull()
     expect(versusHere('0.2.3', '', 'this Mac')).toBeNull()
+  })
+
+  it('is behind by commit only where its checkout’s commit is an ancestor of HEAD here', () => {
+    const there = '1'.repeat(40)
+    const here = '2'.repeat(40)
+    expect(versusByCommit(there, here, 'this Mac', true)).toEqual({
+      behind: true,
+      commit: true,
+      said: 'at 111111111, behind this Mac’s 222222222: a reload moves it',
+    })
+    // Ahead, or apart: nothing a reload would move, so nothing said.
+    expect(versusByCommit(there, here, 'this Mac', false)).toBeNull()
+    expect(versusByCommit(here, here, 'this Mac', true)).toBeNull()
+  })
+
+  it('keeps the commit a checkout there says it started on, and none for an install', () => {
+    const commit = 'c'.repeat(40)
+    expect(
+      aboutOf({ ...ANSWER, checkout: { root: '/srv/tade', commit } }, NOW, null, 0).commit,
+    ).toBe(commit)
+    expect(aboutOf({ ...ANSWER, checkout: null }, NOW, null, 0).commit).toBeNull()
+    expect(aboutOf(ANSWER, NOW, null, 0).commit).toBeNull()
   })
 })
