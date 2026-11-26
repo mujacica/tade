@@ -499,8 +499,10 @@ const said = (n) => `${n} task${n === 1 ? '' : 's'}`
 /** The document title, which is what a screen reader announces on navigation. */
 export function titleFor(where) {
   const name = TITLES[where.view] ?? 'Tade'
-  if (where.view === 'project') return `${where.project} · Tade`
-  if (where.view === 'task') return `${where.task} · ${where.project} · Tade`
+  // Another machine's screen says whose, so two tabs of one task on two machines read apart.
+  const on = typeof where.machine === 'string' ? ` · ${where.machine}` : ''
+  if (where.view === 'project') return `${where.project}${on} · Tade`
+  if (where.view === 'task') return `${where.task} · ${where.project}${on} · Tade`
   return `${name} · Tade`
 }
 

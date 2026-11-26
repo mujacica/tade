@@ -124,13 +124,16 @@ describe('another machine’s agents on the Agents page', () => {
     return doc
   }
 
-  it('draws them under the machine’s name, after this one’s, as rows that lead to no page here', () => {
+  it('draws them under the machine’s name, after this one’s, as rows that lead to that machine’s own pages', () => {
     const doc = drawn('up')
     const group = doc.querySelector('section.elsewhere')
     expect(group?.querySelector('h2')?.textContent).toBe('mac')
     const links = group?.querySelectorAll('.agent-list > li > a') ?? []
     expect(links.length).toBe(2)
-    for (const link of links) expect(link.getAttribute('href')).toBeNull()
+    expect(links.map((link) => link.getAttribute('href')).sort()).toEqual([
+      '/m/mac/t/tade/one',
+      '/m/mac/t/tade/two',
+    ])
     expect(group?.classList.contains('down')).toBe(false)
     expect(group?.querySelector('.agent-acts')).toBeNull()
   })
@@ -160,7 +163,7 @@ describe('what wants you on another machine, on the overview', () => {
     })
   })
 
-  it('is drawn under this machine’s, its machine before its project, leading to no page here', () => {
+  it('is drawn under this machine’s, its machine before its project, leading to that machine’s page', () => {
     const doc = new StillDocument()
     Object.defineProperty(globalThis, 'document', {
       value: doc,
@@ -185,7 +188,7 @@ describe('what wants you on another machine, on the overview', () => {
     const rows = doc.querySelectorAll('.ov-elsewhere > li')
     expect(rows.length).toBe(1)
     const link = rows[0]?.querySelector('.ov-want-link')
-    expect(link?.getAttribute('href')).toBeNull()
+    expect(link?.getAttribute('href')).toBe('/m/mac/t/tade/stuck')
     expect(link?.querySelector('.ov-want-project')?.textContent).toBe('mac · tade')
     expect(rows[0]?.querySelector('.ov-want-acts')).toBeNull()
   })

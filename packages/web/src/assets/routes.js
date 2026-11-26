@@ -37,6 +37,17 @@ export function viewOf(path) {
   const parts = path.replace(/\/+$/, '').split('/')
   const first = parts[1] ?? ''
   if (path === '/' || first === '') return { view: 'now' }
+  // Another machine's screen: `/m/<machine>/` and then one of the screens it
+  // has (`THERE`), read as that screen with the machine beside it.
+  if (first === 'm' && parts.length >= 4) {
+    const machine = segment(parts[2])
+    const inner = viewOf(`/${parts.slice(3).join('/')}`)
+    // One machine deep: a copy is that machine's own, and a third machine's is not relayed.
+    if (machine === null || inner.machine !== undefined || !THERE.includes(inner.view)) {
+      return { view: 'nowhere' }
+    }
+    return { ...inner, machine }
+  }
   if (first === 'p' && parts.length === 3) {
     const project = segment(parts[2])
     return project === null ? { view: 'nowhere' } : { view: 'project', project }
@@ -108,8 +119,19 @@ const PLAIN = [
   'pair',
 ]
 
+/**
+ * The screens another machine's copy draws, under `/m/<machine>/` (ONE-AWAY-VIEW
+ * §2.4): a project and a task, read out of the copy this door keeps of it. The
+ * door's own keep their addresses, so every link and notification still opens.
+ * Held equal to the server's `… there` routes by `test/routes-client.test.ts`.
+ */
+export const THERE = ['project', 'task']
+
 /** The path for a screen, which is what goes in an `href` and in the history. */
 export function pathOf(where) {
+  if (typeof where.machine === 'string' && THERE.includes(where.view)) {
+    return `/m/${encodeURIComponent(where.machine)}${pathOf({ ...where, machine: undefined })}`
+  }
   switch (where.view) {
     case 'now':
       return '/'
@@ -148,6 +170,25 @@ export function taskPath(id) {
   const cut = id.indexOf('/')
   if (cut < 0) return '/'
   return pathOf({ view: 'task', project: id.slice(0, cut), task: id.slice(cut + 1) })
+}
+
+/**
+ * Where a link on another machine's screen goes, or null where it goes nowhere
+ * there: a project or a task is that machine's own (`/m/<machine>/…`), the
+ * overview, an anchor and a link off the page stay as they are, and any other
+ * screen of this door's — its findings, its plans — is not that machine's and
+ * is drawn as words rather than a link to the wrong machine's rows. Pure; the
+ * page puts it on every link a machine's screen draws (`boot.js`).
+ */
+export function thereHref(machine, href) {
+  if (typeof href !== 'string' || !href.startsWith('/') || href.startsWith('//')) return href
+  if (href === '/' || href.startsWith('/m/')) return href
+  const cut = href.search(/[?#]/)
+  const path = cut === -1 ? href : href.slice(0, cut)
+  const rest = cut === -1 ? '' : href.slice(cut)
+  const where = viewOf(path)
+  if (!THERE.includes(where.view)) return null
+  return `${pathOf({ ...where, machine })}${rest}`
 }
 
 /** The path of what one task's agent has changed, from the `<project>/<task>` id. */

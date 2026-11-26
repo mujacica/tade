@@ -90,6 +90,7 @@ import {
   wantingIds,
 } from './store.js'
 import { talkScreen } from './talk.js'
+import { thereOn } from './there.js'
 import { toasts } from './toasts.js'
 
 /** The ticket out of the fragment, taken out of the address bar as it is read. */
@@ -266,8 +267,9 @@ let keptAt = 0
 
 const SCREENS = {
   now: () => nowScreen(ctx),
-  project: (at) => projectScreen(at, ctx),
-  task: (at) => taskScreen(at, ctx),
+  // Another machine's is given no `ctx`: nothing on it may ask this door or press (`there.js`).
+  project: (at) => projectScreen(at, at.machine === undefined ? ctx : null),
+  task: (at) => taskScreen(at, at.machine === undefined ? ctx : null),
   changes: (at) => changesScreen(at, ctx),
   agents: () => agentsScreen(ctx),
   queue: () => queueScreen(),
@@ -328,7 +330,8 @@ function draw(asked, top = 0) {
   // was never told it had been left would go on asking from a region nobody
   // can see.
   screen?.leave?.()
-  screen = make(at)
+  // Another machine's screen is the same one, drawn out of its copy (`there.js`).
+  screen = thereOn(at, make(at))
   // A navigation is the one moment a screen is built fresh, so it is the one
   // moment it rises in (`motion.css`); a delta patches and never animates it.
   screen.node.classList.add('enter')
