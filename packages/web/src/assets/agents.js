@@ -28,6 +28,7 @@ import { agentsElsewhere } from './machines.js'
 import { taskPath, thereHref } from './routes.js'
 import { section } from './rows.js'
 import { agentsOf } from './store.js'
+import { THERE_VERBS, thereCtx } from './there.js'
 import { panel } from './ui.js'
 
 /* ── every agent running ───────────────────────────────────────────────────── */
@@ -75,7 +76,7 @@ export function agentsScreen(ctx = null) {
         others,
         (group) => group.machine,
         createElsewhere,
-        (one, group) => fillElsewhere(one, group, view),
+        (one, group) => fillElsewhere(one, group, view, ctx),
       )
       const idle = view.store.rows.tasks.size - agents.length
       // **Counted, never left out in silence**: a page of four agents that did
@@ -126,7 +127,7 @@ function fillGroup(node, group, view, acting) {
 
 /* ── another machine's ─────────────────────────────────────────────────────── */
 
-// Each row leads to that machine's page for it (`thereHref`), with no presses yet.
+// Each row leads to that machine's page for it, its presses carried there (`thereCtx`).
 
 function createElsewhere() {
   const made = section('machine')
@@ -137,7 +138,7 @@ function createElsewhere() {
   return made.node
 }
 
-function fillElsewhere(node, group, view) {
+function fillElsewhere(node, group, view, ctx) {
   const [head, body] = node.children
   const [heading, figure] = head.children
   const [said, list] = body.children
@@ -149,13 +150,24 @@ function fillElsewhere(node, group, view) {
   classOn(node, 'down', !group.up)
   // A machine nobody hears is drawn as of its last word, its ages frozen there.
   const at = group.up || group.asOf === null ? view : { ...view, asOf: group.asOf, frozen: true }
+  node.rowsNow = new Map(group.agents.map((task) => [task.id, task]))
+  const acting =
+    ctx === null
+      ? null
+      : {
+          ctx: thereCtx(ctx, group.machine),
+          menu: null,
+          verbs: THERE_VERBS,
+          rowOf: (id) => node.rowsNow.get(id) ?? null,
+        }
   keyed(
     list,
     group.agents,
     (task) => task.id,
-    () => agentRowWith(null),
+    () => agentRowWith(acting),
     (one, task) => {
       fillAgentRow(one, task, at)
+      if (one.agentPresses) one.agentPresses.node.hidden = !group.up
       const [link] = one.children
       link.setAttribute('href', thereHref(group.machine, link.getAttribute('href')) ?? '/')
       const why = link.children[4]

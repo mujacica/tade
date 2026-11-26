@@ -3,7 +3,7 @@ import { StillDocument } from '../scripts/still-dom.ts'
 import { taskScreen } from '../src/assets/pages/agent.js'
 import { projectScreen } from '../src/assets/pages/project.js'
 import { applyCopy, applySnapshot, emptyStore } from '../src/assets/store.js'
-import { linksThere, thereOn } from '../src/assets/there.js'
+import { linksThere, THERE_VERBS, thereCtx, thereOn } from '../src/assets/there.js'
 import { PROTOCOL_VERSION } from '../src/protocol.ts'
 import { snapshotOf } from '../src/snapshot.ts'
 import { EVERY, input, NOW, reach, task } from './fixtures.ts'
@@ -24,7 +24,11 @@ afterEach(() => {
 })
 
 /** A page whose door holds a copy of mac, mac as it is seen; this machine has a `tade/one` of its own. */
-function drawn(path: { view: string; project: string; task?: string }, state: 'up' | 'closed') {
+function drawn(
+  path: { view: string; project: string; task?: string },
+  state: 'up' | 'closed',
+  ctx: unknown = null,
+) {
   const doc = new StillDocument()
   Object.defineProperty(globalThis, 'document', { value: doc, configurable: true, writable: true })
   const store = emptyStore()
@@ -53,7 +57,7 @@ function drawn(path: { view: string; project: string; task?: string }, state: 'u
   applyCopy(store, { v: PROTOCOL_VERSION, machine: 'mac', kind: 'whole', snapshot: theirs })
   // As the router builds it: the page's own screen, with no `ctx`.
   const at = { ...path, machine: 'mac' }
-  const screen = thereOn(at, (path.view === 'task' ? taskScreen : projectScreen)(at, null))
+  const screen = thereOn(at, (path.view === 'task' ? taskScreen : projectScreen)(at, ctx as never))
   doc.body.append(screen.node)
   screen.update({ store, standing: 'live', asOf: NOW, frozen: false, now: NOW, may: {} })
   return { doc, screen }
@@ -121,5 +125,121 @@ describe('a link on a machine’s screen', () => {
     const built = { node: null, update() {}, leave() {} }
     expect(thereOn({ view: 'task', project: 'tade', task: 'one' }, built)).toBe(built)
     expect(thereOn({ view: 'findings', machine: 'mac' }, built)).toBe(built)
+  })
+})
+
+/** The page's own `ctx`, answering every ask with `answer` and keeping what was asked. */
+function door(
+  answer: { status: number; body: unknown } = {
+    status: 200,
+    body: { ok: true, said: 'parked there' },
+  },
+) {
+  const asked: { method: string; path: string; body: unknown }[] = []
+  const ctx = {
+    ask: async (method: string, path: string, body: unknown) => {
+      asked.push({ method, path, body })
+      return answer
+    },
+    sentence: () => '',
+    revOf: () => 4,
+  }
+  return { ctx, asked }
+}
+
+describe('a press on another machine’s row', () => {
+  const EVERY = { task: 'tade/one', was: 'r1', key: 'k'.repeat(32), rev: 4 }
+
+  it('is carried through this door as the press that machine’s outbox takes', async () => {
+    const { ctx, asked } = door()
+    const there = thereCtx(ctx, 'mac')
+    expect(there.machine).toBe('mac')
+    const sent = [
+      ['steer', { said: 'look at the test first' }],
+      ['stop', { confirm: true }],
+      ['park', { parked: true }],
+      ['note', { text: 'the flake is the clock' }],
+      ['queue', { change: 'pause' }],
+      ['remove', { confirm: true }],
+    ] as const
+    for (const [verb, fields] of sent) {
+      const answer = await there.ask('POST', `/api/act/${verb}`, { ...EVERY, ...fields })
+      expect(answer).toEqual({ status: 200, body: { ok: true, said: 'parked there' } })
+    }
+    expect(asked.map((one) => one.path)).toEqual(Array(6).fill('/api/there/press'))
+    expect(asked.map((one) => one.body)).toEqual([
+      {
+        machine: 'mac',
+        key: EVERY.key,
+        verb: 'steer',
+        task: 'tade/one',
+        said: 'look at the test first',
+      },
+      { machine: 'mac', key: EVERY.key, verb: 'stop', task: 'tade/one', confirm: true },
+      { machine: 'mac', key: EVERY.key, verb: 'park', task: 'tade/one', parked: true },
+      {
+        machine: 'mac',
+        key: EVERY.key,
+        verb: 'note',
+        task: 'tade/one',
+        text: 'the flake is the clock',
+      },
+      { machine: 'mac', key: EVERY.key, verb: 'queue', task: 'tade/one', change: 'pause' },
+      // The window's Remove agent is the outbox's close, which keeps what is not merged.
+      { machine: 'mac', key: EVERY.key, verb: 'close', task: 'tade/one' },
+    ])
+  })
+
+  it('asks this door nothing for what that machine’s outbox does not take, and says so', async () => {
+    const { ctx, asked } = door()
+    const there = thereCtx(ctx, 'mac')
+    for (const [path, body] of [
+      ['/api/act/answer', { ...EVERY, allow: true }],
+      ['/api/act/done', { ...EVERY, confirm: true }],
+      ['/api/act/start', EVERY],
+      ['/api/act/queue', { ...EVERY, change: 'start' }],
+      ['/api/agent/tade/one/menu', {}],
+    ] as const) {
+      const answer = await there.ask('POST', path, body)
+      expect(answer, path).toEqual({
+        status: 409,
+        body: { error: 'there', said: 'mac takes that only at its own screen: ask Tade' },
+      })
+    }
+    expect((await there.ask('GET', '/api/act/park', undefined)).status).toBe(409)
+    expect(asked).toEqual([])
+  })
+
+  it('answers what that machine would not do in its own words', async () => {
+    const { ctx } = door({ status: 200, body: { ok: false, said: 'mac is closed since 14:02' } })
+    const answer = await thereCtx(ctx, 'mac').ask('POST', '/api/act/park', {
+      ...EVERY,
+      parked: true,
+    })
+    expect(answer).toEqual({
+      status: 409,
+      body: { error: 'there', said: 'mac is closed since 14:02' },
+    })
+    // And this door's own refusal as it came.
+    const refused = { status: 403, body: { error: 'out_of_scope' } }
+    expect(await thereCtx(door(refused).ctx, 'mac').ask('POST', '/api/act/park', EVERY)).toBe(
+      refused,
+    )
+  })
+
+  it('draws on that machine’s task only the controls its outbox takes, and nothing that asks this door', () => {
+    const { ctx, asked } = door()
+    const { doc } = drawn(
+      { view: 'task', project: 'tade', task: 'one' },
+      'up',
+      thereCtx(ctx, 'mac'),
+    )
+    const headings = doc.querySelectorAll('#ag-acts h2').map((one) => one.textContent)
+    expect(headings).toEqual(['ACTIONS', 'IN THE QUEUE', 'A NOTE', 'SET ASIDE', 'ITS AGENT'])
+    expect(THERE_VERBS).toEqual(['steer', 'stop', 'park', 'note', 'queue', 'remove'])
+    // The box to tell its agent something, and no screen of this door's, no menu.
+    expect(doc.querySelector('#ag-screen textarea')).not.toBeNull()
+    expect(doc.querySelector('[aria-haspopup="dialog"]')).toBeNull()
+    expect(asked).toEqual([])
   })
 })

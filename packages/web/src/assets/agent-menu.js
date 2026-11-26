@@ -143,6 +143,9 @@ export function agentPresses(acting, saidOf) {
   into(more, icon('more'))
   into(node, toggle, shut, more)
   node.hidden = acting === null
+  more.hidden = acting?.menu === null
+  const standing = (verb, row, acts) =>
+    (acting?.verbs?.includes(verb) ?? true) ? standingOf(verb, row, acts) : { kind: 'off' }
   let task = null
   let toggleVerb = null
   let asked = null
@@ -195,7 +198,7 @@ export function agentPresses(acting, saidOf) {
   toggle.addEventListener('click', () => void press(toggleVerb))
   shut.addEventListener('click', () => void press('remove'))
   const openMenu = (from) => {
-    if (acting === null || task === null) return
+    if (acting === null || acting.menu === null || task === null) return
     const id = task.id
     acting.menu.open(id, from, () => acting.rowOf(id))
   }
@@ -209,13 +212,13 @@ export function agentPresses(acting, saidOf) {
       // Whether this is the person's own device, off its own session: a drawing
       // hint, asked again of the record at the act (`Verb.theirs`).
       const theirs = acting !== null && fullAccessOf(acting.ctx.session?.() ?? null)
-      const stop = standingOf('stop', row, acts)
-      const start = standingOf('start', row, acts)
+      const stop = standing('stop', row, acts)
+      const start = standing('start', row, acts)
       toggleVerb = stop.kind === 'yes' ? 'stop' : start.kind === 'yes' ? 'start' : null
       toggle.hidden = toggleVerb === null
       if (toggleVerb !== null) iconIn(toggleIcon, toggleVerb === 'stop' ? 'stop' : 'play')
       // Closing removes its worktree and branch: the person's own device's alone.
-      shut.hidden = !theirs || standingOf('remove', row, acts).kind !== 'yes'
+      shut.hidden = !theirs || standing('remove', row, acts).kind !== 'yes'
       relabel()
     },
   }

@@ -1032,6 +1032,8 @@ declare module '*/assets/there.js' {
     screen: Screen,
   ): Screen
   export function linksThere(node: any, machine: string): void
+  export const THERE_VERBS: string[]
+  export function thereCtx(ctx: any, machine: string): any
 }
 
 declare module '*/assets/room.js' {

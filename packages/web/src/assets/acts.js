@@ -369,7 +369,7 @@ export function afterAnswer(answer, sentence, you = null) {
     // What went wrong and what to do, for a refusal that is trouble (`trouble.js`);
     // null for a success and for the world having moved, which is news, not trouble.
     trouble:
-      ok || answer?.body?.error === 'gone' || answer?.body?.error === 'stale'
+      ok || ['gone', 'stale', 'there'].includes(answer?.body?.error)
         ? null
         : troubleOf(answer, '', you),
   }

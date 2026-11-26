@@ -381,7 +381,10 @@ describe('the real folder', () => {
     // a07fdd95 to 1499.38. 1501 until Settings › Accounts was on the phone
     // with a tab per machine (28 KB as it sits: three files and their reasons,
     // most of them what each press does on which machine) took it from
-    // 1500.51 at aa2f8021 to 1528.93.
-    expect(raw).toBeLessThan(1531 * 1024)
+    // 1500.51 at aa2f8021 to 1528.93. 1531 until another machine's rows could
+    // be pressed from this door (1.6 KB as it sits: `thereCtx`, the verbs its
+    // outbox takes and their fields, and the rows and task screen using it)
+    // took it from 1529.30 at 0790ab6e to 1531.44.
+    expect(raw).toBeLessThan(1532 * 1024)
   })
 })

@@ -90,7 +90,7 @@ import {
   wantingIds,
 } from './store.js'
 import { talkScreen } from './talk.js'
-import { thereOn } from './there.js'
+import { thereCtx, thereOn } from './there.js'
 import { toasts } from './toasts.js'
 
 /** The ticket out of the fragment, taken out of the address bar as it is read. */
@@ -267,9 +267,9 @@ let keptAt = 0
 
 const SCREENS = {
   now: () => nowScreen(ctx),
-  // Another machine's is given no `ctx`: nothing on it may ask this door or press (`there.js`).
+  // Another machine's asks nothing of this door; a task's presses go there (`thereCtx`).
   project: (at) => projectScreen(at, at.machine === undefined ? ctx : null),
-  task: (at) => taskScreen(at, at.machine === undefined ? ctx : null),
+  task: (at) => taskScreen(at, at.machine === undefined ? ctx : thereCtx(ctx, at.machine)),
   changes: (at) => changesScreen(at, ctx),
   agents: () => agentsScreen(ctx),
   queue: () => queueScreen(),

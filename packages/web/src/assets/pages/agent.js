@@ -57,6 +57,7 @@ import { pathOf, safeHref } from '../routes.js'
 import { createQueueRow, fillQueueRow, pageBar, section } from '../rows.js'
 import { servingIn } from '../serving.js'
 import { taskAt } from '../store.js'
+import { THERE_VERBS } from '../there.js'
 import {
   command,
   commandIn,
@@ -91,6 +92,8 @@ const REST = SHOWN.filter((verb) => verb !== 'steer')
 
 export function taskScreen(where, ctx) {
   const live = ctx !== undefined && ctx !== null
+  // Not another machine's (`thereCtx`), whose screen this door cannot ask.
+  const here = live && ctx.machine === undefined
   const node = el('div')
   const glyph = glyphOf(taskMark('queued'))
   const bar = pageBar(where.task, {
@@ -104,7 +107,7 @@ export function taskScreen(where, ctx) {
   // The presses this device was granted, at the end of the bar: the answer to
   // an agent that is waiting is the reason somebody opened this page.
   // The command it would allow is the lead's, not the bar's (`command: false`).
-  const quick = live ? quickActs(ctx, { tell: false, command: false }) : null
+  const quick = here ? quickActs(ctx, { tell: false, command: false }) : null
   // The pages its dev servers serve, a press out each, before them.
   const serving = servingIn(bar.tools)
   if (quick !== null) into(bar.tools, quick.node)
@@ -112,7 +115,7 @@ export function taskScreen(where, ctx) {
   // rename, its model and harness, handing it away, removing it — the same
   // sheet the side's ⋯ opens (`agent-menu.js`).
   let held = null
-  const menu = live ? agentMenu(ctx) : null
+  const menu = here ? agentMenu(ctx) : null
   if (menu !== null) {
     const more = el('button', {
       class: 'tap icon',
@@ -136,7 +139,7 @@ export function taskScreen(where, ctx) {
   const screen = section('SCREEN')
   screen.node.id = 'ag-screen'
   const time = timeline()
-  const pane = live ? agentPane(where, ctx, () => paint()) : null
+  const pane = here ? agentPane(where, ctx, () => paint()) : null
   if (pane !== null) {
     into(screen.figure, pane.read)
     into(screen.body, pane.card)
@@ -159,7 +162,9 @@ export function taskScreen(where, ctx) {
   // **Every control the page has, built once** — one block per verb, each
   // hidden until the row says it may be asked for, so what somebody has typed
   // into one survives every delta.
-  const controls = live ? actsIn(acts.body, ctx, REST) : null
+  const controls = live
+    ? actsIn(acts.body, ctx, here ? REST : REST.filter((verb) => THERE_VERBS.includes(verb)))
+    : null
 
   const regions = [
     lead.node,

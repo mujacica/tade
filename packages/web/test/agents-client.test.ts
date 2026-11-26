@@ -97,7 +97,7 @@ describe('another machine’s agents on the Agents page', () => {
   })
 
   /** The Agents page over this machine's one agent and a copy of mac's two, mac as it is seen. */
-  function drawn(state: 'up' | 'closed') {
+  function drawn(state: 'up' | 'closed', ctx: unknown = undefined) {
     const doc = new StillDocument()
     Object.defineProperty(globalThis, 'document', {
       value: doc,
@@ -118,11 +118,25 @@ describe('another machine’s agents on the Agents page', () => {
       NOW - 60_000,
     )
     applyCopy(store, { v: PROTOCOL_VERSION, machine: 'mac', kind: 'whole', snapshot: theirs })
-    const screen = agentsScreen()
+    const screen = agentsScreen(ctx as never)
     doc.body.append(screen.node)
-    screen.update({ store, standing: 'live', asOf: NOW, frozen: false })
+    screen.update({ store, standing: 'live', asOf: NOW, frozen: false, may: { acts: {} } })
     return doc
   }
+
+  const ctx = { ask: async () => ({ status: 200, body: {} }), sentence: () => '', revOf: () => 0 }
+
+  it('gives each row the presses that machine’s outbox takes, with no menu, and none while it is down', () => {
+    const up = drawn('up', ctx).querySelector('section.elsewhere')
+    const presses = up?.querySelectorAll('.agent-acts') ?? []
+    expect(presses.length).toBe(2)
+    for (const one of presses) {
+      expect(one.hidden).toBe(false)
+      expect(one.querySelector('[aria-haspopup="dialog"]')?.hidden).toBe(true)
+    }
+    const down = drawn('closed', ctx).querySelector('section.elsewhere')
+    for (const one of down?.querySelectorAll('.agent-acts') ?? []) expect(one.hidden).toBe(true)
+  })
 
   it('draws them under the machine’s name, after this one’s, as rows that lead to that machine’s own pages', () => {
     const doc = drawn('up')
