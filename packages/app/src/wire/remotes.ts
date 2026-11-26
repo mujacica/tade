@@ -31,7 +31,13 @@ import {
   wordOf,
 } from '@tade/workbench/remotes'
 import type { Frame } from '../frame.ts'
-import { machineThere, type Versus, versusByCommit, versusHere } from '../machine-there.ts'
+import {
+  type CommitOrder,
+  machineThere,
+  type Versus,
+  versusByCommit,
+  versusHere,
+} from '../machine-there.ts'
 import {
   goElsewhere,
   type Machine,
@@ -808,14 +814,19 @@ export class Remotes implements Subject {
   }
 
   /**
-   * A commit there against HEAD here. Git that does not answer is no HEAD and
-   * not behind (`checkoutAt`), as the reload reads it: nothing is said.
+   * A commit there against HEAD here: behind where it is an ancestor of HEAD,
+   * ahead where HEAD is one of its, and apart where git here can place it
+   * neither way. No HEAD here, or git that does not answer it, says nothing.
    */
   private async commitVersus(there: string): Promise<Versus | null> {
     const head = await this.checkout.head()
-    if (head === null) return null
-    const behind = there !== head && (await this.checkout.behind(there, head))
-    return versusByCommit(there, head, this.deps.here, behind)
+    if (head === null || there === head) return null
+    const order: CommitOrder = (await this.checkout.behind(there, head))
+      ? 'behind'
+      : (await this.checkout.behind(head, there))
+        ? 'ahead'
+        : 'apart'
+    return versusByCommit(there, head, this.deps.here, order)
   }
 
   /**

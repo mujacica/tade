@@ -682,6 +682,53 @@ describe('a remote whose checkout is behind this one’s by commit', () => {
   })
 })
 
+describe('a remote whose checkout is ahead of or apart from this one’s by commit', () => {
+  const AHEAD = 'c'.repeat(40)
+  const ELSEWHERE = 'd'.repeat(40)
+  const HERE = 'b'.repeat(40)
+  /** This machine's checkout at HERE, an ancestor of AHEAD, and without ELSEWHERE at all. */
+  const checkout: CheckoutHere = {
+    head: async () => HERE,
+    behind: async (commit, head) => commit === HERE && head === AHEAD,
+    hand: async () => null,
+  }
+
+  it('says where it stands on its Tade line, offers no upgrade there and says nothing in the strip', async () => {
+    const north = await far(['api'])
+    north.machine = { ...quiet(), version: '0.2.3', checkout: { root: '/srv/tade', commit: AHEAD } }
+    const one = await rig(
+      { vps: await block('north', north) },
+      { version: '0.2.3', checkout, terminals: true, machines: true, open: { settings: true } },
+    )
+    await until(one, 'the commit held against HEAD here', () =>
+      Boolean(one.remotes.panel()?.remotes?.[0]?.versus),
+    )
+    expect(one.remotes.panel()?.remotes?.[0]?.versus).toEqual({
+      behind: false,
+      commit: true,
+      said: 'at ccccccccc, ahead of this Mac’s bbbbbbbbb',
+    })
+    expect(
+      (one.remotes.inputs().remoteActions ?? []).some((a) => a.id === 'remote:upgrade:vps'),
+    ).toBe(false)
+    expect(one.said.filter((line) => line.includes('runs Tade'))).toEqual([])
+    // A commit git here cannot place either way: not behind, and said so.
+    north.machine = {
+      ...quiet(),
+      version: '0.2.3',
+      checkout: { root: '/srv/tade', commit: ELSEWHERE },
+    }
+    await one.machines?.ask('vps')
+    await until(
+      one,
+      'the commit this machine has not got held',
+      () =>
+        one.remotes.panel()?.remotes?.[0]?.versus?.said ===
+        'at ddddddddd, not behind this Mac’s bbbbbbbbb',
+    )
+  })
+})
+
 /** The version a remote last said it runs, as the window holds it. */
 const heard = (one: Rig) => one.remotes.machines().remotes[0]?.detail.about?.version ?? null
 

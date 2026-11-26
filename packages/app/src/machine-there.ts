@@ -629,24 +629,34 @@ export function versusHere(there: string, here: string, hereName: string): Versu
 }
 
 /**
+ * Where a checkout there stands against HEAD here, as git here can place it:
+ * `behind` where its commit is an ancestor of HEAD, `ahead` where HEAD is one
+ * of its, and `apart` otherwise — diverged, or a commit this machine has not
+ * got, which git cannot place without fetching and is not behind either way.
+ */
+export type CommitOrder = 'behind' | 'ahead' | 'apart'
+
+/**
  * A checkout there against this machine's HEAD, by commit, where its version
- * said nothing: behind only where its commit is an ancestor of HEAD here
- * (`CheckoutHere.behind`), since one that is not is ahead or apart, and only
- * a reload moves it forward. Null where they are the same commit or it is not
- * behind.
+ * said nothing. Only one behind is moved by a reload (`fleet-reload.ts`), which
+ * moves a checkout forward and never back, so only that one says a reload
+ * moves it; ahead or apart are said as they stand. Null where they are the
+ * same commit.
  */
 export function versusByCommit(
   there: string,
   here: string,
   hereName: string,
-  behind: boolean,
+  order: CommitOrder,
 ): Versus | null {
-  if (there === here || !behind) return null
-  return {
-    behind: true,
-    commit: true,
-    said: `at ${there.slice(0, 9)}, behind ${hereName}’s ${here.slice(0, 9)}: a reload moves it`,
+  if (there === here) return null
+  const at = `at ${there.slice(0, 9)}`
+  const head = `${hereName}’s ${here.slice(0, 9)}`
+  if (order === 'behind') {
+    return { behind: true, commit: true, said: `${at}, behind ${head}: a reload moves it` }
   }
+  if (order === 'ahead') return { behind: false, commit: true, said: `${at}, ahead of ${head}` }
+  return { behind: false, commit: true, said: `${at}, not behind ${head}` }
 }
 
 /** What it said it is, as text, in this machine's clock. */

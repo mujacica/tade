@@ -314,17 +314,27 @@ describe('another machine’s Tade against this one’s', () => {
     expect(versusHere('0.2.3', '', 'this Mac')).toBeNull()
   })
 
-  it('is behind by commit only where its checkout’s commit is an ancestor of HEAD here', () => {
+  it('says a checkout there behind, ahead of or apart from HEAD here by commit', () => {
     const there = '1'.repeat(40)
     const here = '2'.repeat(40)
-    expect(versusByCommit(there, here, 'this Mac', true)).toEqual({
+    expect(versusByCommit(there, here, 'this Mac', 'behind')).toEqual({
       behind: true,
       commit: true,
       said: 'at 111111111, behind this Mac’s 222222222: a reload moves it',
     })
-    // Ahead, or apart: nothing a reload would move, so nothing said.
-    expect(versusByCommit(there, here, 'this Mac', false)).toBeNull()
-    expect(versusByCommit(here, here, 'this Mac', true)).toBeNull()
+    // A reload moves a checkout forward only, so neither of these says it moves it.
+    expect(versusByCommit(there, here, 'this Mac', 'ahead')).toEqual({
+      behind: false,
+      commit: true,
+      said: 'at 111111111, ahead of this Mac’s 222222222',
+    })
+    // Diverged, or a commit this machine has not got: not behind, either way.
+    expect(versusByCommit(there, here, 'this Mac', 'apart')).toEqual({
+      behind: false,
+      commit: true,
+      said: 'at 111111111, not behind this Mac’s 222222222',
+    })
+    expect(versusByCommit(here, here, 'this Mac', 'behind')).toBeNull()
   })
 
   it('keeps the commit a checkout there says it started on, and none for an install', () => {
