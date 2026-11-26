@@ -247,19 +247,32 @@ export async function waitForRunLock(
   try {
     for (;;) {
       const ahead = await waitingAhead(queue, place?.name ?? null, now)
-      const got = ahead[0]
+      let got = ahead[0]
         ? { held: (await heldBy(records)) ?? ahead[0] }
         : await takeRunLock(records, what, now, where)
       if (!('held' in got)) {
+        // Looked at again once it is had. Somebody may have kept a place ahead
+        // between this asker looking and taking it — a run that had the lock
+        // and gave it up (`giveUp`) keeps its place and then lets go — and
+        // one that only looked before found it free with nobody ahead, and
+        // went first. A place kept before the lock went is in this look.
+        const after = await waitingAhead(queue, place?.name ?? null, now)
+        if (after[0]) {
+          await got.release()
+          got = { held: after[0] }
+        }
+      }
+      if (!('held' in got)) {
+        const lock = got
         const as = opts.as
         const since = place?.at ?? asked
         return {
-          release: () => got.release(),
+          release: () => lock.release(),
           giveUp: async () => {
             // Kept before the worktree goes, so nobody behind finds it free
             // with no place ahead of them.
             if (as) await (await joinQueue(queue, { ...holder, as }, now, since)).keep()
-            await got.release()
+            await lock.release()
           },
         }
       }
