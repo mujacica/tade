@@ -1,12 +1,13 @@
 import { existsSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 import type { Terminal } from '@earendil-works/pi-tui'
+import { launch, openerForLink } from '../editor.ts'
 import type { AppState } from '../model.ts'
 import { runScreen, ScreenCancelled, type Ui } from '../screen.ts'
 import { PLAIN } from '../skin.ts'
 import { transcriptLines } from '../transcript-view.ts'
 import { editRecorded, writeRecorded } from './config-written.ts'
-import { notify, type Wiring, why } from './context.ts'
+import { copyText, notify, type Wiring, why } from './context.ts'
 
 // The terminal the window draws on, lent to a form for a moment, and the
 // conversation kept where you were reading it while it grows.
@@ -74,6 +75,24 @@ export class Screens {
     return { ...next, transcriptScroll: Math.max(0, next.transcriptScroll + grown) }
   }
 
+  /**
+   * Where a link a program on the screen prints is handed: this machine's
+   * browser and clipboard, as the window hands every link (`openerForLink`,
+   * `copyText`) — a sign-in run on another machine has neither to open it with.
+   */
+  private linkHere(): { open(url: string): Promise<void>; copy(url: string): Promise<boolean> } {
+    return {
+      open: async (url) => {
+        const opener = openerForLink(url)
+        if (opener.kind === 'detached') await (this.wire.opts.open ?? launch)(opener)
+      },
+      copy: (url) =>
+        (this.wire.opts.clipboard?.write ?? copyText)(url, (data) =>
+          this.deps.terminal.write(data),
+        ),
+    }
+  }
+
   /** Borrow the terminal for a flow on the shared screen, then put the window back. */
   async onScreenWith(flow: (ui: Ui) => Promise<void>): Promise<void> {
     if (this.borrowing) return
@@ -85,6 +104,7 @@ export class Screens {
           title: 'Tade',
           terminal: this.deps.terminal,
           trouble: (said) => screenTrouble(this.wire, said),
+          link: this.linkHere(),
         },
         flow,
       )
@@ -111,6 +131,7 @@ export class Screens {
           context: [join(this.wire.opts.home, 'config.yaml')],
           terminal: this.deps.terminal,
           trouble: (said) => screenTrouble(this.wire, said),
+          link: this.linkHere(),
         },
         async (ui) => {
           try {
