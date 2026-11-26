@@ -25,6 +25,7 @@ import { projectShape } from '../glance.js'
 import { pathOf } from '../routes.js'
 import {
   checksFold,
+  copiesOf,
   intakeWaiting,
   omitted,
   plansOf,
@@ -297,14 +298,23 @@ function unread(why) {
 /* ── the projects ──────────────────────────────────────────────────────────── */
 
 /**
- * Every open project as one row of the grid, busiest first: the shape of its
- * work, its three counts, its checks and its money.
+ * A row of the grid per open project, busiest first, and under each another
+ * machine's of the same name: one repository, one group.
  *
  * The counts are `ProjectRow.counts`, which count every task whether or not it
  * fitted on this page; the checks and the money are folds over the tasks that
  * did, so the money says `≥` when some did not.
  */
 export function projectRowsOf(store) {
+  const here = linesOf(store, null)
+  const there = copiesOf(store).flatMap(({ machine, copy }) => linesOf(copy, machine))
+  return [
+    ...here.flatMap((line) => [line, ...there.filter((one) => one.name === line.name)]),
+    ...there.filter((one) => !here.some((line) => line.name === one.name)),
+  ]
+}
+
+function linesOf(store, machine) {
   const granted = mayFor(store, 'tasks.spend')
   return projectsOf(store)
     .sort(busiest)
@@ -316,7 +326,9 @@ export function projectRowsOf(store) {
       const paid = money(spent, granted)
       return {
         name: row.name,
-        href: pathOf({ view: 'project', project: row.name }),
+        machine,
+        key: `${machine ?? ''}\u0000${row.name}`,
+        href: pathOf({ view: 'project', project: row.name, machine }),
         shape: projectShape(row.counts),
         wants: row.counts.wantsYou,
         working: row.counts.working,

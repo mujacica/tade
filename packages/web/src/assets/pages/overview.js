@@ -208,7 +208,8 @@ export function nowScreen(ctx = null) {
       )
 
       const lines = had ? projectRowsOf(store) : []
-      textIn(projects.figure, lines.length === 0 ? '' : String(lines.length))
+      const named = new Set(lines.map((one) => one.name)).size
+      textIn(projects.figure, named === 0 ? '' : String(named))
       table.update(lines)
       table.node.hidden = lines.length === 0
       stateBoxIn(
@@ -535,7 +536,7 @@ function projectTable() {
   return {
     node,
     update(lines) {
-      keyed(list, lines, (row) => row.name, createProject, fillProject)
+      keyed(list, lines, (row) => row.key, createProject, fillProject)
     },
   }
 }
@@ -581,7 +582,7 @@ function fillProject(node, row) {
   const counts = rest.slice(0, 3)
   const [checks, spend] = rest.slice(3)
   link.setAttribute('href', row.href)
-  textIn(name, row.name)
+  textIn(name, row.machine ? `${row.name} · ${row.machine}` : row.name)
   barIn(bar, row.shape)
   ;[row.wants, row.working, row.queued].forEach((n, at) => {
     const [value, word] = counts[at].children

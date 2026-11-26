@@ -936,6 +936,8 @@ declare module '*/assets/pages/overview-figures.js' {
   }[]
   export function projectRowsOf(store: Record<string, any>): {
     name: string
+    machine: string | null
+    key: string
     href: string
     shape: number[]
     wants: number

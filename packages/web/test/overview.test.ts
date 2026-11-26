@@ -11,7 +11,8 @@ import {
   TOP,
   workingOf,
 } from '../src/assets/pages/overview-figures.js'
-import { applySnapshot, emptyStore } from '../src/assets/store.js'
+import { applyCopy, applySnapshot, emptyStore } from '../src/assets/store.js'
+import { PROTOCOL_VERSION } from '../src/protocol.ts'
 import { projector } from '../src/reading.ts'
 import {
   blocked,
@@ -357,6 +358,34 @@ describe('the projects’ grid', () => {
       { said: '1/2 green', tone: '' },
     )
     expect(said([])).toMatchObject({ said: 'no work', tone: '' })
+  })
+
+  it('groups one repository on several machines, each other machine’s line under this one’s', () => {
+    const store = held()
+    const theirs = (projects: string[]) =>
+      projector(
+        input({
+          reach: reach(EVERY),
+          projects: projects.map((name) => project({ name })),
+          tasks: projects.map((name) => task({ id: `${name}/x`, project: name })),
+        }),
+        NOW,
+      ).snapshot()
+    applyCopy(store, {
+      v: PROTOCOL_VERSION,
+      machine: 'mac',
+      kind: 'whole',
+      snapshot: theirs(['tade', 'folio']),
+    })
+    const rows = projectRowsOf(store)
+    expect(rows.map((one) => [one.name, one.machine, one.href])).toEqual([
+      ['sentry', null, '/p/sentry'],
+      ['tade', null, '/p/tade'],
+      ['tade', 'mac', '/m/mac/p/tade'],
+      // Only there: after every project here, still that machine's.
+      ['folio', 'mac', '/m/mac/p/folio'],
+    ])
+    expect(new Set(rows.map((one) => one.key)).size).toBe(rows.length)
   })
 
   it('says its money, and the dash’s own word where this device may not read it', () => {
