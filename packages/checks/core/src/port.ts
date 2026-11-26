@@ -123,6 +123,27 @@ export function sleptThrough(run: Pick<CheckRun, 'state' | 'summary'>): boolean 
   return run.state === 'cancelled' && run.summary === SLEPT
 }
 
+/**
+ * The summary of a run that did not pass because the machine's disk was full.
+ *
+ * A full temp folder fails every test that makes a repository — 827 files at
+ * 29aea87, put to an agent as a regression — and that is the machine's disk,
+ * not the code. So a run that failed saying so (`NO_SPACE`), where a look at
+ * the disk then found it full, is `cancelled` with this as its reason, like a
+ * sleep (`SLEPT`): `unknown` to the rollup, red to nobody, and no batch's
+ * answer (`ranOutOfDisk`). The look is what decides, never the words alone:
+ * a test that fakes a full disk prints them too, and its regression is red.
+ */
+export const OUT_OF_DISK = 'the machine ran out of disk'
+
+/** What a write that found the disk full says: strerror(ENOSPC), as git and Node both print it. */
+export const NO_SPACE = /no space left on device/i
+
+/** Whether a run is one the disk was full for, and so says nothing about the code. */
+export function ranOutOfDisk(run: Pick<CheckRun, 'state' | 'summary'>): boolean {
+  return run.state === 'cancelled' && run.summary === OUT_OF_DISK
+}
+
 /** Where a run happened. `here` is this machine; a forge names itself and its run. */
 export type RunPlace =
   | { kind: 'here'; runner: string; host: string }
