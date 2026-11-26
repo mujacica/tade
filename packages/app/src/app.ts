@@ -52,7 +52,7 @@ import { Plans } from './wire/plans.ts'
 import type { Projects, ProjectTools } from './wire/projects.ts'
 import type { Queue, QueueTools } from './wire/queue.ts'
 import { Races } from './wire/race-panel.ts'
-import { type Remotes, type RemoteTools, remotesFor } from './wire/remotes.ts'
+import type { Remotes, RemoteTools } from './wire/remotes.ts'
 import { Routes } from './wire/routes.ts'
 import type { Schedules, WatchTools } from './wire/schedules.ts'
 import { Screens } from './wire/screens.ts'
@@ -189,7 +189,7 @@ export class App {
         void this.routes.learnHarnesses(tasks)
       },
       beat: (_tasks, moved) => {
-        this.remotes.beat()
+        // The links beat on the heart's own beat, before this.
         this.fleet.beat()
         this.updates.beat()
         if (moved) this.draw() // a beat that found what the last did is not news
@@ -246,10 +246,11 @@ export class App {
         reloadStops: () => this.window.reloadStops(),
         // And reloads every machine, as the strip's reload does.
         reloadAll: () => this.fleet.reload(),
-        // Every machine this window links to, as its link holds it: the page
-        // draws them beside this one's own work (`copies.ts`).
-        copies: () =>
-          this.remotes.held().map((held) => ({ name: held.remote, projection: held.projection })),
+      },
+      remotes: {
+        screens: () => this.screens,
+        files: () => this.files,
+        copy: (text) => copySaying(this.wire, text, (data) => this.terminal.write(data)),
       },
     })
     this.wire = this.heart.wire
@@ -341,23 +342,7 @@ export class App {
       soonTick: () => this.looks.soonTick(),
       answering: () => this.orchestrator.attached(),
     })
-    this.remotes = remotesFor(this.wire, {
-      screens: () => this.screens,
-      files: () => this.files,
-      copy: (text) => copySaying(this.wire, text, (data) => this.terminal.write(data)),
-      seen: (held) => this.heart.machinesSeen.linked(held),
-      figures: () => this.heart.machinesSeen.host(),
-      inventory: () => this.heart.inventory.latest(),
-      synced: (project) => this.heart.sync.poke(project),
-      settings: () => this.settings,
-      fold: () => this.heart.foldConfig(true),
-      feeds: this.heart.feeds,
-      waiting: this.heart.waitingThere,
-      oneWith: () => this.heart.conversation.oneWith(),
-      acts: () => this.heart.acts,
-      // This machine's own work, told every machine it links to for their pages.
-      own: () => this.heart.away.own(),
-    })
+    this.remotes = this.heart.remotes
     this.fleet = new FleetReload({
       home: opts.home,
       names: () => this.remotes.inventories().map((one) => one.name),
@@ -378,18 +363,6 @@ export class App {
       },
       now: () => this.wire.now(),
     })
-    // The orchestrator's conversation reaches the hub over the same links.
-    this.heart.conversation.withReach((name) => this.remotes.reachFor(name))
-    // And whose each duty is, asked of the hub over them too (`duties.ts`).
-    this.heart.duties.withReach((name) => this.remotes.reachFor(name))
-    // And so do acts on another machine (`tade_remote_act`).
-    this.heart.acts.withReach((name) => this.remotes.reachFor(name))
-    // And every machine's accounts, for Settings › Accounts here and on the phone.
-    this.heart.accounts.withReach((name) => this.remotes.reachFor(name))
-    // And a parting is fetched afresh over them before a merge is proposed for it.
-    this.heart.sync.withLookAgain(
-      async (project, machines) => await this.remotes.mirrored()?.lookAgain(project, machines),
-    )
     this.voice = new Voice(this.wire, {
       submit: () => this.keyboard.submit(),
       say: (said) => this.orchestrator.say(said),
@@ -685,8 +658,7 @@ export class App {
     const late = await closeBy(
       [
         { name: 'the voice', close: () => this.voice.stop() },
-        { name: 'the remote links', close: () => this.remotes.stop() },
-        // The away view and the status look: the heart's, named as the window named them.
+        // The away view, the status look and the links: the heart's, named as the window named them.
         ...this.heart.closes(),
       ],
       Date.now() + STOP_MS,

@@ -999,12 +999,19 @@ function linkSaid(held: Held | null): string {
   return '· linking…'
 }
 
+/** What a flow that needs a screen is told on a machine with none: `tade serve`. */
+const NO_SCREEN =
+  'this machine has no screen to do it on — do it in tade app there, or on another machine'
+
 /** The window's remotes, read off its wiring. */
+
 export function remotesFor(
   wire: Wiring,
   subjects: {
-    screens: () => { onScreenWith(flow: (ui: Ui) => Promise<void>): Promise<void> }
-    files: () => {
+    /** The window's screens, for a flow that borrows one; absent where nothing draws (`tade serve`). */
+    screens?: () => { onScreenWith(flow: (ui: Ui) => Promise<void>): Promise<void> }
+    /** The window's viewer, for a file or a change there; absent where nothing draws. */
+    files?: () => {
       openFile(path: string): void
       openLink(url: string): Promise<void>
     } & NonNullable<ReturnType<NonNullable<RemoteAgentDeps['files']>>>
@@ -1052,7 +1059,11 @@ export function remotesFor(
       config: (): Config => wire.opts.config,
       secrets: () => new Set((wire.opts.extensions?.secrets() ?? []).map((one) => one.path)),
       from: () => machineLabel(),
-      onScreenWith: (flow) => subjects.screens().onScreenWith(flow),
+      onScreenWith: (flow) => {
+        const screens = subjects.screens?.()
+        if (screens === undefined) return Promise.reject(new Error(NO_SCREEN))
+        return screens.onScreenWith(flow)
+      },
       said: (saved, error) => {
         const panel = wire.state.panel
         if (panel?.kind === 'settings')
@@ -1091,8 +1102,11 @@ export function remotesFor(
       wire.draw()
     },
     draw: () => wire.draw(),
-    open: (path) => subjects.files().openFile(path),
-    openLink: (url) => subjects.files().openLink(url),
+    // Where nothing draws there is no viewer and no browser: neither is offered.
+    ...(subjects.files && {
+      open: (path: string) => subjects.files?.().openFile(path),
+      openLink: async (url: string) => await subjects.files?.().openLink(url),
+    }),
     show: (panel) => {
       wire.put({ ...wire.state, panel })
       wire.draw()
@@ -1117,7 +1131,7 @@ export function remotesFor(
         ...reachingOf(remotes),
         ...(acts && { pressed: (req) => acts().pressed(req) }),
         // A file, a change or the branches there, read and opened in this window's own panels.
-        files: () => subjects.files(),
+        ...(subjects.files && { files: subjects.files }),
         ...(copy && { copy }),
       })
     })

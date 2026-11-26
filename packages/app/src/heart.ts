@@ -47,6 +47,7 @@ import { type ProjectSync, projectSyncFor } from './wire/project-sync.ts'
 import { copiesJoined, ProjectionsHeld } from './wire/projection-shared.ts'
 import { Projects, type ProjectsDeps, type ProjectTools } from './wire/projects.ts'
 import { Queue, type QueueTools } from './wire/queue.ts'
+import { type Remotes, remotesFor } from './wire/remotes.ts'
 import { Schedules, type WatchTools } from './wire/schedules.ts'
 import { Settings, type SettingsDeps, type SettingTools } from './wire/settings.ts'
 import { TaskRequests } from './wire/task-requests.ts'
@@ -90,7 +91,16 @@ export type ProjectsFace = Pick<ProjectsDeps, 'rememberWindow'>
 /** The conversation's screen: where it is scrolled, what is said aloud, the line it was typed on. */
 export type OrchestratorFace = Omit<OrchestratorDeps, 'useConfig' | 'nobodyHere'>
 /** The pairing link's `Copy`, which is a clipboard. */
-export type AwayFace = Pick<AwayDeps, 'copy' | 'reloadStops' | 'reloadAll' | 'copies'>
+export type AwayFace = Pick<AwayDeps, 'copy' | 'reloadStops' | 'reloadAll'>
+
+/**
+ * What the links to other machines borrow of a face: its screens for a flow
+ * that needs one, its viewer for a file or a change there, its clipboard.
+ * Absent with no screen, where the links go on without them.
+ */
+export type RemotesFace = Partial<
+  Pick<Parameters<typeof remotesFor>[1], 'screens' | 'files' | 'copy'>
+>
 
 /** What a face adds to the heart. */
 export interface Face {
@@ -132,6 +142,8 @@ export interface Face {
    * screen: this machine's own, and what machines that link here told it.
    */
   inventories?: Pick<InventoriesDeps, 'remotes' | 'settingsOpen'>
+  /** What the links borrow of the face; absent with no screen. */
+  remotes?: RemotesFace
   settings: SettingsFace
   agents: AgentsFace
   projects: ProjectsFace
@@ -393,6 +405,12 @@ export class Heart {
   readonly machinesSeen: MachinesSeen
   /** What every machine that links here told this one of its projection, for the page (`projection-shared.ts`). */
   readonly projections: ProjectionsHeld
+  /**
+   * The links to the machines this one links to (`tade remote`), on the
+   * heart's own beat so a machine with no screen — a `tade serve` Mac — still
+   * follows them, tells each its projection and is one conversation with them.
+   */
+  readonly remotes: Remotes
   /** Each project's branch kept in step with origin and the person's other machines (`project-sync.ts`). */
   readonly sync: ProjectSync
   /** What this machine has, and what each of the person's others said it has (`inventory.ts`). */
@@ -601,8 +619,39 @@ export class Heart {
       // Every other machine's projection on the person's own page: what this
       // window's links hold, and what each machine that links here told it.
       projections: this.projections,
-      copies: () => copiesJoined(this.projections.copies(), face.away.copies?.() ?? []),
+      copies: () =>
+        copiesJoined(
+          this.projections.copies(),
+          this.remotes.held().map((held) => ({ name: held.remote, projection: held.projection })),
+        ),
     })
+    this.remotes = remotesFor(this.wire, {
+      ...face.remotes,
+      seen: (held) => this.machinesSeen.linked(held),
+      figures: () => this.machinesSeen.host(),
+      inventory: () => this.inventory.latest(),
+      synced: (project) => this.sync.poke(project),
+      settings: () => this.settings,
+      fold: () => this.foldConfig(true),
+      feeds: this.feeds,
+      waiting: this.waitingThere,
+      oneWith: () => this.conversation.oneWith(),
+      acts: () => this.acts,
+      // This machine's own work, told every machine it links to for their pages.
+      own: () => this.away.own(),
+    })
+    // The orchestrator's conversation reaches the hub over the same links.
+    this.conversation.withReach((name) => this.remotes.reachFor(name))
+    // And whose each duty is, asked of the hub over them too (`duties.ts`).
+    this.duties.withReach((name) => this.remotes.reachFor(name))
+    // And so do acts on another machine (`tade_remote_act`).
+    this.acts.withReach((name) => this.remotes.reachFor(name))
+    // And every machine's accounts, for Settings › Accounts here and on the phone.
+    this.accounts.withReach((name) => this.remotes.reachFor(name))
+    // And a parting is fetched afresh over them before a merge is proposed for it.
+    this.sync.withLookAgain(
+      async (project, machines) => await this.remotes.mirrored()?.lookAgain(project, machines),
+    )
   }
 
   /**
@@ -693,6 +742,7 @@ export class Heart {
         void this.foldConfig()
         void this.taskRequests.beat()
         this.accounts.beat(this.now())
+        this.remotes.beat()
         face.beat(tasks, moved)
       },
       onEvent: (event) => {
@@ -922,6 +972,7 @@ export class Heart {
     return [
       { name: 'the away view', close: () => this.away.stop() },
       { name: 'the status look', close: async () => this.looked?.stop() },
+      { name: 'the remote links', close: () => this.remotes.stop() },
     ]
   }
 

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
 import type { Arming, Config, SeenWord } from '@tade/core'
 import type { ToolAnswer } from '@tade/harnesses-core'
@@ -115,6 +116,9 @@ const PUBLIC_AGAIN_MS = 15_000
 // empty, so there is nothing to project for. `test/away.test.ts` asserts that as a count of calls
 // rather than as a sentence.
 
+/** How often this machine's own projection is built while its listener is off and nothing beats it. */
+const OWN_EVERY_MS = 1_000
+
 /**
  * What this machine's own projection is built for when it is told another
  * machine of the person's: every project and every grant, as an owner device
@@ -135,6 +139,8 @@ export class Away implements Subject {
   private readonly streams = new Streams({ tell: (told) => void this.log(told) })
   /** What every page of the person's own has been sent of each other machine (`copies.ts`). */
   private readonly copies = new Copies()
+  /** The epoch this machine's own projection is told under while no listener has one (`own`). */
+  private readonly offEpoch = randomUUID()
   private readonly tickets = new Tickets()
   private readonly push: WebPush
   /** One projector per device, made on demand and dropped when it is revoked. */
@@ -509,15 +515,20 @@ export class Away implements Subject {
    * This machine's own projection as an owner of it is sent: what it tells
    * every machine it links to (`projection-shared.ts`), so a page there draws
    * this machine's work. Built at most once a beat, by a projector of its own,
-   * and only when asked. Null while the away view is off here, whose epoch is
-   * the cursor it is told under.
+   * and only when asked — **whether or not this machine's own page is on**: the
+   * phone may well reach every machine through another's door, and this one's
+   * work is drawn there all the same. With the listener off there is no beat
+   * here to build it on, so it is built at most once a second; its projector's
+   * epoch is the cursor it is told under, and a listener starting or stopping
+   * here is a new one, told whole.
    */
   own(): Snapshot | null {
-    if (this.server === null) return null
     const held = this.projectorFor(OWN)
-    if (this.caughtUp.get(OWN.device) !== this.beatAt) {
-      this.caughtUp.set(OWN.device, this.beatAt)
-      held.beat(this.inputFor(OWN), this.wire.now())
+    const now = this.wire.now()
+    const at = this.server === null ? now - (now % OWN_EVERY_MS) : this.beatAt
+    if (this.caughtUp.get(OWN.device) !== at) {
+      this.caughtUp.set(OWN.device, at)
+      held.beat(this.inputFor(OWN), now)
     }
     return held.snapshot()
   }
@@ -1109,8 +1120,10 @@ export class Away implements Subject {
         // The **server's** epoch, so a snapshot's freshness and a delta's `id`
         // are one string. Two sources for one value would make every
         // reconnection look like a restart, and nothing would go red because
-        // resnapshotting is correct.
-        epoch: this.server?.epoch ?? '',
+        // resnapshotting is correct. With no server — this machine's own
+        // projection, told another machine while its page is off — one of
+        // this window's own, which no page here ever reads.
+        epoch: this.server?.epoch ?? this.offEpoch,
         rev: this.projectors.get(reach.device)?.rev ?? 0,
         openedAt: this.wire.openedAt,
       },

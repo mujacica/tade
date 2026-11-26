@@ -152,6 +152,8 @@ async function wiring(
         runs: () => [],
         capabilitiesOf: () => null,
         schedules: () => [],
+        // Every workbench has a driver, and the projection says whether its lanes outlive the window.
+        driver: { capabilities: { detach: false } },
       },
     },
     get state() {

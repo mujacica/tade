@@ -6,6 +6,8 @@ import { readRuns } from '@tade/checks-core'
 import { ConfigSchema, mirrorDir, proposalsIn, recordsDir, type TaskId } from '@tade/core'
 import { LINEAR_APP, LINEAR_APP_IN } from '@tade/extension-intake'
 import { ExtensionHost } from '@tade/extensions-core'
+import { startFarEnd } from '@tade/remotes-core/far'
+import { makeScriptedLink, type ScriptedRemote } from '@tade/remotes-scripted'
 import { fetchMirror, makeCollector, type StatusCollector } from '@tade/status'
 import { AUTH_BYTES, appendPush, generateVapid, P256DH_BYTES, scriptedPusher } from '@tade/web'
 import { BATCH_BY, readTaskFile, Workbench } from '@tade/workbench'
@@ -282,6 +284,41 @@ describe('the heart, with no screen', () => {
     ).toBeNull()
     return runGit(there, 'rev-parse', 'HEAD').trim()
   }
+
+  it('follows a machine it links to and tells it its projection, its away view off', async () => {
+    // A `tade serve` Mac with its own page off: the phone reaches it through
+    // ipax's door, so ipax must hear what the Mac is doing from the Mac.
+    const far = await startFarEnd({ projects: ['hello'] })
+    onTestFinished(() => far.close())
+    far.show(['hello'])
+    const session = await far.pair('mac')
+    const ipax = {
+      ssh: 'ipax',
+      tade: 'tade',
+      device: session.device,
+      session: session.cookie,
+      csrf: session.csrf,
+      host: session.host,
+    }
+    const settings = { projects: { app: { root: repo.root } }, remotes: { ipax } }
+    writeFileSync(join(home, 'config.yaml'), stringify(settings))
+    const table = new Map<string, ScriptedRemote>([['ipax', far]])
+    const one = await alone({
+      config: ConfigSchema.parse(settings),
+      remoteLinks: { ssh: (options) => makeScriptedLink({ ...options, remotes: table }) },
+    })
+    await until(
+      'ipax’s projection, followed with no screen',
+      () => one.remotes.held().some((held) => held.remote === 'ipax' && held.projection !== null),
+      20_000,
+    )
+    await until('the Mac’s projection, told ipax', () => far.projectionsTold.length > 0, 20_000)
+    const [first] = far.projectionsTold
+    expect(first?.told.kind).toBe('whole')
+    expect(
+      JSON.parse(first?.told.text ?? '{}').projects.map((p: { name: string }) => p.name),
+    ).toEqual(['app'])
+  })
 
   it('leaves a commit only another machine has for the person, by default', async () => {
     await vpsAhead()

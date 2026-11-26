@@ -12,7 +12,9 @@ import {
   mintOwner,
   type Open,
   type OpenAnswer,
+  Pieces,
   type ProjectIn,
+  type ProjectionTold,
   type Projector,
   projector,
   type Reach,
@@ -94,6 +96,12 @@ export interface FarEnd {
   answering: ((method: string, params: Record<string, unknown>) => string) | null
   /** Its orchestrator's conversation, what was said to it, and the journal its catch-up reads (`far-talk.ts`). */
   readonly talk: FarTalk
+  /**
+   * Every projection another machine told it (`/api/projection`), each
+   * revision once it was whole, oldest first, with the label it was told by;
+   * each is kept, as a window there keeps one.
+   */
+  readonly projectionsTold: { told: ProjectionTold; label: string }[]
   /** The newest presence any owner carried, in its clock, or null. */
   readonly presentAt: number | null
   /** How many streams are open to it. */
@@ -296,6 +304,7 @@ class Far implements FarEnd {
   readonly restarted: string[] = []
   onRestart: (() => void) | null = null
   readonly talk = new FarTalk()
+  readonly projectionsTold: { told: ProjectionTold; label: string }[] = []
   private agents: readonly FarAgent[] = []
   /** When the agents were last shown: their moments, fixed, so a beat finds nothing moved. */
   private shownAt = Date.now()
@@ -369,6 +378,13 @@ class Far implements FarEnd {
       },
       asking: this.talk.asking(),
       since: async (device, cut) => this.talk.since(device, cut, Date.now()),
+      projectionTold: {
+        pieces: new Pieces(),
+        take: async (told, _device, label) => {
+          this.projectionsTold.push({ told, label })
+          return 'kept'
+        },
+      },
       readingFor: (reach) => this.projectorFor(reach),
       tickets: new Tickets(),
       streams,
