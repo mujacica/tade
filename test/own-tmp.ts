@@ -8,10 +8,11 @@ import fs, {
   realpathSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from 'node:fs'
 import { opendir, rm } from 'node:fs/promises'
 import { syncBuiltinESMExports } from 'node:module'
-import { constants } from 'node:os'
+import { constants, hostname } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 
 // Each suite run has a temp root of its own, and the root goes when the run
@@ -49,8 +50,14 @@ import { basename, dirname, join } from 'node:path'
 //   root away before the run exits (`onEnding`), once everything the run
 //   started has ended (`endWhatItStarted`), so nothing writes there after.
 // - **A run that was killed leaves its root**, so every run starts by removing
-//   any root older than `STALE_MS` whose suite is gone (`sweepRoots`). The
-//   suite's pid is in the root's name.
+//   the roots whose suite is gone (`sweepRoots`). The suite's pid is in the
+//   root's name and its host in the root (`OWNER`): one this host's run left is
+//   removed at once, since asking this host whether a pid is there is an
+//   answer. On ipax's 31 GB tmpfs a few suites killed from an agent's shell
+//   left a gigabyte each, and waiting the hours filled `/tmp` and turned every
+//   run after them red with ENOSPC. A root from another host sharing `/tmp`, or
+//   one that does not say, is removed only once it is also older than
+//   `STALE_MS`, since a pid from there cannot be asked here.
 // - **A full run must leave the temp folder as it found it** (`leftBehind`):
 //   nothing new under a name this repository makes, in the real temp folder
 //   or in `/tmp`, which is where a child started without `TMPDIR` writes. A
@@ -76,13 +83,32 @@ export const ROOT = 'tade-suite-'
 const ROOT_NAME = /^tade-suite-(\d+)-[A-Za-z0-9]{6}$/
 
 /**
- * How old a root has to be before somebody else's run removes it. The suite's
- * pid has to be gone as well. Hours, because the age is only the second test
- * and is there for a pid that cannot be asked, such as one from another
- * machine sharing `/tmp`. A live run writes into its root all the time, so
- * the root's age is how long since anything did.
+ * How old a root that does not name this host has to be before somebody
+ * else's run removes it. The suite's pid has to be gone as well. Hours,
+ * because the age is only the second test and is there for a pid that cannot
+ * be asked, such as one from another machine sharing `/tmp`. A live run
+ * writes into its root all the time, so the root's age is how long since
+ * anything did.
  */
 export const STALE_MS = 3 * 60 * 60_000
+
+/**
+ * The file in a root naming the host its suite ran on: written as the root is
+ * made, and read by `sweepRoots`, for which a pid is only an answer on its own
+ * host. It stays in `/tmp` and goes with the root.
+ */
+export const OWNER = '.host'
+
+/** The host a root says its suite ran on, or null where it does not say. */
+function ownerOf(root: string): string | null {
+  try {
+    return readFileSync(join(root, OWNER), 'utf8').trim() || null
+  } catch {
+    // An older root, or one whose file could not be read: a host it does not
+    // say, which keeps the hours (`STALE_MS`) rather than losing anything.
+    return null
+  }
+}
 
 /**
  * The names this repository's own code gives what it makes in a temp folder:
@@ -149,21 +175,25 @@ function alive(pid: number): boolean {
 
 /**
  * Remove the roots in `base` that runs killed before their teardown left:
- * older than `STALE_MS`, and their suite gone, stopping any tmux server still
- * running under one first. Answers what it removed. A root
- * that cannot be read or removed stays for the next run, and that is said.
+ * their suite gone, and either theirs was this host (`OWNER`) or they are
+ * older than `STALE_MS`, stopping any tmux server still running under one
+ * first. Answers what it removed. A root that cannot be read or removed stays
+ * for the next run, and that is said.
  */
 export async function sweepRoots(
   base: string,
   now: number,
   say: (line: string) => void = () => {},
+  host: string = hostname(),
 ): Promise<string[]> {
   const removed: string[] = []
   for (const name of await namesIn(base, (one) => ROOT_NAME.test(one))) {
     const pid = Number(ROOT_NAME.exec(name)?.[1])
     const root = join(base, name)
     try {
-      if (now - statSync(root).mtimeMs < STALE_MS || alive(pid)) continue
+      if (alive(pid)) continue
+      // A pid is only an answer on the host it was handed out on.
+      if (ownerOf(root) !== host && now - statSync(root).mtimeMs < STALE_MS) continue
       // A tmux server the killed run left would run on with no socket.
       const stopped = stopServersUnder(root)
       if (stopped.length > 0) say(`\n${serversSaid(stopped)}\n`)
@@ -435,6 +465,14 @@ export async function ownTmp(opts: {
   const real = (opts.env.TMPDIR || '/tmp').replace(/(.)\/+$/, '$1')
   const watched = opts.watch ?? [...new Set([real, '/tmp'])]
   const made = makeRoot(opts.base ? [opts.base] : ['/tmp', real])
+  try {
+    writeFileSync(join(made.root, OWNER), `${hostname()}\n`)
+  } catch (err) {
+    // A full disk is the likeliest reason, and the sweep just below is what
+    // frees it, so the run goes on; its own root, if it is killed, then
+    // waits the hours.
+    say(`\nCould not write which host ${made.root} is this one's: ${String(err)}\n`)
+  }
   await sweepRoots(made.base, opts.now ?? Date.now(), say)
   const before = opts.guard ? await lookAt(watched) : null
   const { root } = made
