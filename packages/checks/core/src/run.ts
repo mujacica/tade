@@ -100,10 +100,11 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
   const deadline = asked + (request.waitMs ?? 0)
   // A place this asker kept for the machine goes on holding its turn while
   // they wait for the checkout first. Left alone it stopped after `HELD_MS`,
-  // and a suite that asked after them took the slot (`holdKept`). Not while
-  // whoever has the lock waits for the machine behind it: that is who has it,
-  // where it runs, as the lock says — the checkout for a run there, the batch
-  // tree for one in it, which waits for the checkout's lock all the same.
+  // and a suite that asked after them took the slot (`holdKept`). Whoever has
+  // the lock, waiting for the machine behind it, is let through and nobody
+  // else: that is who has it, where it runs, as the lock says — the checkout
+  // for a run there, the batch tree for one in it, which waits for the
+  // checkout's lock all the same.
   const machine = request.machine
   const holding = machine
     ? (ms: number, held: LockHolder) =>

@@ -262,11 +262,12 @@ function treeTurn(home: string, project: string): string {
  * A place `by` kept for the machine goes on holding its turn while they wait
  * here, and for `HELD_MS` when they give up, as it does while a run waits for
  * its checkout (`runChecks`): left alone it stopped `HELD_MS` after it was
- * kept, and a suite that asked after them took the slot. It is left alone
- * while whoever has the tree waits for the machine behind it, or waits for the
- * checkout's lock while whoever has that does: holding would leave each
- * waiting for the other. Anybody else behind it — a shell's suite in the
- * checkout — is not who it waits for, and waits its turn (`holdKept`).
+ * kept, and a suite that asked after them took the slot. Whoever has the
+ * tree, waiting for the machine behind it, is let through, and so is whoever
+ * has the checkout's lock while the tree's run waits for it: holding against
+ * them would leave each waiting for the other. Anybody else behind it — a
+ * shell's suite in the checkout — is not who it waits for, and waits its turn
+ * (`holdKept`).
  */
 async function takeTree(
   opts: { home: string; project: string; root: string; by?: string; signal?: AbortSignal },

@@ -155,11 +155,15 @@ export interface WaitedFor {
  *
  * The exception is a place behind it that is one of `waitingFor` — whoever
  * has the lock the asker waits for, waiting for the machine behind this
- * place — because holding the turn would leave each waiting for the other.
- * Then the place is left as it is. It is matched by process and where, and
- * never by where alone: a run in the batch tree waits for the checkout's lock,
- * whose holder waits from the checkout, and a shell's suite in the checkout
- * that asked after this place holds no lock and is not who it waits for.
+ * place — because holding the turn against them would leave each waiting for
+ * the other. They are let through (`through`, read by `waitingAhead`), and
+ * the place goes on holding its turn against everybody else. It is matched by
+ * process and where, and never by where alone: a run in the batch tree waits
+ * for the checkout's lock, whose holder waits from the checkout, and a shell's
+ * suite in the checkout that asked after this place holds no lock and is not
+ * who it waits for. Leaving the place to lapse instead, as it once did, let
+ * that suite in between the lock's holder letting go of the machine and the
+ * asker taking the lock and asking for it.
  * Says whether it now holds its turn for that long.
  */
 export async function holdKept(
@@ -167,11 +171,6 @@ export async function holdKept(
   as: string,
   opts: { waitingFor: readonly WaitedFor[]; ms: number; now: () => number },
 ): Promise<boolean> {
-  const isWaitedFor = (one: LockHolder | null) =>
-    one !== null &&
-    opts.waitingFor.some(
-      (them) => them.pid === one.pid && (them.where === undefined || them.where === one.where),
-    )
   const names = await readdir(dir).catch((err: unknown) => {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [] as string[]
     throw err
@@ -188,12 +187,17 @@ export async function holdKept(
       const at = order(other)
       return at !== undefined && at > ticket
     })
+    const through: WaitedFor[] = []
     for (const other of behind) {
-      if (isWaitedFor(await holderAt(join(dir, other)))) return false
+      const one = await holderAt(join(dir, other))
+      if (one && letThrough(opts.waitingFor, one)) {
+        through.push({ pid: one.pid, ...(one.where === undefined ? {} : { where: one.where }) })
+      }
     }
     const until = opts.now() + opts.ms
-    // Held long enough already, it is not written again on every look.
-    if (kept.held - opts.now() >= opts.ms / 2) return true
+    // Held long enough already, for the same ones let through, it is not
+    // written again on every look.
+    if (kept.held - opts.now() >= opts.ms / 2 && sameThrough(kept.through, through)) return true
     // Moved out of the way while it is written again, as `takeBack` moves it,
     // so a wait that takes it back meanwhile has it, rather than a copy left
     // behind as well. A place being moved still counts as ahead (`waitingAhead`).
@@ -213,6 +217,7 @@ export async function holdKept(
         ...raw,
         held: Math.max(kept.held, until),
         until: Math.max(kept.until, until),
+        through,
       })
     } finally {
       letGoOf(taking)
@@ -259,6 +264,27 @@ async function placeAt(
   }
 }
 
+/** Who a kept place lets through while it holds its turn, as written; nobody, for anything else. */
+function throughIn(raw: unknown): WaitedFor[] {
+  if (!Array.isArray(raw)) return []
+  return raw.flatMap((one: unknown) => {
+    if (typeof one !== 'object' || one === null) return []
+    const { pid, where } = one as { pid?: unknown; where?: unknown }
+    if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return []
+    return [{ pid, ...(typeof where === 'string' ? { where } : {}) }]
+  })
+}
+
+const sameThrough = (a: readonly WaitedFor[], b: readonly WaitedFor[]): boolean =>
+  a.length === b.length && a.every((one, i) => one.pid === b[i]?.pid && one.where === b[i]?.where)
+
+/** Whether `holder` is one a kept place lets through: by process, and where where it said one. */
+const letThrough = (through: readonly WaitedFor[], holder: LockHolder | null): boolean =>
+  holder !== null &&
+  through.some(
+    (them) => them.pid === holder.pid && (them.where === undefined || them.where === holder.where),
+  )
+
 async function writeAside(path: string, body: Record<string, unknown>): Promise<void> {
   const aside = `${path}.writing`
   await writeFile(aside, `${JSON.stringify(body)}\n`, { mode: 0o600 })
@@ -269,15 +295,19 @@ async function writeAside(path: string, body: Record<string, unknown>): Promise<
  * What a kept place says: whose, since when it was waited for, until when it
  * still holds its turn (none, written before it did), and until when it is kept.
  */
-async function keptAt(
-  path: string,
-): Promise<{ as: string; at: number; held: number; until: number } | null> {
+async function keptAt(path: string): Promise<{
+  as: string
+  at: number
+  held: number
+  until: number
+  through: WaitedFor[]
+} | null> {
   try {
     const raw = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>
     const at = typeof raw.at === 'string' ? Date.parse(raw.at) : Number.NaN
     if (typeof raw.as !== 'string' || typeof raw.until !== 'number' || Number.isNaN(at)) return null
     const held = typeof raw.held === 'number' ? raw.held : 0
-    return { as: raw.as, at, held, until: raw.until }
+    return { as: raw.as, at, held, until: raw.until, through: throughIn(raw.through) }
   } catch (err) {
     // Gone since the listing, or not a kept place at all: nobody's to take
     // back, and cleared by the caller. A queue that cannot be read is thrown,
@@ -291,7 +321,8 @@ async function keptAt(
  * Who holds a live ticket older than `ticket`, oldest first — everybody, for
  * a taker with none. A ticket whose process is gone is nobody, and is cleared
  * away. A place kept aside counts while it still holds its turn (`HELD_MS`),
- * and after that is not a ticket: nobody is waiting on it. One being taken
+ * except to one it lets through (`holdKept`), and after that is not a ticket:
+ * nobody is waiting on it. One being taken
  * back counts too: for that moment there is neither a kept place nor a ticket,
  * and a wait polling behind it found the queue empty and went first.
  */
@@ -320,13 +351,18 @@ export async function waitingAhead(
           one.order !== undefined && (mine === null || one.order < mine),
       )
       .sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0))
+    // Who is asking, as their own ticket says: a kept place that lets them
+    // through (`holdKept`) is not ahead of them. A taker with no ticket is
+    // nobody it lets through.
+    const own = mine === null ? undefined : names.find((name) => TICKET.exec(name)?.[1] === mine)
+    const asker = own === undefined ? null : await holderAt(join(dir, own))
     const looked = await Promise.all(
       ahead.map(async ({ name }): Promise<LockHolder | null | typeof MOVED> => {
         const path = join(dir, name)
         if (KEPT.test(name)) {
           // Lapsed and dead ones are cleared by whoever asks again (`takeBack`).
           const kept = await keptAt(path)
-          if (kept && kept.held <= now()) return null
+          if (kept && (kept.held <= now() || letThrough(kept.through, asker))) return null
           return (kept && (await holderAt(path))) ?? ((await there(path)) ? null : MOVED)
         }
         const holder = await holderAt(path)

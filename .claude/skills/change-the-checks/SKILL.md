@@ -130,12 +130,14 @@ and that record.
   `HELD_MS`**, and a run that had the worktree and gave up on the machine keeps that place too
   (`WaitedLock.giveUp`): a kept place that held nobody up from the first moment lost its turn in the
   seconds before its agent asked again, eight times in 85 minutes. A machine place kept while its
-  run waits for the worktree first goes on holding its turn (`holdKept`), **unless whoever has the
-  lock it waits for is behind it**, waiting for the machine, so holding would leave each waiting
-  for the other. That one is matched by the pid and `where` the lock says (`takeRunLock`), never
+  run waits for the worktree first goes on holding its turn (`holdKept`), **and lets through
+  whoever has the lock it waits for** where they wait behind it for the machine, since holding
+  against them would leave each waiting for the other — the place goes on holding against everybody
+  else (`through`, read by `waitingAhead`); left to lapse instead, a shell's suite took the machine
+  between the lock's holder letting go and the asker asking. That one is matched by the pid and `where` the lock says (`takeRunLock`), never
   by `where` alone: a batch run waits from the tree for the checkout's lock, and a shell's suite in
   the checkout holds no lock and waits its turn. A full run waiting for the batch tree's turn holds
-  it the same way (`takeTree`), unless the waiter is whoever has the tree, or has the checkout's
+  it the same way (`takeTree`), letting through whoever has the tree, or has the checkout's
   lock while the tree's run waits for it. A lock is linked into place
   whole and taken back only by the claim that wrote it (`claim`) — an empty one read as nobody's,
   and two runs shared one checkout from then on.
