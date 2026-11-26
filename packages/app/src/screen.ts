@@ -10,6 +10,7 @@ import {
 } from '@earendil-works/pi-tui'
 import type { LaneId } from '@tade/core'
 import { PtyDriver } from '@tade/drivers-pty'
+import { signInLink } from '@tade/web'
 import { type Hit, hitAt } from './hits.ts'
 import { forLane } from './keys.ts'
 import { typed as typedText } from './panels/outcome.ts'
@@ -137,8 +138,23 @@ export interface ScreenState {
   /** What has been typed at the prompt. */
   typed: string
   /** An embedded terminal, when something is running inside the window. */
-  running: { title: string; screen: string } | null
+  running: Running | null
   finished: string
+}
+
+/** A program running inside the screen, as it is drawn. */
+export interface Running {
+  title: string
+  screen: string
+  /**
+   * The https link it printed, read whole out of its screen (`signInLink`),
+   * where the screen was given somewhere to hand one (`ScreenOptions.link`).
+   * A sign-in run on another machine prints one that machine has no browser
+   * to open: it is opened or copied here instead.
+   */
+  link?: string
+  /** What came of the last press on the link: opened, copied, or why not. */
+  linked?: string
 }
 
 export function initialScreen(title: string, context: readonly string[] = []): ScreenState {
@@ -239,8 +255,7 @@ export function drawScreen(
     ? checklist.findIndex((step) => step.mark === '·' || step.mark === '▸')
     : -1
   const room = Math.max(4, height - rows.length - 2)
-  const side = checklist && width >= 90 ? 28 : 0
-  const panelWidth = Math.min(width - side - 4, 84)
+  const { side, panelWidth } = panelOf(state, frame.width)
 
   const left: { text: string; hits: Hit[] }[] = []
   if (side > 0 && checklist) {
@@ -294,6 +309,30 @@ export function drawScreen(
   return stack(rows.slice(0, frame.height))
 }
 
+/**
+ * Where the panel goes across a frame: the steps' column beside it, and its
+ * own width — a question's capped at a width that reads, a program's the whole
+ * of what is left, since a terminal program wants every column it can have.
+ */
+function panelOf(state: ScreenState, frameWidth: number): { side: number; panelWidth: number } {
+  const width = Math.max(30, frameWidth)
+  const steps = state.context.map(stepOf)
+  const checklist = steps.length > 0 && steps.every((step) => step !== null)
+  const side = checklist && width >= 90 ? 28 : 0
+  const rest = width - side - 4
+  return { side, panelWidth: state.running ? rest : Math.min(rest, 84) }
+}
+
+/**
+ * How wide a program running in the screen is told its terminal is: exactly
+ * the columns its box draws. Told the window's width it drew past the box's
+ * edge, and what it drew there was cut — a sign-in link's end, which is the
+ * part that makes it work.
+ */
+export function programColumns(state: ScreenState, frameWidth: number): number {
+  return panelOf(state, frameWidth).panelWidth - 6
+}
+
 /** The question being asked, in its panel: a list, a field, or a program running. */
 function drawQuestion(
   state: ScreenState,
@@ -340,7 +379,9 @@ function drawQuestion(
   let title = state.title
   if (state.running) {
     title = state.running.title
-    const screenRows = Math.max(3, room - before - 6)
+    const link = state.running.link
+    const screenRows = Math.max(3, room - before - 6 - (link ? 1 : 0))
+    // `programColumns` is this, as the program is told it.
     const termWidth = inner - 2
     body.push(
       row()
@@ -372,6 +413,18 @@ function drawQuestion(
         .build().text,
       hits: [{ row: 0, ...label, target: { kind: 'control', id: BACK } }],
     })
+    // Pressed, never typed: every key while it runs is the program's.
+    if (link) {
+      const linkRow = row()
+        .space()
+        .text('Its link:', skin.hint)
+        .space()
+        .button('Open here', { kind: 'control', id: OPEN_LINK }, 'primary')
+        .space()
+        .button('Copy link', { kind: 'control', id: COPY_LINK }, 'rest')
+      if (state.running.linked) linkRow.space(2).text(state.running.linked, skin.hint)
+      body.push(linkRow.build())
+    }
   } else if (state.menu) {
     const menu = state.menu
     title = menu.question
@@ -538,6 +591,15 @@ export interface ScreenOptions {
    * terminal the screen has handed back. Never throws.
    */
   trouble?: (said: string) => void | Promise<void>
+  /**
+   * Where a link a running program prints is handed on this machine: its
+   * browser, and its clipboard. Given, the link is read out of the program's
+   * screen and offered as two presses under its box — a program run on
+   * another machine (a sign-in over a link) prints one that machine has no
+   * browser to open. Not given, nothing is offered. `copy` answers whether it
+   * took; `open` throws a sentence where it could not.
+   */
+  link?: { open(url: string): Promise<void>; copy(url: string): Promise<boolean> }
 }
 
 /** ctrl+] — the way out of an embedded program, as telnet has always had it. */
@@ -556,6 +618,9 @@ const ESCAPE = '\x1b'
 export const ESCAPE_HEARD_MS = 400
 /** The press that leaves a program running here: the box's own label and the foot's button. */
 const BACK = 'back'
+/** The presses under a running program's box that hand the link it printed on (`Running.link`). */
+export const OPEN_LINK = 'link:open'
+export const COPY_LINK = 'link:copy'
 /** What `run` answers for a program somebody left: a shell's code for one interrupted, never success. */
 export const LEFT = 130
 const UP = '\x1b[A'
@@ -742,10 +807,35 @@ export async function runScreen(
     return { consume: true }
   })
 
+  /**
+   * The link a running program printed, opened in this machine's browser or
+   * put on its clipboard, and what came of it said beside the presses — never
+   * thrown, since a click has nobody waiting on it.
+   */
+  const handLink = async (id: string): Promise<void> => {
+    const link = state.running?.link
+    if (!link || !opts.link) return
+    let linked: string
+    try {
+      if (id === OPEN_LINK) {
+        await opts.link.open(link)
+        linked = 'opened in this machine’s browser'
+      } else {
+        linked = (await opts.link.copy(link)) ? 'copied' : 'the clipboard would not take it'
+      }
+    } catch (err) {
+      linked = `not opened: ${err instanceof Error ? err.message : String(err)}`
+    }
+    if (state.running?.link !== link) return
+    state = { ...state, running: { ...state.running, linked } }
+    draw()
+  }
+
   /** A click is the same answer the keyboard would have given. */
   const clicked = (id: string) => {
     if (lane) {
       if (id === BACK) leave()
+      else if (id === OPEN_LINK || id === COPY_LINK) void handLink(id)
       return
     }
     if (!answer) return
@@ -829,12 +919,15 @@ export async function runScreen(
     async run(title, command, args, env) {
       const id = `screen/${++running}` as LaneId
       const rows = Math.max(8, terminal.rows - state.context.length - 14)
+      const columns = () =>
+        programColumns({ ...state, running: { title, screen: '' } }, terminal.columns)
+      let cols = columns()
       await driver.open({
         id,
         cwd: opts.cwd ?? process.cwd(),
         command,
         args,
-        cols: Math.max(40, terminal.columns - 4),
+        cols,
         rows,
         ...(opts.env || env ? { env: { ...(opts.env ? stringly(opts.env) : {}), ...env } } : {}),
       })
@@ -842,11 +935,33 @@ export async function runScreen(
       state = { ...state, running: { title, screen: '' } }
 
       const show = async () => {
+        // The window made narrower or wider while it runs: the program is told,
+        // as a terminal tells it, or it draws past the box's new edge.
+        const now = columns()
+        if (now !== cols) {
+          cols = now
+          // Said, once a width: what it draws now may run past the box's edge.
+          await driver.resize(id, cols, rows).catch((err: unknown) => {
+            const line = `  ${title} could not be told the window's new width, so its lines may be cut: ${err instanceof Error ? err.message : String(err)}`
+            state = { ...state, said: [...state.said, line] }
+          })
+        }
         const screen = await driver.capture(id, { lines: rows }).catch(() => '')
         // A look still on its way when the program ended or was left would
         // draw its box back over whatever comes next, the next question cut.
         if (lane !== id) return
-        state = { ...state, running: { title, screen } }
+        const was = state.running
+        // The last link found stays: the program's own screen may scroll it away.
+        const link = opts.link ? (signInLink(screen, cols) ?? was?.link) : undefined
+        state = {
+          ...state,
+          running: {
+            title,
+            screen,
+            ...(link ? { link } : {}),
+            ...(was?.linked && link === was.link ? { linked: was.linked } : {}),
+          },
+        }
         draw()
       }
       // Polled as well as pushed. A capture taken the instant output arrives

@@ -3,12 +3,15 @@ import { ECHO_CHILD, until } from '@tade/drivers-core/conformance'
 import { PtyDriver } from '@tade/drivers-pty'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  COPY_LINK,
   drawScreen,
   ESCAPE_HEARD_MS,
   initialScreen,
   LEFT,
+  OPEN_LINK,
   PLAIN,
   paletteFor,
+  programColumns,
   renderScreen,
   runScreen,
   ScreenCancelled,
@@ -655,5 +658,113 @@ describe('answering it', () => {
       went = true
     })
     expect(went).toBe(true)
+  })
+})
+
+// A sign-in on another machine, run in a terminal over this window: that
+// machine has no browser, so the link it prints is the only way in — and it
+// was cut at the box's edge, since the program was told the window's width
+// and the box is narrower. The link is longer than the pane on purpose.
+describe('a link a program prints', () => {
+  const LINK = `https://claude.com/cai/oauth/authorize?code=true&client_id=9d1c250a&response_type=code&redirect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback&scope=${'user%3Ainference+'.repeat(12)}&state=${'s'.repeat(40)}`
+
+  /** Says how wide it was told it is, prints the link, and takes a code back as Claude Code does. */
+  const LOGIN_CHILD = `
+process.stdin.setRawMode(true)
+process.stdout.write("If the browser didn't open, visit: " + process.argv[1] + '\\r\\n')
+process.stdout.write('cols:' + process.stdout.columns + ' Paste code here if prompted > ')
+let got = ''
+process.stdin.on('data', (data) => {
+  got += data.toString()
+  if (got.includes('\\r')) {
+    process.stdout.write('\\r\\ngot:' + JSON.stringify(got) + '\\r\\n')
+    setTimeout(() => process.exit(0), 50)
+  }
+})
+`
+
+  let driver: PtyDriver | null = null
+  afterEach(async () => {
+    await driver?.shutdown()
+    driver = null
+  })
+
+  it('is drawn whole inside the box: the program is told the columns the box has', () => {
+    for (const width of [80, 120, 200]) {
+      const state = { ...initialScreen('Tade'), running: { title: 'sign-in', screen: '' } }
+      const cols = programColumns(state, width)
+      expect(LINK.length).toBeGreaterThan(cols)
+      // As a terminal of that width wraps it.
+      const rows = ['visit:']
+      for (let at = 0; at < LINK.length; at += cols) rows.push(LINK.slice(at, at + cols))
+      const drawn = renderScreen(
+        { ...state, running: { ...state.running, screen: rows.join('\n') } },
+        { width, height: 40 },
+      ).map(stripTerminalSequences)
+      const inside = drawn
+        .map((row) => /│ │(.*)│ │/.exec(row)?.[1]?.trimEnd() ?? '')
+        .filter((row) => row !== '' && row !== 'visit:')
+      expect(inside.join(''), `at ${width} columns`).toBe(LINK)
+    }
+  })
+
+  it('is offered to open or copy here, whole, and the code is typed back into it', async () => {
+    const terminal = new FakeTerminal()
+    terminal.columns = 120
+    driver = new PtyDriver({ scrollback: 200 })
+    const opened: string[] = []
+    const copied: string[] = []
+    const link = {
+      open: async (url: string) => {
+        opened.push(url)
+      },
+      copy: async (url: string) => {
+        copied.push(url)
+        return true
+      },
+    }
+    const shown = drawScreen(
+      { ...initialScreen('Tade'), running: { title: 'sign-in', screen: '', link: LINK } },
+      { width: terminal.columns, height: terminal.rows },
+    )
+    const press = (id: string) => {
+      const hit = shown.hits.find((h) => h.target.kind === 'control' && h.target.id === id)
+      if (!hit) throw new Error(`no ${id} drawn`)
+      terminal.press(`\x1b[<0;${hit.from + 2};${hit.row + 1}M`)
+      terminal.press(`\x1b[<0;${hit.from + 2};${hit.row + 1}m`)
+    }
+    let code: number | null = null
+    await runScreen({ title: 'Tade', terminal, driver, link }, async (ui: Ui) => {
+      const running = ui.run('sign-in', process.execPath, ['-e', LOGIN_CHILD, LINK])
+      await until(() => stripTerminalSequences(terminal.written).includes('Copy link'))
+      const told = programColumns(
+        { ...initialScreen('Tade'), running: { title: 'sign-in', screen: '' } },
+        terminal.columns,
+      )
+      expect(terminal.written).toContain(`cols:${told}`)
+
+      press(COPY_LINK)
+      await until(() => copied.length === 1)
+      await until(() => terminal.written.includes('copied'))
+      press(OPEN_LINK)
+      await until(() => opened.length === 1)
+      expect(copied).toEqual([LINK])
+      expect(opened).toEqual([LINK])
+
+      for (const char of 'the-code\r') terminal.press(char)
+      await until(() => terminal.written.includes('got:'))
+      code = await running
+    })
+    expect(code).toBe(0)
+  }, 30_000)
+
+  it('is offered nowhere a screen was given nothing to hand it to', () => {
+    const drawn = drawScreen(
+      { ...initialScreen('Tade'), running: { title: 'sign-in', screen: LINK } },
+      { width: 120, height: 24 },
+    )
+    expect(drawn.hits.some((h) => h.target.kind === 'control' && h.target.id === OPEN_LINK)).toBe(
+      false,
+    )
   })
 })
