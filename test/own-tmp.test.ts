@@ -7,7 +7,7 @@ import {
   utimesSync,
   writeFileSync,
 } from 'node:fs'
-import { constants, tmpdir } from 'node:os'
+import { constants, hostname, tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -20,6 +20,7 @@ import {
   leftSaid,
   MADE_ENV,
   madeHere,
+  OWNER,
   ownTmp,
   prefixOf,
   ROOT,
@@ -215,6 +216,67 @@ describe('a root a killed run left is removed by the next', () => {
     expect(await sweepRoots(base, Date.now())).toEqual([left])
     expect(existsSync(left)).toBe(false)
     for (const kept of [running, recent, notOne, other]) expect(existsSync(kept)).toBe(true)
+  })
+
+  /**
+   * A real suite-like process that makes its root in `base` the way a run
+   * does and then runs on, until it is killed with no teardown. Answers its
+   * root once it has said it, and a promise of its exit.
+   */
+  async function aRun(base: string) {
+    const script = join(tmp('tade-run-'), 'run.ts')
+    const ownTmpAt = fileURLToPath(new URL('./own-tmp.ts', import.meta.url))
+    writeFileSync(
+      script,
+      [
+        `import { ownTmp } from ${JSON.stringify(ownTmpAt)}`,
+        `const own = await ownTmp({ env: {}, guard: false, base: ${JSON.stringify(base)}, watch: [] })`,
+        'process.stdout.write(own.root + "\\n")',
+        'setInterval(() => {}, 1_000)',
+      ].join('\n'),
+    )
+    const child = spawn(process.execPath, [script], { stdio: ['ignore', 'pipe', 'inherit'] })
+    const ended = new Promise<void>((done) => child.once('exit', () => done()))
+    let said = ''
+    for await (const chunk of child.stdout) {
+      said += String(chunk)
+      if (said.includes('\n')) break
+    }
+    if (!said.includes('\n')) throw new Error(`the run ended before it said its root: ${said}`)
+    return { root: said.trim(), kill: () => child.kill('SIGKILL'), ended }
+  }
+
+  it("at once, young as it is, when it is this host's and its suite has gone", async () => {
+    const base = tmp('tade-base-')
+    const run = await aRun(base)
+    try {
+      expect(basename(run.root)).toMatch(new RegExp(`^${ROOT}\\d+-`))
+      expect(readFileSync(join(run.root, OWNER), 'utf8').trim()).toBe(hostname())
+      mkdirSync(join(run.root, 'tade-repo-abc123'))
+      // Its suite is still running: nobody else's run takes its root.
+      expect(await sweepRoots(base, Date.now())).toEqual([])
+      expect(existsSync(run.root)).toBe(true)
+    } finally {
+      run.kill()
+      await run.ended
+    }
+    // Killed, with no teardown: the next run takes it at once, not hours later.
+    expect(await sweepRoots(base, Date.now())).toEqual([run.root])
+    expect(existsSync(run.root)).toBe(false)
+  })
+
+  it("only after the hours when it is another host's, whose pid cannot be asked here", async () => {
+    const base = tmp('tade-base-')
+    const run = await aRun(base)
+    writeFileSync(join(run.root, OWNER), 'elsewhere.example\n')
+    run.kill()
+    await run.ended
+    // Its pid is gone here, which says nothing about a suite on another host.
+    expect(await sweepRoots(base, Date.now())).toEqual([])
+    expect(existsSync(run.root)).toBe(true)
+    aged(run.root, STALE_MS + 60_000)
+    expect(await sweepRoots(base, Date.now())).toEqual([run.root])
+    expect(existsSync(run.root)).toBe(false)
   })
 
   it('stopping a tmux server still running under it first, and naming it', async () => {
