@@ -252,6 +252,17 @@ everything said to it is typed into its lane. Each of these was found the hard w
   all through one queue per lane.
 - **No hook runs when a turn is cut short**, and the Stop hook runs *before* the last of the reply is
   in the transcript: say the abort yourself, and count tokens after the status line is drawn.
+- **Bypass mode still asks, so Tade answers.** Claude Code shows its own yes/no for a few things
+  even under `bypassPermissions` (writes into `.git`/`.claude`, commands it rates dangerous). Its
+  `PermissionRequest` hook answers by `answerPrompt` (`core/src/policy.ts`, which imports only
+  `node:` so the hook can load it by path): the window when it can be asked, the hook itself when
+  it cannot (`prompt.ts`). Under `policy` it is left to the person. **Only a prompt for a person is
+  answered** (`isPrompt`: one with `permission_suggestions`) — Claude Code also runs the hook for an
+  earlier look that only lets a hook refuse a call bypass then runs, and refusing that blocked work
+  that had always run. **Only a command's own arguments are judged** (`argumentsOf`): a heredoc's
+  body or a quoted script is text, and a path that cannot be placed is let be. A prompt still up is its
+  `permission_prompt` Notification, said; the answer is a `permission_prompt` signal, journalled
+  as granted/denied with `by: 'rule'` and no request id, since the gate never held it.
 - **Containment is the harness's, never Tade's.** Tade has no sandbox and offers none: where the
   harness has one of its own, the adapter decides what to pass it — Codex's adapter passes
   `--sandbox danger-full-access`, because Tade's approval gate is what decides here.

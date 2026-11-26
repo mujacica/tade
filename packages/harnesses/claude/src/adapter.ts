@@ -74,6 +74,7 @@ import {
 import { optionsOf } from './installed.ts'
 import { signedInUntil } from './login.ts'
 import { type Missed, takeMissed } from './missed.ts'
+import { answerFor, effectOfTool, isPrompt, promptOutput, WORKSPACE_ENV } from './prompt.ts'
 import { carryInto, sessionsIn } from './sessions.ts'
 import {
   answerOn,
@@ -270,6 +271,8 @@ interface Run {
   context: number | null
   /** A count of the transcript waiting to be taken, once what was said has been written. */
   counting: NodeJS.Timeout | null
+  /** Its own yes/no is up in its lane for a person, until the next hook says how it went. */
+  prompting?: boolean
 }
 
 export class ClaudeAdapter implements WorkerAdapter {
@@ -396,23 +399,7 @@ export class ClaudeAdapter implements WorkerAdapter {
 
   /** Claude Code's tools by what they do. Anything unknown is judged as unknown. */
   effectOf(tool: string): ToolEffect {
-    switch (tool) {
-      case 'Read':
-      case 'Glob':
-      case 'Grep':
-      case 'LS':
-      case 'NotebookRead':
-        return 'read'
-      case 'Write':
-      case 'Edit':
-      case 'MultiEdit':
-      case 'NotebookEdit':
-        return 'write'
-      case 'Bash':
-        return 'exec'
-      default:
-        return 'other'
-    }
+    return effectOfTool(tool)
   }
 
   conversationKey(task: string): string {
@@ -1264,6 +1251,7 @@ export class ClaudeAdapter implements WorkerAdapter {
 
   private async onHook(entry: Run, event: Record<string, unknown>): Promise<unknown> {
     const str = (key: string) => (typeof event[key] === 'string' ? (event[key] as string) : null)
+    this.settlePrompt(entry, event.hook_event_name)
     switch (event.hook_event_name) {
       case 'SessionStart': {
         entry.turn = 'idle'
@@ -1343,7 +1331,41 @@ export class ClaudeAdapter implements WorkerAdapter {
         this.settle(entry, 'error', failureIn(event))
         return null
       }
+      case 'PermissionRequest': {
+        // Its own yes/no, which bypass mode still asks for a few things.
+        // Under `policy` it is the person's, as it always was: nothing here
+        // may widen what that mode holds, so it stays up in the lane and the
+        // Notification after it says so.
+        if (this.opts.approvals === 'policy') return null
+        // Claude Code's earlier look, which a prompt may never follow, is left
+        // as it always was: refusing it refused work that had always run.
+        if (!isPrompt(event)) return null
+        const tool = toolName(str('tool_name') ?? '')
+        const input = event.tool_input ?? {}
+        const answer = await answerFor(str('tool_name') ?? '', input, entry.cwd, str('cwd'))
+        this.say(entry, {
+          type: 'permission_prompt',
+          tool,
+          input,
+          summary: describeToolCall(tool, input),
+          answered: { allowed: answer.allow, rule: answer.rule, reason: answer.reason, by: 'rule' },
+        })
+        return promptOutput(answer)
+      }
       case 'Notification': {
+        // A prompt nothing answered — under `policy`, or one the hook did not
+        // see — is somebody's to answer in the lane, and is said rather than
+        // left looking like an agent thinking.
+        if (event.notification_type === 'permission_prompt') {
+          entry.prompting = true
+          this.say(entry, {
+            type: 'permission_prompt',
+            tool: null,
+            input: null,
+            summary: str('message') ?? 'a yes/no in its lane',
+          })
+          return null
+        }
         // Claude Code runs no hook when a person cuts a turn short in its
         // lane; the next thing it says is that it is waiting for input.
         if (event.notification_type === 'idle_prompt' && entry.turn === 'running') {
@@ -1360,6 +1382,29 @@ export class ClaudeAdapter implements WorkerAdapter {
       default:
         return null
     }
+  }
+
+  /**
+   * A yes/no left up in its lane, answered there: the tool's own result says
+   * it was allowed, anything else after it — the next tool, the turn's end —
+   * that it was not. Said, so the agent is not drawn waiting for ever.
+   */
+  private settlePrompt(entry: Run, hook: unknown): void {
+    if (!entry.prompting || hook === 'Notification' || hook === 'PermissionRequest') return
+    entry.prompting = false
+    const allowed = hook === 'PostToolUse' || hook === 'PostToolUseFailure'
+    this.say(entry, {
+      type: 'permission_prompt',
+      tool: null,
+      input: null,
+      summary: 'a yes/no in its lane',
+      answered: {
+        allowed,
+        rule: 'in-lane',
+        reason: allowed ? 'allowed in its lane' : 'not allowed in its lane',
+        by: 'lane',
+      },
+    })
   }
 
   private onStatus(entry: Run, status: Record<string, unknown>): void {
@@ -1622,6 +1667,9 @@ export class ClaudeAdapter implements WorkerAdapter {
       [WORKER_ENV.approvals]: this.opts.approvals,
       [WORKER_ENV.run]: spec.run,
       [WORKER_ENV.task]: spec.task,
+      // Where it works, for a hook answering its permission prompt by rule
+      // with Tade away (`prompt.ts`).
+      [WORKSPACE_ENV]: spec.cwd,
       // Its tool server given time to come up on a loaded machine, and a tool
       // Tade runs time to answer (`MCP_WAITS`).
       ...MCP_WAITS,
@@ -1692,6 +1740,8 @@ export class ClaudeAdapter implements WorkerAdapter {
               UserPromptSubmit: hook(30),
               // Held for as long as a person takes to answer, under `policy`.
               PreToolUse: hook(24 * 60 * 60),
+              // Its own yes/no, answered by rule at once (`prompt.ts`).
+              PermissionRequest: hook(30),
               PostToolUse: hook(30),
               PostToolUseFailure: hook(30),
               Stop: hook(30),

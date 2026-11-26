@@ -587,6 +587,9 @@ export class WorkerSupervisor {
       case 'permission_request':
         await this.onPermissionRequest(run, signal, state)
         return
+      case 'permission_prompt':
+        await this.onPermissionPrompt(run, signal, task)
+        return
       case 'turn_done': {
         this.inTurn.delete(run)
         this.doing.ended(run, { at: signal.at, status: signal.status })
@@ -862,6 +865,51 @@ export class WorkerSupervisor {
     await this.adapterOf(run)
       .answer(run, signal.callId, result)
       .catch(() => {})
+  }
+
+  /**
+   * The harness's own yes/no, written down: answered by rule, as granted or
+   * denied (`by: 'rule'`), or still up in its lane for a person, as a request
+   * with no id — nothing here can answer it, so nothing waits on it either.
+   * Either way the orchestrator hears it from the journal (`eventNews`,
+   * `eventTell`). No request id on either: what the gate holds is a balance
+   * of requests and answers, and this was never one of its requests.
+   */
+  private async onPermissionPrompt(
+    run: RunId,
+    signal: Extract<WorkerSignal, { type: 'permission_prompt' }>,
+    task: TaskId | null,
+  ): Promise<void> {
+    const answered = signal.answered
+    if (!answered) {
+      await this.log.append({
+        type: 'permission_request',
+        task,
+        run,
+        detail: {
+          prompt: 'lane',
+          summary: `a yes/no in its lane — ${signal.summary}`,
+          asked: signal.summary,
+          ...(signal.tool ? { tool: signal.tool } : {}),
+        },
+      })
+      return
+    }
+    await this.log.append({
+      type: answered.allowed ? 'permission_granted' : 'permission_denied',
+      task,
+      run,
+      // A refusal is what the agent must find its way round, so above the routine.
+      urgency: answered.allowed ? 'routine' : 'notable',
+      detail: {
+        by: answered.by,
+        prompt: 'harness',
+        ...(signal.tool ? { tool: signal.tool } : {}),
+        summary: signal.summary,
+        rule: answered.rule,
+        reason: answered.reason,
+      },
+    })
   }
 
   private async onPermissionRequest(

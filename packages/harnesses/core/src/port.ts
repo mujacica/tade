@@ -179,6 +179,31 @@ export const WorkerSignal = z.discriminatedUnion('type', [
     /** One line, exact enough to read back before approving. */
     summary: z.string(),
   }),
+  /**
+   * The harness's own yes/no — a prompt it shows in its lane, which Tade's gate
+   * never saw — and how Tade answered it by rule (`answerPrompt`), or nothing
+   * where it waits on a person there. Nothing is held on this: it is said so
+   * the journal has the answer and a prompt nobody answered is never silent.
+   */
+  z.object({
+    type: z.literal('permission_prompt'),
+    run: RunId,
+    at: z.number(),
+    /** The tool it asks about, where the harness said. */
+    tool: z.string().nullable(),
+    input: z.unknown(),
+    /** The line read back: the exact command, or the harness's own words for what it asks. */
+    summary: z.string(),
+    answered: z
+      .object({
+        allowed: z.boolean(),
+        rule: z.string(),
+        reason: z.string(),
+        /** By Tade's rule, or by whoever pressed a key in its lane. */
+        by: z.enum(['rule', 'lane']).default('rule'),
+      })
+      .optional(),
+  }),
   z.object({
     type: z.literal('permission_resolved'),
     run: RunId,

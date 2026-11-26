@@ -431,6 +431,175 @@ describe('ClaudeAdapter', () => {
     })
   })
 
+  describe('its own permission prompt', () => {
+    // Claude Code, bypassing its permissions, still asks about a few things —
+    // a write into `.git` or `.claude`, a command it rates dangerous — and
+    // nobody may be looking at the lane. Tade answers by rule, at once.
+    const prompt = (tool_name: string, tool_input: Record<string, unknown>) => ({
+      hook_event_name: 'PermissionRequest',
+      tool_name,
+      tool_input,
+      permission_suggestions: [],
+    })
+    // Only the task trying the rule gets it, for now (`TRYING` in hook.ts):
+    // said outright, since the environment these run in may be anybody's.
+    const TRYING = { TADE_TASK_ID: 'tade/claude-code-asks-tade-answers' }
+    const OTHER = { TADE_TASK_ID: 'vrolta/money-formatted-and-buttons-iconed' }
+    const ready = async (approvals: 'bypass' | 'policy' = 'bypass', as = TRYING) => {
+      const up = await setUp(approvals)
+      const hook = (event: Record<string, unknown>) =>
+        run(HOOK_PATH, JSON.stringify(event), { ...up.env, ...as }).then(({ stdout }) =>
+          stdout ? JSON.parse(stdout) : null,
+        )
+      return { ...up, hook }
+    }
+
+    it('is registered, and the lane is told where it works', async () => {
+      const one = new ClaudeAdapter({ runDir: tmp('tcc-'), configDir: tmp('tade-claude-a-') })
+      const launch = one.launchSpec({ run: 'app/t/agent', task: 'app/t', cwd: '/wt/t', prompt: '' })
+      const settings = JSON.parse(
+        readFileSync(launch.args[launch.args.indexOf('--settings') + 1] ?? '', 'utf8'),
+      )
+      expect(settings.hooks.PermissionRequest[0].hooks[0].command).toContain('hook.ts')
+      expect(launch.env?.TADE_CLAUDE_WORKSPACE).toBe('/wt/t')
+    })
+
+    it('allows what stays in its workspace, and says so', async () => {
+      const { hook, signals, spec } = await ready()
+      const said = await hook(prompt('Write', { file_path: join(spec.cwd, '.git/hooks/pre-push') }))
+      expect(said).toEqual({
+        hookSpecificOutput: { hookEventName: 'PermissionRequest', decision: { behavior: 'allow' } },
+      })
+      expect(signals.find((s) => s.type === 'permission_prompt')).toMatchObject({
+        tool: 'Write',
+        summary: `Write ${join(spec.cwd, '.git/hooks/pre-push')}`,
+        answered: { allowed: true, rule: 'in-workspace', by: 'rule' },
+      })
+    })
+
+    it('refuses a force push with a sentence the agent reads, and says so', async () => {
+      const { hook, signals } = await ready()
+      const said = await hook(prompt('Bash', { command: 'git push --force origin main' }))
+      expect(said.hookSpecificOutput.decision.behavior).toBe('deny')
+      expect(said.hookSpecificOutput.decision.message).toContain(
+        'refused it, because it force-pushes',
+      )
+      expect(said.hookSpecificOutput.decision.interrupt).toBeUndefined()
+      expect(signals.find((s) => s.type === 'permission_prompt')).toMatchObject({
+        summary: 'Bash: git push --force origin main',
+        answered: { allowed: false, rule: 'force-push' },
+      })
+    })
+
+    it('allows a hook of its repository from a worktree, whose git folder is elsewhere', async () => {
+      const { hook, spec } = await ready()
+      const common = tmp('tade-claude-git-')
+      mkdirSync(join(common, 'worktrees', 'refunds'), { recursive: true })
+      writeFileSync(join(common, 'worktrees', 'refunds', 'commondir'), '../..\n')
+      writeFileSync(join(spec.cwd, '.git'), `gitdir: ${join(common, 'worktrees', 'refunds')}\n`)
+      const said = await hook(prompt('Edit', { file_path: join(common, 'hooks', 'pre-commit') }))
+      expect(said.hookSpecificOutput.decision.behavior).toBe('allow')
+      // Not in $TMPDIR, which is the agent's own too (`scratchPlaces`).
+      const elsewhere = await hook(prompt('Edit', { file_path: '/srv/elsewhere/a' }))
+      expect(elsewhere.hookSpecificOutput.decision.behavior).toBe('deny')
+    })
+
+    it('answers by the same rule itself when Tade cannot be asked', async () => {
+      const cwd = tmp('tade-claude-cwd-')
+      const nobody = {
+        TADE_RUN_SOCKET: join(tmp('tcc-'), 'gone.sock'),
+        TADE_APPROVALS: 'bypass',
+        TADE_CLAUDE_WORKSPACE: cwd,
+        ...TRYING,
+      }
+      const ask = async (event: Record<string, unknown>) =>
+        JSON.parse((await run(HOOK_PATH, JSON.stringify(event), nobody)).stdout)
+      expect(
+        (await ask(prompt('Bash', { command: 'rm -rf build' }))).hookSpecificOutput.decision,
+      ).toEqual({ behavior: 'allow' })
+      expect(
+        (await ask(prompt('Bash', { command: 'sudo rm -rf build' }))).hookSpecificOutput.decision
+          .behavior,
+      ).toBe('deny')
+    })
+
+    it('leaves it to the person under policy, and says the prompt is up until it is answered', async () => {
+      const { hook, signals } = await ready('policy')
+      expect(await hook(prompt('Bash', { command: 'rm -rf build' }))).toBeNull()
+      // Nor does a hook with Tade gone answer it: policy is never widened.
+      const nobody = {
+        TADE_RUN_SOCKET: join(tmp('tcc-'), 'gone.sock'),
+        TADE_APPROVALS: 'policy',
+        ...TRYING,
+      }
+      const alone = await run(HOOK_PATH, JSON.stringify(prompt('Bash', { command: 'ls' })), nobody)
+      expect(alone.stdout).toBe('')
+      await hook({
+        hook_event_name: 'Notification',
+        notification_type: 'permission_prompt',
+        message: 'Claude needs your permission to use Bash',
+      })
+      expect(signals.filter((s) => s.type === 'permission_prompt')).toEqual([
+        expect.objectContaining({ summary: 'Claude needs your permission to use Bash' }),
+      ])
+      expect(signals.find((s) => s.type === 'permission_prompt')).not.toHaveProperty('answered')
+      // Answered in the lane, the tool's result says how.
+      await hook({ hook_event_name: 'PostToolUse', tool_use_id: 't1' })
+      expect(signals.filter((s) => s.type === 'permission_prompt').at(-1)).toMatchObject({
+        answered: { allowed: true, by: 'lane' },
+      })
+    })
+
+    it('answers only a prompt for a person, never Claude Code’s earlier look', async () => {
+      // The look that only lets a hook refuse a call bypass may then run
+      // unasked carries no suggestions: refusing it refused work that had
+      // always run, so it is left exactly as it was — not even sent to Tade.
+      const { hook, signals } = await ready()
+      const look = {
+        hook_event_name: 'PermissionRequest',
+        tool_name: 'Bash',
+        tool_input: { command: 'sudo ls' },
+      }
+      expect(await hook(look)).toBeNull()
+      expect(signals.filter((s) => s.type === 'permission_prompt')).toEqual([])
+      const nobody = {
+        TADE_RUN_SOCKET: join(tmp('tcc-'), 'gone.sock'),
+        TADE_APPROVALS: 'bypass',
+        ...TRYING,
+      }
+      expect((await run(HOOK_PATH, JSON.stringify(look), nobody)).stdout).toBe('')
+    })
+
+    it('never denies from PreToolUse under bypass', async () => {
+      const { hook } = await ready()
+      expect(
+        await hook({
+          hook_event_name: 'PreToolUse',
+          tool_name: 'Bash',
+          tool_use_id: 't1',
+          tool_input: { command: `python3 - <<'EOF'\nopen('../bank/money.ts')\nEOF` },
+        }),
+      ).toBeNull()
+    })
+
+    it('leaves every other agent’s prompt as it was while the rule is tried', async () => {
+      const { hook, signals } = await ready('bypass', OTHER)
+      expect(await hook(prompt('Bash', { command: 'sudo ls' }))).toBeNull()
+      expect(signals.filter((s) => s.type === 'permission_prompt')).toEqual([])
+      const nobody = {
+        TADE_RUN_SOCKET: join(tmp('tcc-'), 'gone.sock'),
+        TADE_APPROVALS: 'bypass',
+        ...OTHER,
+      }
+      const alone = await run(
+        HOOK_PATH,
+        JSON.stringify(prompt('Bash', { command: 'sudo ls' })),
+        nobody,
+      )
+      expect(alone.stdout).toBe('')
+    })
+  })
+
   describe('a window that closes and opens again', () => {
     // Under tmux the agent goes on while Tade is closed, and every hook it runs
     // then finds nobody listening. The window that comes back is another

@@ -59,6 +59,52 @@ describe('WorkerSupervisor', () => {
     })
   })
 
+  describe('a harness’s own permission prompt', () => {
+    it('writes down how Tade answered it by rule, never as a request waiting on anybody', async () => {
+      const { log, adapter, supervisor } = await setup('bypass')
+      close = () => log.close()
+      adapter.emit('r1', {
+        type: 'permission_prompt',
+        tool: 'Bash',
+        input: { command: 'git push --force origin main' },
+        summary: 'Bash: git push --force origin main',
+        answered: { allowed: false, rule: 'force-push', reason: 'it force-pushes', by: 'rule' },
+      })
+      await until(async () => (await logged(log, 'permission_denied')).length > 0)
+      const [denied] = await logged(log, 'permission_denied')
+      expect(denied?.detail).toEqual({
+        by: 'rule',
+        prompt: 'harness',
+        tool: 'Bash',
+        summary: 'Bash: git push --force origin main',
+        rule: 'force-push',
+        reason: 'it force-pushes',
+      })
+      expect(denied?.urgency).toBe('notable')
+      expect(supervisor.pending()).toEqual([])
+      expect(adapter.decisions).toEqual([])
+    })
+
+    it('writes down one left up in its lane, with nothing to answer it by', async () => {
+      const { log, adapter, supervisor } = await setup('bypass')
+      close = () => log.close()
+      adapter.emit('r1', {
+        type: 'permission_prompt',
+        tool: null,
+        input: null,
+        summary: 'Claude needs your permission to use Bash',
+      })
+      await until(async () => (await logged(log, 'permission_request')).length > 0)
+      const [waiting] = await logged(log, 'permission_request')
+      expect(waiting?.detail).toEqual({
+        prompt: 'lane',
+        summary: 'a yes/no in its lane — Claude needs your permission to use Bash',
+        asked: 'Claude needs your permission to use Bash',
+      })
+      expect(supervisor.pending()).toEqual([])
+    })
+  })
+
   describe('what an agent has been doing', () => {
     it('keeps the last tools and turns, in memory and out of the journal', async () => {
       const { log, adapter, supervisor } = await setup('bypass')

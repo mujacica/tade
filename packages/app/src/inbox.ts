@@ -8,6 +8,7 @@ import {
   type TadeEvent,
   THEIR_WORDS,
 } from '@tade/core'
+import { withoutCredentials } from '@tade/web'
 import type { Machine, Machines } from './machines.ts'
 import type { TaskSnapshot } from './model.ts'
 
@@ -201,6 +202,8 @@ export function eventNews(event: TadeEvent): string | null {
     const by = event.detail.by === 'person' ? 'The person' : 'Somebody'
     return `${by} read the document ${event.task} produced and decided: ${decided || 'nothing said'}. It is no longer waiting on anybody.`
   }
+  const prompted = promptAnswered(event)
+  if (prompted) return prompted
   if (event.type !== 'task_done') return null
   const summary = typeof event.detail.summary === 'string' ? event.detail.summary.trim() : ''
   const who =
@@ -253,6 +256,13 @@ export function eventTell(event: TadeEvent, journal: readonly TadeEvent[]): stri
     const error = typeof event.detail.error === 'string' ? ` (${event.detail.error})` : ''
     return `${event.task}'s agent cannot reach Tade — ${unheardWhy(event)} — so every Tade call it makes is refused as "Tade isn't open", and Tade could not mend it${error}. Stop it and start it again with tade_run_stop and tade_run_start, and tell the person.`
   }
+  // A yes/no nothing answered, up in its lane: the agent stops until a person
+  // presses a key there, and looks exactly like one thinking meanwhile.
+  if (event.type === 'permission_request' && event.detail.prompt === 'lane') {
+    const asked = typeof event.detail.asked === 'string' ? event.detail.asked.trim() : ''
+    const what = asked ? ` (${withoutCredentials(asked, [])})` : ''
+    return `${event.task} is waiting on a yes/no in its lane${what}, which Tade did not answer by rule. Tell the person: it stops until they answer it there.`
+  }
   const path = typeof event.detail.produces === 'string' ? event.detail.produces.trim() : ''
   if (!path || event.detail.missing === true) return null
   if (event.type === 'task_done') {
@@ -273,6 +283,27 @@ export function eventTell(event: TadeEvent, journal: readonly TadeEvent[]): stri
       ? ' It is carrying on while you read it.'
       : ' It has stopped until the person answers: when they do, give it their answer with tade_steer.'
   return `${head}, and is not finished.${question}${waits} ${READ_IT_AND_ASK}`
+}
+
+/**
+ * A harness's own yes/no that Tade answered by rule, in one line: what was
+ * allowed or refused, and where. The command is what an agent wrote, so it
+ * goes through the approvals' own rule for keys (`withoutCredentials`) before
+ * it is said anywhere.
+ */
+function promptAnswered(event: TadeEvent): string | null {
+  if (event.detail.prompt !== 'harness' || event.detail.by !== 'rule') return null
+  if (event.type !== 'permission_granted' && event.type !== 'permission_denied') return null
+  const command = promptCommand(event)
+  if (event.type === 'permission_granted') return `allowed ${command} in ${event.task}`
+  const reason = typeof event.detail.reason === 'string' ? `: ${event.detail.reason}` : ''
+  return `refused ${command} in ${event.task}${reason}`
+}
+
+/** A prompt's command, keys taken out, in backticks. */
+function promptCommand(event: TadeEvent): string {
+  const summary = typeof event.detail.summary === 'string' ? event.detail.summary.trim() : ''
+  return `\`${withoutCredentials(summary, []).replaceAll('`', "'") || 'a tool call'}\``
 }
 
 /** Why an agent was unheard, from its `agent_unheard` line, in a clause. */

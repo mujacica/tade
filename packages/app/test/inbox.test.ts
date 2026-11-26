@@ -425,3 +425,56 @@ describe('an agent that could not reach Tade', () => {
     expect(eventTell({ ...unheard({ mended: null }), task: null }, [])).toBeNull()
   })
 })
+
+describe('a harness’s own permission prompt', () => {
+  const answered = (type: 'permission_granted' | 'permission_denied', summary: string) =>
+    event({
+      type,
+      detail: {
+        by: 'rule',
+        prompt: 'harness',
+        summary,
+        rule: 'force-push',
+        reason: 'it force-pushes',
+      },
+    })
+
+  it('is news in one line, allowed or refused, with any key in the command taken out', () => {
+    expect(eventNews(answered('permission_granted', 'Bash: rm -rf dist'))).toBe(
+      'allowed `Bash: rm -rf dist` in app/refunds',
+    )
+    expect(eventNews(answered('permission_denied', 'Bash: git push --force origin main'))).toBe(
+      'refused `Bash: git push --force origin main` in app/refunds: it force-pushes',
+    )
+    const keyed = eventNews(
+      answered('permission_granted', 'Bash: curl -H "Authorization: Bearer abcdefgh12345678" x'),
+    )
+    expect(keyed).not.toContain('abcdefgh12345678')
+  })
+
+  it('is not news when the gate decided it, or a person in its lane did', () => {
+    expect(eventNews(event({ type: 'permission_denied', detail: { summary: 'x' } }))).toBeNull()
+    expect(
+      eventNews(event({ type: 'permission_granted', detail: { by: 'lane', prompt: 'harness' } })),
+    ).toBeNull()
+  })
+
+  it('is told now when it is left up in its lane for a person', () => {
+    const waiting = event({
+      type: 'permission_request',
+      urgency: 'blocking',
+      detail: {
+        prompt: 'lane',
+        summary: 'a yes/no in its lane — Claude needs your permission to use Bash',
+        asked: 'Claude needs your permission to use Bash',
+      },
+    })
+    expect(eventTell(waiting, [])).toBe(
+      'app/refunds is waiting on a yes/no in its lane (Claude needs your permission to use Bash), which Tade did not answer by rule. Tell the person: it stops until they answer it there.',
+    )
+    // A request the gate holds is the gate's to say.
+    expect(
+      eventTell(event({ type: 'permission_request', detail: { requestId: 'q' } }), []),
+    ).toBeNull()
+  })
+})

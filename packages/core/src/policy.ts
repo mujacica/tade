@@ -335,3 +335,282 @@ function deletesOutside(command: string, worktree: string | null): string | null
   }
   return null
 }
+
+// --- a harness's own yes/no ---------------------------------------------------
+
+/**
+ * What a harness's own permission prompt asks about: Claude Code, launched to
+ * bypass its permissions, still stops on a few things — writes into `.git` or
+ * `.claude`, a command it rates dangerous — and waits for somebody to press y
+ * in a lane nobody may be looking at. Tade answers that question by this rule
+ * instead, at once, and never waits on a person for it.
+ */
+export interface PromptFacts {
+  tool: string
+  input: unknown
+  /** What the tool does, from its harness. */
+  effect: ToolEffect
+  /**
+   * Where the agent may change things without asking: the task's workspace
+   * first — what a relative path is read against — then its repository's own
+   * git folder, which for a worktree is outside the worktree (`.git/hooks`).
+   */
+  roots: readonly string[]
+  /**
+   * The harness's own scratch and temporary folders, which are the agent's as
+   * much as its workspace is: `$TMPDIR`, and Claude Code's scratchpad under
+   * `/tmp/claude-<uid>/`. An entry ending in `*` is every folder whose name
+   * starts so (`/tmp/claude-*`). Never a reason to allow credentials.
+   */
+  scratch?: readonly string[]
+  /**
+   * Where the agent is standing as it asks, which a relative path in a command
+   * is read against. Unknown, a relative path is not judged at all.
+   */
+  cwd?: string | null
+  /** The home folder of whoever runs the agent: off limits outside `roots`. */
+  home: string | null
+}
+
+export interface PromptAnswer {
+  allow: boolean
+  /** Which rule decided, for the journal. */
+  rule: string
+  /** One clause saying why, which a refusal hands the agent in its message. */
+  reason: string
+}
+
+/** Commands that are refused wherever they point, the most serious first. */
+const REFUSED_COMMANDS: readonly Rule[] = [
+  { rule: 'sudo', reason: 'it runs as root', test: /(^|[\s;&|(`])sudo(\s|$)/ },
+  {
+    rule: 'force-push',
+    reason: 'it force-pushes, which rewrites what other people have',
+    test: /\bgit\b[^;&|]*\bpush\b[^;&|]*(--force\b|--force-with-lease\b|--force-if-includes\b|\s-[a-zA-Z]*f[a-zA-Z]*(\s|$)|\s\+\S)/,
+  },
+  {
+    rule: 'ref-delete',
+    reason: 'it deletes a branch or a tag',
+    test: /\bgit\b[^;&|]*(\bbranch\b[^;&|]*\s(-[a-zA-Z]*[dD][a-zA-Z]*|--delete)(\s|$)|\btag\b[^;&|]*\s(-[a-zA-Z]*d[a-zA-Z]*|--delete)(\s|$)|\bpush\b[^;&|]*(\s--delete\b|\s-d(\s|$)|\s:\S)|\bupdate-ref\s+-d\b)/,
+  },
+]
+
+/** Places that hold keys and sign-ins, wherever they are. `.env.example` and its kind are not. */
+const CREDENTIAL_PLACES =
+  /(^|[\s"'/=:])(\.env(?!\.(example|sample|template|defaults)\b)(\.[\w-]+)?|id_rsa[\w.-]*|id_ed25519[\w.-]*|id_ecdsa[\w.-]*|\.ssh|\.aws|\.gnupg|\.netrc|\.npmrc|\.pypirc|\.git-credentials|\.docker\/config\.json|\.kube\/config|credentials\.json|\.tade\/config\.yaml)(\/|\s|$|["';)])/
+
+/** The files a shell reads as it starts, which change every terminal somebody opens. */
+const SHELL_RC =
+  /(^|[\s"'/=:])(\.(bash|zsh)(rc|env|_profile|_login|_logout)|\.profile|\.zprofile|\.zshenv|\.zlogin|\.config\/fish\/)(\/|\s|$|["';)])/
+
+/** Paths every command may name and none of which is anybody's property. */
+const HARMLESS = new Set(['/dev/null', '/dev/stdin', '/dev/stdout', '/dev/stderr', '/dev/tty'])
+
+/**
+ * Tade's answer to a harness's own permission prompt, by rule.
+ *
+ * Allowed: anything that stays inside `roots` — editing `.git/hooks`, removing
+ * build output, a command that names nothing outside. Refused, with a reason
+ * the agent reads: running as root; force-pushing; deleting a branch or a tag;
+ * touching keys, credentials, Tade's `config.yaml` or a shell's startup files;
+ * and reaching the home folder or anywhere else outside the project.
+ *
+ * Pure, and deterministic on purpose: it is what stands in for a person who is
+ * not there, so it is read the same by the window and by a hook answering on
+ * its own. It never widens what `policy` mode holds — under `policy` the
+ * prompt is left to the person, and this is not asked.
+ */
+export function answerPrompt(facts: PromptFacts): PromptAnswer {
+  const input = (facts.input ?? {}) as Record<string, unknown>
+  const command =
+    facts.effect === 'exec' || facts.effect === 'other'
+      ? firstString(input, ['command', 'script', 'cmd'])
+      : null
+  if (command !== null) {
+    // Only what the command itself says: a heredoc's body and a quoted script
+    // are text the program reads, not places the command names — an import
+    // path inside a Python edit was refused, live, before they were dropped.
+    const { skeleton, words } = argumentsOf(command)
+    for (const rule of REFUSED_COMMANDS) {
+      if (rule.test.test(skeleton)) return refuse(rule.rule, rule.reason)
+    }
+    for (const word of words) {
+      if (CREDENTIAL_PLACES.test(` ${word} `)) {
+        return refuse('credentials', `it touches keys or credentials (${word})`)
+      }
+      if (SHELL_RC.test(` ${word} `)) {
+        return refuse('shell-rc', `it changes a shell's startup files (${word})`)
+      }
+    }
+    // A command that moves first has paths read from where it moved to,
+    // which no reading of its words can be sure of: those are let be.
+    const moves = /(^|[\s;&|(])(cd|pushd|popd)(\s|$)/.test(skeleton)
+    return placesAnswer(pathsIn(words, moves ? null : (facts.cwd ?? null)), facts, facts.cwd)
+  }
+  const path = firstString(input, ['file_path', 'path', 'filePath', 'file', 'notebook_path'])
+  return placesAnswer(path ? [path] : [], facts, facts.cwd ?? facts.roots[0] ?? null)
+}
+
+function refuse(rule: string, reason: string): PromptAnswer {
+  return { allow: false, rule, reason }
+}
+
+/** Every place named, judged against `from` where relative: the first one refused decides. */
+function placesAnswer(
+  paths: readonly string[],
+  facts: PromptFacts,
+  from: string | null | undefined,
+): PromptAnswer {
+  for (const path of paths) {
+    if (HARMLESS.has(path)) continue
+    if (CREDENTIAL_PLACES.test(` ${path} `)) {
+      return refuse('credentials', `it touches keys or credentials (${path})`)
+    }
+    if (SHELL_RC.test(` ${path} `)) {
+      return refuse('shell-rc', `it changes a shell's startup files (${path})`)
+    }
+    const absolute = placeOf(path, facts, from ?? null)
+    if (absolute === null) {
+      return refuse('home', `it reaches into the home folder (${path})`)
+    }
+    if (facts.roots.some((root) => inside(absolute, root))) continue
+    if ((facts.scratch ?? []).some((place) => inScratch(absolute, place))) continue
+    if (facts.home && inside(absolute, facts.home)) {
+      return refuse('home', `it reaches into the home folder, outside the project (${path})`)
+    }
+    return refuse('outside', `it reaches outside the project (${path})`)
+  }
+  return { allow: true, rule: 'in-workspace', reason: 'it stays inside its own workspace' }
+}
+
+/**
+ * Whether an absolute path is in a scratch place: inside it, or, for one ending
+ * in `*`, inside any folder whose name starts with what comes before the `*`.
+ * The path is already normalised, so no `..` can climb back out of one.
+ */
+function inScratch(absolute: string, place: string): boolean {
+  if (!place.endsWith('*')) return inside(absolute, place)
+  const prefix = normalize(place.slice(0, -1))
+  if (prefix.endsWith('/') || !absolute.startsWith(prefix)) return false
+  const name = absolute.slice(prefix.lastIndexOf('/') + 1).split('/')[0] ?? ''
+  return name.length > prefix.length - prefix.lastIndexOf('/') - 1
+}
+
+/**
+ * Where a path is, absolute: `~` and `$HOME` read against the home folder, a
+ * relative path against the workspace. Null for a home-relative path when no
+ * home is known, which is refused rather than guessed at.
+ */
+function placeOf(path: string, facts: PromptFacts, from: string | null): string | null {
+  const home = /^(~|\$HOME|\$\{HOME\})(?=\/|$)/.exec(path)
+  if (home) return facts.home ? normalize(`${facts.home}${path.slice(home[0].length)}`) : null
+  if (path.startsWith('~')) return null
+  if (isAbsolute(path)) return normalize(path)
+  return from ? resolve(from, path) : null
+}
+
+/**
+ * The places a command names, as far as its words can say: every word that is
+ * an absolute path or starts at the home folder, a flag's value (`--git-dir=/x`)
+ * and a redirection's target included — and, where `cwd` is known, a relative
+ * one that climbs with `..`. Lexical: nothing is expanded or followed, an
+ * address (`https://…`) is not a path, and a word built from anything but
+ * `$HOME` (`$OUT/x`, `$(pwd)/y`) cannot be read, so it is let be.
+ */
+function pathsIn(words: readonly string[], cwd: string | null): string[] {
+  const out: string[] = []
+  for (const word of words) {
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(word)) continue
+    const value =
+      word.startsWith('-') && word.includes('=') ? word.slice(word.indexOf('=') + 1) : word
+    if (/\$(?!\{?HOME\b)|`/.test(value)) continue
+    // A pattern, not a place: a regex or a glob (`/\\B`, `/src/*.ts`) cannot
+    // be placed, so it is let be.
+    if (/[\\*?[\]{}^|+]/.test(value)) continue
+    if (value.startsWith('/') || value.startsWith('~') || /^\$\{?HOME\b/.test(value)) {
+      out.push(value)
+    } else if (cwd && /(^|\/)\.\.(\/|$)/.test(value)) {
+      out.push(value)
+    }
+  }
+  return out
+}
+
+/**
+ * A command as the shell would split it, with what is not its own arguments
+ * taken out: each heredoc's body, and every quoted string with a space or a
+ * line in it — a script handed to `python -c`, a message, a body — which is
+ * text a program reads rather than a place the command names. `skeleton` is
+ * the command with those taken out, for the rules that read a whole command;
+ * `words` its words, quotes taken off.
+ */
+export function argumentsOf(command: string): { skeleton: string; words: string[] } {
+  const text = withoutHeredocs(command)
+  const words: string[] = []
+  let skeleton = ''
+  let word = ''
+  let body = false
+  let quote: '"' | "'" | null = null
+  let quoted = ''
+  const end = (): void => {
+    if (word && !body) words.push(word)
+    word = ''
+    body = false
+  }
+  for (let at = 0; at < text.length; at += 1) {
+    const one = text[at] ?? ''
+    if (quote) {
+      if (one === '\\' && quote === '"' && at + 1 < text.length) {
+        quoted += text[at + 1]
+        at += 1
+      } else if (one === quote) {
+        if (/\s/.test(quoted)) {
+          body = true
+          skeleton += "''"
+        } else {
+          word += quoted
+          skeleton += quoted
+        }
+        quote = null
+        quoted = ''
+      } else {
+        quoted += one
+      }
+      continue
+    }
+    if (one === '"' || one === "'") {
+      quote = one
+      continue
+    }
+    if (one === '\\' && at + 1 < text.length) {
+      word += text[at + 1]
+      skeleton += text.slice(at, at + 2)
+      at += 1
+      continue
+    }
+    skeleton += one
+    if (/[\s;&|()<>]/.test(one)) end()
+    else word += one
+  }
+  // An unclosed quote is a body nobody finished: not an argument.
+  end()
+  return { skeleton, words }
+}
+
+/** A command with each heredoc's body taken out, its `<<WORD` left where it was. */
+function withoutHeredocs(command: string): string {
+  const lines = command.split('\n')
+  const out: string[] = []
+  const ends: string[] = []
+  for (const line of lines) {
+    if (ends.length > 0) {
+      if (line.replace(/^\t+/, '').trimEnd() === ends[0]) ends.shift()
+      continue
+    }
+    out.push(line)
+    for (const found of line.matchAll(/<<-?\s*(['"]?)([\w.-]+)\1/g)) {
+      if (found[2]) ends.push(found[2])
+    }
+  }
+  return out.join('\n')
+}
