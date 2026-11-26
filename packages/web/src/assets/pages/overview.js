@@ -469,12 +469,7 @@ function fillWant(node, task, view) {
   node.quick?.update(task, view)
 }
 
-/**
- * Another machine's row that wants you: read only until a press can reach
- * that machine from this page (ONE-AWAY-VIEW §2.5) — a link to that agent's
- * page as its machine's copy draws it (`/m/<machine>/t/…`) and no presses —
- * and its machine named before its project.
- */
+/** Another machine's row that wants you: its page there, no presses, its machine before its project. */
 function fillElsewhere(node, one, view) {
   fillWant(node, one.task, view)
   const [, link] = node.children

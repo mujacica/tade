@@ -377,6 +377,14 @@ export type ProjectOf = (params: Record<string, unknown>) => string | null
 /** One method, what it needs, and how its project is found. */
 export interface MethodReaching {
   reaching: Reaching
+  /**
+   * Where one method is two decisions by what it is asked to do — `queue/change`
+   * pausing work and `queue/change` starting it — the reaching for these
+   * parameters, which stands in for `reaching`. Read off the parameters the
+   * method itself reads, so a call cannot be judged as one change and run as
+   * another.
+   */
+  by?: (params: Record<string, unknown>) => Reaching
   /** Null where the method is about no one project. */
   project?: ProjectOf
 }
@@ -467,6 +475,17 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   },
   'memory/retire': never(DECIDES_FOR_SOMEBODY),
 
+  // **The tidy tier** (ONE-AWAY-VIEW Q3b): what the person's other machine may
+  // press here through a hub's outbox (`@tade/app`'s `outboxArm`), and no
+  // device. Each only ever makes less happen — an agent stopped keeps its
+  // lane's spec and is opened again by a person; work paused or resumed is
+  // still started by `readyToStart` and nothing else — so a hub that forges
+  // one can stop work here and never start any.
+  'worker/stop': {
+    reaching: { kind: 'needs', grant: 'tidy' },
+    project: (p) => projectOfTask(p.task),
+  },
+
   'task/create': never(EXECUTES),
   'check/propose': never(EXECUTES),
   'task/done': never(CONFIRMS),
@@ -479,7 +498,23 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   'documents/triage': never(DECIDES_FOR_SOMEBODY),
   'documents/delete': never(CONFIRMS),
   'documents/cleanup': never(CONFIRMS),
-  'queue/change': never(PUBLISHES),
+  // Pausing or resuming queued work — one task, a whole project's queue, or a
+  // schedule — is the tidy tier; every other change (start, order, retell,
+  // remove…) is never, as it was.
+  'queue/change': {
+    reaching: { kind: 'local', because: PUBLISHES },
+    by: (p) =>
+      p.change === 'pause' || p.change === 'resume'
+        ? { kind: 'needs', grant: 'tidy' }
+        : { kind: 'local', because: PUBLISHES },
+    project: (p) =>
+      p.task !== undefined
+        ? projectOfTask(p.task)
+        : typeof p.project === 'string'
+          ? p.project
+          : // A schedule names no project of its own here: about no one project.
+            null,
+  },
   'queue/schedule': never(EXECUTES),
   'queue/decide': never(EXECUTES),
   'template/list': never(READS_WIDE),
@@ -524,7 +559,6 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   'remote/tool': never(READS_ELSEWHERE),
   'remote/act': never(OWNS_ELSEWHERE),
   'worker/list': never(READS_WIDE),
-  'worker/stop': never(CONFIRMS),
   'events/read': never(READS_WIDE),
   'chat/list': never(READS_WIDE),
   'chat/open': never(EXECUTES),
@@ -561,7 +595,7 @@ export function allowMethod(
       said: needsYouHere(`\`${method}\`: it is not something a paired device may reach,`),
     }
   }
-  const { reaching } = found
+  const reaching = found.by?.(params) ?? found.reaching
   if (reaching.kind === 'local') {
     return { ok: false, said: needsYouHere(`\`${method}\`: ${reaching.because},`) }
   }

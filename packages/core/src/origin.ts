@@ -85,8 +85,21 @@ export function byOf(who: Who): Asker {
  * `read` is not here. Reading is what pairing grants and what the projection
  * is for; what this list is about is the things a turn can *do*.
  */
-export const REMOTE_GRANTS = ['answer', 'steer'] as const
+export const REMOTE_GRANTS = ['answer', 'steer', 'tidy'] as const
 export type RemoteGrant = (typeof REMOTE_GRANTS)[number]
+
+/**
+ * What a paired device's own arm may carry: the scopes it was granted at the
+ * machine, which are `answer` and `steer`.
+ *
+ * **`tidy` is not a device's**: it is what the person's other machine is
+ * granted when it takes a press out of a hub's outbox (`@tade/app`'s
+ * `outboxArm`, ONE-AWAY-VIEW Q3b) — stopping an agent, pausing or resuming
+ * queued work and schedules — the presses that only ever make less happen.
+ * A device line that names it is a word nobody here gives a device, so it is
+ * dropped like any other.
+ */
+export const DEVICE_GRANTS: readonly RemoteGrant[] = ['answer', 'steer']
 
 /**
  * How far one turn's words reach.
@@ -191,7 +204,7 @@ export function armFor(device: {
     how: 'remote',
     device: device.id,
     projects: device.projects === null ? null : [...device.projects],
-    may: REMOTE_GRANTS.filter((grant) => device.scopes.includes(grant)),
+    may: DEVICE_GRANTS.filter((grant) => device.scopes.includes(grant)),
   }
 }
 

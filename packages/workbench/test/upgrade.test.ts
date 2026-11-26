@@ -2,7 +2,7 @@ import { appendFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
-import { runningVersion } from '../src/programs.ts'
+import { runningCheckout, runningVersion } from '../src/programs.ts'
 import { openedAs, startsAs } from '../src/upgrade.ts'
 import { Workbench } from '../src/workbench.ts'
 
@@ -24,11 +24,16 @@ const opened = (seq: number, detail: Record<string, unknown>) =>
   })}\n`
 
 describe('which Tade holds the home', () => {
-  it('is what the window with that pid wrote as it opened: its version and its lanes', async () => {
+  it('is what the window with that pid wrote as it opened: its version, its lanes and its commit', async () => {
     const home = tmp('tade-opened-')
     const client = await Workbench.open({ home })
     await client.close()
-    expect(await openedAs(home, process.pid)).toEqual({ version: runningVersion(), lanes: 0 })
+    expect(await openedAs(home, process.pid)).toEqual({
+      version: runningVersion(),
+      lanes: 0,
+      // The checkout it ran from — this one, run from source — and null for an install.
+      commit: runningCheckout()?.commit ?? null,
+    })
   })
 
   it('is the newest opening with that pid, null for one that never opened, and a version unsaid by an older Tade', async () => {
@@ -37,10 +42,11 @@ describe('which Tade holds the home', () => {
       join(home, 'events.jsonl'),
       opened(1, { pid: 10, version: '0.2.1', lanes: 3 }) +
         opened(2, { pid: 20, lanes: 1 }) +
-        opened(3, { pid: 10, version: '0.2.3', lanes: 4 }),
+        opened(3, { pid: 10, version: '0.2.3', lanes: 4, commit: 'a'.repeat(40) }),
     )
-    expect(await openedAs(home, 10)).toEqual({ version: '0.2.3', lanes: 4 })
-    expect(await openedAs(home, 20)).toEqual({ version: null, lanes: 1 })
+    expect(await openedAs(home, 10)).toEqual({ version: '0.2.3', lanes: 4, commit: 'a'.repeat(40) })
+    // An older Tade said neither its version nor its commit.
+    expect(await openedAs(home, 20)).toEqual({ version: null, lanes: 1, commit: null })
     expect(await openedAs(home, 30)).toBeNull()
     expect(await openedAs(tmp('tade-no-journal-'), 10)).toBeNull()
   })
@@ -52,7 +58,7 @@ describe('which Tade holds the home', () => {
     // Nine megabytes of other lines after it: past the tail looked at first.
     const line = `${JSON.stringify({ seq: 2, ts: '2026-10-18T00:00:00.000Z', type: 'lane_bytes', urgency: 'trace', task: null, lane: null, run: null, detail: { pad: 'x'.repeat(900) } })}\n`
     appendFileSync(path, line.repeat(Math.ceil((9 * 1024 * 1024) / line.length)))
-    expect(await openedAs(home, 10)).toEqual({ version: '0.2.2', lanes: 2 })
+    expect(await openedAs(home, 10)).toEqual({ version: '0.2.2', lanes: 2, commit: null })
   })
 })
 

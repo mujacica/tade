@@ -23,6 +23,40 @@
   `frame.css` is what this is drawn inside.
 */
 
+/* ── the project sub-navigation: scrollable, never collapsed into `+3 more` ── */
+
+/* Tabs as a desk draws them: words along a hairline, an amber line under the one you are on. */
+.tabstrip {
+  display: flex;
+  gap: var(--s5);
+  margin-block-end: var(--s5);
+  border-block-end: var(--border);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+}
+
+.tabstrip a {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  padding-inline: 0;
+  color: var(--tab);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tabstrip a[aria-current="page"] {
+  color: var(--amber);
+  box-shadow: inset 0 -2px 0 var(--amber);
+}
+
+.tabstrip a:hover {
+  color: var(--bright);
+}
+
 /* ── rows ──────────────────────────────────────────────────────────────────── */
 
 /* A list is a panel with a hairline between its rows. */
@@ -34,11 +68,6 @@
 .rows:empty,
 .queue:empty {
   display: none;
-}
-
-.rows > li + li > a,
-.rows > li + li > div {
-  border-block-start: var(--border);
 }
 
 .rows > li > a,
@@ -55,6 +84,11 @@
   transition: background var(--ease);
 }
 
+.rows > li + li > a,
+.rows > li + li > div {
+  border-block-start: var(--border);
+}
+
 .rows > li > a:hover {
   background: var(--surface);
 }
@@ -65,10 +99,6 @@
 */
 .rows > li > a > .name:first-child {
   grid-column: 1 / 3;
-}
-
-.rows > li > a > .name:first-child ~ .under {
-  grid-column: 1 / -1;
 }
 
 .glyph .ic {
@@ -91,10 +121,6 @@
 
 .agent-list > li.with-acts + li.with-acts {
   border-block-start: var(--border);
-}
-
-.agent-list > li.with-acts + li.with-acts > a {
-  border-block-start: 0;
 }
 
 /* Held down, the row opens its menu rather than Safari's own sheet for a link. */
@@ -125,12 +151,7 @@
   }
 }
 
-/*
-  Another machine's agents, under its name: each row opens that agent's page as
-  its machine's copy draws it, and carries no presses. While that machine is not
-  heard its rows dim as a held page's do — they do not change — under the one
-  line that says as of when.
-*/
+/* Another machine's agents, under its name: dimmed, as a held page is, while it is not up. */
 .elsewhere-said {
   display: block;
   margin: 0 0 var(--s2);
@@ -143,11 +164,7 @@
   opacity: 0.6;
 }
 
-/*
-  Another machine's screen (`/m/<machine>/…`): one line over it saying whose it
-  is and as of when, and below it the same screen this machine's own is,
-  dimmed as a held page is while that machine is not up.
-*/
+/* Another machine's screen (`/m/<machine>/…`): whose and as of when, dimmed while it is not up. */
 .there-line {
   margin: 0 0 var(--s2);
   color: var(--heading);
@@ -195,6 +212,11 @@
   font-size: var(--step--1);
 }
 
+/* Under a row with no mark of its own, the line starts where the name does. */
+.rows > li > a > .name:first-child ~ .under {
+  grid-column: 1 / -1;
+}
+
 /* A row whose agent has gone quiet: the word is in the row; its name dims. */
 .stalled .name {
   color: var(--pressed);
@@ -224,40 +246,6 @@
 
 .t-quiet {
   color: var(--quiet);
-}
-
-/* ── the project sub-navigation: scrollable, never collapsed into `+3 more` ── */
-
-/* Tabs as a desk draws them: words along a hairline, an amber line under the one you are on. */
-.tabstrip {
-  display: flex;
-  gap: var(--s5);
-  margin-block-end: var(--s5);
-  border-block-end: var(--border);
-  overflow-x: auto;
-  scroll-snap-type: x proximity;
-}
-
-.tabstrip a {
-  flex: 0 0 auto;
-  scroll-snap-align: start;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s2);
-  min-height: var(--tap);
-  padding-inline: 0;
-  color: var(--tab);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.tabstrip a[aria-current="page"] {
-  color: var(--amber);
-  box-shadow: inset 0 -2px 0 var(--amber);
-}
-
-.tabstrip a:hover {
-  color: var(--bright);
 }
 
 /* ── the queue: a row each, and what it waits on beside it ───────────────── */
@@ -484,12 +472,6 @@ th.figure {
   padding: var(--s3) var(--s4);
 }
 
-.dl + .press,
-.dl + .presses,
-.dl + a.press {
-  margin-block-start: var(--s3);
-}
-
 .dl dt {
   color: var(--heading);
   font-size: var(--step--1);
@@ -578,6 +560,13 @@ th.figure {
   display: flex;
   flex-wrap: wrap;
   gap: var(--s2);
+}
+
+/* A row of controls under a list of facts stands off it. */
+.dl + .press,
+.dl + .presses,
+.dl + a.press {
+  margin-block-start: var(--s3);
 }
 
 /*
@@ -690,11 +679,6 @@ select {
   flex: 0 0 auto;
 }
 
-.section.is-off .empty {
-  padding: 0;
-  font-size: var(--step--1);
-}
-
 /* ── the key sheet, shown by `?` ───────────────────────────────────────────── */
 
 .sheet {
@@ -744,6 +728,12 @@ select {
 .empty {
   color: var(--heading);
   padding-block: var(--s3);
+}
+
+/* Under a section that is off, its one quiet word sits close. */
+.section.is-off .empty {
+  padding: 0;
+  font-size: var(--step--1);
 }
 
 /*
@@ -823,4 +813,9 @@ select {
   height: 1.25rem;
   border-radius: var(--r1);
   background: var(--surface);
+}
+
+/* Last, as it outranks rules above (`noDescendingSpecificity`): a row with presses keeps its own hairline. */
+.agent-list > li.with-acts + li.with-acts > a {
+  border-block-start: 0;
 }
