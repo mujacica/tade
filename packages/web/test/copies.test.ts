@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { applyCopy, copiesOf, emptyStore, rowsOf } from '../src/assets/store.js'
-import { Copies, copiesFor, copyOf } from '../src/copies.ts'
+import { applyCopy, copiesOf, emptyStore, rowsOf, streamPath } from '../src/assets/store.js'
+import { Copies, copiesFor, copiesHeldOf, copyOf } from '../src/copies.ts'
 import { applyDelta } from '../src/delta.ts'
 import type { Snapshot } from '../src/protocol.ts'
 import { projector } from '../src/reading.ts'
@@ -155,5 +155,79 @@ describe('what the page holds of each, frame by frame', () => {
     for (const frame of wire(copies.beat([]))) applyCopy(store, frame)
     expect(copiesOf(store)).toEqual([])
     expect(applyCopy(store, { v: 99, machine: 'ipax', kind: 'gone' })).toMatch(/version/)
+  })
+})
+
+describe('a stream that opens again', () => {
+  const two = () => {
+    const copies = new Copies()
+    copies.beat([
+      { name: 'ipax', projection: snapshot({ rev: 12 }) },
+      { name: 'box', projection: snapshot({ rev: 3, title: 'another' }) },
+    ])
+    return copies
+  }
+  const at = (copies: Copies, machine: string) => {
+    const [frame] = copies.resumed(null).filter((one) => one.machine === machine)
+    if (frame?.kind !== 'whole') throw new Error(`no copy of ${machine}`)
+    return { epoch: frame.snapshot.fresh.epoch, rev: frame.snapshot.fresh.rev }
+  }
+
+  it('is not sent a copy the page holds at the revision it was last sent', () => {
+    const copies = two()
+    const held = new Map([['ipax', at(copies, 'ipax')]])
+    expect(copies.resumed(held).map((one) => `${one.kind} ${one.machine}`)).toEqual(['whole box'])
+  })
+
+  it('is sent whole a copy the page holds at another revision or epoch, and told of one gone', () => {
+    const copies = two()
+    const ipax = at(copies, 'ipax')
+    const held = new Map([
+      ['ipax', { ...ipax, rev: ipax.rev - 1 }],
+      ['box', { ...at(copies, 'box'), epoch: '00000000-0000-4000-8000-000000000000' }],
+      ['laptop', { epoch: EPOCH, rev: 1 }],
+    ])
+    expect(copies.resumed(held).map((one) => `${one.kind} ${one.machine}`)).toEqual([
+      'whole ipax',
+      'whole box',
+      'gone laptop',
+    ])
+  })
+
+  it('is sent every copy whole where the page holds none, or fell behind', () => {
+    expect(two().resumed(new Map())).toHaveLength(2)
+    expect(two().resumed(null)).toHaveLength(2)
+  })
+
+  it('reads what the page says it holds out of the address the page makes, and nothing else', () => {
+    const store = emptyStore()
+    const copies = two()
+    for (const frame of copies.resumed(null)) applyCopy(store, frame)
+    const path = streamPath(store)
+    expect(path.startsWith('/api/stream?held=')).toBe(true)
+    expect(copiesHeldOf(path)).toEqual(
+      new Map([
+        ['ipax', at(copies, 'ipax')],
+        ['box', at(copies, 'box')],
+      ]),
+    )
+    // A copy that fell behind is the one the page wants whole, so it is not claimed.
+    const box = store.copies.get('box')
+    if (box !== undefined) box.behind = true
+    expect([...copiesHeldOf(streamPath(store)).keys()]).toEqual(['ipax'])
+    expect(streamPath(emptyStore())).toBe('/api/stream')
+    // A name with a colon in it is read whole.
+    expect(copiesHeldOf(`/api/stream?held=${encodeURIComponent(`${EPOCH}:4:a:b`)}`)).toEqual(
+      new Map([['a:b', { epoch: EPOCH, rev: 4 }]]),
+    )
+  })
+
+  it('leaves out what does not read, and reads no more than thirty-two', () => {
+    const bad = [`../x:1:ipax`, `${EPOCH}:-1:ipax`, `${EPOCH}:1:`, `${EPOCH}:1:${'x'.repeat(121)}`]
+    const query = bad.map((one) => `held=${encodeURIComponent(one)}`).join('&')
+    expect(copiesHeldOf(`/api/stream?${query}`).size).toBe(0)
+    const many = Array.from({ length: 40 }, (_, n) => `held=${EPOCH}:1:m${n}`).join('&')
+    expect(copiesHeldOf(`/api/stream?${many}`).size).toBe(32)
+    expect(copiesHeldOf('/api/stream').size).toBe(0)
   })
 })

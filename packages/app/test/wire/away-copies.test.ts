@@ -32,14 +32,14 @@ function ipax(one: Machine, rev: number, title: string): Snapshot {
 }
 
 /** An open stream, and every byte the server has written to it. */
-function listen(port: number): Promise<{ text(): string; close(): void }> {
+function listen(port: number, path = '/api/stream'): Promise<{ text(): string; close(): void }> {
   return new Promise((done, failed) => {
     let said = ''
     const req = request(
       {
         host: '127.0.0.1',
         port,
-        path: '/api/stream',
+        path,
         method: 'GET',
         headers: {
           host: `127.0.0.1:${port}`,
@@ -92,6 +92,16 @@ describe('another machine’s copy on the person’s own phone', () => {
     await until('the copy on a new stream', () => machineFrames(again.text()).length === 1)
     expect(machineFrames(again.text())[0]).toMatchObject({ machine: 'ipax', kind: 'whole' })
     again.close()
+
+    // One that says it holds the copy at the revision it was last sent is not
+    // sent it again: the first it hears of it is the next change.
+    const resumed = await listen(one.port, `/api/stream?held=${EPOCH}:5:ipax`)
+    await until('the stream to open again', () => resumed.text().includes('event: snapshot'))
+    held = ipax(one, 6, 'Fix the parser, and test it')
+    await one.refresh()
+    await until('the change after it', () => machineFrames(resumed.text()).length === 1)
+    expect(machineFrames(resumed.text())[0]).toMatchObject({ kind: 'change', from: 5 })
+    resumed.close()
   })
 
   it('is never sent to a device that is not the person’s own', async () => {

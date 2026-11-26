@@ -80,10 +80,14 @@ export interface OpenRequest {
   /**
    * The other machines' copies, as the frames a stream opens with
    * (`Copies.opening`) — written after the door's own projection, and again
-   * after a snapshot owed to a page that fell behind. Absent is none: only the
-   * person's own device is sent any (`copiesFor`).
+   * after a snapshot owed to a page that fell behind. Handed what the page
+   * said it holds (`held`) on opening, and null after a resync, when every
+   * copy goes whole. Absent is none: only the person's own device is sent
+   * any (`copiesFor`).
    */
-  copies?: () => readonly string[]
+  copies?: (held: ReadonlyMap<string, Cursor> | null) => readonly string[]
+  /** Which revision of each copy the page says it holds (`copiesHeldOf`), so one it has is not sent again. */
+  held?: ReadonlyMap<string, Cursor>
   /**
    * The revision this device's projection has reached.
    *
@@ -211,6 +215,7 @@ export class Streams {
     const held = new Held(req.device, req.until, req.sink, req.now, {
       snapshot: req.snapshot,
       copies: req.copies ?? (() => []),
+      held: req.held ?? null,
     })
     this.peers.push(held)
     held.send(STREAM_OPENING, req.now)
@@ -228,7 +233,7 @@ export class Streams {
       // tempting shape — always open with a snapshot — is a whole projection
       // down a phone's connection every time a tunnel blinks. The other
       // machines' copies are not in the ring, so they go whole.
-      held.sendCopies(req.now)
+      held.sendCopies(req.now, true)
       return { kind: 'open', peer: held }
     }
     if (resume.kind === 'resync') {
@@ -242,7 +247,7 @@ export class Streams {
       this.warn(`a stream resynced: ${resume.why}`, req.device)
     }
     held.send(sseFrame(snapshotFrame(req.snapshot())), req.now)
-    held.sendCopies(req.now)
+    held.sendCopies(req.now, resume.kind !== 'resync')
     return { kind: 'open', peer: held }
   }
 
@@ -409,6 +414,13 @@ export class Streams {
 }
 
 /** One connection, and everything known about how well it is keeping up. */
+/** What a peer is sent whole: the door's projection, the other machines' copies, and which the page held. */
+interface Whole {
+  snapshot: () => Snapshot
+  copies: (held: ReadonlyMap<string, Cursor> | null) => readonly string[]
+  held: ReadonlyMap<string, Cursor> | null
+}
+
 class Held implements Peer {
   readonly device: string
   until: number
@@ -422,15 +434,9 @@ class Held implements Peer {
   /** Whether it owes a `resync` once it catches up. */
   private owed = false
   /** What it is sent whole: the door's projection, and the other machines' copies. */
-  private readonly whole: { snapshot: () => Snapshot; copies: () => readonly string[] }
+  private readonly whole: Whole
 
-  constructor(
-    device: string,
-    until: number,
-    sink: Sink,
-    now: number,
-    whole: { snapshot: () => Snapshot; copies: () => readonly string[] },
-  ) {
+  constructor(device: string, until: number, sink: Sink, now: number, whole: Whole) {
     this.device = device
     this.until = until
     this.sink = sink
@@ -438,9 +444,13 @@ class Held implements Peer {
     this.whole = whole
   }
 
-  /** Every other machine's copy, whole. */
-  sendCopies(now: number): void {
-    for (const frame of this.whole.copies()) this.send(frame, now)
+  /**
+   * Every other machine's copy: on opening, the ones the page does not hold
+   * at the revision they were last sent; after a resync, every one whole —
+   * what it held was said before it fell behind.
+   */
+  sendCopies(now: number, opening = false): void {
+    for (const frame of this.whole.copies(opening ? this.whole.held : null)) this.send(frame, now)
   }
 
   renew(until: number): void {

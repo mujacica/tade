@@ -907,7 +907,7 @@ export class Away implements Subject {
       get rev() {
         return held.rev
       },
-      copies: () => (this.sentCopies(reach.device) ? this.copies.opening() : []),
+      copies: (held) => (this.sentCopies(reach.device) ? this.copies.opening(held) : []),
       notes: (scope, after) => {
         this.catchUp(reach, held)
         return held.notes(scope, after)

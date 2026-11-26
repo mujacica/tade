@@ -188,6 +188,26 @@ export function copiesOf(store) {
   return [...store.copies].map(([machine, copy]) => ({ machine, copy }))
 }
 
+/** How many copies a page says it holds when it opens its stream: the door reads no more. */
+const HELD_MOST = 32
+
+/**
+ * The stream's address, saying which revision of each other machine's copy
+ * this page holds (`copiesHeldOf` in `copies.ts`), so a stream that opens
+ * again is not sent a copy it already has. A copy marked `behind` is not
+ * claimed — it is the one the page wants whole.
+ */
+export function streamPath(store) {
+  const query = new URLSearchParams()
+  for (const [machine, copy] of store.copies) {
+    if (query.getAll('held').length >= HELD_MOST) break
+    if (copy.behind === true || copy.fresh === null || typeof copy.rev !== 'number') continue
+    query.append('held', `${copy.fresh.epoch}:${copy.rev}:${machine}`)
+  }
+  const said = query.toString()
+  return said === '' ? '/api/stream' : `/api/stream?${said}`
+}
+
 function refuse(version) {
   return `this page reads version ${SPEAKS} of Tade's away protocol and the machine sent version ${version}. Reload it.`
 }

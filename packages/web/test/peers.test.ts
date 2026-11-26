@@ -507,4 +507,32 @@ describe('the other machines’ copies', () => {
     live.drained(opened.peer, NOW)
     expect(events(sink).slice(-3)).toEqual(['resync', 'snapshot', 'machine'])
   })
+
+  it('is handed what the page holds on opening, and nothing held after a resync', () => {
+    const live = streams()
+    const asked: (ReadonlyMap<string, { epoch: string; rev: number }> | null)[] = []
+    const held = new Map([['ipax', { epoch: EPOCH, rev: 7 }]])
+    const sink = fake()
+    const opened = live.open({
+      device: 'aaaa0000bbbb1111',
+      until: NOW + 86_400_000,
+      cursor: null,
+      sink,
+      snapshot: snapshotOf,
+      copies: (said) => {
+        asked.push(said)
+        return [COPY]
+      },
+      held,
+      rev: 0,
+      now: NOW,
+    })
+    if (opened.kind !== 'open') throw new Error('it should have opened')
+    expect(asked).toEqual([held])
+    sink.keeping = false
+    for (let rev = 1; rev <= 200; rev++) live.push('aaaa0000bbbb1111', delta(rev), NOW)
+    sink.keeping = true
+    live.drained(opened.peer, NOW)
+    expect(asked).toEqual([held, null])
+  })
 })

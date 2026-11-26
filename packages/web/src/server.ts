@@ -11,6 +11,7 @@ import { changesHere } from './changes.ts'
 import { carryChange } from './configured.ts'
 import { connectTicketHolds } from './connect-tickets.ts'
 import { ConnectStates, carryConnect, connectHere } from './connected.ts'
+import { copiesHeldOf } from './copies.ts'
 import { appendDevice, type Device, listing, readDevices } from './devices.ts'
 import { carrySave } from './drafted.ts'
 import { chatHere, momentsHere, turnsHere } from './earlier.ts'
@@ -520,7 +521,8 @@ export function webServer(opts: ServerOptions): WebServer {
       cursor: cursorOf(header(req, 'last-event-id')),
       sink,
       snapshot: () => reading.snapshot(),
-      copies: () => reading.copies?.() ?? [],
+      copies: (held) => reading.copies?.(held) ?? [],
+      held: copiesHeldOf(req.url ?? '/'),
       rev: reading.rev,
       now: now(),
     })

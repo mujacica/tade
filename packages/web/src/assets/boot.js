@@ -86,6 +86,7 @@ import {
   mayRead,
   omitted,
   rowsOf,
+  streamPath,
   wantingIds,
 } from './store.js'
 import { talkScreen } from './talk.js'
@@ -513,7 +514,8 @@ function announce() {
  * good rather than retrying into a door that has been shut.
  */
 function openStream() {
-  source = new EventSource('/api/stream')
+  // Saying which copy of each other machine it holds, so one it has is not sent again.
+  source = new EventSource(streamPath(held.store))
   source.addEventListener('open', () => {
     seen = { ...seen, open: true, lastAt: Date.now() }
     tries = 0

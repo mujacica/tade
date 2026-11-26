@@ -162,6 +162,7 @@ declare module '*/assets/store.js' {
   export function applyDelta(store: Store, delta: unknown): string | null
   export function applyCopy(store: Store, frame: unknown): string | null
   export function copiesOf(store: Store): readonly { machine: string; copy: Store }[]
+  export function streamPath(store: Store): string
   export function rowsOf(store: Store, collection: string): readonly any[]
   export function wantsYou(store: Store): readonly any[]
   export function wantingIds(store: Store): Set<string>

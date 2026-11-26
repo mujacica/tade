@@ -13,6 +13,7 @@ import { BUDGET, type Budget, type Page, pageOf, withheld } from './page.ts'
 import type { AgentOut, ChatPage, Delta, NoteRow, Snapshot } from './protocol.ts'
 import { has } from './reach.ts'
 import { type Cursors, chatBefore, noteRows } from './snapshot.ts'
+import type { Cursor } from './stream.ts'
 
 // The whole of what the away view may read, declared in one place.
 //
@@ -61,9 +62,10 @@ export interface WebReading {
   /**
    * The other machines' copies this device is sent, as the frames a stream
    * opens with (`copies.ts`): none for a device that is not the person's own,
-   * and absent where this door holds none.
+   * and absent where this door holds none. Handed which revision of each the
+   * page said it holds, so one it has is not sent again; null for every one.
    */
-  copies?(): readonly string[]
+  copies?(held: ReadonlyMap<string, Cursor> | null): readonly string[]
   /**
    * The notes in one scope, newest first.
    *

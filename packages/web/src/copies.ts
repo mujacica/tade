@@ -1,7 +1,7 @@
 import { deltaBetween } from './delta.ts'
 import { type Delta, PROTOCOL_VERSION, type Snapshot } from './protocol.ts'
 import type { Reach } from './reach.ts'
-import { type Frame, sseFrame } from './stream.ts'
+import { type Cursor, type Frame, sseFrame } from './stream.ts'
 
 // Every other machine's projection, as a door passes it on to a page.
 //
@@ -31,6 +31,12 @@ import { type Frame, sseFrame } from './stream.ts'
 // **What is not in a copy**: the conversation and the notes, which are one
 // already (Phase 7 and `notes-shared.ts`) and would be drawn twice. Everything
 // else is that machine's answer as it gave it; the page draws text only.
+//
+// **A stream that opens again resumes them** (`copiesHeldOf`): the page says, in the
+// stream's address, which revision of each copy it holds, and a copy still at
+// that revision is not sent again — on a phone whose tunnel blinks, a few
+// hundred kilobytes a machine every time. One the page holds and this door
+// does not is `gone`; anything else, or a page that fell behind, is whole.
 //
 // Pure: no clock, no socket, nothing to await. `Copies` holds what each
 // machine's copy was last sent as, and every beat is a comparison against it.
@@ -142,7 +148,27 @@ export class Copies {
     return frames
   }
 
-  /** Every copy, whole: what a stream opens with, and what a page that fell behind is sent again. */
+  /**
+   * What a stream opens with: each copy whole, but where the page says it
+   * holds a copy at the revision it was last sent, nothing; and `gone` for a
+   * copy the page holds that this door no longer does. With nothing held —
+   * a page that fell behind — every copy whole.
+   */
+  resumed(held: ReadonlyMap<string, Cursor> | null): CopyFrame[] {
+    if (held === null || held.size === 0) return this.wholes()
+    const frames: CopyFrame[] = []
+    for (const [machine, { sent }] of this.held) {
+      const at = held.get(machine)
+      if (at?.epoch === sent.fresh.epoch && at.rev === sent.fresh.rev) continue
+      frames.push({ v: PROTOCOL_VERSION, machine, kind: 'whole', snapshot: sent })
+    }
+    for (const machine of held.keys()) {
+      if (!this.held.has(machine)) frames.push({ v: PROTOCOL_VERSION, machine, kind: 'gone' })
+    }
+    return frames
+  }
+
+  /** Every copy, whole: what a page that fell behind is sent again. */
   wholes(): CopyFrame[] {
     return [...this.held].map(
       ([machine, { sent }]): CopyFrame => ({
@@ -154,9 +180,9 @@ export class Copies {
     )
   }
 
-  /** Every copy, whole, as the text a stream is written. */
-  opening(): string[] {
-    return this.wholes().map((frame) => sseFrame(copyFrame(frame)))
+  /** What a stream opens with (`resumed`), as the text it is written. */
+  opening(held: ReadonlyMap<string, Cursor> | null = null): string[] {
+    return this.resumed(held).map((frame) => sseFrame(copyFrame(frame)))
   }
 }
 
@@ -172,4 +198,32 @@ function changeOf(was: Snapshot, is: Snapshot): Delta | 'same' | null {
   // `deltaBetween` throws for nothing else.
   if (was.v !== is.v) return null
   return deltaBetween(was, is) ?? 'same'
+}
+
+/** How many copies a page may say it holds, and how long a machine's name in one may be. */
+const HELD_MOST = 32
+const NAME_MOST = 120
+const EPOCH = /^[0-9a-fA-F-]{8,64}$/
+
+/**
+ * The copies a page says it holds, out of its stream's address: a `held`
+ * parameter each, `<epoch>:<rev>:<machine>` — the name last, since a name may
+ * hold a colon. What does not read is left out, never refused: a page whose
+ * word is not taken is sent that copy whole, which is always correct. Bounded
+ * in count and length, because this is text off a request and compared with
+ * nothing but what this door holds.
+ */
+export function copiesHeldOf(url: string): ReadonlyMap<string, Cursor> {
+  const at = url.indexOf('?')
+  const held = new Map<string, Cursor>()
+  if (at === -1) return held
+  for (const one of new URLSearchParams(url.slice(at + 1)).getAll('held').slice(0, HELD_MOST)) {
+    const [epoch, rev, ...rest] = one.split(':')
+    const machine = rest.join(':')
+    if (epoch === undefined || !EPOCH.test(epoch)) continue
+    if (rev === undefined || !/^\d{1,15}$/.test(rev)) continue
+    if (machine.length === 0 || machine.length > NAME_MOST) continue
+    held.set(machine, { epoch, rev: Number(rev) })
+  }
+  return held
 }
