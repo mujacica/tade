@@ -101,3 +101,48 @@ describe('the tail a run is kept as', () => {
     expect(listed + counted + inEnd).toBe(60)
   })
 })
+
+describe('the last failure a run named', () => {
+  it('is kept after the count when the names are more than the room', () => {
+    const many = [...Array.from({ length: 60 }, (_, i) => block(`a/f${i}.test.ts`, i)), 'end'].join(
+      '\n',
+    )
+    const text = kept(many, 4_000, 1_000)
+    expect(text.length).toBeLessThanOrEqual(4_000)
+    const head = (text.split('\n\n')[0] ?? '').split('\n')
+    const count = head.findIndex((line) => /^\[and \d+ more\]$/.test(line))
+    expect(count).toBeGreaterThan(0)
+    // The one straight after the count is the last name the cut part held.
+    const cut = plain(many.slice(0, many.length - 3_000))
+      .split('\n')
+      .filter((line) => line.startsWith(' FAIL'))
+      .at(-1)
+    expect(head[count + 1]).toBe(cut)
+  })
+
+  it("is named from vitest's listing when the run stopped before its summary", () => {
+    // Timed out or killed: no `FAIL` blocks, only each file's line as it
+    // finished, and a page of passing ones after it.
+    const stopped = [
+      ' ❯ packages/app/test/a.test.ts (8 tests | 1 failed) 719ms',
+      '   × keeps the failure that stopped it 30012ms',
+      ...Array.from(
+        { length: 400 },
+        (_, i) => ` ✓ packages/core/test/t${i}.test.ts (21 tests) 12ms`,
+      ),
+    ].join('\n')
+    const text = kept(stopped, 4_000, 512)
+    expect(text.length).toBeLessThanOrEqual(4_000)
+    expect(text).toContain(' ❯ packages/app/test/a.test.ts (8 tests | 1 failed) 719ms')
+    expect(text).toContain('   × keeps the failure that stopped it 30012ms')
+  })
+
+  it('never takes a stack frame or a passing file for a failure', () => {
+    const passing = [
+      ' ❯ packages/app/test/wire/harness.ts:206:15',
+      ' ❯ packages/core/test/b.test.ts (3 tests) 9ms',
+      ...Array.from({ length: 400 }, (_, i) => ` ✓ test ${i}`),
+    ].join('\n')
+    expect(kept(passing, 4_000, 300)).toBe(passing.slice(-4_000))
+  })
+})

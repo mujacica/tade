@@ -10,6 +10,10 @@ import { AWAKE, beat, type Waking } from '@tade/core'
 // `AWAY_AFTER_MS` is the machine having been away (`beat`, the same rule the
 // window wakes agents by), and counts as nothing; every other gap is awake.
 //
+// `slept` is a suspicion, not a finding: a loaded machine fires a timer that
+// late with the lid open. A failing run is called slept only on the machine's
+// own word (`slept.ts`), never on this alone.
+//
 // Pure: the clock is handed in, so a test sleeps the machine by moving a number.
 
 export interface Awake {

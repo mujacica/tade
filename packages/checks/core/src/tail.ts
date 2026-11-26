@@ -12,8 +12,14 @@ import { plain } from './outcome.ts'
 // and jest both print it — is kept when the output above the end is cut, at
 // the front, under a line of Tade's own that says it was cut.
 
-/** The line that heads a failure, as vitest and jest print it. */
-const NAMES_FAILURE = /^\s*FAIL\s+\S/
+/**
+ * A line that names a failure: the `FAIL` that heads one, as vitest and jest
+ * print it, and vitest's listing as each file finishes — `❯ file (8 tests | 1
+ * failed)` and the `× test` under it. A run stopped before its summary (timed
+ * out, killed) only ever printed the listing, so without these the one name
+ * there was is the first thing cut.
+ */
+const NAMES_FAILURE = /^\s*(?:FAIL\s+\S|[×✗]\s+\S|❯\s+\S.*\(\d+ tests?\b.*\b\d+ failed\))/
 
 /** Of the room, how much the names may take when there are any. */
 const NAMES_SHARE = 4
@@ -76,19 +82,28 @@ function namedIn(text: string, already: readonly string[]): string[] {
   return out
 }
 
-/** The names, said as cut, within `room`; what does not fit is counted, never dropped silently. */
+/**
+ * The names, said as cut, within `room`; what does not fit is counted, never
+ * dropped silently — and the last is always said, after the count: it is the
+ * failure nearest the end, the one a stopped run was in when it stopped.
+ */
 function said(names: readonly string[], room: number): string {
   const head = '[cut from the front of this output, the failures it named:]'
+  const final = names.at(-1)
   const kept: string[] = []
   let used = head.length + 1
-  // Room for the count is set aside whatever it comes to: it is never longer than this.
+  // Room for the count and the last name is set aside whatever they come to.
   const more = `[and ${names.length} more]`.length + 1
+  const lastRoom = (final?.length ?? 0) + 1
   for (const [i, name] of names.entries()) {
     const last = i === names.length - 1
-    if (used + name.length + 1 + (last ? 0 : more) > room) break
+    if (used + name.length + 1 + (last ? 0 : more + lastRoom) > room) break
     kept.push(name)
     used += name.length + 1
   }
-  const left = names.length - kept.length
-  return [head, ...kept, ...(left > 0 ? [`[and ${left} more]`] : []), ''].join('\n')
+  if (kept.length === names.length) return [head, ...kept, ''].join('\n')
+  // Said only where it fits, which is everywhere but a room smaller than one name.
+  const ends = final !== undefined && used + more + lastRoom <= room ? [final] : []
+  const left = names.length - kept.length - ends.length
+  return [head, ...kept, `[and ${left} more]`, ...ends, ''].join('\n')
 }

@@ -21,6 +21,7 @@ import {
 import { type GivesWay, givesWay, loweredLine, machineLabel } from '@tade/core'
 import { awakeAt, startAwake } from './awake.ts'
 import { type SpaceLeft, spaceLeft, watchDisk } from './disk.ts'
+import { type SleptBetween, sleptBetween } from './slept.ts'
 import { stop } from './stop.ts'
 
 // The commands, run the way you would type them.
@@ -54,11 +55,14 @@ const BEAT_MS = 1_000
 export interface LocalRunnerOptions extends RunnerOptions {
   /** How much of a disk is free (`disk.ts`): the machine's own unless a test says otherwise. */
   spaceLeft?: SpaceLeft
+  /** Whether the machine really slept (`slept.ts`): the kernel's word unless a test says otherwise. */
+  sleptBetween?: SleptBetween
 }
 
 export function makeLocalRunner(options: LocalRunnerOptions = {}): Runner {
   const now = options.now ?? Date.now
   const left = options.spaceLeft ?? spaceLeft
+  const asleep = options.sleptBetween ?? sleptBetween
   const parallel = Math.max(1, options.parallel ?? 2)
   const tailKept = Math.max(200, options.tail ?? 4_000)
   // The machine's own name (`machine.name`), never its host name: a run's record travels.
@@ -165,7 +169,7 @@ export function makeLocalRunner(options: LocalRunnerOptions = {}): Runner {
         if (batch.length === 0) continue
         const ran = await Promise.all(
           batch.map((check) =>
-            one(check, project, ctx, { now, host, tailKept, giveWay, idOf: id, left }),
+            one(check, project, ctx, { now, host, tailKept, giveWay, idOf: id, left, asleep }),
           ),
         )
         for (const run of ran) done.set(run.check, run)
@@ -188,6 +192,7 @@ async function one(
     giveWay: GivesWay
     idOf: (check: Check, commit: string) => string
     left: SpaceLeft
+    asleep: SleptBetween
   },
 ): Promise<CheckLog> {
   const startedAt = new Date(opts.now()).toISOString()
@@ -253,7 +258,8 @@ async function one(
   // The limit is time awake (`awake.ts`), so it is beaten towards rather than
   // set once: a single timer would count a closed lid against the check.
   const limit = Math.max(1, Math.round(check.minutes * 60_000))
-  let clock = startAwake(opts.now())
+  const began = opts.now()
+  let clock = startAwake(began)
   let timer: ReturnType<typeof setTimeout> | undefined
   const watch = () => {
     timer = setTimeout(
@@ -299,21 +305,31 @@ async function one(
   clock = awakeAt(clock, opts.now())
   const said: CheckState = outcome ?? (code === 0 ? 'passed' : 'failed')
   const failing = said === 'failed' || said === 'timed out'
-  const slept = clock.slept && failing
+  // A gap in the beats is only a suspicion — a loaded machine fires its timers
+  // late with the lid open — so the machine is asked (`slept.ts`), and only its
+  // yes calls the run slept. A no, or no answer, leaves it red with its tail.
+  const asked = clock.slept && failing ? await opts.asleep(began, opts.now()) : null
+  const slept = asked?.slept === true
   // A disk that was full is the machine's too (`OUT_OF_DISK`), and so is not red.
   const look = !slept && failing ? await disk.full(DRAIN_MS) : { full: false, trouble: null }
   const full = look.full
   const state: CheckState = slept || full ? 'cancelled' : said
   // A look that failed leaves the run red, and says why it could not tell.
-  const tail = look.trouble
+  const told = look.trouble
     ? `${kept.text()}\n[whether the disk was full could not be told: ${look.trouble}]`
     : kept.text()
+  // Said beside the output and never as its summary: the summary is the
+  // command's own last word about the code.
+  const tail =
+    asked && asked.slept === null
+      ? `${told}\n[the clock jumped while this ran, and whether the machine slept could not be told: ${asked.trouble}]`
+      : told
   const run: CheckLog = {
     ...base,
     state,
     finishedAt: new Date(opts.now()).toISOString(),
     code: outcome ? null : code,
-    summary: slept ? SLEPT : full ? OUT_OF_DISK : state === 'passed' ? null : summaryOf(tail),
+    summary: slept ? SLEPT : full ? OUT_OF_DISK : state === 'passed' ? null : summaryOf(told),
     tail,
   }
   ctx.onRun(run)

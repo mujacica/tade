@@ -7,6 +7,7 @@ import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { loweredFrom } from '../../../../test/fixtures/nice.ts'
 import { CI_WORKFLOW, ciWorkflow } from '../../../../test/fixtures/workflow.ts'
 import { makeLocalRunner } from '../src/index.ts'
+import type { SleepAnswer } from '../src/slept.ts'
 
 // Real commands in a real directory. Never a mocked shell: the thing worth
 // knowing about a runner is what happens to the processes it started.
@@ -283,14 +284,25 @@ describe('the local runner', () => {
   })
 })
 
+const YES: SleepAnswer = { slept: true, trouble: null }
+
 describe('a check the machine slept through', () => {
   // The clock is injected and the check closes the lid itself: when it prints
   // `lid`, an hour passes on the clock and not a moment on the machine. Never
   // a real sleep, and never a wait for one.
+  // What the machine says about it is injected too: the jump is only why it is
+  // asked, and its answer is what the run is recorded by.
   const HOUR = 3_600_000
-  const sleptIn = async (run: string, minutes: number) => {
+  const asked: [number, number][] = []
+  const sleptIn = async (run: string, minutes: number, answer: SleepAnswer = YES) => {
     let away = 0
-    const runner = makeLocalRunner({ now: () => Date.now() + away })
+    const runner = makeLocalRunner({
+      now: () => Date.now() + away,
+      sleptBetween: async (from, to) => {
+        asked.push([from, to])
+        return answer
+      },
+    })
     const [one] = await runner.run(
       { name: 'demo', root: tmp('tade-local-') },
       [check('tests', run, { minutes })],
@@ -330,6 +342,47 @@ describe('a check the machine slept through', () => {
     expect(run?.summary).toBe(SLEPT)
     expect(run?.code).toBe(1)
     expect(run?.tail).toContain('1 failed')
+  })
+
+  it('is red when the clock jumped and the machine says it never slept, failure and all', async () => {
+    // Three related runs one day: a loaded machine's beat came ninety seconds
+    // late with the lid open, and thirteen failing tests were recorded as a
+    // sleep pmset never saw.
+    asked.length = 0
+    const run = await sleptIn(
+      'echo lid; sleep 0.2; echo " FAIL  test/a.test.ts > keeps the failure"; echo "1 failed" >&2; exit 1',
+      1,
+      { slept: false, trouble: null },
+    )
+    expect(asked).toHaveLength(1)
+    expect(run?.state).toBe('failed')
+    expect(run && sleptThrough(run)).toBe(false)
+    expect(run?.summary).toBe('1 failed')
+    expect(run?.tail).toContain(' FAIL  test/a.test.ts > keeps the failure')
+  })
+
+  it('is red when whether it slept cannot be told, and says so beside the output', async () => {
+    const run = await sleptIn('echo lid; sleep 0.2; echo "1 failed" >&2; exit 1', 1, {
+      slept: null,
+      trouble: 'sysctl could not be asked: ENOENT',
+    })
+    expect(run?.state).toBe('failed')
+    expect(run?.summary).toBe('1 failed')
+    expect(run?.tail).toContain(
+      '[the clock jumped while this ran, and whether the machine slept could not be told: sysctl could not be asked: ENOENT]',
+    )
+  })
+
+  it('runs out of time as itself when the machine stayed awake', async () => {
+    const run = await sleptIn('echo lid; sleep 30', 0.05, { slept: false, trouble: null })
+    expect(run?.state).toBe('timed out')
+  })
+
+  it('asks nothing of a run that passed, or one whose clock never jumped', async () => {
+    asked.length = 0
+    expect((await sleptIn('echo lid; echo done', 1))?.state).toBe('passed')
+    expect((await sleptIn('echo "1 failed" >&2; exit 1', 1))?.state).toBe('failed')
+    expect(asked).toEqual([])
   })
 })
 
