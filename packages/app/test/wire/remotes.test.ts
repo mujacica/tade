@@ -6,6 +6,8 @@ import { type FarEnd, startFarEnd } from '@tade/remotes-core/far'
 import { makeScriptedLink, type ScriptedRemote } from '@tade/remotes-scripted'
 import { Memory } from '@tade/workbench/memory'
 import { afterEach, describe, expect, it } from 'vitest'
+import { mkrepo, runGit } from '../../../../test/fixtures/mkrepo.ts'
+import { checkoutAt } from '../../src/wire/fleet-checkout.ts'
 import type { CheckoutHere } from '../../src/wire/fleet-reload.ts'
 import { SharedNotes } from '../../src/wire/notes-shared.ts'
 import { RemoteMachines } from '../../src/wire/remote-machine.ts'
@@ -683,49 +685,55 @@ describe('a remote whose checkout is behind this one’s by commit', () => {
 })
 
 describe('a remote whose checkout is ahead of or apart from this one’s by commit', () => {
-  const AHEAD = 'c'.repeat(40)
-  const ELSEWHERE = 'd'.repeat(40)
-  const HERE = 'b'.repeat(40)
-  /** This machine's checkout at HERE, an ancestor of AHEAD, and without ELSEWHERE at all. */
-  const checkout: CheckoutHere = {
-    head: async () => HERE,
-    behind: async (commit, head) => commit === HERE && head === AHEAD,
-    hand: async () => null,
+  /**
+   * This machine's checkout, in a real repository: a commit after its HEAD
+   * that HEAD has not moved to, one sharing no history with it, and one it
+   * has not got at all.
+   */
+  function here() {
+    const mine = mkrepo()
+    const head = runGit(mine.root, 'rev-parse', 'HEAD').trim()
+    const tree = runGit(mine.root, 'rev-parse', 'HEAD^{tree}').trim()
+    const ahead = runGit(mine.root, 'commit-tree', tree, '-p', head, '-m', 'ahead').trim()
+    const apart = runGit(mine.root, 'commit-tree', tree, '-m', 'apart').trim()
+    return { checkout: checkoutAt(mine.root), head, ahead, apart, unknown: 'd'.repeat(40) }
   }
 
   it('says where it stands on its Tade line, offers no upgrade there and says nothing in the strip', async () => {
+    const { checkout, head, ahead, apart, unknown } = here()
+    const at = (commit: string) => ({
+      ...quiet(),
+      version: '0.2.3',
+      checkout: { root: '/srv/tade', commit },
+    })
+    const said = () => one.remotes.panel()?.remotes?.[0]?.versus?.said
     const north = await far(['api'])
-    north.machine = { ...quiet(), version: '0.2.3', checkout: { root: '/srv/tade', commit: AHEAD } }
+    north.machine = at(ahead)
     const one = await rig(
       { vps: await block('north', north) },
       { version: '0.2.3', checkout, terminals: true, machines: true, open: { settings: true } },
     )
-    await until(one, 'the commit held against HEAD here', () =>
-      Boolean(one.remotes.panel()?.remotes?.[0]?.versus),
-    )
+    const short = (commit: string) => commit.slice(0, 9)
+    await until(one, 'the commit held against HEAD here', () => Boolean(said()))
     expect(one.remotes.panel()?.remotes?.[0]?.versus).toEqual({
       behind: false,
       commit: true,
-      said: 'at ccccccccc, ahead of this Mac’s bbbbbbbbb',
+      said: `at ${short(ahead)}, ahead of this Mac’s ${short(head)}`,
     })
     expect(
       (one.remotes.inputs().remoteActions ?? []).some((a) => a.id === 'remote:upgrade:vps'),
     ).toBe(false)
     expect(one.said.filter((line) => line.includes('runs Tade'))).toEqual([])
-    // A commit git here cannot place either way: not behind, and said so.
-    north.machine = {
-      ...quiet(),
-      version: '0.2.3',
-      checkout: { root: '/srv/tade', commit: ELSEWHERE },
+    // Diverged, and a commit git here has not got: not behind, either way.
+    for (const commit of [apart, unknown]) {
+      north.machine = at(commit)
+      await one.machines?.ask('vps')
+      await until(
+        one,
+        `${short(commit)} held`,
+        () => said() === `at ${short(commit)}, not behind this Mac’s ${short(head)}`,
+      )
     }
-    await one.machines?.ask('vps')
-    await until(
-      one,
-      'the commit this machine has not got held',
-      () =>
-        one.remotes.panel()?.remotes?.[0]?.versus?.said ===
-        'at ddddddddd, not behind this Mac’s bbbbbbbbb',
-    )
   })
 })
 
