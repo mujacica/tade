@@ -74,7 +74,7 @@ import {
   wantsElsewhere,
 } from '../machines.js'
 import { quickActs } from '../quick.js'
-import { pathOf, taskPath } from '../routes.js'
+import { pathOf, taskPath, thereHref } from '../routes.js'
 import { section } from '../rows.js'
 import { closedOf, intakeWaiting, projectsOf, wantsYou } from '../store.js'
 import { changesSeen, KINDS } from '../toasts.js'
@@ -469,16 +469,11 @@ function fillWant(node, task, view) {
   node.quick?.update(task, view)
 }
 
-/**
- * Another machine's row that wants you: read only until a press can reach
- * that machine from this page (ONE-AWAY-VIEW §2.5) — no link to a page here,
- * which is this machine's tasks by id, and no presses — and its machine named
- * before its project.
- */
+/** Another machine's row that wants you: its page there, no presses, its machine before its project. */
 function fillElsewhere(node, one, view) {
   fillWant(node, one.task, view)
   const [, link] = node.children
-  link.removeAttribute('href')
+  link.setAttribute('href', thereHref(one.machine, link.getAttribute('href')) ?? '/')
   textIn(link.children[1], `${one.machine} · ${one.task.project}`)
 }
 

@@ -56,7 +56,7 @@ import { ASKING_FIRST, AWAY_CONTROLS, awayPanel, BEHIND_THE_PANEL } from '../pan
 import type { AwayView } from '../panels/away/view.ts'
 import type { PanelInputs } from '../panels.ts'
 import type { ActAnswer } from './acts.ts'
-import { type Actions, notify, type Subject, type Submits, type Wiring } from './context.ts'
+import { type Actions, notify, type Subject, type Submits, type Wiring, why } from './context.ts'
 import { hooksFor } from './doorbell.ts'
 import { evaluationsAnswer } from './evaluations.ts'
 import { armingFor, seenFrom } from './web-asking.ts'
@@ -355,6 +355,20 @@ export class Away implements Subject {
           outbox: async (answers, _device, label) => ({
             acts: this.deps.acts?.outboxFor(label, answers) ?? [],
           }),
+        },
+        // A press on another machine's row from this door's page: sent as this
+        // window's own press is, and what that machine said — or why it was
+        // not done — handed back as words the page shows.
+        pressThere: {
+          press: async (req) => {
+            const acts = this.deps.acts
+            if (!acts) return { ok: false, said: 'this window acts on no other machine' }
+            try {
+              return { ok: true, said: await acts.pressed(req) }
+            } catch (err) {
+              return { ok: false, said: why(err) }
+            }
+          },
         },
       }),
       // The guided pages that connect GitHub, Slack and Linear (`web-connect.ts`):

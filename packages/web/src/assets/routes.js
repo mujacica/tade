@@ -37,6 +37,16 @@ export function viewOf(path) {
   const parts = path.replace(/\/+$/, '').split('/')
   const first = parts[1] ?? ''
   if (path === '/' || first === '') return { view: 'now' }
+  // Another machine's screen: `/m/<machine>/` then one of `THERE`.
+  if (first === 'm' && parts.length >= 4) {
+    const machine = segment(parts[2])
+    const inner = viewOf(`/${parts.slice(3).join('/')}`)
+    // One machine deep: a third machine's copy is not relayed.
+    if (machine === null || inner.machine !== undefined || !THERE.includes(inner.view)) {
+      return { view: 'nowhere' }
+    }
+    return { ...inner, machine }
+  }
   if (first === 'p' && parts.length === 3) {
     const project = segment(parts[2])
     return project === null ? { view: 'nowhere' } : { view: 'project', project }
@@ -108,8 +118,14 @@ const PLAIN = [
   'pair',
 ]
 
+/** The screens another machine's copy draws under `/m/<machine>/`; the server's `… there` routes. */
+export const THERE = ['project', 'task']
+
 /** The path for a screen, which is what goes in an `href` and in the history. */
 export function pathOf(where) {
+  if (typeof where.machine === 'string' && THERE.includes(where.view)) {
+    return `/m/${encodeURIComponent(where.machine)}${pathOf({ ...where, machine: undefined })}`
+  }
   switch (where.view) {
     case 'now':
       return '/'
@@ -148,6 +164,18 @@ export function taskPath(id) {
   const cut = id.indexOf('/')
   if (cut < 0) return '/'
   return pathOf({ view: 'task', project: id.slice(0, cut), task: id.slice(cut + 1) })
+}
+
+/** A link on `machine`'s screen made its own, or null where this door's screen is not that machine's. */
+export function thereHref(machine, href) {
+  if (typeof href !== 'string' || !href.startsWith('/') || href.startsWith('//')) return href
+  if (href === '/' || href.startsWith('/m/')) return href
+  const cut = href.search(/[?#]/)
+  const path = cut === -1 ? href : href.slice(0, cut)
+  const rest = cut === -1 ? '' : href.slice(cut)
+  const where = viewOf(path)
+  if (!THERE.includes(where.view)) return null
+  return `${pathOf({ ...where, machine })}${rest}`
 }
 
 /** The path of what one task's agent has changed, from the `<project>/<task>` id. */

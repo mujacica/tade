@@ -25,7 +25,7 @@ import { classOn, el, empty, glyphOf, into, keyed, markIn, stateIn, textIn } fro
 import { ageSaid, count } from './figures.js'
 import { rowMark, taskMark } from './glyphs.js'
 import { agentsElsewhere } from './machines.js'
-import { taskPath } from './routes.js'
+import { taskPath, thereHref } from './routes.js'
 import { section } from './rows.js'
 import { agentsOf } from './store.js'
 import { panel } from './ui.js'
@@ -126,9 +126,7 @@ function fillGroup(node, group, view, acting) {
 
 /* ── another machine's ─────────────────────────────────────────────────────── */
 
-// Read, and nothing more yet: its rows lead to no page here, which is this
-// machine's tasks by id, and carry no presses — what may be done to another
-// machine's agent from this page is its own step (ONE-AWAY-VIEW §2.5).
+// Each row leads to that machine's page for it (`thereHref`), with no presses yet.
 
 function createElsewhere() {
   const made = section('machine')
@@ -159,7 +157,7 @@ function fillElsewhere(node, group, view) {
     (one, task) => {
       fillAgentRow(one, task, at)
       const [link] = one.children
-      link.removeAttribute('href')
+      link.setAttribute('href', thereHref(group.machine, link.getAttribute('href')) ?? '/')
       const why = link.children[4]
       if (group.working !== null && task.mark === 'working') textIn(why, group.working)
     },

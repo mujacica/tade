@@ -11,10 +11,13 @@ import {
   pathOf,
   requestPath,
   safeHref,
+  THERE,
   TITLES,
   taskPath,
+  thereHref,
   viewOf,
 } from '../src/assets/routes.js'
+import { titleFor } from '../src/assets/shell.js'
 import { ROUTES, routeFor } from '../src/routes.ts'
 
 // The page's own router, and the one property that cannot be checked in a
@@ -48,6 +51,7 @@ const VIEWS = Object.keys(TITLES).filter((view) => !NOT_A_PLACE.includes(view))
  * directions of this file while `/r/undefined` was what was being checked.
  */
 const WHERE = {
+  machine: 'ipax',
   project: 'tade',
   task: 'away-readonly-ui',
   source: 'github',
@@ -95,6 +99,73 @@ describe('every screen is a path the machine serves', () => {
       expect(VIEWS, one.view).toContain(one.view)
       expect(routeFor('GET', pathOf({ view: one.view })), one.view).not.toBeNull()
     }
+  })
+})
+
+describe('another machine’s screens', () => {
+  it('reads a project and a task under /m/<machine>/, and writes them back the same', () => {
+    for (const path of ['/m/ipax/p/tade', '/m/ipax/t/tade/away-readonly-ui']) {
+      const where = viewOf(path)
+      expect(where.machine, path).toBe('ipax')
+      expect(pathOf(where), path).toBe(path)
+      expect(routeFor('GET', path)?.route.document, path).toBe(true)
+    }
+    expect(viewOf('/m/my%20mac/p/tade')).toEqual({
+      view: 'project',
+      project: 'tade',
+      machine: 'my mac',
+    })
+  })
+
+  it('is nowhere for a screen no copy draws, an empty or smuggled name, and a bare machine', () => {
+    for (const path of [
+      '/m/ipax/findings',
+      '/m/ipax/t/tade/one/changes',
+      '/m/ipax',
+      '/m/ipax/',
+      '/m//p/tade',
+      '/m/a%2Fb/p/tade',
+      '/m/ipax/m/mac/p/tade',
+    ]) {
+      expect(viewOf(path).view, path).toBe('nowhere')
+    }
+  })
+
+  it('serves exactly the screens the page draws there', () => {
+    const served = ROUTES.filter((one) => one.document === true && one.path.startsWith('/m/'))
+    expect(
+      served
+        .map(
+          (one) =>
+            viewOf(
+              one.path
+                .replace(':machine', 'ipax')
+                .replace(':project', 'tade')
+                .replace(':task', 'one'),
+            ).view,
+        )
+        .sort(),
+    ).toEqual([...THERE].sort())
+  })
+
+  it('makes a link on a machine’s screen that machine’s, or words where this door’s screen is not it', () => {
+    expect(thereHref('mac', '/t/tade/one')).toBe('/m/mac/t/tade/one')
+    expect(thereHref('mac', '/p/tade#pj-checks')).toBe('/m/mac/p/tade#pj-checks')
+    expect(thereHref('mac', '/m/mac/t/tade/one')).toBe('/m/mac/t/tade/one')
+    expect(thereHref('mac', '/')).toBe('/')
+    expect(thereHref('mac', '#pj-checks')).toBe('#pj-checks')
+    expect(thereHref('mac', 'https://github.com/a/b/pull/1')).toBe('https://github.com/a/b/pull/1')
+    expect(thereHref('mac', '//elsewhere.example/x')).toBe('//elsewhere.example/x')
+    expect(thereHref('mac', '/findings')).toBeNull()
+    expect(thereHref('mac', '/plans/shop-1402')).toBeNull()
+    expect(thereHref('my mac', '/t/tade/one')).toBe('/m/my%20mac/t/tade/one')
+  })
+
+  it('names the machine in the title of its screens', () => {
+    expect(titleFor({ view: 'task', project: 'tade', task: 'one', machine: 'mac' })).toBe(
+      'one · tade · mac · Tade',
+    )
+    expect(titleFor({ view: 'task', project: 'tade', task: 'one' })).toBe('one · tade · Tade')
   })
 })
 

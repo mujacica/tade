@@ -59,6 +59,7 @@ export interface Look {
  * because the page drew its *nothing here* state.
  */
 const NAMES: Readonly<Record<string, string>> = {
+  ':machine': 'ipax',
   ':project': 'sentry',
   ':task': 'away-projection',
   ':source': 'github',

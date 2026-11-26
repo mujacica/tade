@@ -1,36 +1,7 @@
 // Notifications, from this page's side: the permission, the subscription, and
-// the four honest answers about why there is not one.
-//
-// **Nothing here happens without a press.** A browser's permission prompt may
-// only be raised from a user gesture — Chrome and Safari both refuse one that
-// is not, and Safari refuses it outright outside a page added to the home
-// screen — so this is a control somebody taps and never something the page
-// does on load. That is not only a browser rule: a prompt nobody asked for is
-// the thing people answer *no* to for ever, and a *no* on this origin cannot
-// be asked again from here. The two things that run on their own are `resend`,
-// which asks nothing: it tells the machine again what the browser holds — and
-// `looking`, which tells it this page is in front of somebody.
-//
-// **Two switches, and this is the second one.** The machine decides whether it
-// will send anything (`surfaces.web.push`, and the public key it answers
-// with); this device decides whether it will receive anything. Both are off
-// until somebody says so, in two places, and neither can stand in for the
-// other: `PUSH_NEEDS_A_GESTURE` is the sentence and this file is its other
-// half.
-//
-// **It asks the browser about the browser.** Whether this device is subscribed
-// is read from its own `pushManager` rather than from the machine, and that is
-// the better answer: a permission somebody took back in the phone's own
-// settings leaves a row in a file here and a browser that will deliver
-// nothing, and only one of the two knows. So the page shows what the *phone*
-// says, and the machine is asked only for what it offers.
-//
-// **Unsubscribing is both halves, in the order that cannot leave a row
-// behind.** The machine is told first and the browser second: a browser that
-// unsubscribed and a machine that still holds the endpoint would be a
-// notification sent for ever to something that answers `410`, and a machine
-// told first and a browser that then failed to unsubscribe is a phone that
-// gets nothing, which is what was asked for.
+// the four honest answers about why there is not one. Nothing without a press;
+// the browser asked about itself; each order the one that leaves no row behind
+// (add-away-surface).
 
 /** What this origin's notification state is, in one word. */
 export const NOT_OFFERED = 'not offered'
@@ -40,14 +11,7 @@ export const DENIED = 'denied'
 export const OFF = 'off'
 export const ON = 'on'
 
-/**
- * Why a browser has none of this, in the page's own words.
- *
- * The clause is the domain's own (`PUSH_NEEDS_A_GESTURE_SHORT` is the other
- * half), copied here because a browser cannot import a `.ts` file and held
- * equal to it by `test/push-client.test.ts` — `glyphs.js`'s treatment, for
- * `glyphs.js`'s reason.
- */
+/** Why a browser has none of this: `PUSH_NEEDS_A_GESTURE_SHORT`'s words (`test/push-client.test.ts`). */
 export const NEEDS_HOME_SCREEN =
   'on iOS this is offered only to a page you added to the home screen'
 
@@ -76,16 +40,8 @@ async function registered() {
 }
 
 /**
- * Where this device stands, which is one of six words and never a boolean.
- *
- * Six, because they are six different sentences for somebody to read and a
- * boolean would make the page guess which: the machine is not offering it, the
- * origin is not secure, this browser has none of it, the permission was
- * refused, nothing is subscribed, something is.
- *
- * **`denied` is read before the subscription**, because a permission taken
- * back in the phone's settings can leave a subscription object behind: a
- * browser that will deliver nothing must not be drawn as on.
+ * Where this device stands, one of six words and never a boolean: `denied` is
+ * read before the subscription, which a revoked permission can leave behind.
  */
 export async function pushState(shell) {
   if (shell === null || shell.notifying?.offered !== true) return NOT_OFFERED
@@ -98,16 +54,8 @@ export async function pushState(shell) {
 }
 
 /**
- * Ask the browser, then tell the machine. **Called from a press and nowhere
- * else.**
- *
- * The order is the browser first, and it is the only order that cannot write a
- * row for a device that will never be delivered to: a machine told first and a
- * permission then refused would be a subscription in a file with nothing
- * behind it.
- *
- * Answers in a word the caller can say: the state it reached, or `denied` /
- * `cannot` for what went wrong.
+ * Ask the browser, then tell the machine — **called from a press and nowhere
+ * else**. Answers the state it reached, or `denied` / `cannot`.
  */
 export async function subscribe(shell, ask) {
   if (shell === null || shell.notifying?.offered !== true) return NOT_OFFERED
@@ -124,47 +72,24 @@ export async function subscribe(shell, ask) {
   let made
   try {
     made = await reg.pushManager.subscribe({
-      // Required by every browser that implements this, and required by the
-      // specification for a reason worth knowing: a subscription that could be
-      // delivered to without a payload is one anybody holding the endpoint
-      // could ring. With it, the endpoint is useless without the signing key.
+      // Required: without it anybody holding the endpoint could ring it.
       userVisibleOnly: true,
       applicationServerKey: keyBytes(shell.notifying.key),
     })
   } catch {
-    // A key the browser would not take, a push service that refused, a
-    // registration that went away under us. One answer, because there is one
-    // thing to do about any of them.
+    // A key refused, a push service that refused, a registration gone: one thing to do.
     return CANNOT
   }
   const sent = await ask('POST', '/api/notify/subscribe', bodyOf(made))
   if (sent.status !== 200) {
-    // **The machine refused, so the browser must not keep it.** A subscription
-    // the machine does not hold is one nothing will ever use, and leaving it
-    // would make the next press think this device is already on.
+    // The machine refused, so the browser must not keep it either.
     await made.unsubscribe().catch(() => {})
     return CANNOT
   }
   return ON
 }
 
-/**
- * Tell the machine, again, the subscription this browser already holds — on
- * every visit, **never a new one and never a prompt**.
- *
- * Because a push service may go on answering `201` for a subscription it has
- * quietly replaced: iOS does not guarantee a `410` for a dead endpoint
- * (WebKit bug 249766, closed *won't fix*) and never fires
- * `pushsubscriptionchange` (WebKit bug 294421), so a machine that is always on
- * could send into nothing for weeks. Apple's own advice is this: send
- * `getSubscription()` on each visit. The machine writes a row only where it
- * changed (`web-push.ts`).
- *
- * It asks for nothing, which is why it may run without a press: reading what
- * the browser holds raises no prompt, and the permission it checks is the one
- * somebody already gave. A refusal is left alone — it is the machine saying
- * notifications are off, and the press is where that is said.
- */
+/** The subscription this browser holds, told the machine again on every visit — never a prompt (add-away-surface). */
 export async function resend(shell, ask) {
   if (shell === null || shell.notifying?.offered !== true) return false
   if (!pushable() || Notification.permission !== 'granted') return false
@@ -180,14 +105,9 @@ export async function resend(shell, ask) {
 export const LOOKING_MS = 50_000
 
 /**
- * Say this page is in front of somebody, while it is, so the machine does not
- * buzz this phone about what is already on its screen (`looking.ts`). Only
- * ever this device's own notifications, and only where it could be sent one.
- *
- * **Somebody, not a tab**: visible *and* touched within the last
- * `LOOKING_MS` — a phone in a hand locks itself and goes hidden, but a tab left
- * visible on a desk does not, and quieting that one would be the buzz somebody
- * came back to and never got. Like `resend`, it asks for nothing.
+ * Say this page is in front of somebody — visible and touched within
+ * `LOOKING_MS`, not a tab left on a desk — so this phone is not buzzed about
+ * its own screen (`looking.ts`). Asks for nothing.
  */
 export function looking(shell, ask, page = document) {
   if (shell === null || shell.notifying?.offered !== true) return
@@ -255,15 +175,7 @@ export function bodyOf(made) {
   }
 }
 
-/**
- * The VAPID public key as the bytes `subscribe` wants.
- *
- * `applicationServerKey` takes a `BufferSource`, and base64url is what the
- * machine sends — so the padding and the two swapped characters are undone
- * here. Written out rather than leaning on a helper, because the one bug this
- * has is silent: a key decoded wrongly is a subscription a push service
- * accepts and a signature it then rejects, weeks later.
- */
+/** The VAPID public key, base64url undone by hand: a key decoded wrongly fails silently weeks later. */
 export function keyBytes(key) {
   const padded = key.replace(/-/g, '+').replace(/_/g, '/')
   const full = padded + '='.repeat((4 - (padded.length % 4)) % 4)

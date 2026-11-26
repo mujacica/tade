@@ -19,6 +19,7 @@ import { type MachineAnswer, machineHere } from './machine.ts'
 import { type MachinesAnswer, machinesHere, machinesPressHere } from './machines.ts'
 import { type OpenAnswer, openHere } from './opened.ts'
 import { carryPresence } from './presence.ts'
+import { type PressedThere, pressThereHere } from './pressed-there.ts'
 import { type ProjectionAnswer, projectionHere } from './projection-told.ts'
 import { type RecordsAnswer, recordsHere } from './records.ts'
 import { type RepositoriesAnswer, repositoriesHere } from './repositories.ts'
@@ -56,7 +57,8 @@ import { type WatchSeenAnswer, watchSeenHere } from './watch-seen.ts'
 // (`restarted.ts`) or its orchestrator alone, its orchestrator's sign-in driven
 // from the phone (`signing-in.ts`), Settings › Accounts for this machine and
 // every one it links to, with an account's own sign-in (`accounts.ts`), what another machine of theirs has (`inventory-told.ts`), its whole projection for this machine's page to draw (`projection-told.ts`), what one of its watches has already found (`watch-seen.ts`), its public name's records looked at now (`records.ts`),
-// work it hands this machine to start here (`taken.ts`), and
+// work it hands this machine to start here (`taken.ts`), a press on another
+// machine's row put in its outbox (`pressed-there.ts`), and
 // a project it is moving here, opened (`opened.ts`). One door in `server.ts` for all of them (`OWNED_DOOR`),
 // because each is the SSH key's word and nothing an ordinary phone's session
 // is ever answered — but the person's own phone, on every one of them
@@ -80,6 +82,7 @@ export const OWNED_DOOR: ReadonlySet<string> = new Set([
   'conversation',
   'acts',
   'acts outbox',
+  'press there',
   'repositories',
   'side',
   'disk',
@@ -122,6 +125,7 @@ export async function carryOwned(
     | 'feeds'
     | 'conversation'
     | 'acts'
+    | 'pressThere'
     | 'repositories'
     | 'side'
     | 'disk'
@@ -152,6 +156,7 @@ export async function carryOwned(
         | ConversationShareAnswer
         | ActDone
         | { acts: ActBody[] }
+        | PressedThere
         | RepositoriesAnswer
         | SideAnswer
         | DiskAnswer
@@ -182,6 +187,7 @@ export async function carryOwned(
   if (route === 'conversation') return conversationHere(req, device, opts.conversation)
   if (route === 'acts') return actHere(req, device, opts.acts)
   if (route === 'acts outbox') return outboxHere(req, device, opts.acts)
+  if (route === 'press there') return pressThereHere(req, device, opts.pressThere)
   if (route === 'repositories') return repositoriesHere(req, device, opts.repositories)
   if (route === 'side') return sideHere(req, device, opts.side)
   if (route === 'disk') return diskHere(req, device, opts.disk)

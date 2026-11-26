@@ -128,6 +128,7 @@ declare module '*/assets/routes.js' {
     id?: string
     run?: string
     name?: string
+    machine?: string
   }
   export function pathOf(where: {
     view: string
@@ -137,7 +138,11 @@ declare module '*/assets/routes.js' {
     id?: string
     run?: string
     name?: string
+    machine?: string
   }): string
+  /** The screens another machine's copy draws, under `/m/<machine>/`. */
+  export const THERE: readonly string[]
+  export function thereHref(machine: string, href: string): string | null
   export function taskPath(id: string): string
   export function changesPath(id: string): string
   /** Where an address from before a rename lives now: `/runs` is `/plans`. */
@@ -238,7 +243,12 @@ declare module '*/assets/shell.js' {
     now: number,
   ): { key: string; lead: string; under: string } | null
   export function crossing(was: Set<string> | null, is: Set<string>): string
-  export function titleFor(where: { view: string; project?: string; task?: string }): string
+  export function titleFor(where: {
+    view: string
+    project?: string
+    task?: string
+    machine?: string
+  }): string
   export function navCounts(
     links: readonly { figure: unknown; counts: string | null }[],
     counts: Record<string, number>,
@@ -993,6 +1003,35 @@ declare module '*/assets/machines.js' {
     working: string | null
     agents: { id: string }[]
   }[]
+  export function thereOf(
+    store: Record<string, any> | null,
+    machine: string,
+    live: boolean,
+    now: number,
+  ): { store: Record<string, any>; asOf: number; frozen: boolean; up: boolean; line: string }
+}
+
+declare module '*/assets/pages/agent.js' {
+  export function taskScreen(
+    where: { view: string; project?: string; task?: string; machine?: string },
+    ctx: null,
+  ): { node: any; update(view: unknown): void; leave(): void }
+}
+
+declare module '*/assets/pages/project.js' {
+  export function projectScreen(
+    where: { view: string; project?: string; machine?: string },
+    ctx: null,
+  ): { node: any; update(view: unknown): void; leave?(): void }
+}
+
+declare module '*/assets/there.js' {
+  type Screen = { node: any; update(view: unknown): void; leave?(): void }
+  export function thereOn(
+    at: { view: string; project?: string; task?: string; machine?: string },
+    screen: Screen,
+  ): Screen
+  export function linksThere(node: any, machine: string): void
 }
 
 declare module '*/assets/room.js' {
