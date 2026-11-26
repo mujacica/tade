@@ -1,36 +1,7 @@
 // The last view: a handful of numbers this device may keep, so that opening
 // Tade with nothing to ask says *what was true, and when* rather than nothing
-// at all.
-//
-// **It is counts and a moment, and there is no text in it.** No title, no
-// intent, no note, no request's words, no approval, no project name, no task
-// name — and that is not a redaction applied to a snapshot, it is a different
-// value built from one. A snapshot is the whole tree including somebody's own
-// words and a stranger's; a phone in a pocket is the place where *what was
-// downloaded cannot be taken back*, so what goes on its disk is the smallest
-// thing that answers the question somebody opens the app on a train to ask.
-//
-// Three properties, each held by `test/offline.test.ts`:
-//
-// - **The allow-list is applied on the way in and on the way out.** A record
-//   written by another version of this page, or by anything else that can
-//   reach this origin's caches, cannot carry a field along: `onlyKept` is run
-//   over what is read as well as over what is written.
-// - **It is stamped with when it was true** and drawn with that age, never as
-//   though it were now. The page already refuses to let an age count up
-//   against a snapshot nothing can refresh; this is the same rule for a view
-//   that outlived the tab it was made in.
-// - **Nothing can be done from it.** There is no control on this screen, and
-//   that is structural rather than a decision made here: a device with no
-//   answer from the machine has no session on this page, so `actsOf` has no
-//   scopes to draw a control from, and every act is re-checked at the machine
-//   anyway.
-//
-// The record lives in Cache Storage under a URL the machine does not serve and
-// the worker does not know, so nothing can reach it through `fetch` and no
-// cache of it can be mistaken for an answer. Cache Storage rather than the
-// other stores for one more reason: everything this page keeps is then named
-// under one prefix, and signing out is one loop.
+// at all. Counts and a moment and no text, the allow-list applied both ways,
+// drawn with its age, nothing pressable (add-away-surface, `test/offline.test.ts`).
 
 import { el, into } from './dom.js'
 import { clockOf, count, duration } from './figures.js'

@@ -126,10 +126,7 @@ function fillGroup(node, group, view, acting) {
 
 /* ── another machine's ─────────────────────────────────────────────────────── */
 
-// Read, and nothing more yet: each row leads to that agent's page as that
-// machine's copy draws it (`/m/<machine>/t/…`, `thereHref`), and carries no
-// presses — what may be done to another machine's agent from this page is
-// its own step (ONE-AWAY-VIEW §2.5).
+// Each row leads to that machine's page for it (`thereHref`), with no presses yet.
 
 function createElsewhere() {
   const made = section('machine')

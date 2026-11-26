@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import {
   type Arm,
   AWAY_WORDS,
+  armFor,
   armMay,
   armSees,
   cameFromAway,
@@ -302,10 +303,15 @@ describe('what a remote turn may reach', () => {
     expect(said.ok).toBe(false)
   })
 
-  it('lets an act from a hub’s outbox steer and nothing that runs a command', () => {
-    // `@tade/app`'s `outboxArm`: every project, the steer tier, no owner's
-    // reach — because whoever controls the hub can write any act into it.
-    const outbox: Arm = { how: 'remote', device: 'machine vps', projects: null, may: ['steer'] }
+  it('lets an act from a hub’s outbox steer and tidy, and nothing that runs a command', () => {
+    // `@tade/app`'s `outboxArm`: every project, the steer and tidy tiers, no
+    // owner's reach — because whoever controls the hub can write any act into it.
+    const outbox: Arm = {
+      how: 'remote',
+      device: 'machine vps',
+      projects: null,
+      may: ['steer', 'tidy'],
+    }
     for (const method of [
       'terminal/open',
       'terminal/run',
@@ -319,9 +325,51 @@ describe('what a remote turn may reach', () => {
     ]) {
       expect(allowMethod(method, { task: 'sentry/flake' }, outbox).ok, method).toBe(false)
     }
-    for (const method of ['worker/steer', 'task/park', 'memory/remember']) {
+    for (const method of ['worker/steer', 'task/park', 'memory/remember', 'worker/stop']) {
       expect(allowMethod(method, { task: 'sentry/flake' }, outbox).ok, method).toBe(true)
     }
+  })
+
+  it('reaches the queue’s door for pausing and resuming alone, and only with tidy', () => {
+    const outbox: Arm = {
+      how: 'remote',
+      device: 'machine vps',
+      projects: null,
+      may: ['steer', 'tidy'],
+    }
+    for (const change of ['pause', 'resume']) {
+      for (const params of [
+        { task: 'sentry/flake', change },
+        { project: 'sentry', change },
+        { schedule: 'nightly', change },
+      ]) {
+        expect(allowMethod('queue/change', params, outbox).ok, JSON.stringify(params)).toBe(true)
+      }
+    }
+    for (const change of ['start', 'wait', 'after', 'retell', 'order', 'rename', 'remove', '']) {
+      const said = allowMethod('queue/change', { task: 'sentry/flake', change }, outbox)
+      expect(said.ok, change).toBe(false)
+    }
+    // A device is never granted tidy, whatever its record says: it stops nothing and pauses nothing.
+    const phone = armFor({
+      id: 'a1b2c3d4e5f60718',
+      projects: null,
+      scopes: ['read', 'answer', 'steer', 'tidy'],
+    })
+    expect(phone).toMatchObject({ may: ['answer', 'steer'] })
+    expect(allowMethod('worker/stop', { task: 'sentry/flake' }, phone).ok).toBe(false)
+    expect(allowMethod('queue/change', { task: 'sentry/flake', change: 'pause' }, phone)).toEqual({
+      ok: false,
+      said: '`queue/change` needs this device to have been granted tidy at the machine, and it was not.',
+    })
+    // A task id that names no project is no project, never every project.
+    expect(
+      allowMethod(
+        'queue/change',
+        { task: 'orphan', change: 'pause' },
+        { ...outbox, projects: ['sentry'] },
+      ).ok,
+    ).toBe(false)
   })
 
   it('writes a remote note down as the device, never as the orchestrator', () => {

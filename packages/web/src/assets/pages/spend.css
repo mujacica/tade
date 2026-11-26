@@ -264,13 +264,7 @@
   }
 }
 
-/*
-  Every machine: a row each, this one first, and the bottom line that adds
-  them set apart by a rule — money and tokens in columns that line up, and
-  why a machine is short of its whole said under its name, never as a cell.
-  On a phone held upright the tokens go under the money rather than squeeze
-  the name.
-*/
+/* Every machine: a row each and the bottom line set apart; upright, tokens under the money. */
 .spend-machines {
   display: grid;
   padding: var(--s1) var(--inset);

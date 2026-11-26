@@ -664,7 +664,7 @@ describe('who runs as each sign-in', () => {
         /(claude-code @vrolta-company|claude-code\s.*\n\s*@vrolta-company)/,
       )
       expect(said, `at ${width}`).not.toContain('…')
-      const orchestrator = plan.findIndex((row) => row === 'orchestrator')
+      const orchestrator = plan.indexOf('orchestrator')
       expect(orchestrator, `at ${width}`).toBeGreaterThan(
         plan.findIndex((row) => row.includes('vrolta')),
       )

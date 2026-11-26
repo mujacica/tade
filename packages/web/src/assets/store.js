@@ -87,8 +87,7 @@ export function emptyStore() {
     host: null,
     rev: -1,
     had: false,
-    // Every other machine's projection, as the door holds a copy of it: a
-    // store of the same shape per machine, by its name in `machines`.
+    // Every other machine's copy, a store each, by its name in `machines`.
     copies: new Map(),
   }
 }
@@ -148,16 +147,7 @@ export function applyDelta(store, delta) {
   return null
 }
 
-/**
- * Another machine's copy, as the door passes it on (`copies.ts`): whole,
- * what changed since the revision the page's copy is at, or gone.
- *
- * **A store per machine and never one merged tree**: each machine's rows are
- * its own fold, and a selector that draws them side by side asks each. A
- * change that does not start where the page's copy is keeps the copy as it
- * was and marks it `behind` — the door sends it whole again on the next
- * stream or resync — rather than applying it to a tree it was not made from.
- */
+/** Another machine's copy as the door passes it on (`copies.ts`); a change it is not at marks it `behind`. */
 export function applyCopy(store, frame) {
   if (frame.v !== SPEAKS) return refuse(frame.v)
   if (typeof frame.machine !== 'string') return 'a machine frame named no machine'
@@ -191,12 +181,7 @@ export function copiesOf(store) {
 /** How many copies a page says it holds when it opens its stream: the door reads no more. */
 const HELD_MOST = 32
 
-/**
- * The stream's address, saying which revision of each other machine's copy
- * this page holds (`copiesHeldOf` in `copies.ts`), so a stream that opens
- * again is not sent a copy it already has. A copy marked `behind` is not
- * claimed — it is the one the page wants whole.
- */
+/** The stream's address, with the revision of each copy held (`copiesHeldOf`); one `behind` is not claimed. */
 export function streamPath(store) {
   const query = new URLSearchParams()
   for (const [machine, copy] of store.copies) {

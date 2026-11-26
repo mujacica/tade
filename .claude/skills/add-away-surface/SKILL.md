@@ -360,6 +360,16 @@ a device still has none of the scopes that change anything until somebody at thi
   `LIFECYCLE` beside pairing and signing out, and it is a table of its own only
   because it has a setting — and in this package a setting is enforced by a
   table that is not built when it is off.
+- **The page's half of notifications** (`push.js`) **asks nothing without a press**: a permission
+  prompt may only come from a gesture (Safari refuses one outside a page on the home screen), and a
+  *no* nobody asked for cannot be asked again from here — only `resend` and `looking` run on their
+  own. It is the second of **two switches** (`surfaces.web.push` at the machine, then this device,
+  `PUSH_NEEDS_A_GESTURE`). **It asks the browser about the browser** — a permission taken back in
+  the phone's settings leaves a row here and a browser that delivers nothing — so its state is one
+  of six words read off `pushManager`, `denied` before the subscription, never a boolean.
+  **Subscribing is browser first, then the machine; unsubscribing the machine first, then the
+  browser** — each the order that cannot leave a row for a device that is never delivered to, and
+  a subscription the machine refused is dropped from the browser too.
 - **The page re-sends the subscription its browser holds on every visit, and a
   repeat writes nothing** (`resend` in `push.js`, `sameSubscription` in
   `web-push.ts`). iOS may answer for a subscription it replaced and never fires
@@ -718,9 +728,29 @@ a device still has none of the scopes that change anything until somebody at thi
   *uninstalling* worker does skip, and it is not an exception: it serves nothing and claims
   nothing, so there is no swap — made to wait it would sit behind that button for as long as a tab
   stayed open, and the removal would never happen.
+- **A worker served without its prelude does nothing** (`SHELL === null`): no cache, no
+  interception, no removal. Treating it as *off* would let a server bug uninstall every phone,
+  the one failure that cannot be undone from the machine. `addAll` is atomic, so one file that
+  cannot be fetched fails the install and the old worker stays rather than a half-filled shell.
+  Activating claims the pages (or the first visit would not be the one that works offline); the
+  cache is read first and the network on a miss, which is never refilled behind anyone's back.
+  A navigation is the shell whatever its path, as the machine itself serves it.
+- **A notification is drawn from the payload and never fetched** (`sw.js`'s `push`): a worker
+  asking the machine *what was that about* would be a credentialed request on a push service's
+  schedule, and an offline phone would draw a hole. `showNotification` always runs — a browser
+  handed a push and shown nothing revokes the subscription and draws its own sentence — so a
+  payload that is missing or not JSON is Tade's own words; every field is read as a bounded
+  string; `tag` makes a phone off for an hour hold one, not a column. It is not silent and does
+  not require interaction. **No path is in the payload** (a project and task in what a push
+  service keeps and a lock screen draws), so a tap focuses an open page of ours or opens `/`, and
+  `preventDefault` stops a Declarative Web Push browser opening its own. The one message a page
+  may send is `update`: only a waiting worker can decide to stop waiting.
 - **A kept view is counts and a moment, and not a redacted snapshot.** `countsOf` builds a
   different value; `onlyKept` is applied on the way in *and* on the way out; every field is a
-  number, which is the form of *no text at all* a test can check in one line.
+  number, which is the form of *no text at all* a test can check in one line. It is stamped with when it
+  was true and drawn with that age, never as now; nothing can be done from it (no session, so no
+  scopes to draw a control from); and it lives in Cache Storage under a URL the machine does not
+  serve and the worker does not know, under the one prefix signing out clears (`offline.js`).
 - **The two cache names are spelt in the page as well as in `installable.ts`**, held equal by
   `test/offline.test.ts` — `glyphs.js`'s treatment, for the same reason: the two moments they
   matter are a cold open with no answer and a session that has just been refused.
