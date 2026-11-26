@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema } from '@tade/core'
+import { ConfigSchema, machineLabel } from '@tade/core'
 import {
   type ConversationFormat,
   derivedHex,
@@ -149,11 +149,32 @@ describe('one conversation, from the heart and the window', () => {
     const vps = side('vps', {}, 'other')
     const mac = side('mac', { vps: REMOTE })
     mac.fleet.withReach(linkTo(vps))
+    // Named as the hub: its turns are this strip's until it says otherwise.
+    expect(mac.fleet.sharesWith()).toBe('vps')
     await mac.one.before(true)
     expect(mac.said.join('\n')).toContain('the same harness')
     expect(mac.one.joined).toBeNull()
     expect(mac.fleet.oneWith()).toBeNull()
+    // It keeps its own, so its tab comes back and nothing of it is folded in.
+    expect(mac.fleet.sharesWith()).toBeNull()
+    expect(vps.fleet.joinedBy(machineLabel())).toBe(false)
     await mac.one.after()
+  })
+
+  it('knows, as the hub, which machines that link here are this conversation, by the name their copy is kept under', async () => {
+    const vps = side('vps')
+    const mac = side('mac', { vps: REMOTE })
+    mac.fleet.withReach(linkTo(vps))
+    // Each side asks under this machine's own label, as a machine's window does.
+    const asker = machineLabel()
+    expect(vps.fleet.joinedBy(asker)).toBe(false)
+    await mac.one.before(true)
+    await mac.one.after()
+    expect(vps.fleet.joinedBy(asker)).toBe(true)
+    expect(vps.fleet.joinedBy(asker.toUpperCase())).toBe(true)
+    expect(vps.fleet.joinedBy('another')).toBe(false)
+    // The hub itself names no hub, so nothing of its own is folded from anywhere but its copies.
+    expect(vps.fleet.sharesWith()).toBeNull()
   })
 
   it('keeps the lease itself where no hub is named, and its door answers a machine that links here', async () => {

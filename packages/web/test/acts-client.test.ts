@@ -589,6 +589,9 @@ describe('the conversation screen', () => {
   it('says who said each line, and never says a device was you', () => {
     expect(whoSaid({ from: 'you' })).toBe('you, at the machine')
     expect(whoSaid({ from: 'device aa11' })).toBe('device aa11')
+    // A turn that ran on another of the person's machines says which.
+    expect(whoSaid({ from: 'you', there: 'ipax' })).toBe('you, at ipax')
+    expect(whoSaid({ from: 'device aa11', there: 'ipax' })).toBe('device aa11 on ipax')
     // Tade's own lines and the model's: the kind's own word already says it.
     for (const from of ['', null, undefined]) expect(whoSaid({ from })).toBe('')
   })

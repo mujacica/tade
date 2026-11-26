@@ -9,6 +9,7 @@ import {
 import { type Answer, LinkError, type Remote, type RemoteLink } from '@tade/remotes-core'
 import { type OrchestratorStanding, STARTING, type WebConversation } from '@tade/web'
 import { clockOf, type Wiring, why } from './context.ts'
+import { seenName } from './machines-seen.ts'
 
 // One orchestrator conversation on every machine, from the heart and the
 // window (`@tade/harnesses-core`'s `one-conversation.ts` is when its turns run
@@ -87,6 +88,12 @@ export class FleetConversation {
   private readonly downAt = new Map<string, number>()
   private lastAt = 0
   private busy = false
+  /**
+   * The machines that link here whose exchange this machine, as the hub,
+   * last took rather than refused, by the name their copy is kept under
+   * (`seenName`): their turns are turns of this conversation (`joinedBy`).
+   */
+  private readonly joiners = new Set<string>()
 
   constructor(wire: Wiring, deps: FleetConversationDeps) {
     this.wire = wire
@@ -174,6 +181,25 @@ export class FleetConversation {
     return joined !== null && hubOf(this.wire.opts.config).hub?.name === joined ? joined : null
   }
 
+  /**
+   * The hub whose turns are turns of this machine's conversation, by its
+   * name here, whether or not its link is up this minute: named as the hub,
+   * with the orchestrator here on a harness that keeps one conversation
+   * everywhere (or still coming up), and the hub not having said it keeps
+   * its own. Its tab folds into the one strip (`remote-talk.ts`), and its
+   * lines are drawn there as they run (`fleet-talk.ts`).
+   */
+  sharesWith(): string | null {
+    const hub = hubOf(this.wire.opts.config).hub?.name ?? null
+    if (hub === null || this.one?.refused === true) return null
+    return this.one !== null || this.starting ? hub : null
+  }
+
+  /** Whether a machine that links here exchanges this conversation, by its copy's name (`ProjectionsHeld`). */
+  joinedBy(name: string): boolean {
+    return this.joiners.has(seenName(name).toLowerCase())
+  }
+
   /** The orchestrator came up (`Heart.attachThinker`). */
   started(): void {
     this.thinker = { state: 'up', said: null }
@@ -210,7 +236,11 @@ export class FleetConversation {
           'the orchestrator here is not running on a harness that keeps one conversation on every machine',
         )
       }
-      return one.answer(body)
+      const answer = await one.answer(body)
+      const name = seenName(body.from.name).toLowerCase()
+      if (answer.refused === undefined) this.joiners.add(name)
+      else this.joiners.delete(name)
+      return answer
     }
   }
 

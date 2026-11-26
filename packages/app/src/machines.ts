@@ -197,15 +197,25 @@ export interface RemoteLine {
   id: string
   /** When, in **this** machine's clock. Null where it did not say. */
   at: number | null
-  kind: 'asked' | 'reply' | 'tool' | 'tade' | 'problem'
+  kind: (typeof KINDS)[number]
   /** Who asked: `you` there, or `device <id>`. Null for its own lines. */
   from: string | null
   /** The words, a line break kept where the remote had one. */
   text: string
   /** A tool's name: what this window draws of another machine's call, whatever that machine sent. */
   tool: string | null
-  outcome: 'running' | 'ok' | 'failed' | null
+  outcome: (typeof OUTCOMES)[number] | null
   streaming: boolean
+  /**
+   * The machine that machine says the line came from, where it folded it in
+   * from another (`withThere`); null for its own. A name it chose, so never
+   * drawn as anything but text, and never folded in again here.
+   */
+  there: string | null
+  /** That machine read it back out of its record, so it may have been said on any machine. */
+  read: boolean
+  /** A tool's call id in the record, where that machine sent one. */
+  call: string | null
 }
 
 /** A machine's conversation with its orchestrator, and whether a message may be sent to it now. */
@@ -506,8 +516,8 @@ function spendIn(projection: Record<string, unknown>): MachineSpend {
 
 /** How long one line of a conversation may be here: a reply, not a book. */
 const LINE_MOST = 8_000
-const KINDS = ['asked', 'reply', 'tool', 'tade', 'problem'] as const
-const OUTCOMES = ['running', 'ok', 'failed'] as const
+const KINDS = ['asked', 'reply', 'own', 'routed', 'tool', 'tade', 'problem'] as const
+const OUTCOMES = ['running', 'ok', 'failed', 'unknown'] as const
 
 /**
  * Its conversation, out of `you.talk` and the `chat` rows: null where `talk`
@@ -516,7 +526,7 @@ const OUTCOMES = ['running', 'ok', 'failed'] as const
  * a terminal would read as an instruction; oldest first, by when and then by
  * its own id, because the protocol sends a page in no order of its own.
  */
-function talkIn(projection: Record<string, unknown>, skew: number): RemoteTalk | null {
+export function talkIn(projection: Record<string, unknown>, skew: number): RemoteTalk | null {
   const talk = objectIn(objectIn(projection.you)?.talk)
   if (talk === null) return null
   const lines = listIn(projection.chat).flatMap((row): RemoteLine[] => {
@@ -526,6 +536,7 @@ function talkIn(projection: Record<string, unknown>, skew: number): RemoteTalk |
     const at = Date.parse(stringIn(row, 'at') ?? '')
     const from = text(row.from, NAME_MOST)
     const tool = text(row.tool, NAME_MOST)
+    const there = typeof row.there === 'string' ? text(row.there, NAME_MOST) : ''
     return [
       {
         id,
@@ -536,6 +547,9 @@ function talkIn(projection: Record<string, unknown>, skew: number): RemoteTalk |
         tool: tool === '' ? null : tool,
         outcome: OUTCOMES.find((one) => one === row.outcome) ?? null,
         streaming: row.streaming === true,
+        there: there === '' ? null : there,
+        read: row.read === true,
+        call: tokenIn(objectIn(row.call), 'id'),
       },
     ]
   })

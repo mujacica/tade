@@ -25,6 +25,9 @@ function line(kind: RemoteLine['kind'], text: string, over: Partial<RemoteLine> 
     tool: null,
     outcome: null,
     streaming: false,
+    there: null,
+    read: false,
+    call: null,
     ...over,
   }
 }

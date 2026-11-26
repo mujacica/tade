@@ -62,6 +62,8 @@ export interface ProjectionsHeldDeps {
   now: () => number
   /** Something a person should know: a copy that could not be kept or read back. */
   say: (said: string) => void
+  /** A machine's copy moved: what it is doing is drawn now, not at the next beat (`fleet-talk.ts`). */
+  moved?: () => void
 }
 
 /**
@@ -194,6 +196,7 @@ export class ProjectionsHeld {
     const folder = machineFolder(name)
     if (folder !== null && folder !== name) this.held.delete(folder)
     this.held.set(name, { projection, heardAt: this.deps.now(), dirty: true })
+    this.deps.moved?.()
   }
 
   private refused(name: string, read: string): 'refused' {

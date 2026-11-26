@@ -3,6 +3,7 @@ import type { StatusAsk } from '@tade/status'
 import { agentEnded, eventNews } from './inbox.ts'
 import type { LayoutPrefs } from './layout.ts'
 import { Live } from './live.ts'
+import { talkIn } from './machines.ts'
 import {
   type AppState,
   initialState,
@@ -14,6 +15,7 @@ import {
   withTerminals,
   withTranscript,
 } from './model.ts'
+import type { ThereLine } from './transcript.ts'
 import { type Entry, REPEAT_MS, tadeDid } from './transcript.ts'
 import { AccountsHere } from './wire/accounts-here.ts'
 import { MachineActs } from './wire/acts.ts'
@@ -34,6 +36,7 @@ import { type ConversationPlace, FleetConversation } from './wire/conversation.t
 import { FleetDuties } from './wire/duties.ts'
 import { Earlier } from './wire/earlier.ts'
 import { type FleetFeeds, fleetFeedsFor } from './wire/feeds.ts'
+import { FleetTalk, type TalkThere } from './wire/fleet-talk.ts'
 import { type Tellable, tellNow, tellOrKeep } from './wire/handed.ts'
 import { Intake } from './wire/intake.ts'
 import { Inventories, type InventoriesDeps, type InventoryTools } from './wire/inventory.ts'
@@ -425,6 +428,8 @@ export class Heart {
   readonly waitingThere = new WaitingThere()
   /** The orchestrator's conversation, one on every machine (`conversation.ts`). */
   readonly conversation: FleetConversation
+  /** And drawn as one: another machine's turns in this strip as they run there (`fleet-talk.ts`). */
+  readonly fleetTalk: FleetTalk
   /** Whose each duty is where one repository is a project on several machines (`duties.ts`). */
   readonly duties: FleetDuties
   /** Its tool calls run on another machine through that machine's own gate, and theirs here (`acts.ts`). */
@@ -551,6 +556,8 @@ export class Heart {
       home: this.wire.opts.home,
       now: () => this.now(),
       say: (said) => this.told.note(said),
+      // Constructed below; a copy read back off the disk before then is folded at the first beat.
+      moved: () => this.fleetTalk?.fold(),
     })
     this.sync = projectSyncFor(this.wire, () => this.told, this.duties)
     this.inventory = new Inventories(this.wire, {
@@ -569,6 +576,7 @@ export class Heart {
       },
       later: () => void this.earlier.later(),
     })
+    this.fleetTalk = new FleetTalk(this.wire, { sources: () => this.talkThere() })
     this.acts = new MachineActs(this.wire, {
       say: (said) => {
         this.put(notice(this.current, said, this.now()))
@@ -629,6 +637,8 @@ export class Heart {
       ...face.remotes,
       seen: (held) => {
         this.machinesSeen.linked(held)
+        // The hub's turn, streaming, drawn here as it arrives.
+        this.fleetTalk.fold()
         // An `outbox` frame from a hub: what waits there for this machine is collected now.
         this.acts.heard(held)
       },
@@ -640,6 +650,7 @@ export class Heart {
       feeds: this.feeds,
       waiting: this.waitingThere,
       oneWith: () => this.conversation.oneWith(),
+      sharesWith: () => this.conversation.sharesWith(),
       acts: () => this.acts,
       // This machine's own work, told every machine it links to for their pages.
       own: () => this.away.own(),
@@ -741,6 +752,7 @@ export class Heart {
         void this.sync.beat()
         this.inventory.beat()
         this.conversation.beat(this.orchestrator.busy())
+        this.fleetTalk.fold()
         this.duties.beat()
         this.acts.beat(Object.keys(this.wire.opts.config.remotes))
         this.projections.beat()
@@ -913,6 +925,47 @@ export class Heart {
   /** What makes the orchestrator's conversation one on every machine, for whoever starts it. */
   conversationPlace(): ConversationPlace {
     return this.conversation.place()
+  }
+
+  /** The copy of another machine's conversation last read, by the projection it was read out of. */
+  private copiesRead = new Map<string, { projection: unknown; lines: readonly ThereLine[] }>()
+
+  /**
+   * Every machine whose turns are this conversation's, with its lines as its
+   * projection carries them: the hub this machine links to, from the stream
+   * it follows, and each machine that links here and exchanges it, from what
+   * it told this one (`ProjectionsHeld`) — the hub's half, so a `tade serve`
+   * with no screen draws the Mac's turns on its page as they run.
+   */
+  private talkThere(): TalkThere[] {
+    const out: TalkThere[] = []
+    const hub = this.conversation.sharesWith()
+    if (hub !== null && this.remotes) {
+      const machine = this.remotes.machines().remotes.find((one) => one.name === hub)
+      const device = this.remotes.reachFor(hub)?.remote.session.device
+      if (machine?.talk) {
+        out.push({
+          machine: hub,
+          lines: machine.talk.lines,
+          own: device === undefined ? null : `device ${device}`,
+        })
+      }
+    }
+    const names = new Set<string>()
+    for (const copy of this.projections.copies()) {
+      if (copy.name === hub || !this.conversation.joinedBy(copy.name)) continue
+      names.add(copy.name)
+      let read = this.copiesRead.get(copy.name)
+      if (read?.projection !== copy.projection) {
+        const talk = talkIn(copy.projection as unknown as Record<string, unknown>, 0)
+        read = { projection: copy.projection, lines: talk?.lines ?? [] }
+        this.copiesRead.set(copy.name, read)
+      }
+      out.push({ machine: copy.name, lines: read.lines, own: null })
+    }
+    for (const name of [...this.copiesRead.keys()])
+      if (!names.has(name)) this.copiesRead.delete(name)
+    return out
   }
 
   /** Its tool calls run on another machine, and other machines' run here (`acts.ts`). */

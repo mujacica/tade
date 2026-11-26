@@ -540,6 +540,14 @@ export const ChatRowSchema = z.strictObject({
   streaming: z.boolean(),
   /** What a `suggestion` offers to ask, in Tade's words. Null on every other line. */
   ask: z.string().nullable(),
+  /**
+   * The machine whose turn it was where it ran on another of the person's
+   * machines — one conversation, drawn on every one — or null for a line said
+   * here. Absent from an older Tade. Drawn as a mark, as text.
+   */
+  there: z.string().max(80).nullable().optional(),
+  /** Read back out of the record rather than said here as it happened: another machine leaves it out of its fold. */
+  read: z.boolean().optional(),
 })
 export type ChatRow = z.infer<typeof ChatRowSchema>
 

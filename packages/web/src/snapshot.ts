@@ -336,6 +336,8 @@ export function chatRows(lines: readonly ChatIn[]): ChatRow[] {
     call: null,
     streaming: line.streaming,
     ask: line.ask === undefined || line.ask === '' ? null : withoutPaths(line.ask),
+    ...(line.there === undefined || line.there === '' ? {} : { there: line.there }),
+    ...(line.read === true ? { read: true } : {}),
   }))
 }
 

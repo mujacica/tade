@@ -52,6 +52,12 @@ export interface RemoteTalkDeps {
   skew(machine: string): number
   /** The hub this machine's own conversation is one with (`FleetConversation.oneWith`), or null. */
   oneWith?(): string | null
+  /**
+   * The hub whose turns are this machine's conversation's, link up or not
+   * (`FleetConversation.sharesWith`): it has no tab, because its turns are
+   * drawn in the one strip as they run there (`fleet-talk.ts`).
+   */
+  sharesWith?(): string | null
 }
 
 /**
@@ -131,9 +137,15 @@ export class RemoteTalks {
     this.deps = deps
   }
 
-  /** A tab per machine, and the conversation of the one in front. */
+  /**
+   * A tab per machine, and the conversation of the one in front — except the
+   * hub this conversation is one with, whose turns are this strip's own.
+   */
   facts(): Partial<Frame> {
-    const machines = this.deps.machines()
+    const all = this.deps.machines()
+    const shared = this.deps.sharesWith?.() ?? null
+    const machines =
+      shared === null ? all : { ...all, remotes: all.remotes.filter((one) => one.name !== shared) }
     const front = talkingTo(this.wire.state)
     const machine = machines.remotes.find((one) => one.name === front)
     // A machine taken out of the config takes its tab with it, and the line

@@ -563,6 +563,14 @@ export interface ChatIn {
   streaming: boolean
   /** What a `suggestion` offers to ask. Absent or empty on every other line. */
   ask?: string
+  /**
+   * The machine whose turn it was, where it ran on another of the person's
+   * machines and was folded in here as it happened there: that machine's
+   * name, a host name's letters. Absent or empty for a line said here.
+   */
+  there?: string
+  /** Read back out of the conversation's record rather than said here, so it may have been said on any machine. */
+  read?: boolean
 }
 
 /**

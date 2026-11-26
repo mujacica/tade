@@ -22,7 +22,31 @@ export type ToolState = 'running' | 'ok' | 'failed' | 'unknown'
 /** Who is speaking: the model you talk to, or Tade answering from its own grammar and its own work. */
 export type Speaker = 'orchestrator' | 'tade'
 
-export type Entry =
+/**
+ * A line of a turn that ran on another of the person's machines, folded into
+ * this machine's drawing of the one conversation as that machine's
+ * projection carries it (`withThere`): which machine, its line's own id there,
+ * and the call's id in the record where it is a tool. Drawn with the
+ * machine's name as its mark; never written anywhere, never a `said`.
+ */
+export interface There {
+  machine: string
+  line: string
+  call?: string
+}
+
+export type Entry = EntryOf & {
+  /** Present only on a line of another machine's turn (`withThere`). */
+  there?: There
+  /**
+   * Read back out of the harness's record (`withEarlier`, `withLater`) rather
+   * than said here as it happened: it may have been said on any machine, so
+   * another machine folding this one's lines in leaves it out.
+   */
+  read?: true
+}
+
+type EntryOf =
   /**
    * What was said *to* Tade, with the pictures that went along.
    *
@@ -239,7 +263,8 @@ export function withEarlier(
   }
   return {
     ...transcript,
-    entries: [...entries, ...transcript.entries],
+    // Read, not said here: another machine folding this one's lines leaves these out.
+    entries: [...entries.map((entry): Entry => ({ ...entry, read: true })), ...transcript.entries],
     earlier: cursor ? { cursor, asking: false } : null,
   }
 }
@@ -258,8 +283,216 @@ export function withLater(
   const last = transcript.entries.reduce((most, entry) => Math.max(most, entry.at), 0)
   const newer = items.filter((item) => item.at > last)
   if (newer.length === 0) return transcript
-  const made = withEarlier({ ...transcript, entries: [] }, newer, null, theirs).entries
+  // **A turn already drawn as it ran there is not drawn again** when its
+  // record arrives: each line folded from another machine (`withThere`) stands
+  // for one item, matched once, and an item that matched takes the news Tade
+  // told with it along, which was that machine's to draw.
+  const folded = transcript.entries.filter((entry) => entry.there !== undefined)
+  const used = new Set<Entry>()
+  const made: Entry[] = []
+  for (const item of newer) {
+    const drawn = withEarlier({ ...transcript, entries: [] }, [item], null, theirs).entries
+    const matched = drawn.some((entry) => {
+      const twin = folded.find((one) => !used.has(one) && sameLine(one, entry))
+      if (twin === undefined) return false
+      used.add(twin)
+      return true
+    })
+    if (!matched) made.push(...drawn)
+  }
+  if (made.length === 0) return transcript
   return { ...transcript, entries: [...transcript.entries, ...made] }
+}
+
+/**
+ * One line of another machine's conversation, as its projection carries it
+ * (`@tade/app`'s `RemoteLine`, read structurally): enough to draw it.
+ */
+export interface ThereLine {
+  /** Its own id there: stable, what a later look at the same line is matched by. */
+  id: string
+  /** When, in this machine's clock; null where it did not say. */
+  at: number | null
+  kind: string
+  /** Who asked: `you` there, or `device <id>`. Null for its own lines. */
+  from: string | null
+  text: string
+  tool: string | null
+  outcome: ToolState | null
+  streaming: boolean
+  /** Where that machine says it came from: null for its own line, said there as it happened. */
+  there: string | null
+  /** That machine read it back out of its record, so it may have been said anywhere. */
+  read: boolean
+  /** A tool's call id in the record. */
+  call: string | null
+}
+
+/** The kinds of another machine's line that are its turn: not its news, not what it offers to ask. */
+const FOLDED = new Set(['asked', 'reply', 'own', 'routed', 'tool', 'problem'])
+
+/**
+ * Another machine's turns of the one conversation, put into this one's
+ * drawing of it as they happen there, each with that machine's name for a
+ * mark — so a line typed on the Mac and its answer streaming on ipax are in
+ * one strip on both, in time order, whichever machine ran the turn.
+ *
+ * **Only that machine's own lines**, said there as they happened: a line it
+ * folded in from somewhere else (`there`) or read back out of its record
+ * (`read`) may be this machine's own turn coming back, and is left out. Only
+ * what was said from `since` on — when this window started folding — since
+ * what came before is this one's record to draw (`Earlier`). A line already
+ * drawn from the record here is not drawn again (`sameLine`).
+ *
+ * Each line is matched by its id there, so a reply still arriving grows in
+ * place and a tool that answered changes its mark. Returns the same transcript
+ * where nothing moved, which is what keeps a quiet frame quiet.
+ *
+ * Pure. `own` is this machine's device on that machine (`device <id>`), so
+ * what was typed here and asked there reads as the person's.
+ */
+export function withThere(
+  transcript: Transcript,
+  machine: string,
+  lines: readonly ThereLine[],
+  since: number,
+  own: string | null = null,
+): Transcript {
+  const at = new Map<string, number>()
+  transcript.entries.forEach((entry, index) => {
+    if (entry.there?.machine === machine) at.set(entry.there.line, index)
+  })
+  const recorded = transcript.entries.filter((entry) => entry.read === true)
+  const used = new Set<Entry>()
+  let entries: Entry[] | null = null
+  for (const line of lines) {
+    if (line.there !== null || line.read || line.at === null || !FOLDED.has(line.kind)) continue
+    const made = thereEntry(line, line.at, machine, own)
+    const index = at.get(line.id)
+    if (index !== undefined) {
+      const was = (entries ?? transcript.entries)[index]
+      if (was === undefined || sameDrawing(was, made)) continue
+      entries ??= [...transcript.entries]
+      entries[index] = made
+      continue
+    }
+    if (line.at < since) continue
+    const twin = recorded.find((one) => !used.has(one) && sameLine(one, made))
+    if (twin !== undefined) {
+      used.add(twin)
+      continue
+    }
+    entries ??= [...transcript.entries]
+    // In time order: after everything said at or before it.
+    let place = entries.length
+    while (place > 0 && (entries[place - 1]?.at ?? 0) > made.at) place -= 1
+    entries.splice(place, 0, made)
+    // Indexes after it moved along by one.
+    for (const [id, i] of at) if (i >= place) at.set(id, i + 1)
+    at.set(line.id, place)
+  }
+  if (entries === null) return transcript
+  const room = Math.max(TRANSCRIPT_MAX, transcript.entries.length)
+  if (entries.length <= room) return { ...transcript, entries }
+  return {
+    ...transcript,
+    entries: entries.slice(-room),
+    earlier: { cursor: READ_FROM_END, asking: false },
+  }
+}
+
+function thereEntry(line: ThereLine, at: number, machine: string, own: string | null): Entry {
+  const there: There = {
+    machine,
+    line: line.id,
+    ...(line.call === null ? {} : { call: line.call }),
+  }
+  switch (line.kind) {
+    case 'asked':
+      return {
+        kind: 'you',
+        text: line.text,
+        images: [],
+        at,
+        // The person at that machine's keyboard, or at this one through its
+        // link, is the person; a paired device is said as who it is.
+        from: line.from === null || line.from === own ? 'you' : line.from,
+        there,
+      }
+    case 'reply':
+      return {
+        kind: 'said',
+        text: line.text,
+        streaming: line.streaming,
+        by: 'orchestrator',
+        at,
+        there,
+      }
+    case 'own':
+      return { kind: 'said', text: line.text, streaming: line.streaming, by: 'tade', at, there }
+    case 'routed':
+      return { kind: 'routed', text: line.text, at, there }
+    case 'tool':
+      return {
+        kind: 'tool',
+        // Never a call id of this machine's own, which a turn here updates by.
+        id: `there:${machine}:${line.id}`,
+        tool: line.tool ?? 'a tool',
+        detail: '',
+        state: line.outcome ?? 'unknown',
+        result: '',
+        progress: null,
+        at,
+        there,
+      }
+    default:
+      return { kind: 'problem', text: line.text, at, there }
+  }
+}
+
+/** Whether two drawings of one line are the same, so a look that moved nothing changes nothing. */
+function sameDrawing(one: Entry, other: Entry): boolean {
+  if (one.kind !== other.kind || one.at !== other.at) return false
+  if (one.kind === 'tool' && other.kind === 'tool') return one.state === other.state
+  if (one.kind === 'said' && other.kind === 'said') {
+    return one.text === other.text && one.streaming === other.streaming
+  }
+  return 'text' in one && 'text' in other && one.text === other.text
+}
+
+/**
+ * Whether a line drawn from the record and a line folded from another
+ * machine's projection are the same thing said: the same kind, and the same
+ * call or the same words. Words are compared without anything path-shaped,
+ * which the projection takes out (`withoutPaths`) and the record keeps, and
+ * by their start, which is plenty to tell two sayings apart.
+ */
+export function sameLine(one: Entry, other: Entry): boolean {
+  if (one.kind !== other.kind) return false
+  if (one.kind === 'tool' && other.kind === 'tool') {
+    const calls = [
+      one.there?.call ?? (one.there ? null : one.id),
+      other.there?.call ?? (other.there ? null : other.id),
+    ]
+    if (calls[0] !== null && calls[1] !== null) return calls[0] === calls[1]
+    return toolName(one.tool) === toolName(other.tool)
+  }
+  if (one.kind === 'said' && other.kind === 'said') {
+    return one.by === other.by && wordsKey(one.text) === wordsKey(other.text)
+  }
+  if (one.kind === 'you' && other.kind === 'you') return wordsKey(one.text) === wordsKey(other.text)
+  return false
+}
+
+/** Words as `sameLine` compares them: no path-shaped word, no marks, no case, the first 160 letters. */
+function wordsKey(text: string): string {
+  return text
+    .split(/\s+/)
+    .filter((word) => !/[/\\~…]/.test(word))
+    .join(' ')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '')
+    .slice(0, 160)
 }
 
 /** The page before what is shown is being read. */
@@ -399,7 +632,7 @@ export function fromThinker(transcript: Transcript, event: ThinkerEvent, at: num
   const last = entries.at(-1)
   switch (event.type) {
     case 'delta':
-      if (last?.kind === 'said' && last.streaming) {
+      if (last?.kind === 'said' && last.streaming && last.there === undefined) {
         return replaceLast(transcript, { ...last, text: last.text + event.text })
       }
       return push(thinking(transcript, at), {
@@ -411,7 +644,7 @@ export function fromThinker(transcript: Transcript, event: ThinkerEvent, at: num
       })
     case 'message':
       // The whole block, which is the truth about what the parts added up to.
-      if (last?.kind === 'said' && last.streaming) {
+      if (last?.kind === 'said' && last.streaming && last.there === undefined) {
         return replaceLast(transcript, { ...last, text: event.text, streaming: false })
       }
       return push(transcript, {
@@ -602,7 +835,8 @@ function replaceLast(transcript: Transcript, entry: Entry): Transcript {
 
 function settleStreaming(transcript: Transcript): Transcript {
   const last = transcript.entries.at(-1)
-  return last?.kind === 'said' && last.streaming
+  // Another machine's line is settled by that machine's projection, never by a turn here.
+  return last?.kind === 'said' && last.streaming && last.there === undefined
     ? replaceLast(transcript, { ...last, streaming: false })
     : transcript
 }

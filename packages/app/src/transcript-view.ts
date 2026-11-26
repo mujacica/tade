@@ -98,6 +98,17 @@ export function transcriptLines(
   transcript.entries.forEach((entry, index) => {
     // A breath before each thing you said, so exchanges read as exchanges.
     if (entry.kind === 'you' && index > 0) plainText('')
+    // **A mark, not a tab**: a turn that ran on another machine says which,
+    // once, where it starts — on what was asked there, or above its first
+    // line where nothing was asked (a watch there, an agent there asking).
+    const there = entry.there?.machine
+    if (
+      there !== undefined &&
+      entry.kind !== 'you' &&
+      transcript.entries[index - 1]?.there?.machine !== there
+    ) {
+      plainText(`  ${skin.hint(`on ${printable(there)}`)}`)
+    }
     for (const line of entryLines(entry, width, skin, now)) {
       if (line.linkable) linked(line.text)
       else if (line.target) {
@@ -138,11 +149,14 @@ interface Drawn {
 function entryLines(entry: Entry, width: number, skin: Skin, now: number): Drawn[] {
   switch (entry.kind) {
     case 'you': {
-      const out: Drawn[] = wrapped(entry.text, width, `${skin.you('❯')} `, skin.you).map(
-        (text) => ({
-          text,
-        }),
-      )
+      // Asked on another machine: its name before the mark, so the line says where.
+      const lead =
+        entry.there === undefined
+          ? `${skin.you('❯')} `
+          : `${skin.hint(printable(entry.there.machine))} ${skin.you('❯')} `
+      const out: Drawn[] = wrapped(entry.text, width, lead, skin.you).map((text) => ({
+        text,
+      }))
       // **Whose words these are, drawn where somebody reads them.** Only when
       // they are not the person's own: a line saying *you* above everything
       // the person typed is noise on every exchange, and the one case that

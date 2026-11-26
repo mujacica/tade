@@ -133,6 +133,10 @@ function entryOf(line: RemoteTalk['lines'][number], own: string | null): Entry {
       }
     case 'reply':
       return { kind: 'said', text: line.text, streaming: line.streaming, by: 'orchestrator', at }
+    case 'own':
+      return { kind: 'said', text: line.text, streaming: line.streaming, by: 'tade', at }
+    case 'routed':
+      return { kind: 'routed', text: line.text, at }
     case 'tool':
       return {
         kind: 'tool',

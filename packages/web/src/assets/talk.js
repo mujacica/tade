@@ -636,8 +636,14 @@ function marked(line) {
  * already says it.
  */
 export function whoSaid(line) {
-  if (line.from === null || line.from === undefined || line.from === '') return ''
-  return line.from === 'you' ? 'you, at the machine' : line.from
+  // Asked on another of the person's machines and drawn here as it ran there:
+  // that machine's name, as text, so one conversation says where each turn was.
+  const there = typeof line.there === 'string' && line.there !== '' ? line.there : null
+  if (line.from === null || line.from === undefined || line.from === '') {
+    return there === null ? '' : `on ${there}`
+  }
+  if (line.from === 'you') return there === null ? 'you, at the machine' : `you, at ${there}`
+  return there === null ? line.from : `${line.from} on ${there}`
 }
 
 /**

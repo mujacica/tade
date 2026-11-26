@@ -1160,7 +1160,13 @@ drawn from what its away view sends — the projection the link holds.
   owned by `Remotes` like the agents): that machine's conversation out of its projection (`talk`,
   read by `machines.ts` a line at a time, paragraphs kept), turned into this window's `Transcript`
   so the strip draws it with `transcriptLines`, and a last row saying where a message typed there
-  stands (`talkSays`) — so nobody takes it for this machine's. **What is typed on its tab is
+  stands (`talkSays`) — so nobody takes it for this machine's. **The hub this conversation is one
+  with has no tab** (`FleetConversation.sharesWith`, filtered in `RemoteTalks.facts`): its turns are
+  folded into this strip as they run there (`wire/fleet-talk.ts` → `withThere`), the machine's name
+  as the mark on what was asked, and the hub folds each machine that exchanges with it the same way
+  out of the copy it was told (`joinedBy`). Only that machine's own live lines fold — never one it
+  folded in (`there`) or read from its record (`read`), which may be this machine's turn coming
+  back — and `withLater` draws its record once, matched by `sameLine`. **What is typed on its tab is
   `/api/ask/ask` there and nothing here, however that goes**: `App`'s keyboard `say` asks
   `Remotes.say` first, a refusal or a link that is down is a line on that tab with what was typed,
   and no `said` line is written. Escape there means its turn (`talkBusy`, put in the state by the

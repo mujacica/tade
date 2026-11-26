@@ -768,7 +768,16 @@ export function chatLines(transcript: Transcript): ChatIn[] {
   for (const entry of transcript.entries) {
     const n = seen.get(entry.at) ?? 0
     seen.set(entry.at, n + 1)
-    out.push({ ...chatLine(entry), id: `${new Date(entry.at).toISOString()}#${n}`, at: entry.at })
+    out.push({
+      ...chatLine(entry),
+      id: `${new Date(entry.at).toISOString()}#${n}`,
+      at: entry.at,
+      // Where it came from, when not said here as it happened: another
+      // machine's turn, or the record — which another machine leaves out of
+      // its fold, so nothing it said comes back to it as this machine's.
+      ...(entry.there === undefined ? {} : { there: entry.there.machine }),
+      ...(entry.read === true ? { read: true } : {}),
+    })
   }
   return out
 }
@@ -805,7 +814,15 @@ function chatLine(entry: Entry): Omit<ChatIn, 'id' | 'at'> {
           // The call's own id in the orchestrator's record: opening it on a
           // page reads its whole answer from there (`callAnswer`). One you ran
           // yourself is in no record, so its answer goes with the row.
-          ...(entry.yours === true ? {} : { id: entry.id }),
+          // Another machine's call is asked for by its id in the record, which
+          // the conversation carries here too once it is exchanged.
+          ...(entry.yours === true
+            ? {}
+            : entry.there !== undefined
+              ? entry.there.call === undefined
+                ? {}
+                : { id: entry.there.call }
+              : { id: entry.id }),
           input: entry.input ?? null,
           result: entry.state === 'running' ? null : entry.result,
         },

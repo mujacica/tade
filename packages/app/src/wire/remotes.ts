@@ -1110,6 +1110,8 @@ export function remotesFor(
     waiting?: WaitingThere
     /** The hub this machine's own conversation is one with, whose turn escape here stops (`conversation.ts`). */
     oneWith?: () => string | null
+    /** The hub whose turns are this conversation's, link up or not: its tab folds into the strip (`sharesWith`). */
+    sharesWith?: () => string | null
     /** Another machine's own tool calls, through its gate (`acts.ts`): what a press on a schedule there is. */
     acts?: () => Pick<MachineActs, 'pressed'>
     /** This machine's own projection, told every machine it links to so a page there draws it. */
@@ -1211,7 +1213,12 @@ export function remotesFor(
       })
     })
     .withTalks(
-      (remotes) => new RemoteTalks(wire, { ...reachingOf(remotes), oneWith: subjects.oneWith }),
+      (remotes) =>
+        new RemoteTalks(wire, {
+          ...reachingOf(remotes),
+          oneWith: subjects.oneWith,
+          sharesWith: subjects.sharesWith,
+        }),
     )
     .withNotes((remotes) =>
       sharedNotesFor(wire, (name) => remotes.reachFor(name), say, subjects.waiting),
