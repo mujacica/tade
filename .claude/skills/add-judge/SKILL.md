@@ -95,7 +95,18 @@ Everything below is one rule read at different distances: **a judge answers, it 
 - **Silence is the one answer that teaches nobody.** A reading that could not read everything says
   what it left out; one that could read nothing says that. A whole review lost to a 400 that
   reached somebody as a red line with a provider's JSON in it is neither a finding nor a reason.
-- **Pin a version, never an alias.** Thresholds are tuned against one version's distributions.
+- **Follow the latest, and record who answered.** A pin went stale under everybody once — a retired
+  version made every ask a 400 and the review watch read as though it found nothing — so an
+  unset or empty `extensions.jev.model` asks the provider's `latest` alias, or the newest version
+  it lists (`newestOf`), resolved per run and again when an ask is told its version is unknown.
+  A person may still pin one, and a pin that is gone is a judge that cannot answer, never swapped.
+  Thresholds are tuned against one version, so every `Judgement.version` is what answered, the
+  precision table and `jev_findings` count by it (`byVersion`), and a change is said once
+  (`versionSaid`).
+- **A judge that cannot answer at all is loud** (`JudgeError.cannotAnswer` — a key refused, a
+  version it does not have): the look throws `cannotLook` rather than naming every batch unread,
+  so it reaches the window's trouble line, the strip and the top of the brief, and a change with
+  nothing to ask about never counts as the judge having answered.
 - **The port speaks nobody's vocabulary.** `yes-no`, not `noul`; `rate`, not `score`; `options`,
   not `criteria`. If a second implementation would have to learn a vendor's word, the port is wrong.
 - **With no key, nothing runs and nothing else changes.** `ready()` says what is missing, no tool

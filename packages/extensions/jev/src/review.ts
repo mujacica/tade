@@ -24,7 +24,7 @@ import { findingKey, shorten } from './loop.ts'
 import { RUBRIC, reviewQuestions, SETTLE, titleOf } from './questions.ts'
 import { forgetRead } from './record.ts'
 import { findingDetail, severitySaid } from './report.ts'
-import { type Review, recordReview } from './reviews.ts'
+import { type Review, readReviews, recordReview } from './reviews.ts'
 
 // Reading one change with the pack, and what comes of it.
 //
@@ -162,6 +162,10 @@ export async function readChange(
       // so what could not be read is named, **with what was said about it**, and
       // the rest is read. A look that could read *nothing* still throws.
       if (options.signal?.aborted) throw err
+      // A judge that cannot answer anything is not one batch it could not
+      // read: every other batch would be refused the same way, and a reading
+      // that named them all unread would be a review that reads as one.
+      if (err instanceof JudgeError && err.cannotAnswer) throw err
       // Refused for its size is the one refusal that says what to do about
       // itself: ask for less. `room` is characters standing in for tokens, so
       // being wrong about it is a matter of when and not whether — and the one
@@ -239,6 +243,29 @@ export function untoldSaid(untold: readonly { unit: Unit; said: string }[]): str
   return untold
     .map(({ unit, said }) => `${unit.key} at ${unit.head.slice(0, 8)}: ${said}`)
     .join(' ')
+}
+
+/**
+ * A change of the version that answers, in the words the window says it in,
+ * or null where nothing moved. Nothing is said about the first version ever
+ * heard, which is not a change, nor about a look the judge answered nothing in.
+ */
+export function versionSaid(before: string, now: string): string | null {
+  if (now === '' || before === '' || before === now) return null
+  return `Jev now answers as ${now} (it was ${before}); what it raises from here is counted under ${now} in the precision table.`
+}
+
+/**
+ * The look's error when the judge cannot answer at all, in words that say
+ * nothing was reviewed: this reaches the window's trouble line, the strip and
+ * the brief, and "could not look" alone read as one bad look among good ones.
+ */
+export function cannotLook(err: JudgeError, waiting: number): Error {
+  const what =
+    waiting === 1
+      ? 'the one change waiting was not reviewed'
+      : `none of the ${waiting} changes waiting were reviewed`
+  return new Error(`Jev cannot answer at all, so ${what}: ${err.message}`)
 }
 
 /** The questions that cleared the reporting threshold, highest first. */
@@ -404,6 +431,8 @@ export const reviewWatch: ExtensionWatch = {
     // nobody asked for: what it has already spent is what the next change is
     // measured against.
     const asking = Asking.from(ctx)
+    // The version the record last heard answer, before this look adds to it.
+    const previous = readReviews(ctx.home).at(-1)?.version ?? ''
     // What fails leaves its cursor where it was and is read again next time.
     const refused: string[] = []
     // What nothing could read because of what the change itself is — git could
@@ -414,12 +443,15 @@ export const reviewWatch: ExtensionWatch = {
     // nightly change with 64 MB of generated files in it was a red line every
     // ten minutes for as long as it stood.
     const untold: { unit: Unit; said: string }[] = []
-    let readable = 0
+    // Changes the judge was asked about and answered. A change with nothing in
+    // it a question could be about was never put to the judge, so it is no
+    // evidence the judge can answer: counted here, it let a look in which
+    // every ask was refused read as a look that found nothing.
+    let answered = 0
     for (const unit of still) {
       try {
         const change = await changesFor(ctx, unit)
         if (change.files.length === 0) {
-          readable += 1
           const left = partSaid(change)
           if (left) {
             untold.push({ unit, said: `nothing in it a question could be about. ${left}` })
@@ -430,7 +462,7 @@ export const reviewWatch: ExtensionWatch = {
         const reading = await readChange(asking, unit, change, reviewQuestions(only), {
           signal: ctx.signal,
         })
-        readable += 1
+        answered += 1
         since[unit.key] = unit.head
         recordReview(
           ctx.home,
@@ -448,12 +480,16 @@ export const reviewWatch: ExtensionWatch = {
           untold.push({ unit, said: `it could not be read: ${err.message}` })
           continue
         }
+        // The judge cannot answer at all: every change behind this one would
+        // be refused the same way, so the look ends here and says so — never
+        // a look that found nothing, which is what an unreviewed day read as.
+        if (err instanceof JudgeError && err.cannotAnswer) throw cannotLook(err, still.length)
         refused.push(`${unit.key} (${err instanceof Error ? err.message : String(err)})`)
       }
     }
-    // Said only where there was nothing else to say: a look that read
+    // Said where the judge answered nothing it was asked: a look that read
     // something has looked, and what it could not read comes round again.
-    if (refused.length > 0 && readable === 0) {
+    if (refused.length > 0 && answered === 0) {
       throw new Error(
         refused.length === 1
           ? `the one change it found could not be read: ${refused[0]}`
@@ -464,8 +500,11 @@ export const reviewWatch: ExtensionWatch = {
     // A notice is only heard from a look that found nothing — beside a finding
     // the window drops it — so where this one found something, what it could
     // not read keeps its cursor and is said by the next look instead of never.
-    const said = findings.length === 0 ? untoldSaid(untold) : null
-    if (said) for (const { unit } of untold) since[unit.key] = unit.head
+    const untoldNow = findings.length === 0 ? untoldSaid(untold) : null
+    if (untoldNow) for (const { unit } of untold) since[unit.key] = unit.head
+    // A version that answered this look and not the last reading is said once:
+    // the next look compares with what this one wrote down, which is the same.
+    const said = [versionSaid(previous, asking.version), untoldNow].filter(Boolean).join(' ')
     // Unchanged when nothing moved, so a quiet hour does not move the cursor.
     return { found: findings, since: JSON.stringify(since), ...(said ? { said } : {}) }
   },

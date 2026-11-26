@@ -263,7 +263,7 @@ describe('the sweep', () => {
         tasks: ['shop/old'],
         base: 'a',
         head: 'b',
-        version: 'jev-1.13.0',
+        version: 'jev-1.14.0',
         rubric: RUBRIC,
         files: 1,
         part: null,

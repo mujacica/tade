@@ -352,7 +352,7 @@ describe('a second reading of a command', () => {
   const read = (
     tier: 'soft' | 'hard',
     reason = 'could destroy something that cannot be got back',
-  ) => ({ tier, reason, by: 'jev', version: 'jev-1.13.0' }) as const
+  ) => ({ tier, reason, by: 'jev', version: 'jev-1.14.0' }) as const
 
   it('raises what it takes to allow a command nobody wrote a rule for', () => {
     const decided = decideApproval(bash('terraform destroy -auto-approve'), settings)

@@ -420,6 +420,7 @@ function calibrationTab(read: Read, at: PageAt): string[] {
   const lines = ['## By probability', '']
   if (bands.length === 0) {
     lines.push(`Nothing was flagged ${called(at)}, so there is nothing to calibrate.`)
+    lines.push(...versionLines(read))
     return lines
   }
   lines.push(
@@ -439,6 +440,7 @@ function calibrationTab(read: Read, at: PageAt): string[] {
   lines.push(
     'A band is calibrated when the share confirmed is near the band itself: 0.8–0.9 should be right about four times in five. Read nothing off a band with fewer verdicts than that.',
   )
+  lines.push(...versionLines(read))
   const days = read.precision.byDay.filter((day) => day.read > 0 || day.tally.fired > 0)
   if (days.length > 0) {
     lines.push('', '## Over time', '')
@@ -462,6 +464,37 @@ function calibrationTab(read: Read, at: PageAt): string[] {
     )
   }
   return lines
+}
+
+/**
+ * The record by the version that answered, because the default follows the
+ * provider's latest: a band read across two versions is two calibrations
+ * added up. Nothing where nothing was read.
+ */
+function versionLines(read: Read): string[] {
+  const versions = read.precision.byVersion.filter((row) => row.read > 0 || row.tally.fired > 0)
+  if (versions.length === 0) return []
+  return [
+    '',
+    '## By version',
+    '',
+    ...chart(
+      columns([
+        ['  version', 'read', 'flagged', 'verdicts', 'since'],
+        ...versions.map((row) => [
+          `${row.tally.judged > 0 ? GOOD : row.tally.fired > 0 ? WAIT : QUIET} ${row.version}`,
+          String(row.read),
+          String(row.tally.fired),
+          precisionSaid(row.tally),
+          dateSaid(row.from),
+        ]),
+      ]),
+    ),
+    '',
+    versions.length === 1
+      ? `Everything here was answered by ${versions[0]?.version}.`
+      : 'Each version is counted on its own: the thresholds were tuned against one version’s answers, and a rate added up across two says nothing about either.',
+  ]
 }
 
 /** Whether the watch can look at all: every look in the window, newest first. */

@@ -74,7 +74,7 @@ const jev: ExtensionView = {
   ],
   options: [
     { key: 'key', label: 'API key', value: 'tsk_0123456789', have: 'config.yaml', secret: true },
-    { key: 'model', label: 'Version', value: 'jev-1.13.0', have: '', secret: false },
+    { key: 'model', label: 'Version', value: 'jev-1.14.0', have: '', secret: false },
   ],
   unknownSettings: [],
   configurable: true,

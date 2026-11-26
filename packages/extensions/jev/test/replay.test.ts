@@ -78,7 +78,7 @@ describe('a judge asked again', () => {
     expect(written).toMatchObject({
       judge: 'jev',
       rubric: RUBRIC,
-      against: ['jev-1.13.0'],
+      against: ['jev-1.14.0'],
       score: {
         read: 1,
         couldNot: 0,
@@ -91,7 +91,7 @@ describe('a judge asked again', () => {
     expect(facts.replays).toEqual([
       expect.objectContaining({
         judge: 'jev',
-        against: ['jev-1.13.0'],
+        against: ['jev-1.14.0'],
         costUsd: written?.cost_usd,
       }),
     ])

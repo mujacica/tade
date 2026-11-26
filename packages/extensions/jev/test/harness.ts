@@ -11,16 +11,25 @@ import { jevExtension } from '../src/extension.ts'
 
 export const NOW = Date.parse('2026-09-20T09:00:00Z')
 
-/** A TypeSafe that answers exactly what a test tells it to, and 0.02 otherwise. */
+/** The versions the fake lists: their alias, and the version it resolves to. */
+export const LISTED = ['jev-1.14.0', 'jev-latest']
+
+/**
+ * A TypeSafe that answers exactly what a test tells it to, and 0.02 otherwise.
+ * Asked under its `latest` alias, it names the version that answered, as theirs does.
+ */
 export function typesafe(answers: Record<string, number>, seen?: unknown[]): typeof fetch {
-  return (async (_input: string | URL | Request, init?: RequestInit) => {
+  return (async (input: string | URL | Request, init?: RequestInit) => {
+    if (String(input).endsWith('/v1/models')) {
+      return Response.json({ data: LISTED.map((id) => ({ id })) })
+    }
     const body = JSON.parse(String(init?.body)) as {
       state: unknown
       questions: Record<string, { type: string; criteria?: unknown }>
     }
     seen?.push(body)
     return Response.json({
-      model: 'jev-1.13.0',
+      model: 'jev-1.14.0',
       usage: { input_tokens: 500 },
       answers: Object.fromEntries(
         Object.entries(body.questions).map(([id, question]) => {

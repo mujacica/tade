@@ -74,6 +74,12 @@ export interface OpenFinding {
   file: string
   /** The questions version that produced it. */
   rubric: string
+  /**
+   * The judge's version that answered the reading that raised it — the
+   * latest moves as the provider ships, so this is what a finding's
+   * probability is read against.
+   */
+  version: string
   /** Whether the newest reading of that change still raises it. */
   stillThere: boolean
   account: Account | null
@@ -106,6 +112,7 @@ export function findingsOf(reviews: readonly Review[]): OpenFinding[] {
         probability: review.answers[question] ?? 0,
         file: review.where[question] ?? '',
         rubric: review.rubric,
+        version: review.version,
         stillThere: newest.get(review.unit)?.raised.includes(question) ?? false,
         account: null,
         verdict: null,
@@ -157,7 +164,7 @@ export const ACCOUNT_NOT_VERDICT = [
 /** One finding as the agent whose change it is reads it: the question, and what was said. */
 export function findingLines(one: OpenFinding, now: number): string[] {
   const lines = [
-    `- **${one.key}** — ${one.probability.toFixed(2)}${one.file ? ` · ${one.file}` : ''}`,
+    `- **${one.key}** — ${one.probability.toFixed(2)}${one.version ? ` from ${one.version}` : ''}${one.file ? ` · ${one.file}` : ''}`,
     `  ${titleOf(one.question)}`,
   ]
   if (one.account) {

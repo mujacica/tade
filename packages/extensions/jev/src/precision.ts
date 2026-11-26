@@ -41,11 +41,28 @@ export interface DayRow {
   usd: number
 }
 
+/**
+ * One version of the judge: the changes it read and what came of what it
+ * raised. The latest moves as the provider ships, and a threshold tuned
+ * against one version's answers says nothing about the next, so the table
+ * is never only one sum over all of them.
+ */
+export interface VersionRow {
+  version: string
+  /** Changes it read. */
+  read: number
+  tally: Tally
+  /** When it first answered, of what is in the window. */
+  from: number
+}
+
 export interface Precision {
   total: Tally
   byQuestion: QuestionRow[]
   byBand: BandRow[]
   byDay: DayRow[]
+  /** By the version that answered, newest first. */
+  byVersion: VersionRow[]
 }
 
 /**
@@ -75,8 +92,22 @@ export function precisionOf(
     return made
   }
 
+  const versions = new Map<string, VersionRow>()
+  const versionRow = (version: string, at: number): VersionRow => {
+    const said = version || 'unrecorded'
+    const had = versions.get(said)
+    if (had) {
+      had.from = Math.min(had.from, at)
+      return had
+    }
+    const made: VersionRow = { version: said, read: 0, tally: noTally(), from: at }
+    versions.set(said, made)
+    return made
+  }
+
   for (const finding of findings) {
     countFinding(total, finding)
+    countFinding(versionRow(finding.version, finding.at).tally, finding)
     const row = questions.get(finding.question) ?? { tally: noTally(), highest: 0 }
     countFinding(row.tally, finding)
     row.highest = Math.max(row.highest, finding.probability)
@@ -90,6 +121,7 @@ export function precisionOf(
     const day = dayRow(at)
     day.read += 1
     day.usd += review.cost_usd
+    versionRow(review.version, at).read += 1
   }
 
   return {
@@ -102,5 +134,8 @@ export function precisionOf(
         ...day,
         tally: settleTally(day.tally),
       })),
+    byVersion: [...versions.values()]
+      .sort((a, b) => b.from - a.from)
+      .map((row) => ({ ...row, tally: settleTally(row.tally) })),
   }
 }

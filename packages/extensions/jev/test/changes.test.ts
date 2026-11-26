@@ -185,6 +185,8 @@ describe('an ask refused for its size', () => {
    */
   function refusingOver(bytes: number, otherwise: typeof fetch, tried: number[]): typeof fetch {
     return (async (input: string | URL | Request, init?: RequestInit) => {
+      // Which versions there are is asked once and is no ask about the change.
+      if (init?.method !== 'POST') return otherwise(input as string, init)
       const length = String(init?.body ?? '').length
       tried.push(length)
       return length > bytes

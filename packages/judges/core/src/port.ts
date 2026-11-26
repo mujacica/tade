@@ -68,8 +68,10 @@ export interface Cost {
 /** One ask, answered. */
 export interface Judgement {
   /**
-   * The version that answered. A threshold is tuned against one version's
-   * distributions and an alias moves under you, so every finding keeps this.
+   * The version that answered, as whatever answered named it — never the
+   * alias it was asked under. A threshold is tuned against one version's
+   * distributions and the latest moves when the provider ships, so every
+   * finding keeps this and the precision table is read by it.
    */
   version: string
   /** One answer per question, by the id the question was asked under. */
@@ -108,16 +110,30 @@ export class JudgeError extends Error {
    * how one 400 came to be the whole of why a review did not happen.
    */
   readonly tooBig: boolean
+  /**
+   * Nothing asked of this judge can be answered until somebody changes
+   * something — a key refused, a version it does not have — whatever the state
+   * or the questions. A caller never reads this as one ask that went wrong: it
+   * is the judge being unable to look at all, and is said as that, loudly,
+   * rather than as a reading of part of something or a look that found nothing.
+   */
+  readonly cannotAnswer: boolean
 
   constructor(
     message: string,
-    options: { status?: number | null; retryable?: boolean; tooBig?: boolean } = {},
+    options: {
+      status?: number | null
+      retryable?: boolean
+      tooBig?: boolean
+      cannotAnswer?: boolean
+    } = {},
   ) {
     super(message)
     this.name = 'JudgeError'
     this.status = options.status ?? null
     this.retryable = options.retryable ?? false
     this.tooBig = options.tooBig ?? false
+    this.cannotAnswer = options.cannotAnswer ?? false
   }
 }
 
@@ -159,7 +175,7 @@ export interface JudgeOptions {
   key?: string
   /** Where to ask, when it is not the implementation's own address. */
   url?: string
-  /** Which version answers. */
+  /** Which version answers: one pinned, or unset or empty for the provider's latest. */
   model?: string
   fetch?: typeof fetch
   /** Answers from a table, for a judge that asks nobody. */

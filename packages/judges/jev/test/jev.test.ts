@@ -1,7 +1,7 @@
 import { JudgeError } from '@tade/judges-core'
 import { testJudge } from '@tade/judges-core/conformance'
 import { describe, expect, it } from 'vitest'
-import { JevJudge, jevVersions } from '../src/index.ts'
+import { JevJudge, jevVersions, newestOf, pinnedOf } from '../src/index.ts'
 
 // TypeSafe, answered here the way their API answers. Nothing reaches the
 // network: what is under test is what Tade sends and what it makes of what
@@ -21,12 +21,13 @@ function typesafe(
 ): typeof fetch {
   return (async (input: string | URL | Request, init?: RequestInit) => {
     if (String(input).endsWith('/v1/models')) {
-      return Response.json({ data: [{ id: 'jev-1.13.0' }, { id: 'jev-latest' }] })
+      return Response.json({ data: [{ id: 'jev-1.14.0' }, { id: 'jev-latest' }] })
     }
     const body = JSON.parse(String(init?.body)) as Asked
     seen?.push(body)
+    // Asked under the alias, it names the version that actually answered.
     return Response.json({
-      model: 'jev-1.13.0',
+      model: 'jev-1.14.0',
       usage: { input_tokens: 1_000 },
       answers: Object.fromEntries(
         Object.entries(body.questions).map(([id, question]) => [id, answer(id, question)]),
@@ -92,7 +93,8 @@ describe('asking TypeSafe', () => {
       ],
     })
     const sent = seen[0]
-    expect(sent?.model).toBe('jev-1.13.0')
+    // Nothing pinned, so it asks under TypeSafe's own `latest` alias.
+    expect(sent?.model).toBe('jev-latest')
     expect(sent?.state).toBe('{"diff":"a patch"}')
     expect(sent?.questions.authz_removed).toEqual({
       type: 'noul',
@@ -116,7 +118,8 @@ describe('asking TypeSafe', () => {
       state: 'x',
       questions: [{ id: 'one', kind: 'yes-no', ask: 'is it?' }],
     })
-    expect(judged.version).toBe('jev-1.13.0')
+    // What answered, never the alias it was asked under.
+    expect(judged.version).toBe('jev-1.14.0')
     expect(judged.cost.inputTokens).toBe(1_000)
     expect(judged.cost.usd).toBeCloseTo(0.000042, 9)
   })
@@ -144,7 +147,7 @@ describe('asking TypeSafe', () => {
     const judge = new JevJudge({
       key: 'k',
       retryMs: 0,
-      fetch: (async () => Response.json({ model: 'jev-1.13.0', answers: {} })) as typeof fetch,
+      fetch: (async () => Response.json({ model: 'jev-1.14.0', answers: {} })) as typeof fetch,
     })
     await expect(
       judge.ask({ state: 'x', questions: [{ id: 'one', kind: 'yes-no', ask: 'is it?' }] }),
@@ -182,8 +185,8 @@ describe('asking TypeSafe', () => {
       key: 'k',
       retries: 2,
       retryMs: 0,
-      fetch: (async () => {
-        asked++
+      fetch: (async (_url: unknown, init?: RequestInit) => {
+        if (init?.method === 'POST') asked++
         // What they actually answer, and what reached somebody as the whole of
         // why a review did not happen: one red line with this JSON in it.
         return new Response('{"detail":{"error_type":"max_tokens_exceeded"}}', { status: 400 })
@@ -210,11 +213,12 @@ describe('asking TypeSafe', () => {
       key: 'k',
       retries: 2,
       retryMs: 0,
-      fetch: (async () => {
+      fetch: (async (_url: unknown, init?: RequestInit) => {
+        if (init?.method !== 'POST') return Response.json({ data: [{ id: 'jev-1.14.0' }] })
         attempts++
         return attempts < 3
           ? new Response('busy', { status: 529 })
-          : Response.json({ model: 'jev-1.13.0', answers: { one: { type: 'noul', noul: 0.4 } } })
+          : Response.json({ model: 'jev-1.14.0', answers: { one: { type: 'noul', noul: 0.4 } } })
       }) as typeof fetch,
     })
     const judged = await judge.ask({
@@ -239,8 +243,126 @@ describe('asking TypeSafe', () => {
 
   it('lists the versions a key can ask, when somebody asks for them', async () => {
     expect(await jevVersions({ key: 'k', fetch: typesafe(plausible) })).toEqual([
-      'jev-1.13.0',
+      'jev-1.14.0',
       'jev-latest',
     ])
+  })
+})
+
+/** A TypeSafe whose versions a test moves: what it lists, and what it will still answer as. */
+function versioned(state: { listed: string[]; has: string[] }, seen: (string | null)[] = []) {
+  return (async (input: string | URL | Request, init?: RequestInit) => {
+    if (String(input).endsWith('/v1/models')) {
+      return Response.json({ data: state.listed.map((id) => ({ id })) })
+    }
+    const body = JSON.parse(String(init?.body)) as { model?: string }
+    seen.push(body.model ?? null)
+    if (!body.model || !state.has.includes(body.model)) {
+      // What they answered the morning a version went: the whole of it.
+      return new Response(`Unknown model: ${body.model ?? ''}`, { status: 400 })
+    }
+    return Response.json({ model: body.model, answers: { one: { type: 'noul', noul: 0.3 } } })
+  }) as typeof fetch
+}
+
+const one = [{ id: 'one', kind: 'yes-no', ask: 'is it?' }] as const
+
+describe('following the latest version', () => {
+  it('takes their latest alias where they list one, otherwise the newest version', () => {
+    expect(newestOf(['jev-1.13.0', 'jev-latest', 'jev-2.0.0'])).toBe('jev-latest')
+    expect(newestOf(['jev-1.9.0', 'jev-1.13.0', 'jev-1.13.2', 'jev-1.2'])).toBe('jev-1.13.2')
+    expect(newestOf(['jev-2', 'jev-1.40.0'])).toBe('jev-2')
+    expect(newestOf([])).toBeNull()
+    expect(newestOf(['nothing-numbered'])).toBeNull()
+  })
+
+  it('reads an empty setting, and latest said in words, as asking for the latest', () => {
+    expect(pinnedOf({})).toBeNull()
+    expect(pinnedOf({ model: '' })).toBeNull()
+    expect(pinnedOf({ model: '  ' })).toBeNull()
+    expect(pinnedOf({ model: 'Latest' })).toBeNull()
+    expect(pinnedOf({ model: 'jev-1.14.0' })).toBe('jev-1.14.0')
+  })
+
+  it('asks the newest listed version, and lists them once rather than every ask', async () => {
+    let listed = 0
+    const state = { listed: ['jev-1.13.0', 'jev-1.14.0'], has: ['jev-1.13.0', 'jev-1.14.0'] }
+    const seen: (string | null)[] = []
+    const inner = versioned(state, seen)
+    const fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      if (String(input).endsWith('/v1/models')) listed++
+      return inner(input, init)
+    }) as typeof globalThis.fetch
+    const judge = new JevJudge({ key: 'k', fetch, retryMs: 0 })
+    const first = await judge.ask({ state: 'x', questions: one })
+    const second = await new JevJudge({ key: 'k', fetch, retryMs: 0 }).ask({
+      state: 'y',
+      questions: one,
+    })
+    expect(seen).toEqual(['jev-1.14.0', 'jev-1.14.0'])
+    expect(first.version).toBe('jev-1.14.0')
+    expect(second.version).toBe('jev-1.14.0')
+    expect(listed).toBe(1)
+  })
+
+  it('lists again when told its version is unknown, and answers as the one that replaced it', async () => {
+    const state = { listed: ['jev-1.13.0'], has: ['jev-1.13.0'] }
+    const seen: (string | null)[] = []
+    const fetch = versioned(state, seen)
+    const judge = new JevJudge({ key: 'k', fetch, retryMs: 0 })
+    expect((await judge.ask({ state: 'x', questions: one })).version).toBe('jev-1.13.0')
+    // They retire it and ship the next one between two asks.
+    state.listed = ['jev-1.14.0']
+    state.has = ['jev-1.14.0']
+    const after = await judge.ask({ state: 'x', questions: one })
+    expect(after.version).toBe('jev-1.14.0')
+    expect(seen).toEqual(['jev-1.13.0', 'jev-1.13.0', 'jev-1.14.0'])
+  })
+
+  it('says a pin that is gone as a judge that cannot answer, and never swaps it', async () => {
+    const seen: (string | null)[] = []
+    const fetch = versioned({ listed: ['jev-1.14.0'], has: ['jev-1.14.0'] }, seen)
+    const judge = new JevJudge({ key: 'k', model: 'jev-1.13.0', fetch, retryMs: 0 })
+    const failed = await judge
+      .ask({ state: 'x', questions: one })
+      .then(() => null)
+      .catch((err: unknown) => err as JudgeError)
+    expect(failed).toBeInstanceOf(JudgeError)
+    expect(failed?.cannotAnswer).toBe(true)
+    expect(failed?.message).toMatch(/does not have jev-1\.13\.0.*extensions\.jev\.model/)
+    expect(seen).toEqual(['jev-1.13.0'])
+  })
+
+  it('says a version nobody has, even freshly listed, as a judge that cannot answer', async () => {
+    const fetch = versioned({ listed: ['jev-1.14.0'], has: [] })
+    const failed = await new JevJudge({ key: 'k', fetch, retryMs: 0 })
+      .ask({ state: 'x', questions: one })
+      .then(() => null)
+      .catch((err: unknown) => err as JudgeError)
+    expect(failed?.cannotAnswer).toBe(true)
+    expect(failed?.message).toMatch(/not one it has.*Unknown model: jev-1\.14\.0/)
+  })
+
+  it('says a refused key as a judge that cannot answer, and a busy one as one that can later', async () => {
+    const asked = (status: number) =>
+      new JevJudge({
+        key: 'k',
+        model: 'jev-1.14.0',
+        retries: 0,
+        retryMs: 0,
+        fetch: (async () => new Response('no', { status })) as typeof fetch,
+      })
+        .ask({ state: 'x', questions: one })
+        .catch((err: unknown) => err as JudgeError)
+    expect(((await asked(401)) as JudgeError).cannotAnswer).toBe(true)
+    expect(((await asked(529)) as JudgeError).cannotAnswer).toBe(false)
+  })
+
+  it('checks a pin against what the key can ask, and an empty setting against nothing', async () => {
+    const fetch = versioned({ listed: ['jev-1.14.0'], has: ['jev-1.14.0'] })
+    expect(await new JevJudge({ key: 'k', fetch }).verify()).toBeNull()
+    expect(await new JevJudge({ key: 'k', model: 'jev-1.13.0', fetch }).verify()).toMatch(
+      /jev-1\.13\.0, which extensions\.jev\.model pins.*empty the setting/,
+    )
   })
 })

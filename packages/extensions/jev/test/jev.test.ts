@@ -108,7 +108,7 @@ describe('asking about anything', () => {
     )
     expect(answer.text).toMatch(/\| is_bug \| 0\.91 \| worth acting on \|/)
     expect(answer.text).toMatch(/\| area \| payments \(0\.90, confidence 0\.80\) \|/)
-    expect(answer.text).toMatch(/Answered by jev-1\.13\.0/)
+    expect(answer.text).toMatch(/Answered by jev-1\.14\.0/)
     expect(seen).toHaveLength(1)
   })
 
@@ -241,7 +241,7 @@ describe('reading a change', () => {
     expect(review).toMatchObject({
       unit: 'shop/add-refunds',
       tasks: ['shop/add-refunds'],
-      version: 'jev-1.13.0',
+      version: 'jev-1.14.0',
       raised: ['shell_injection', 'test_missing'],
     })
     // Every answer, not only the ones that fired: a threshold changed later is
@@ -301,7 +301,7 @@ describe('reading a change', () => {
       turnedOn: new Date(NOW - 60_000).toISOString(),
     })
     expect(look.found.map((finding) => finding.key)).toEqual(['shop/add-refunds:authz_removed'])
-    expect(look.found[0]?.detail).toMatch(/jev-1\.13\.0 answered 0\.88/)
+    expect(look.found[0]?.detail).toMatch(/jev-1\.14\.0 answered 0\.88/)
     expect(look.found[0]?.detail).toMatch(/git diff/)
     // What it read, so the next look costs a `git worktree list` and nothing else.
     expect(JSON.parse(look.since ?? '{}')).toMatchObject({
@@ -583,7 +583,7 @@ describe('what the window shows', () => {
         tasks: [`shop/task-${index}`],
         base: 'a'.repeat(40),
         head: 'b'.repeat(40),
-        version: 'jev-1.13.0',
+        version: 'jev-1.14.0',
         rubric: RUBRIC,
         files: 12,
         part: null,
@@ -664,7 +664,7 @@ describe('reading a command an agent is held at', () => {
       // Written in questions.ts, in advance, by somebody: what a person hears
       // is never a sentence a model wrote about a command it was shown.
       reason: 'changes something other people share',
-      version: 'jev-1.13.0',
+      version: 'jev-1.14.0',
       by: 'jev',
     })
     // It is asked about the command, and told where the agent is allowed to
@@ -766,7 +766,7 @@ describe('a sentence typed into search', () => {
         options.map((option) => [option, weights[option] ?? 0.01]),
       )
       return Response.json({
-        model: 'jev-1.13.0',
+        model: 'jev-1.14.0',
         usage: { input_tokens: 200 },
         answers: {
           meant: {

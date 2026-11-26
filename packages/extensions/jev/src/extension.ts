@@ -270,7 +270,7 @@ export const jevExtension: TadeExtension = {
       key: 'model',
       kind: 'string',
       means:
-        'the version that answers; pin one (jev-1.13.0), never an alias — thresholds are tuned against a version',
+        'the version that answers: empty for TypeSafe’s latest, followed as they ship, or one pinned (jev-1.14.0); every finding keeps the version that answered either way',
       reach: { reach: 'never', because: JUDGING },
     },
     {
@@ -1117,8 +1117,21 @@ export const jevExtension: TadeExtension = {
         ask: 'Go over the Jev findings nobody has answered and say which of them were real',
       })
     }
-    // A watch that cannot look must never be silent about it.
-    if (trouble[0]?.problem) {
+    // A watch that cannot look must never be silent about it, and the newest
+    // look is the one that says whether it still cannot. It goes first, and a
+    // judge that cannot answer at all says so in its own problem
+    // (`cannotLook`), so a day of unreviewed changes never reads as ordinary.
+    const last = record.looks[0]
+    if (last?.problem && last.at >= since) {
+      // Counted back from the newest to the last look that looked, which is how
+      // long it has been unable to — not every bad look of the day.
+      const good = record.looks.findIndex((look) => !look.problem)
+      const running = good === -1 ? record.looks.length : good
+      items.unshift({
+        said: `Jev could not look the last ${running === 1 ? 'time' : `${running} times`}: ${last.problem}`,
+        ask: 'Tell me what is stopping Jev from reviewing, and what would fix it',
+      })
+    } else if (trouble[0]?.problem) {
       items.push({ said: `Jev could not look ${trouble.length} time(s): ${trouble[0].problem}` })
     }
     return items
@@ -1155,7 +1168,7 @@ export const jevExtension: TadeExtension = {
   setup: (ctx) => ({
     guide: [
       keyGuide(ctx),
-      '**Version:** pin one (`jev-1.13.0`), never an alias. Thresholds are tuned against one version’s distributions, and an alias moves under you when they ship.',
+      '**Version:** leave it empty and Jev asks TypeSafe’s latest — their `latest` alias where they list one, otherwise the newest version they list — found again each time Tade starts and whenever an ask is told its version is gone. Thresholds are tuned against one version’s answers, so every finding keeps the version that actually answered, the precision table is counted by it, and the window says once when it changes. Pin one here (`jev-1.14.0`) to hold it still; a pin TypeSafe retires is said as Jev unable to answer, never swapped for you.',
       '**Projects:** which projects it may read. Leave it empty for all of them, or name the ones whose diffs and logs may be sent.',
       '**What it costs:** roughly a hundredth of a cent a question. `budget` caps how many requests one look or one tool call may make, so a rebase storm cannot turn into a bill you find out about later.',
       '**What leaves the machine:** the diffs, logs and text you point it at go to TypeSafe, who say they do not train on them. Nothing is sent until there is a key: with none, the review watch is never turned on, nothing looks and nothing is read. Set one, and it reads each agent’s own change once it has stopped moving, in every project — pause or remove it in the queue and it stays that way.',
@@ -1177,8 +1190,8 @@ export const jevExtension: TadeExtension = {
         key: 'model',
         label: 'Version',
         kind: 'text',
-        placeholder: 'jev-1.13.0',
-        help: 'pin a version, not an alias',
+        placeholder: 'latest',
+        help: 'empty follows the latest; a version pins it',
       },
       {
         key: 'projects',

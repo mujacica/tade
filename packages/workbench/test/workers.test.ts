@@ -118,7 +118,7 @@ describe('WorkerSupervisor', () => {
         tier: 'hard' as const,
         reason: 'could destroy something that cannot be got back',
         by: 'jev',
-        version: 'jev-1.13.0',
+        version: 'jev-1.14.0',
       },
       problems: [],
     }
@@ -150,7 +150,7 @@ describe('WorkerSupervisor', () => {
       const [event] = await logged(log, 'permission_request')
       expect(event?.detail).toMatchObject({
         tier: 'hard',
-        caution: { by: 'jev', version: 'jev-1.13.0' },
+        caution: { by: 'jev', version: 'jev-1.14.0' },
       })
     })
 
