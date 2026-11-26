@@ -19,11 +19,27 @@ import { Workbench } from '../src/workbench.ts'
 // stand-in on the PATH that, like a process slow to die, takes a moment to go
 // once hung up on: so its exit is said after the new run has started, every
 // time, rather than on a machine busy enough to lose the race.
+//
+// Like Claude Code, it writes its conversation where it was told to keep it,
+// `<CLAUDE_CONFIG_DIR>/projects/<dir>/<session>.jsonl`, the session being the
+// one it was started or resumed with. A stand-in that keeps no record is
+// kinder than reality the other way round: moving the agent then has nothing
+// to carry, and Tade rightly refuses to start a told agent on a new
+// conversation.
 
 const STAND_IN = (started: string) =>
   [
     '#!/bin/sh',
     `trap 'sleep 1; exit 0' HUP`,
+    'session=""; last=""',
+    'for one in "$@"; do',
+    '  case "$last" in --session-id|--resume) session="$one" ;; esac',
+    '  last="$one"',
+    'done',
+    'if [ -n "$session" ] && [ -n "$CLAUDE_CONFIG_DIR" ]; then',
+    '  mkdir -p "$CLAUDE_CONFIG_DIR/projects/stand-in"',
+    `  echo '{"type":"user","message":{"role":"user","content":"fix it"}}' >> "$CLAUDE_CONFIG_DIR/projects/stand-in/$session.jsonl"`,
+    'fi',
     `echo "$$" >> '${started}'`,
     'while :; do sleep 1; done',
   ].join('\n')
