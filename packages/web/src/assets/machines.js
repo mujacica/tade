@@ -7,7 +7,7 @@
 // (`seenSaid` in `@tade/core`), held equal by `test/machines-client.test.ts`.
 
 import { shortClockOf } from './figures.js'
-import { agentsOf, wantsYou } from './store.js'
+import { agentsOf, emptyStore, wantsYou } from './store.js'
 
 /** Every machine, the ones that are not up first, then by name. */
 export function machinesOf(store) {
@@ -273,4 +273,52 @@ export function wantsElsewhere(store) {
     .filter(([machine]) => up.has(machine))
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .flatMap(([machine, copy]) => wantsYou(copy).map((task) => ({ machine, task })))
+}
+
+/* ── one other machine's screen ───────────────────────────────────────────── */
+
+// `/m/<machine>/…` draws a project or a task out of that machine's copy
+// (`routes.js`'s `THERE`), with the same screens this machine's own are
+// drawn with and nothing to press yet. **Its clock is its copy's**: while the
+// machine is up and the page hears this door, its ages run; otherwise they
+// are frozen at its last word, and the line over the screen says when that
+// was (ONE-AWAY-VIEW §2.4: "Mac · closed 14:02 · as of 14:02").
+
+/**
+ * What one other machine's screen is drawn from: its copy (or, where this page
+ * holds none, a store with nothing in it, read once this door was), the moment
+ * its rows are as of, whether it is up, and the line over the screen.
+ */
+export function thereOf(store, machine, live, now) {
+  const copy = store?.copies instanceof Map ? (store.copies.get(machine) ?? null) : null
+  const row =
+    (Array.isArray(store?.machines) ? store.machines : []).find((one) => one.name === machine) ??
+    null
+  const up = row?.state === 'up'
+  if (copy === null) {
+    const none = emptyStore()
+    none.had = store?.had === true
+    return {
+      store: none,
+      asOf: now,
+      frozen: false,
+      up,
+      line: `${machine} · nothing of it is held here — it was never heard, or this device is not sent the other machines`,
+    }
+  }
+  const said = typeof copy.fresh?.at === 'string' ? Date.parse(copy.fresh.at) : Number.NaN
+  const running = up && live
+  const asOf = running || Number.isNaN(said) ? now : said
+  const as = Number.isNaN(said) ? '' : ` · as of ${shortClockOf(copy.fresh.at)}`
+  const state = row === null ? null : stateWord(row)
+  const line = `${machine}${state === null ? '' : ` · ${state}`}${running ? '' : as}`
+  return { store: copy, asOf, frozen: !running && !Number.isNaN(said), up, line }
+}
+
+/** A machine's state in two or three words, for the line over its screen: `closed 14:02`. */
+function stateWord(row) {
+  const at = shortClockOf(row.since)
+  if (row.state === 'up') return `up since ${at}`
+  if (row.state === 'asleep') return `asleep since ${at}`
+  return `${row.state} ${at}`
 }

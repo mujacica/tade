@@ -16,6 +16,7 @@ import {
   noFiguresSaid,
   percentSaid,
   roomSaid,
+  thereOf,
   wantsElsewhere,
   wasDoingSaid,
   wasWorking,
@@ -343,5 +344,50 @@ describe('what wants you on every other machine', () => {
     }
     expect(wantsElsewhere(store)).toEqual([])
     expect(wantsElsewhere(null)).toEqual([])
+  })
+})
+
+describe('one other machine’s screen', () => {
+  const NOW = Date.parse('2026-11-22T15:00:00.000Z')
+  const at = shortClockOf(AT)
+  const copy = { rows: { tasks: new Map() }, fresh: { at: AT } }
+  const store = (state: 'up' | 'closed' | 'lost' | null) => ({
+    had: true,
+    machines: state === null ? [] : [{ name: 'mac', way: 'from', state, since: AT }],
+    copies: new Map([['mac', copy]]),
+  })
+
+  it('is drawn out of that machine’s copy, its clock running while it is up and this page hears it', () => {
+    const on = thereOf(store('up'), 'mac', true, NOW)
+    expect(on.store).toBe(copy)
+    expect(on).toMatchObject({ asOf: NOW, frozen: false, up: true, line: `mac · up since ${at}` })
+  })
+
+  it('is frozen at its last word where it is not up, or this page is not hearing the door', () => {
+    expect(thereOf(store('closed'), 'mac', true, NOW)).toMatchObject({
+      asOf: Date.parse(AT),
+      frozen: true,
+      up: false,
+      line: `mac · closed ${at} · as of ${at}`,
+    })
+    expect(thereOf(store('lost'), 'mac', true, NOW).line).toBe(`mac · lost ${at} · as of ${at}`)
+    expect(thereOf(store('up'), 'mac', false, NOW)).toMatchObject({
+      frozen: true,
+      line: `mac · up since ${at} · as of ${at}`,
+    })
+    // A copy of a machine with no row here is never drawn as up.
+    expect(thereOf(store(null), 'mac', true, NOW)).toMatchObject({
+      up: false,
+      frozen: true,
+      line: `mac · as of ${at}`,
+    })
+  })
+
+  it('says nothing of it is held where the page has no copy, once the door was read', () => {
+    const none = thereOf(store('up'), 'box', true, NOW)
+    expect(none.store.had).toBe(true)
+    expect(none.store.rows.tasks.size).toBe(0)
+    expect(none.line).toMatch(/^box · nothing of it is held here/)
+    expect(thereOf({ had: false }, 'box', true, NOW).store.had).toBe(false)
   })
 })

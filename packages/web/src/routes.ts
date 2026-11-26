@@ -221,6 +221,11 @@ export const ROUTES: readonly Route[] = [
   shellAt('/t/:project/:task', 'task page'),
   // What that agent has changed, every file and its diff: the window's Show changes.
   shellAt('/t/:project/:task/changes', 'changes page'),
+  // Another machine's project and task, drawn out of the copy of it this door
+  // keeps (`copies.ts`, ONE-AWAY-VIEW §2.4). The shell as ever: the name of the
+  // machine is one more segment the page looks up in what it holds.
+  shellAt('/m/:machine/p/:project', 'project page there'),
+  shellAt('/m/:machine/t/:project/:task', 'task page there'),
   // Every agent running, across every project this device may read: the
   // window's own side list, as a page of its own on a phone and a tablet.
   shellAt('/agents', 'agents page'),
