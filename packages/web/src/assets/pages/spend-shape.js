@@ -327,14 +327,10 @@ function addFold(total, one) {
 }
 
 /**
- * Every machine's agents, a row each, and the bottom line that adds them
- * (ONE-AWAY-VIEW §2.6, Amir's decision): this machine first, then each other
- * machine the page holds a copy of, each folded out of its own copy by its own
- * day — never one fold across them. The bottom line adds each kind of money to
- * its own kind and is `≥` wherever one machine could not say all of it: one
- * not up (what it said may have moved since), one that held tasks back, or
- * one with tasks it could not price — and names them. Null where the page
- * holds no other machine, which is a page that has one row to draw.
+ * Every machine's agents, a row each folded out of its own copy, and the
+ * bottom line adding each kind of money to its own, `≥` and naming the
+ * machines not up, holding tasks back or unpriced (change-the-spend). Null
+ * where the page holds no other machine.
  */
 export function machinesShape(store) {
   const copies = store?.copies instanceof Map ? store.copies : new Map()

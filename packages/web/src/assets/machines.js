@@ -168,15 +168,8 @@ export function figuresAsOf(row, figures) {
 
 /* ── what a machine that is not up was doing ──────────────────────────────── */
 
-// Another machine's copy (`copiesOf` in `store.js`) is what it last said, and
-// a machine that is not up says nothing more: so its agents are drawn as of
-// then, in words that say what became of them. **Read off what that machine
-// said of itself** (`fresh.detach`, its driver's `capabilities.detach`),
-// never off a driver's name: where its agents die with its window, a working
-// one is stopped and reopens when the window does; where they outlive it, it
-// may well have moved on; and an older Tade that says neither is drawn as of
-// its last word and nothing more. Never *working*: a machine nobody can hear
-// is not known to be doing anything.
+// A machine that is not up is drawn as of its last word, in words read off
+// what it said of itself (`fresh.detach`), never *working* (add-away-surface).
 
 /** Its agents that were working at its last word, out of its copy. */
 export function wasWorking(copy) {
@@ -200,8 +193,7 @@ export function wasDoingSaid(row, copy) {
 /** The card's one line about its work: `closed 14:02 · 3 agents were working` — or null where it is up. */
 export function lastWordSaid(row, copy) {
   if (row.state === 'up' || copy == null) return null
-  const at = shortClockOf(row.since)
-  const state = row.state === 'asleep' ? `asleep since ${at}` : `${row.state} ${at}`
+  const state = stateWord(row)
   const n = wasWorking(copy).length
   if (n === 0) return `${state} · nothing was working`
   const agents = n === 1 ? '1 agent was working' : `${n} agents were working`
@@ -213,28 +205,11 @@ export function lastWordSaid(row, copy) {
 
 /* ── every other machine's agents ──────────────────────────────────────────── */
 
-// The Agents page draws every machine (ONE-AWAY-VIEW step 4): this one's
-// first, as it always was, then a group for each other machine the page holds
-// a copy of, under that machine's name. **Out of each machine's own store,
-// never one merged list** — a copy's ids are that machine's, and a row of it
-// is never mistaken for one here. While a machine is up its rows are as live
-// as its copy; while it is not, they are drawn as of its last word, frozen at
-// that moment, and a working agent says what became of it (`wasDoingSaid`)
-// rather than *working*, which nobody can know.
-
-/**
- * Each other machine with an agent in its copy, by name: its agents as
- * `agentsOf` gives them there, whether it is up, the moment its rows are as
- * of, and — where it is not up — the line said over them and under each
- * agent that was working.
- */
+/** Each other machine with an agent in its copy, by name — out of its own store, never one merged list. */
 export function agentsElsewhere(store) {
-  const copies = store?.copies instanceof Map ? store.copies : new Map()
-  const seen = new Map(
-    (Array.isArray(store?.machines) ? store.machines : []).map((row) => [row.name, row]),
-  )
+  const seen = new Map(seenIn(store).map((row) => [row.name, row]))
   const out = []
-  for (const [machine, copy] of copies) {
+  for (const [machine, copy] of copiesIn(store)) {
     const agents = agentsOf(copy)
     if (agents.length === 0) continue
     const row = seen.get(machine) ?? null
@@ -253,47 +228,28 @@ export function agentsElsewhere(store) {
       agents,
     })
   }
-  return out.sort((a, b) => (a.machine < b.machine ? -1 : a.machine > b.machine ? 1 : 0))
+  return out.sort((a, b) => byName(a.machine, b.machine))
 }
 
-/**
- * What wants the person on every other machine that is up, as that machine's
- * own `wantsYou` orders it, by machine name: each its machine and its task. A
- * machine that is not up is left out — nothing there can be answered until it
- * is back, and its card on the overview already says what it was doing.
- */
+/** What wants the person on every other machine that is up, in its own order, by machine name. */
 export function wantsElsewhere(store) {
-  const copies = store?.copies instanceof Map ? store.copies : new Map()
   const up = new Set(
-    (Array.isArray(store?.machines) ? store.machines : [])
+    seenIn(store)
       .filter((row) => row.state === 'up')
       .map((row) => row.name),
   )
-  return [...copies]
+  return [...copiesIn(store)]
     .filter(([machine]) => up.has(machine))
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .sort(([a], [b]) => byName(a, b))
     .flatMap(([machine, copy]) => wantsYou(copy).map((task) => ({ machine, task })))
 }
 
 /* ── one other machine's screen ───────────────────────────────────────────── */
 
-// `/m/<machine>/…` draws a project or a task out of that machine's copy
-// (`routes.js`'s `THERE`), with the same screens this machine's own are
-// drawn with and nothing to press yet. **Its clock is its copy's**: while the
-// machine is up and the page hears this door, its ages run; otherwise they
-// are frozen at its last word, and the line over the screen says when that
-// was (ONE-AWAY-VIEW §2.4: "Mac · closed 14:02 · as of 14:02").
-
-/**
- * What one other machine's screen is drawn from: its copy (or, where this page
- * holds none, a store with nothing in it, read once this door was), the moment
- * its rows are as of, whether it is up, and the line over the screen.
- */
+/** What `/m/<machine>/…` is drawn from: its copy, its clock, whether it is up, and the line over it. */
 export function thereOf(store, machine, live, now) {
-  const copy = store?.copies instanceof Map ? (store.copies.get(machine) ?? null) : null
-  const row =
-    (Array.isArray(store?.machines) ? store.machines : []).find((one) => one.name === machine) ??
-    null
+  const copy = copiesIn(store).get(machine) ?? null
+  const row = seenIn(store).find((one) => one.name === machine) ?? null
   const up = row?.state === 'up'
   if (copy === null) {
     const none = emptyStore()
@@ -315,10 +271,14 @@ export function thereOf(store, machine, live, now) {
   return { store: copy, asOf, frozen: !running && !Number.isNaN(said), up, line }
 }
 
-/** A machine's state in two or three words, for the line over its screen: `closed 14:02`. */
+/** A machine's state in two or three words: `closed 14:02`. */
 function stateWord(row) {
   const at = shortClockOf(row.since)
   if (row.state === 'up') return `up since ${at}`
   if (row.state === 'asleep') return `asleep since ${at}`
   return `${row.state} ${at}`
 }
+
+const copiesIn = (store) => (store?.copies instanceof Map ? store.copies : new Map())
+const seenIn = (store) => (Array.isArray(store?.machines) ? store.machines : [])
+const byName = (a, b) => (a < b ? -1 : a > b ? 1 : 0)
