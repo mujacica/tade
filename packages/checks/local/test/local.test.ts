@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { type Check, SLEPT, sleptThrough } from '@tade/checks-core'
+import { type Check, OUT_OF_DISK, ranOutOfDisk, SLEPT, sleptThrough } from '@tade/checks-core'
 import { testRunner } from '@tade/checks-core/conformance'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
@@ -330,5 +330,72 @@ describe('a check the machine slept through', () => {
     expect(run?.summary).toBe(SLEPT)
     expect(run?.code).toBe(1)
     expect(run?.tail).toContain('1 failed')
+  })
+})
+
+describe('a check the disk was full for', () => {
+  // How full the disk is, injected; the words are the check's own. The look
+  // is what decides: this repository's tests fake a full disk and print them.
+  const fullIn = async (run: string, share: number | null | Error) => {
+    const looked: string[] = []
+    const runner = makeLocalRunner({
+      spaceLeft: async (path) => {
+        looked.push(path)
+        if (share instanceof Error) throw share
+        return share
+      },
+    })
+    const root = tmp('tade-local-')
+    const [one] = await runner.run({ name: 'demo', root }, [check('tests', run)], {
+      commit: 'a1b2c3d4',
+      by: 'the test',
+      signal: new AbortController().signal,
+      onRun: () => {},
+      onOutput: () => {},
+    })
+    return { run: one, looked, root }
+  }
+  const NO_ROOM =
+    'echo "fatal: Unable to create \'x/index.lock\': No space left on device" >&2; exit 1'
+
+  it('is not red when it failed saying so and the disk was full, and says the disk', async () => {
+    const { run, looked, root } = await fullIn(NO_ROOM, 0.001)
+    expect(run?.state).toBe('cancelled')
+    expect(run?.summary).toBe(OUT_OF_DISK)
+    expect(run && ranOutOfDisk(run)).toBe(true)
+    expect(run?.code).toBe(1)
+    expect(run?.tail).toContain('No space left on device')
+    expect(looked).toContain(root)
+  })
+
+  it('is red when it says so and the disk has room: a faked full disk is the code', async () => {
+    const { run } = await fullIn(NO_ROOM, 0.4)
+    expect(run?.state).toBe('failed')
+    expect(run && ranOutOfDisk(run)).toBe(false)
+  })
+
+  it('is red when the disk cannot be told, and says why where a look failed', async () => {
+    expect((await fullIn(NO_ROOM, null)).run?.state).toBe('failed')
+    const { run } = await fullIn(NO_ROOM, new Error('EACCES: permission denied, statfs'))
+    expect(run?.state).toBe('failed')
+    expect(run?.tail).toContain(
+      '[whether the disk was full could not be told: EACCES: permission denied, statfs]',
+    )
+  })
+
+  it('is red on a full disk it never said a word about, and passes on one it did', async () => {
+    const quiet = await fullIn('echo "1 failed" >&2; exit 1', 0)
+    expect(quiet.run?.state).toBe('failed')
+    expect(quiet.looked).toEqual([])
+    const fine = await fullIn('echo "ENOSPC: no space left on device, write"', 0)
+    expect(fine.run?.state).toBe('passed')
+  })
+
+  it('finds the words split across two writes', async () => {
+    const { run } = await fullIn(
+      'printf "fatal: No space left "; sleep 0.2; printf "on device\\n" >&2; exit 1',
+      0,
+    )
+    expect(run?.state).toBe('cancelled')
   })
 })

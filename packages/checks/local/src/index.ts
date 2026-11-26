@@ -1,11 +1,13 @@
 import { spawn } from 'node:child_process'
 import { stat } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   type Check,
   type CheckLog,
   type CheckState,
   keepTail,
+  OUT_OF_DISK,
   type ProjectRef,
   planFor,
   type RunContext,
@@ -18,6 +20,7 @@ import {
 } from '@tade/checks-core'
 import { type GivesWay, givesWay, loweredLine, machineLabel } from '@tade/core'
 import { awakeAt, startAwake } from './awake.ts'
+import { type SpaceLeft, spaceLeft, watchDisk } from './disk.ts'
 import { stop } from './stop.ts'
 
 // The commands, run the way you would type them.
@@ -48,8 +51,14 @@ const DRAIN_MS = 2_000
 /** How often a running check's time awake is counted towards its limit. */
 const BEAT_MS = 1_000
 
-export function makeLocalRunner(options: RunnerOptions = {}): Runner {
+export interface LocalRunnerOptions extends RunnerOptions {
+  /** How much of a disk is free (`disk.ts`): the machine's own unless a test says otherwise. */
+  spaceLeft?: SpaceLeft
+}
+
+export function makeLocalRunner(options: LocalRunnerOptions = {}): Runner {
   const now = options.now ?? Date.now
+  const left = options.spaceLeft ?? spaceLeft
   const parallel = Math.max(1, options.parallel ?? 2)
   const tailKept = Math.max(200, options.tail ?? 4_000)
   // The machine's own name (`machine.name`), never its host name: a run's record travels.
@@ -156,7 +165,7 @@ export function makeLocalRunner(options: RunnerOptions = {}): Runner {
         if (batch.length === 0) continue
         const ran = await Promise.all(
           batch.map((check) =>
-            one(check, project, ctx, { now, host, tailKept, giveWay, idOf: id }),
+            one(check, project, ctx, { now, host, tailKept, giveWay, idOf: id, left }),
           ),
         )
         for (const run of ran) done.set(run.check, run)
@@ -178,6 +187,7 @@ async function one(
     /** How far below the window, already decided (`givesWay`). */
     giveWay: GivesWay
     idOf: (check: Check, commit: string) => string
+    left: SpaceLeft
   },
 ): Promise<CheckLog> {
   const startedAt = new Date(opts.now()).toISOString()
@@ -196,16 +206,20 @@ async function one(
   // ("pnpm exec vitest run"), not an argument vector. Still one, lowered:
   // `loweredLine` hands back the same line when nothing is giving way, so the
   // ordinary case is the line the project wrote and nothing else.
+  const cwd = check.cwd ? join(project.root, check.cwd) : project.root
   const child = spawn(loweredLine(check.run, opts.giveWay), {
     shell: true,
-    cwd: check.cwd ? join(project.root, check.cwd) : project.root,
+    cwd,
     detached: true,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, ...ctx.env, CI: process.env.CI ?? '', TADE_CHECK: check.id },
   })
   const kept = keepTail(opts.tailKept)
+  // The disks it writes to: where it runs, and the temp folder it was handed.
+  const disk = watchDisk(opts.left, [cwd, ctx.env?.TMPDIR ?? tmpdir()])
   const keep = (chunk: string) => {
     kept.add(chunk)
+    disk.heard(chunk)
     ctx.onOutput(check.id, chunk)
   }
   child.stdout?.setEncoding('utf8')
@@ -284,15 +298,22 @@ async function one(
   // gone before the next one, and its failure is the sleep's, not the code's.
   clock = awakeAt(clock, opts.now())
   const said: CheckState = outcome ?? (code === 0 ? 'passed' : 'failed')
-  const slept = clock.slept && (said === 'failed' || said === 'timed out')
-  const state: CheckState = slept ? 'cancelled' : said
-  const tail = kept.text()
+  const failing = said === 'failed' || said === 'timed out'
+  const slept = clock.slept && failing
+  // A disk that was full is the machine's too (`OUT_OF_DISK`), and so is not red.
+  const look = !slept && failing ? await disk.full(DRAIN_MS) : { full: false, trouble: null }
+  const full = look.full
+  const state: CheckState = slept || full ? 'cancelled' : said
+  // A look that failed leaves the run red, and says why it could not tell.
+  const tail = look.trouble
+    ? `${kept.text()}\n[whether the disk was full could not be told: ${look.trouble}]`
+    : kept.text()
   const run: CheckLog = {
     ...base,
     state,
     finishedAt: new Date(opts.now()).toISOString(),
     code: outcome ? null : code,
-    summary: slept ? SLEPT : state === 'passed' ? null : summaryOf(tail),
+    summary: slept ? SLEPT : full ? OUT_OF_DISK : state === 'passed' ? null : summaryOf(tail),
     tail,
   }
   ctx.onRun(run)
