@@ -105,42 +105,74 @@ export function newestOf(listed: readonly string[]): string | null {
  * ask after Tade starts lists the versions, and a call told its version is
  * unknown lists them again (`forgetLatest`). Keyed by the `fetch` it was
  * asked with as well, so two hosts in one process never share an answer.
- * Only an answer is kept: a listing that failed is asked again next time.
+ * Only a version is kept — listed, or fallen back to — and a listing that
+ * failed with nothing to fall back to is asked again next time.
  */
-const latest = new WeakMap<typeof fetch, Map<string, Promise<string | null>>>()
+const latest = new WeakMap<typeof fetch, Map<string, Promise<string>>>()
+
+/**
+ * The last unpinned version an ask answered under, per key, which is what an
+ * ask falls back to when the versions cannot be listed. An ask naming no
+ * version is one TypeSafe refuses — 422, `model: Field required` — so every
+ * batch of every change was refused the night listing failed under load, and
+ * the review watch read nothing.
+ */
+const worked = new WeakMap<typeof fetch, Map<string, string>>()
 
 function latestKey(options: JevOptions): string {
   return `${options.url ?? JEV_URL}\u0000${options.key ?? ''}`
 }
 
-function latestFor(options: JevOptions): Promise<string | null> {
+function workedFor(options: JevOptions): Map<string, string> {
   const call = options.fetch ?? globalThis.fetch
-  const kept = latest.get(call) ?? new Map<string, Promise<string | null>>()
+  const kept = worked.get(call) ?? new Map<string, string>()
+  worked.set(call, kept)
+  return kept
+}
+
+/**
+ * The version to ask under: the newest listed, else the last one that
+ * answered here, else a `JudgeError` that cannot answer — never null, because
+ * an ask with no version in it is refused whatever is in it.
+ */
+function latestFor(options: JevOptions): Promise<string> {
+  const call = options.fetch ?? globalThis.fetch
+  const kept = latest.get(call) ?? new Map<string, Promise<string>>()
   latest.set(call, kept)
   const key = latestKey(options)
   const had = kept.get(key)
   if (had) return had
   const asking = jevVersions(options)
-    .then(newestOf)
-    // A key it refused is refused for the ask too, and is said as that. Any
-    // other listing that could not be read is not a version: the ask goes out
-    // naming none, TypeSafe's own default answers and says which it was, and
-    // an ask that fails as well says why in its own words.
-    .catch((err: unknown) => {
-      if (err instanceof JudgeError && err.cannotAnswer) throw err
-      return null
+    .then((listed) => {
+      const found = newestOf(listed)
+      if (found !== null) return found
+      throw new Error(
+        listed.length === 0
+          ? 'it listed none'
+          : `none of the versions it lists (${listed.join(', ')}) reads as a version`,
+      )
     })
-    .then(
-      (found) => {
-        if (found === null) kept.delete(key)
-        return found
-      },
-      // Nor is a refusal kept: a key put right is asked with again next time.
-      (err: unknown) => {
-        kept.delete(key)
-        throw err
-      },
-    )
+    .catch((err: unknown) => {
+      // A key it refused is refused for the ask too, and is said as that.
+      if (err instanceof JudgeError && err.cannotAnswer) throw err
+      // A listing that could not be read — slow, down, or empty — falls back
+      // to the version that last answered, and that is kept as the answer, so
+      // the asks behind this one do not each wait out a listing that hangs.
+      const before = workedFor(options).get(key)
+      if (before) return before
+      // Nothing to fall back to: one loud error for the whole look rather than
+      // a refusal per batch, and asked again by the next look, never kept.
+      throw new JudgeError(
+        `Jev has no version to ask with: TypeSafe's list of versions could not be read (${message(err)}) and no version has answered here yet, so nothing was asked. It is listed again on the next look; pinning one in extensions.jev.model asks that one without listing`,
+        { retryable: true, cannotAnswer: true },
+      )
+    })
+    // A failure is never kept: a key put right, or a listing that answers
+    // again, is asked next time.
+    .catch((err: unknown) => {
+      kept.delete(key)
+      throw err
+    })
   kept.set(key, asking)
   return asking
 }
@@ -148,6 +180,28 @@ function latestFor(options: JevOptions): Promise<string | null> {
 /** What was resolved as the latest is no longer to be trusted: list again. */
 export function forgetLatest(options: JevOptions): void {
   latest.get(options.fetch ?? globalThis.fetch)?.delete(latestKey(options))
+}
+
+/** The version that answered, kept for the next time listing fails. */
+function answeredUnder(options: JevOptions, version: string): void {
+  workedFor(options).set(latestKey(options), version)
+}
+
+/** A version TypeSafe refused is not one to fall back to. */
+function refusedUnder(options: JevOptions, version: string): void {
+  const kept = workedFor(options)
+  if (kept.get(latestKey(options)) === version) kept.delete(latestKey(options))
+}
+
+/** Waits for `pending`, or for `signal` to abort — whichever is first. */
+function until<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return pending
+  if (signal.aborted) return Promise.reject(signal.reason)
+  return new Promise<T>((resolve, reject) => {
+    const stop = () => reject(signal.reason)
+    signal.addEventListener('abort', stop, { once: true })
+    pending.then(resolve, reject).finally(() => signal.removeEventListener('abort', stop))
+  })
 }
 
 /** TypeSafe said the version it was asked for is not one it has. */
@@ -209,11 +263,13 @@ export class JevJudge implements Judge {
       throw new JudgeError(missing, { status: 401, retryable: false, cannotAnswer: true })
     refuseBadAsk(request.questions, request.state, this.capabilities)
     const pinned = pinnedOf(this.opts)
-    let model = pinned ?? (await latestFor(this.opts))
-    const body = (version: string | null) =>
+    // Shared by every ask with this key, so it is not tied to this one's
+    // signal; this ask only stops waiting for it when it is itself aborted.
+    let model = pinned ?? (await until(latestFor(this.opts), request.signal))
+    const body = (version: string) =>
       JSON.stringify({
         state: stateText(request.state),
-        ...(version ? { model: version } : {}),
+        model: version,
         questions: Object.fromEntries(request.questions.map((one) => [one.id, asked(one)])),
       })
     const first = await this.post(body(model), request.signal).catch((err: unknown) => {
@@ -233,7 +289,8 @@ export class JevJudge implements Judge {
       // The latest moved under us — retired between asks. Listed again, once,
       // and where the list still names the one refused, that refusal stands.
       forgetLatest(this.opts)
-      const again = await latestFor(this.opts)
+      refusedUnder(this.opts, model)
+      const again = await until(latestFor(this.opts), request.signal)
       if (again === model) throw first
       model = again
       response = await this.post(body(model), request.signal)
@@ -262,12 +319,14 @@ export class JevJudge implements Judge {
       }
       answers[question.id] = understood(question, answer)
     }
+    // Only a whole answer makes a version one to fall back to.
+    if (!pinned) answeredUnder(this.opts, model)
     const tokens =
       typeof read.usage?.input_tokens === 'number' ? Number(read.usage.input_tokens) : null
     return {
       // What TypeSafe says answered, which under an alias is the only place
       // the real version is named; what was asked for where it says nothing.
-      version: typeof read.model === 'string' && read.model !== '' ? read.model : (model ?? LATEST),
+      version: typeof read.model === 'string' && read.model !== '' ? read.model : model,
       answers,
       cost: {
         requests: 1,

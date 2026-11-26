@@ -1,7 +1,7 @@
 import { JudgeError } from '@tade/judges-core'
 import { testJudge } from '@tade/judges-core/conformance'
 import { describe, expect, it } from 'vitest'
-import { JevJudge, jevVersions, newestOf, pinnedOf } from '../src/index.ts'
+import { forgetLatest, JevJudge, jevVersions, newestOf, pinnedOf } from '../src/index.ts'
 
 // TypeSafe, answered here the way their API answers. Nothing reaches the
 // network: what is under test is what Tade sends and what it makes of what
@@ -146,6 +146,7 @@ describe('asking TypeSafe', () => {
   it('treats a question it did not answer as broken, not as a zero', async () => {
     const judge = new JevJudge({
       key: 'k',
+      model: 'jev-1.14.0',
       retryMs: 0,
       fetch: (async () => Response.json({ model: 'jev-1.14.0', answers: {} })) as typeof fetch,
     })
@@ -162,8 +163,10 @@ describe('asking TypeSafe', () => {
       [529, /overloaded/, true],
     ]
     for (const [status, says, retryable] of cases) {
+      // Pinned, so what is under test is the refusal and not the listing.
       const judge = new JevJudge({
         key: 'k',
+        model: 'jev-1.14.0',
         retries: 0,
         retryMs: 0,
         fetch: (async () => new Response('the body said something', { status })) as typeof fetch,
@@ -183,6 +186,7 @@ describe('asking TypeSafe', () => {
     let asked = 0
     const judge = new JevJudge({
       key: 'k',
+      model: 'jev-1.14.0',
       retries: 2,
       retryMs: 0,
       fetch: (async (_url: unknown, init?: RequestInit) => {
@@ -364,5 +368,119 @@ describe('following the latest version', () => {
     expect(await new JevJudge({ key: 'k', model: 'jev-1.13.0', fetch }).verify()).toMatch(
       /jev-1\.13\.0, which extensions\.jev\.model pins.*empty the setting/,
     )
+  })
+})
+
+/**
+ * A TypeSafe whose list of versions a test breaks — refused, or never
+ * answered until the caller gives up — and which refuses an ask naming no
+ * version the way it does: 422, `model: Field required`.
+ */
+function listing(state: { versions: 'lists' | 'fails' | 'hangs' }, seen: (string | null)[] = []) {
+  let listed = 0
+  const fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    if (String(input).endsWith('/v1/models')) {
+      listed++
+      if (state.versions === 'fails') return new Response('upstream timeout', { status: 504 })
+      if (state.versions === 'hangs') {
+        return new Promise<Response>((_, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+        })
+      }
+      return Response.json({ data: [{ id: 'jev-1.14.0' }] })
+    }
+    const body = JSON.parse(String(init?.body)) as { model?: string }
+    seen.push(body.model ?? null)
+    if (!body.model) {
+      return Response.json(
+        { detail: [{ type: 'missing', loc: ['body', 'model'], msg: 'Field required' }] },
+        { status: 422 },
+      )
+    }
+    return Response.json({ model: body.model, answers: { one: { type: 'noul', noul: 0.3 } } })
+  }) as typeof globalThis.fetch
+  return { fetch, listed: () => listed }
+}
+
+describe('never asking without a version', () => {
+  it('falls back to the version that last answered when the list cannot be read, and lists no more', async () => {
+    const state: { versions: 'lists' | 'fails' | 'hangs' } = { versions: 'lists' }
+    const seen: (string | null)[] = []
+    const typesafe = listing(state, seen)
+    const judge = new JevJudge({ key: 'k', fetch: typesafe.fetch, retries: 0, retryMs: 0 })
+    expect((await judge.ask({ state: 'x', questions: one })).version).toBe('jev-1.14.0')
+    // The version it resolved goes stale, and the list is down when it looks again.
+    forgetLatest({ key: 'k', fetch: typesafe.fetch })
+    state.versions = 'fails'
+    const after = await judge.ask({ state: 'y', questions: one })
+    const third = await judge.ask({ state: 'z', questions: one })
+    expect(after.version).toBe('jev-1.14.0')
+    expect(third.version).toBe('jev-1.14.0')
+    expect(seen).toEqual(['jev-1.14.0', 'jev-1.14.0', 'jev-1.14.0'])
+    // Once to resolve, once that failed and fell back; the fallback is kept.
+    expect(typesafe.listed()).toBe(2)
+  })
+
+  it('sends nothing and says there is no version where the list fails and none has answered', async () => {
+    const seen: (string | null)[] = []
+    const typesafe = listing({ versions: 'fails' }, seen)
+    const judge = new JevJudge({ key: 'k', fetch: typesafe.fetch, retries: 0, retryMs: 0 })
+    const failed = await judge
+      .ask({ state: 'x', questions: one })
+      .then(() => null)
+      .catch((err: unknown) => err as JudgeError)
+    expect(failed).toBeInstanceOf(JudgeError)
+    // Loud, so the look stops and says so rather than naming every file refused.
+    expect(failed?.cannotAnswer).toBe(true)
+    expect(failed?.retryable).toBe(true)
+    expect(failed?.message).toMatch(/no version to ask with.*504/)
+    expect(seen).toEqual([])
+    // Not kept: the next ask lists again.
+    await judge.ask({ state: 'x', questions: one }).catch(() => null)
+    expect(typesafe.listed()).toBe(2)
+  })
+
+  it('says the same where the list never answers, at the listing deadline rather than the look', async () => {
+    const seen: (string | null)[] = []
+    const typesafe = listing({ versions: 'hangs' }, seen)
+    const judge = new JevJudge({ key: 'k', fetch: typesafe.fetch, timeoutMs: 20, retryMs: 0 })
+    const failed = await judge
+      .ask({ state: 'x', questions: one })
+      .then(() => null)
+      .catch((err: unknown) => err as JudgeError)
+    expect(failed?.cannotAnswer).toBe(true)
+    expect(failed?.message).toMatch(/no version to ask with/)
+    expect(seen).toEqual([])
+  })
+
+  it('stops waiting on a hanging list when its own ask is aborted', async () => {
+    const typesafe = listing({ versions: 'hangs' })
+    const judge = new JevJudge({ key: 'k', fetch: typesafe.fetch, timeoutMs: 60_000 })
+    const stop = new AbortController()
+    const asking = judge.ask({ state: 'x', questions: one, signal: stop.signal })
+    stop.abort(new Error('the look was stopped'))
+    await expect(asking).rejects.toThrow(/the look was stopped/)
+  })
+
+  it('never falls back to a version TypeSafe has since said it does not have', async () => {
+    const state = { listed: ['jev-1.13.0'], has: ['jev-1.13.0'] }
+    const seen: (string | null)[] = []
+    const inner = versioned(state, seen)
+    let down = false
+    const fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      if (down && String(input).endsWith('/v1/models')) return new Response('', { status: 503 })
+      return inner(input, init)
+    }) as typeof globalThis.fetch
+    const judge = new JevJudge({ key: 'k', fetch, retries: 0, retryMs: 0 })
+    await judge.ask({ state: 'x', questions: one })
+    state.has = []
+    down = true
+    const failed = await judge
+      .ask({ state: 'x', questions: one })
+      .then(() => null)
+      .catch((err: unknown) => err as JudgeError)
+    expect(failed?.cannotAnswer).toBe(true)
+    expect(failed?.message).toMatch(/no version to ask with/)
+    expect(seen).toEqual(['jev-1.13.0', 'jev-1.13.0'])
   })
 })

@@ -756,7 +756,10 @@ describe('a sentence typed into search', () => {
 
   /** A TypeSafe that puts the weight where a test says, over the options asked. */
   function picks(weights: Record<string, number>, seen?: unknown[]): typeof fetch {
-    return (async (_input: string | URL | Request, init?: RequestInit) => {
+    return (async (input: string | URL | Request, init?: RequestInit) => {
+      // The versions it can ask, so every ask names one, as TypeSafe requires.
+      if (String(input).endsWith('/v1/models'))
+        return Response.json({ data: [{ id: 'jev-1.14.0' }] })
       const body = JSON.parse(String(init?.body)) as {
         questions: Record<string, { criteria?: Record<string, string> }>
       }
