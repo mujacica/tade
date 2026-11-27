@@ -5,6 +5,7 @@ import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
 import { runningVersion } from '@tade/workbench/programs'
+import { type FaceCapabilities, ON_THIS_MACHINE } from './faces.ts'
 import { Heart } from './heart.ts'
 import { freeViewportKeys } from './keys.ts'
 import { knownTasks } from './live.ts'
@@ -32,6 +33,7 @@ import type { ConversationPlace } from './wire/conversation.ts'
 import type { Earlier } from './wire/earlier.ts'
 import { Evaluations } from './wire/evaluations.ts'
 import { Extensions } from './wire/extensions.ts'
+import { FaceScreen } from './wire/face-screen.ts'
 import { Files } from './wire/files.ts'
 import { FleetJournals } from './wire/fleet-journals.ts'
 import { FleetReload } from './wire/fleet-reload.ts'
@@ -168,13 +170,16 @@ export class App {
    */
   private readonly intake: Intake
   private readonly subjects: readonly Subject[]
+  /** The faces attached to this window's heart over other terminals (`attach`), until each goes. */
+  private readonly faces = new Set<FaceScreen>()
 
   private constructor(opts: AppOptions) {
     this.opts = opts
     // The face's halves of everything the heart runs, each asked for when it
     // is needed: every subject named here is made below, after the heart.
     this.heart = new Heart(opts, {
-      draw: () => this.draw(),
+      capabilities: ON_THIS_MACHINE,
+      draw: () => this.paint(),
       typed: () => this.looks.typed(),
       layout: () => this.window.layout(),
       due: () => this.looks.soonTick(),
@@ -619,6 +624,35 @@ export class App {
     })
   }
 
+  /**
+   * Another face over the heart this window beats: the window drawn again on
+   * `terminal`, at its size and from its own place in the window, sharing every
+   * fact with this one and doing on its machine only what `capabilities` says.
+   * This window keeps drawing as it was. Keys typed there go nowhere yet.
+   */
+  attach(
+    terminal: Terminal,
+    face: { capabilities: FaceCapabilities; skin?: Skin },
+  ): { readonly face: FaceScreen['face']; draw(): void; detach(): void } {
+    if (this.stopped) throw new Error('the window has closed, so there is no heart to attach to')
+    const screen = new FaceScreen({
+      attach: (spec) => this.heart.attach(spec),
+      subjects: () => this.subjects,
+      terminal,
+      skin: face.skin ?? this.skin,
+      capabilities: face.capabilities,
+    })
+    this.faces.add(screen)
+    return {
+      face: screen.face,
+      draw: () => screen.draw(),
+      detach: () => {
+        this.faces.delete(screen)
+        screen.stop()
+      },
+    }
+  }
+
   /** Resolves when the window has been closed, with what it gave up waiting for or could not close. */
   wait(): Promise<Unclosed[]> {
     return this.closed
@@ -647,6 +681,8 @@ export class App {
     // later: the hold is Tade's for exactly as long as Tade is open.
     this.awake.release()
     this.window.remember()
+    for (const face of this.faces) face.stop()
+    this.faces.clear()
     this.release?.()
     if (this.pointerShapes) this.terminal.write(pointerSequence('default'))
     this.tui.stop()
@@ -809,7 +845,13 @@ export class App {
   /** What the orchestrator's `tade_remote_tell` does, over this window's links. */
   readonly remoteTools = (): RemoteTools => this.remotes.tools()
 
+  /** Ask every face for a frame: this window's, and each attached one (`Heart.draw`). */
   private draw(): void {
+    this.heart.draw()
+  }
+
+  /** Ask this window's own terminal for a frame. */
+  private paint(): void {
     if (!this.stopped && !this.screens.borrowed()) this.tui.requestRender()
   }
 

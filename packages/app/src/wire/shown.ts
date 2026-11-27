@@ -58,6 +58,18 @@ export class Screens {
   }
 
   /**
+   * What an area would show with `lane` in front of it, asked without putting
+   * it there: the screen in front where that is the lane, its own last screen
+   * where one was kept, or nothing — never another lane's. For a face that
+   * draws what was read rather than deciding what is (`FaceCapabilities.fronts`).
+   */
+  seen(area: Area, lane: string | null): Shown {
+    const shown = this.of(area)
+    if (shown.lane === lane) return shown
+    return (lane !== null && this.last.get(lane)) || { ...NOTHING, lane }
+  }
+
+  /**
    * The lane in front of an area now. Where that is not the lane its screen was
    * read from, the area shows that lane's own last screen, or nothing at all —
    * never another lane's — and true says a look is owed to read it.

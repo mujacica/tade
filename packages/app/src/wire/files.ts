@@ -11,6 +11,7 @@ import {
   openerForLink,
   openerForReveal,
 } from '../editor.ts'
+import { cannot } from '../faces.ts'
 import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
 import { atOffset, focusTask, shownName, toggleFolder, viewLane } from '../model.ts'
@@ -342,6 +343,7 @@ export class Files implements Subject {
    * Relative paths are the agent's, so they resolve in its worktree.
    */
   async openPlace(target: { path: string; line?: number; column?: number }): Promise<void> {
+    if (this.refused('editor')) return
     const file = this.resolvePath(target.path)
     const { editor } = chooseEditor(this.wire.opts.config.surfaces.window.editor, process.env)
     const opener = openerFor(
@@ -550,6 +552,7 @@ export class Files implements Subject {
   }
 
   async openLink(url: string): Promise<void> {
+    if (this.refused('links')) return
     try {
       const opener = openerForLink(url)
       if (opener.kind === 'detached') await this.open(opener)
@@ -559,6 +562,20 @@ export class Files implements Subject {
     }
     this.wire.draw()
   }
+
+  /**
+   * Whether the face that asked cannot do this on its machine (`faces.ts`):
+   * said, and nothing opened — a link or an editor started here for a face
+   * somewhere else would open in front of nobody.
+   */
+  private refused(what: 'links' | 'editor'): boolean {
+    const no = cannot(this.wire.face, what)
+    if (no === null) return false
+    notify(this.wire, no)
+    this.wire.draw()
+    return true
+  }
+
   /**
    * A shell in the task's worktree, as a tab beside its agent: the place to
    * run the tests yourself, or look at what it did, without leaving the task.

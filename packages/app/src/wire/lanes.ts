@@ -48,7 +48,7 @@ import {
 import { Finding } from './finding.ts'
 import { Fitting, type Size } from './fitting.ts'
 import { Held } from './held.ts'
-import { type Area, Screens } from './shown.ts'
+import { type Area, Screens, type Shown } from './shown.ts'
 
 // The two screens in front of you, and the terminals they are. What the wheel
 // cuts them out of is `Held`.
@@ -130,26 +130,48 @@ export class Lanes implements Subject {
     Frame,
     'screen' | 'terminal' | 'paneScreen' | 'splitScreen' | 'splitTerminal' | 'held'
   > {
-    this.owned()
-    const pane = this.screens.of('pane')
-    const terminal = this.screens.of('terminal')
+    // One face decides which lane each area reads — the machine's own window.
+    // Any other draws what was read, for the lanes in front of it (`seen`).
+    const fronts = this.wire.face.fronts
+    if (fronts) this.owned()
+    const of = fronts ? (area: Area) => this.screens.of(area) : this.inFront(this.wire.state)
+    const pane = of('pane')
+    const terminal = of('terminal')
     return {
       screen: pane.screen,
       // The lines behind those two screens: what a selection dragged over one
       // and scrolled reaches into. Which line of the lane the top of the screen
       // is, is the drawing's to work out, from the `cutAt` it was cut with.
-      held: this.held.lines,
+      held: fronts ? this.held.lines : this.heldFor(pane.lane, terminal.lane),
       terminal: {
         screen: terminal.screen,
         find: this.findView(),
         view: terminal.view,
       },
       paneScreen: pane.view,
-      splitScreen: this.screens.of('split').screen,
+      splitScreen: of('split').screen,
       splitTerminal: this.wire.state.terminalSplit
-        ? { screen: this.screens.of('splitTerminal').screen, find: null }
+        ? { screen: of('splitTerminal').screen, find: null }
         : undefined,
     }
+  }
+
+  /** What each area shows for a face that does not decide what is read: the lanes in front of it. */
+  private inFront(state: AppState): (area: Area) => Shown {
+    const pane = state.panes.find((one) => one.task === state.focused)
+    const lanes: Record<Area, string | null> = {
+      pane: paneLane(state),
+      split: pane ? (splitShown(state, pane)?.lane ?? null) : null,
+      terminal: activeTerminal(state)?.id ?? null,
+      splitTerminal: terminalSplitShown(state)?.lane ?? null,
+    }
+    return (area) => this.screens.seen(area, lanes[area])
+  }
+
+  /** The lines held of the lanes in front of a face, and none of another lane's. */
+  private heldFor(pane: string | null, terminal: string | null): Frame['held'] {
+    const lanes = { pane, terminal }
+    return new Map([...this.held.lines].filter(([area, held]) => lanes[area] === held.lane))
   }
 
   /**

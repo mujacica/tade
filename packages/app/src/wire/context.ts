@@ -13,6 +13,7 @@ import type { Pusher, Signing } from '@tade/web'
 import type { Workbench } from '@tade/workbench'
 import type { UpdateLook } from '@tade/workbench/programs'
 import type { Open } from '../editor.ts'
+import { cannot, type FaceCapabilities } from '../faces.ts'
 import { acknowledge } from '../flash.ts'
 import type { Frame } from '../frame.ts'
 import type { clipboardImage, clipboardText, WatchClipboard } from '../images.ts'
@@ -122,6 +123,8 @@ export function wiringFor(
     draw: () => void
     /** Something was typed into a lane (`Outbox`). */
     typed: () => void
+    /** What the face being served now can do on its machine (`faces.ts`). */
+    face: () => FaceCapabilities
   },
 ): Wiring {
   const outbox = new Outbox(opts.client, () => window.typed())
@@ -135,6 +138,9 @@ export function wiringFor(
     put: (next) => window.put(next),
     get live() {
       return window.live()
+    },
+    get face() {
+      return window.face()
     },
     now: () => window.now(),
     layout: () => window.layout(),
@@ -415,6 +421,12 @@ export interface Wiring {
   put(next: AppState): void
   /** The world as last looked at, or null before the first look. */
   readonly live: Live | null
+  /**
+   * What the face being served now can do on its machine — the one whose frame
+   * is being made, or whose press is being answered (`Heart.as`): declared by
+   * whoever made the face, never sniffed (`faces.ts`).
+   */
+  readonly face: FaceCapabilities
   /** The clock, which is the window's and never a subject's own. */
   now(): number
   /**
@@ -606,6 +618,7 @@ export async function copySaying(
   text: string,
   write: (data: string) => void,
 ): Promise<void> {
+  if (refusedCopy(wire)) return
   const copied = await (wire.opts.clipboard?.write ?? copyText)(text, write)
   if (copied) flash(wire, `copied ${text}`)
   else notify(wire, text)
@@ -618,11 +631,24 @@ export async function copySpanSaying(
   text: string,
   write: (data: string) => void,
 ): Promise<void> {
+  if (refusedCopy(wire)) return
   const copied = await (wire.opts.clipboard?.write ?? copyText)(text, write)
   const lines = text.split('\n').length
   if (copied) flash(wire, `copied ${lines > 1 ? `${lines} lines` : `${text.length} characters`}`)
   else notify(wire, 'could not copy')
   wire.draw()
+}
+
+/**
+ * Whether the face that asked has no clipboard here (`faces.ts`): said, and
+ * nothing copied, since the machine's clipboard is not the one in front of it.
+ */
+function refusedCopy(wire: Wiring): boolean {
+  const no = cannot(wire.face, 'clipboard')
+  if (no === null) return false
+  notify(wire, no)
+  wire.draw()
+  return true
 }
 
 /**

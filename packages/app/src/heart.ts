@@ -1,5 +1,14 @@
 import { type Arming, loadConfig, printable, type TadeEvent, titlesOf } from '@tade/core'
 import type { StatusAsk } from '@tade/status'
+import {
+  type FaceCapabilities,
+  type FaceOwn,
+  NOBODY_LOOKING,
+  ownFrom,
+  ownOf,
+  seenBy,
+  sharedFrom,
+} from './faces.ts'
 import { agentEnded, eventNews } from './inbox.ts'
 import type { LayoutPrefs } from './layout.ts'
 import { Live } from './live.ts'
@@ -81,6 +90,15 @@ import { reloadStopsOf } from './wire/window.ts'
 // subject made here — a page to refresh, a sound to stop, a clipboard. None of
 // it is needed for the work to go on, so a face that is not there answers
 // every member with nothing (`screenless`), and the work goes on the same.
+//
+// That one is the machine's own face, which the heart is made with. Any number
+// of others may come and go while it beats (`attach`): each with its own size,
+// its own capabilities and its own place in the window — the project it stands
+// in, the agent in front of it, its scrolling and its open panel — and every
+// one drawing the same facts (`faces.ts` says which fields are which). While
+// one of them is drawn or answered (`AttachedFace.as`), every subject reads the
+// state as that face sees it and writes it back through that face, so a
+// subject never has to know there is more than one.
 
 /** The Settings page's half: what the accounts, models, sounds and clipboard of a screen answer. */
 export type SettingsFace = Omit<
@@ -107,6 +125,8 @@ export type RemotesFace = Partial<
 
 /** What a face adds to the heart. */
 export interface Face {
+  /** What this face can do on its machine, declared by whoever made it (`faces.ts`). */
+  readonly capabilities: FaceCapabilities
   /** Ask for a frame. */
   draw(): void
   /** Something was typed into a lane (`Outbox`). */
@@ -152,6 +172,44 @@ export interface Face {
   projects: ProjectsFace
   orchestrator: OrchestratorFace
   away: AwayFace
+}
+
+/** A face that comes to a heart already beating: what it is, and how it is asked for a frame. */
+export interface FaceSpec {
+  /** What it can do on its machine (`faces.ts`), declared and never sniffed. */
+  readonly capabilities: FaceCapabilities
+  /** Ask it for a frame: the heart has something new for every face. */
+  draw(): void
+  /** Where it starts looking; where the machine's own face is, holding nothing, unless given (`ownFrom`). */
+  readonly own?: FaceOwn
+}
+
+/** A face attached to a heart (`Heart.attach`): its own view of the one state, until it goes. */
+export interface AttachedFace {
+  /** What it can do on its machine. */
+  readonly capabilities: FaceCapabilities
+  /** The state as this face sees it: the heart's facts, and where it is looking. */
+  readonly state: AppState
+  /** Write as this face: its own fields stay with it, the rest is every face's. */
+  put(next: AppState): void
+  /**
+   * Run `fn` as this face: every subject's `wire.state` is this face's view,
+   * its `put` writes through this face, and `wire.face` is its capabilities.
+   * Synchronous only, and that is the point — a frame is made in one go, and
+   * anything that waits would come back to somebody else's view.
+   */
+  as<T>(fn: () => T): T
+  /** Gone: never drawn or asked again. The machine's own face is not one of these, and never goes. */
+  detach(): void
+}
+
+/** A face attached to a heart, as the heart holds it. */
+interface Guest {
+  readonly capabilities: FaceCapabilities
+  readonly draw: () => void
+  own: FaceOwn
+  /** The last view made for it, kept while neither half has moved (`Heart.seen`). */
+  seen: { heart: AppState; own: FaceOwn; state: AppState } | null
 }
 
 /**
@@ -236,6 +294,7 @@ function toldOrSaid(orchestrator: Tellable, said: ((text: string) => void) | nul
 export function screenless(heart: () => Beating): Face {
   const nothing = async () => {}
   return {
+    capabilities: NOBODY_LOOKING,
     draw: () => {},
     typed: () => {},
     layout: () => ({}),
@@ -366,6 +425,10 @@ export class Heart {
   private readonly told: Tellable
   /** Something only for the orchestrator came while it was not running, and nothing draws. */
   private owed = false
+  /** The faces attached besides the machine's own, in the order they came. */
+  private readonly guests = new Set<Guest>()
+  /** The face being drawn or answered now (`AttachedFace.as`); null is the machine's own. */
+  private serving: Guest | null = null
   /** What every subject is handed: the face's as well as the heart's own. */
   readonly wire: Wiring
   /** Queued work: what is ready, what is held, and what starts it. */
@@ -448,13 +511,14 @@ export class Heart {
     this.face = face
     this.said = said
     this.wire = wiringFor(opts, {
-      state: () => this.current,
-      put: (next) => this.put(next),
+      state: () => (this.serving ? this.seen(this.serving) : this.current),
+      put: (next) => (this.serving ? this.putAs(this.serving, next) : this.put(next)),
       live: () => this.looked,
       now: () => this.now(),
       layout: () => face.layout(),
-      draw: () => face.draw(),
+      draw: () => this.draw(),
       typed: () => face.typed(),
+      face: () => this.serving?.capabilities ?? face.capabilities,
     })
     this.settings = new Settings(this.wire, {
       ...face.settings,
@@ -501,7 +565,7 @@ export class Heart {
       seen: () => this.machinesSeen?.all() ?? [],
       say: (said) => {
         this.put(notice(this.current, said, this.now()))
-        face.draw()
+        this.draw()
       },
     })
     this.schedules = new Schedules(this.wire, {
@@ -567,12 +631,12 @@ export class Heart {
     })
     this.feeds = fleetFeedsFor(this.wire, (said) => {
       this.put(notice(this.current, said, this.now()))
-      face.draw()
+      this.draw()
     })
     this.conversation = new FleetConversation(this.wire, {
       say: (said) => {
         this.put(notice(this.current, said, this.now()))
-        face.draw()
+        this.draw()
       },
       later: () => void this.earlier.later(),
     })
@@ -580,7 +644,7 @@ export class Heart {
     this.acts = new MachineActs(this.wire, {
       say: (said) => {
         this.put(notice(this.current, said, this.now()))
-        face.draw()
+        this.draw()
       },
       seen: () => this.machinesSeen.all(),
     })
@@ -702,6 +766,76 @@ export class Heart {
   }
 
   /**
+   * Ask every face for a frame: the machine's own, and each attached one. A
+   * face that has nothing new to draw draws nothing (pi-tui writes only the
+   * rows that changed), so this costs a face what it shows and no more.
+   */
+  draw(): void {
+    this.face.draw()
+    for (const guest of this.guests) guest.draw()
+  }
+
+  /**
+   * A face comes to the heart while it beats: a second window, a phone. It
+   * draws the same facts as every other face, at its own size and from its
+   * own place in the window, and does on its machine only what it declares.
+   * Nothing is read, looked at or started for it: what it costs is its frames.
+   */
+  attach(spec: FaceSpec): AttachedFace {
+    const guest: Guest = {
+      capabilities: spec.capabilities,
+      draw: () => spec.draw(),
+      own: spec.own ?? ownFrom(this.current),
+      seen: null,
+    }
+    this.guests.add(guest)
+    const seen = () => this.seen(guest)
+    return {
+      capabilities: spec.capabilities,
+      get state() {
+        return seen()
+      },
+      put: (next) => this.putAs(guest, next),
+      as: (fn) => this.as(guest, fn),
+      detach: () => {
+        this.guests.delete(guest)
+      },
+    }
+  }
+
+  /** How many faces are attached besides the machine's own. */
+  get faces(): number {
+    return this.guests.size
+  }
+
+  /** The state as one attached face sees it, made again only where either half moved. */
+  private seen(guest: Guest): AppState {
+    const kept = guest.seen
+    if (kept && kept.heart === this.current && kept.own === guest.own) return kept.state
+    const state = seenBy(this.current, guest.own)
+    guest.seen = { heart: this.current, own: guest.own, state }
+    return state
+  }
+
+  /** A write as an attached face: where it looks stays its own, and the facts are every face's. */
+  private putAs(guest: Guest, next: AppState): void {
+    guest.own = ownOf(next)
+    this.put(sharedFrom(next, this.current))
+  }
+
+  /** Serve one attached face for the length of `fn`, and whichever was served before after it. */
+  private as<T>(guest: Guest, fn: () => T): T {
+    if (!this.guests.has(guest)) throw new Error('that face has gone from this heart')
+    const was = this.serving
+    this.serving = guest
+    try {
+      return fn()
+    } finally {
+      this.serving = was
+    }
+  }
+
+  /**
    * Start the beat: every project in the state, then the status look on its
    * clock, each of its answers taken in and handed to the work and the face;
    * then the agents that were working when Tade closed opened again, and the
@@ -741,6 +875,10 @@ export class Heart {
       status: this.opts.status,
       onTasks: (tasks, moved) => {
         this.put(withTasks(this.current, tasks))
+        // Every other face takes the beat as well: a focus on an agent that has
+        // gone moves for it as it does here, by the same rule.
+        for (const guest of this.guests)
+          guest.own = ownOf(withTasks(seenBy(this.current, guest.own), tasks))
         this.orchestrator.noteTasks(tasks)
         face.sawTasks(tasks)
         void this.queue.recordRulesMet()
@@ -761,7 +899,7 @@ export class Heart {
         // away bar and `tade_updates` all read it from here.
         this.ownCode.beat(this.now(), () => {
           this.away.restart()
-          face.draw()
+          this.draw()
         })
         void this.foldConfig()
         void this.taskRequests.beat()
@@ -776,15 +914,15 @@ export class Heart {
       },
       onWarning: (message) => {
         this.put(notice(this.current, message, this.now()))
-        face.draw()
+        this.draw()
       },
-      onChange: () => face.draw(),
+      onChange: () => this.draw(),
       onDue: () => face.due(),
       // An agent that started without a branch has changed something, so its work needs one.
       onWork: (task) => void this.agents.nameAgent(task),
       onTerminals: (terminals) => {
         this.put(withTerminals(this.current, terminals))
-        face.draw()
+        this.draw()
       },
       asked: () => face.asked(),
     })

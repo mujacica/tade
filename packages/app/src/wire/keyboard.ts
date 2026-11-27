@@ -798,7 +798,10 @@ export class Keyboard implements Subject {
     // between them are what a selection is in, and what a click counts in.
     const body = drawn.slice(1, -1)
     const text = this.editor.getText()
-    this.inputRows = rowStarts(body, text, INPUT_PAD)
+    // Where the line's rows are, for a click on it: the machine's own window's,
+    // which is the one this keyboard and mouse are. Another face's frame at
+    // another width would move them under a click here (`FaceCapabilities.fronts`).
+    if (this.wire.face.fronts) this.inputRows = rowStarts(body, text, INPUT_PAD)
     const selected = this.selectionSpan()
     if (!selected) return { input: { lines: drawn } }
     const lit = withSelection(body, text, selected, this.deps.skin, INPUT_PAD, width)
