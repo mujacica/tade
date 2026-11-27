@@ -808,7 +808,7 @@ export class Heart {
    */
   private heard(event: TadeEvent): void {
     const told = this.closing.heard(event) || tellNow(this.wire, this.told, event)
-    const news = told ? null : eventNews(event)
+    const news = told ? null : eventNews(event, () => knownHere(this.wire, this.wire.opts.config))
     if (news) this.orchestrator.note(news)
     const ended = agentEnded(event)
     if (ended) this.orchestrator.noteEnded(ended)

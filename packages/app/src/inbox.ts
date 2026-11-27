@@ -183,7 +183,14 @@ export function taskNews(
  * through, and because an agent that went quiet over lunch and is working
  * again is exactly the kind of thing it would otherwise steer into.
  */
-export function eventNews(event: TadeEvent): string | null {
+export function eventNews(
+  event: TadeEvent,
+  /**
+   * Every key Tade knows of here (`knownHere`), asked only for a line that
+   * says a command: a key that is not shaped like one is still taken out.
+   */
+  known: () => readonly string[] = () => [],
+): string | null {
   if (!event.task) return null
   if (event.type === 'agent_continued') {
     const slept = typeof event.detail.slept === 'string' ? event.detail.slept : 'a while'
@@ -202,7 +209,7 @@ export function eventNews(event: TadeEvent): string | null {
     const by = event.detail.by === 'person' ? 'The person' : 'Somebody'
     return `${by} read the document ${event.task} produced and decided: ${decided || 'nothing said'}. It is no longer waiting on anybody.`
   }
-  const prompted = promptAnswered(event)
+  const prompted = promptAnswered(event, known)
   if (prompted) return prompted
   if (event.type !== 'task_done') return null
   const summary = typeof event.detail.summary === 'string' ? event.detail.summary.trim() : ''
@@ -288,22 +295,23 @@ export function eventTell(event: TadeEvent, journal: readonly TadeEvent[]): stri
 /**
  * A harness's own yes/no that Tade answered by rule, in one line: what was
  * allowed or refused, and where. The command is what an agent wrote, so it
- * goes through the approvals' own rule for keys (`withoutCredentials`) before
- * it is said anywhere.
+ * goes through the approvals' own rule for keys (`withoutCredentials`), with
+ * every key the window knows of as well as the shapes, before it is said
+ * anywhere.
  */
-function promptAnswered(event: TadeEvent): string | null {
+function promptAnswered(event: TadeEvent, known: () => readonly string[]): string | null {
   if (event.detail.prompt !== 'harness' || event.detail.by !== 'rule') return null
   if (event.type !== 'permission_granted' && event.type !== 'permission_denied') return null
-  const command = promptCommand(event)
+  const command = promptCommand(event, known())
   if (event.type === 'permission_granted') return `allowed ${command} in ${event.task}`
   const reason = typeof event.detail.reason === 'string' ? `: ${event.detail.reason}` : ''
   return `refused ${command} in ${event.task}${reason}`
 }
 
 /** A prompt's command, keys taken out, in backticks. */
-function promptCommand(event: TadeEvent): string {
+function promptCommand(event: TadeEvent, known: readonly string[]): string {
   const summary = typeof event.detail.summary === 'string' ? event.detail.summary.trim() : ''
-  return `\`${withoutCredentials(summary, []).replaceAll('`', "'") || 'a tool call'}\``
+  return `\`${withoutCredentials(summary, known).replaceAll('`', "'") || 'a tool call'}\``
 }
 
 /** Why an agent was unheard, from its `agent_unheard` line, in a clause. */

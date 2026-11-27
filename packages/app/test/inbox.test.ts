@@ -452,6 +452,15 @@ describe('a harness’s own permission prompt', () => {
     expect(keyed).not.toContain('abcdefgh12345678')
   })
 
+  it('takes out a key the window knows of, whatever its shape', () => {
+    const key = 'plainlookingvalue42'
+    const command = `Bash: ./deploy ${key} eu`
+    expect(eventNews(answered('permission_granted', command))).toContain(key)
+    const said = eventNews(answered('permission_granted', command), () => [key])
+    expect(said).not.toContain(key)
+    expect(said).toContain('in app/refunds')
+  })
+
   it('is not news when the gate decided it, or a person in its lane did', () => {
     expect(eventNews(event({ type: 'permission_denied', detail: { summary: 'x' } }))).toBeNull()
     expect(
