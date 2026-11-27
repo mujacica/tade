@@ -378,7 +378,29 @@ describe('a check the machine slept through', () => {
     expect(run?.state).toBe('timed out')
   })
 
-  it('asks nothing of a run that passed, or one whose clock never jumped', async () => {
+  it('counts a jump the machine says it stayed up through against its limit, as it runs', async () => {
+    // A minute of limit and an hour on the clock the machine denies sleeping
+    // through: a check left to run its thirty seconds would have passed past
+    // its limit, with the hour counted as nothing.
+    asked.length = 0
+    const run = await sleptIn('echo lid; sleep 30; echo done', 1, { slept: false, trouble: null })
+    expect(run?.state).toBe('timed out')
+    expect(run?.tail).not.toContain('done')
+    // Asked about the gap, from the beat before it, and not about the whole run.
+    const [from, to] = asked[0] ?? [0, 0]
+    expect(to - from).toBeGreaterThanOrEqual(HOUR)
+  })
+
+  it('leaves a jump out of its limit when whether it slept cannot be told', async () => {
+    const run = await sleptIn('echo lid; sleep 1.5; echo done', 0.05, {
+      slept: null,
+      trouble: 'sysctl could not be asked: ENOENT',
+    })
+    expect(run?.state).toBe('passed')
+    expect(run?.tail).toContain('done')
+  })
+
+  it('asks nothing of a run that passed before a beat saw its clock jump, or one whose clock never jumped', async () => {
     asked.length = 0
     expect((await sleptIn('echo lid; echo done', 1))?.state).toBe('passed')
     expect((await sleptIn('echo "1 failed" >&2; exit 1', 1))?.state).toBe('failed')

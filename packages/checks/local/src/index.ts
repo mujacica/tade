@@ -262,12 +262,29 @@ async function one(
   const began = opts.now()
   let clock = startAwake(began)
   let timer: ReturnType<typeof setTimeout> | undefined
+  // Set once the check is gone, so a beat still waiting on the machine's
+  // answer when it went neither moves the clock nor stops a dead process.
+  let gone = false
+  let beating: Promise<void> = Promise.resolve()
+  const tick = async () => {
+    const at = opts.now()
+    let next = awakeAt(clock, at)
+    // A gap long enough to be a sleep is asked about now, not only at the end:
+    // a loaded machine's late timer with the lid open is time awake, and left
+    // out it let the check run past its limit by every such gap.
+    if (next.waking.slept !== null) {
+      const answer = await opts.asleep(at - next.waking.slept, at)
+      if (answer.slept === false) next = awakeAt(clock, at, true)
+    }
+    if (gone || outcome) return
+    clock = next
+    if (clock.awake >= limit) void end('timed out')
+    else watch()
+  }
   const watch = () => {
     timer = setTimeout(
       () => {
-        clock = awakeAt(clock, opts.now())
-        if (clock.awake >= limit) void end('timed out')
-        else watch()
+        beating = tick()
       },
       Math.min(BEAT_MS, limit - clock.awake),
     )
@@ -291,8 +308,10 @@ async function one(
   // Both let go the moment it is gone, and before the wait below: a check
   // that finished on time must not be recorded as timed out or cancelled
   // because its last bytes took a moment to arrive.
+  gone = true
   clearTimeout(timer)
   ctx.signal.removeEventListener('abort', onAbort)
+  await beating
   await Promise.race([
     drained,
     new Promise<void>((done) => {

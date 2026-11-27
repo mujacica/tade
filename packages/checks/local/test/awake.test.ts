@@ -7,7 +7,8 @@ import { awakeAt, startAwake } from '../src/awake.ts'
 
 const HOUR = 3_600_000
 
-const beats = (...at: number[]) => at.slice(1).reduce(awakeAt, startAwake(at[0] ?? 0))
+const beats = (...at: number[]) =>
+  at.slice(1).reduce((was, now) => awakeAt(was, now), startAwake(at[0] ?? 0))
 
 describe('time awake', () => {
   it('is every gap between beats while the machine stays up', () => {
@@ -24,6 +25,16 @@ describe('time awake', () => {
   it('counts a gap just short of being away as awake, and one at it as asleep', () => {
     expect(beats(0, AWAY_AFTER_MS - 1)).toMatchObject({ awake: AWAY_AFTER_MS - 1, slept: false })
     expect(beats(0, AWAY_AFTER_MS)).toMatchObject({ awake: 0, slept: true })
+  })
+
+  it('counts a gap the machine said it stayed up through, and suspects no sleep', () => {
+    // A loaded machine's beat came ninety seconds late with the lid open: that
+    // was time awake, and left out it was time past the limit for free.
+    const late = awakeAt(startAwake(0), AWAY_AFTER_MS + 5_000, true)
+    expect(late).toMatchObject({ awake: AWAY_AFTER_MS + 5_000, slept: false })
+    // A sleep found earlier is not taken back by a later gap the machine denies.
+    const after = awakeAt(beats(0, HOUR), HOUR + AWAY_AFTER_MS, true)
+    expect(after).toMatchObject({ awake: AWAY_AFTER_MS, slept: true })
   })
 
   it('counts nothing for a clock that went backwards', () => {
