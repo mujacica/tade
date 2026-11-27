@@ -294,27 +294,38 @@ export function withLater(
   if (newer.length === 0) return transcript
   // **A turn already drawn as it ran there is not drawn again** when its
   // record arrives: each line folded from another machine (`withThere`) stands
-  // for one item, matched once, and an item that matched takes the news Tade
-  // told with it along, which was that machine's to draw.
+  // for one item, matched once. **The news Tade told with it is drawn above
+  // it**, marked with that machine: no projection folds a machine's news
+  // (`FOLDED`), so the record is the only way it ever arrives here. Its own
+  // time is newer than anything shown, so a page read again adds it once.
   const folded = transcript.entries.filter((entry) => entry.there !== undefined)
   const used = new Set<Entry>()
+  const above = new Map<Entry, Entry[]>()
   const made: Entry[] = []
   for (const item of newer) {
     const drawn = withEarlier({ ...transcript, entries: [] }, [item], null, theirs).entries
-    const matched = drawn.some((entry) => {
+    const twins = drawn.map((entry) => {
       const twin = folded.find((one) => !used.has(one) && sameLine(one, entry))
-      if (twin === undefined) return false
-      used.add(twin)
-      return true
+      if (twin !== undefined) used.add(twin)
+      return twin
     })
-    if (matched) continue
+    const first = twins.find((twin) => twin !== undefined)
+    if (first?.there !== undefined) {
+      const { machine } = first.there
+      const news = drawn.flatMap((entry, n) =>
+        twins[n] === undefined ? [marked(entry, machine, n)] : [],
+      )
+      if (news.length > 0) above.set(first, [...(above.get(first) ?? []), ...news])
+      continue
+    }
     const machine = saidOn.get(item.at)
     made.push(
       ...(machine === undefined ? drawn : drawn.map((entry, n) => marked(entry, machine, n))),
     )
   }
-  if (made.length === 0) return transcript
-  return { ...transcript, entries: [...transcript.entries, ...made] }
+  if (made.length === 0 && above.size === 0) return transcript
+  const entries = transcript.entries.flatMap((entry) => [...(above.get(entry) ?? []), entry])
+  return { ...transcript, entries: [...entries, ...made] }
 }
 
 /**

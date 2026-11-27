@@ -137,7 +137,7 @@ describe('another machine’s turns, drawn here as they run there', () => {
     const record = [
       {
         kind: 'sent' as const,
-        text: 'What happened: an agent finished\n\nWhat they said:\nis /Users/amir/tade green?',
+        text: 'Since you last heard from Tade:\n- 14:02 an agent finished\n\nWhat they said:\nis /Users/amir/tade green?',
         images: [],
         at: 2_050,
       },
@@ -156,11 +156,18 @@ describe('another machine’s turns, drawn here as they run there', () => {
     const later = withLater(folded, record, () => false)
     expect(drawn(later)).toEqual([
       ['you', 'hello', ''],
+      // What Tade told the orchestrator with that turn, which no projection
+      // folds: the record is the only way it arrives, above the turn it went with.
+      ['tade', 'told the orchestrator: an agent finished', 'ipax'],
       ['you', 'is … green?', 'ipax'],
       ['tool', 'tade_status', 'ipax'],
       ['said', 'Green, all of it.', 'ipax'],
       ['said', 'And one more thing.', ''],
     ])
+    // The turn's record without the line after it, read twice: its news once.
+    const turn = withLater(folded, record.slice(0, 3), () => false)
+    expect(withLater(turn, record.slice(0, 3), () => false)).toBe(turn)
+    expect(drawn(turn).filter(([kind]) => kind === 'tade')).toHaveLength(1)
   })
 
   it('draws a turn once: its record read before its projection is not folded again', () => {
