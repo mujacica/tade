@@ -361,6 +361,15 @@ describe('a document handed over, told to the orchestrator at once', () => {
     expect(eventTell(ready({ waits: false }), [])).toContain('It is carrying on while you read it.')
   })
 
+  it('takes a key the window knows of out of what its agent asks, whatever its shape', () => {
+    const key = 'plainlookingvalue42'
+    const asking = ready({ asked: `Deploy with ${key} to eu or us?`, waits: true })
+    expect(eventTell(asking, [])).toContain(key)
+    const said = eventTell(asking, [], () => [key])
+    expect(said).not.toContain(key)
+    expect(said).toContain('Its agent asks: Deploy with')
+  })
+
   it('is told when a task finishes with a document written, and only then', () => {
     expect(eventTell(done({ bytes: 2048 }), [])).toBe(
       'app/plan finished (its agent said so): Planned it. It produced /h/documents/plan/plan.md (2048 bytes), and nothing has been done about it yet. Read the file now, then tell the person in a few sentences where things stand and put what is next to them — the options, and which you would choose. Queue nothing and start nothing until they answer, and record what they decide with tade_document_triage.',

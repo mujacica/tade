@@ -260,7 +260,8 @@ export function eventTell(
   journal: readonly TadeEvent[],
   /**
    * Every key Tade knows of here (`knownHere`), asked only for a lane's
-   * yes/no that says what it asks: a key not shaped like one is still taken out.
+   * yes/no or a handed-over document that says what it asks: a key not shaped
+   * like one is still taken out.
    */
   known: () => readonly string[] = () => [],
 ): string | null {
@@ -292,7 +293,9 @@ export function eventTell(
   const asked = typeof event.detail.asked === 'string' ? event.detail.asked.trim() : ''
   const size = documentSize(typeof event.detail.bytes === 'number' ? event.detail.bytes : null)
   const head = `${event.task} handed over the document it produces, ${path}${size}`
-  const question = asked ? ` Its agent asks: ${asked}${/[.!?]$/.test(asked) ? '' : '.'}` : ''
+  // What its agent wrote, so a key in it is taken out as a yes/no's is.
+  const said = asked ? withoutCredentials(asked, known()) : ''
+  const question = said ? ` Its agent asks: ${said}${/[.!?]$/.test(said) ? '' : '.'}` : ''
   const waits =
     event.detail.waits === false
       ? ' It is carrying on while you read it.'
