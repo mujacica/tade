@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { type RemoteLink, readDelta, readKept, readSnapshot, writeKept } from '@tade/remotes-core'
 import {
   applyDelta,
+  COLLECTIONS,
   type CopyIn,
   deltaBetween,
   Pieces,
@@ -296,7 +297,7 @@ export class ProjectionShared {
     try {
       pieces = piecesOf(told)
     } catch (err) {
-      if (!this.tooLarge) this.deps.say(err instanceof Error ? err.message : String(err))
+      if (!this.tooLarge) this.deps.say(`${messageOf(err)}; ${heaviestOf(own)}`)
       this.tooLarge = true
       return
     }
@@ -332,6 +333,23 @@ export class ProjectionShared {
 
 function messageOf(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
+}
+
+/**
+ * Which of a projection's collections it is that is too big to send, so the
+ * line says where to look rather than only how much: the three heaviest, by
+ * bytes and rows — counts and the collections' own names, never a word
+ * anybody wrote.
+ */
+export function heaviestOf(own: Snapshot): string {
+  const heaviest = COLLECTIONS.map((collection) => {
+    const rows = own[collection] as readonly unknown[]
+    return { collection, rows: rows.length, bytes: Buffer.byteLength(JSON.stringify(rows)) }
+  })
+    .sort((a, b) => b.bytes - a.bytes)
+    .slice(0, 3)
+    .map((one) => `${one.collection} ${Math.ceil(one.bytes / 1024)} KB in ${one.rows} rows`)
+  return `the heaviest of it: ${heaviest.join(', ')}`
 }
 
 /**

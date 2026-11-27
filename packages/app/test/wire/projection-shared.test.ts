@@ -163,6 +163,32 @@ describe('the Mac telling ipax, over the link', () => {
     none.beat(['ipax'], linkTo(held).reach)
     expect(held.copies()).toEqual([])
   })
+
+  it('says once which collections a projection too big to send is heavy in, and none of its words', async () => {
+    const held = new ProjectionsHeld({ home: home(), now: () => 0, say: () => {} })
+    const link = linkTo(held)
+    const title = `private-${'x'.repeat(2_600_000)}`
+    const said: string[] = []
+    const clock = { now: 10_000 }
+    const shared = new ProjectionShared({
+      own: () => snap(4, [title]),
+      now: () => clock.now,
+      say: (one) => said.push(one),
+    })
+    await until('the too-large line', () => {
+      clock.now += TELL_EVERY_MS
+      shared.beat(['ipax'], link.reach)
+      return said.length > 0
+    })
+    clock.now += TELL_EVERY_MS
+    shared.beat(['ipax'], link.reach)
+    expect(said).toHaveLength(1)
+    expect(said[0]).toMatch(
+      /more than one may send; the heaviest of it: tasks \d+ KB in 1 rows, projects /,
+    )
+    expect(said[0]).not.toContain('private')
+    expect(link.asked).toEqual([])
+  })
 })
 
 describe('what ipax keeps of the Mac', () => {
