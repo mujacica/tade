@@ -885,7 +885,10 @@ declare module '*/assets/pages/overview-figures.js' {
   type Cell = { n: number; under: string; dots: Dots }
   export const DOTS: number
   export const TOP: number
-  export function boardOf(store: Record<string, any>): {
+  export function boardOf(
+    store: Record<string, any>,
+    picked?: string | null,
+  ): {
     wants: Cell & { approvals: number; questions: number; deciding: number; requests: number }
     working: Cell & { stalled: number }
     queue: Cell & { ready: number }

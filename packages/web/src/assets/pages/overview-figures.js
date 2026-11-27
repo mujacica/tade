@@ -21,6 +21,7 @@ import {
   untilSaid,
 } from '../figures.js'
 import { projectShape } from '../glance.js'
+import { storesDrawn } from '../machines.js'
 import { pathOf } from '../routes.js'
 import {
   checksFold,
@@ -29,7 +30,7 @@ import {
   omitted,
   plansOf,
   projectsOf,
-  queueIn,
+  queuedHere,
   rowsOf,
   spendFold,
   spendSince,
@@ -52,21 +53,30 @@ export const TOP = 3
  * `wants` is the window's *needs you* and nothing wider, so the figure here is
  * the badge on the menu's Overview entry; what else is waiting on a person —
  * a request in the inbox — is said in its line, not added to its figure.
+ *
+ * Counted over the machines the chips pick (`storesDrawn`), as the badges are:
+ * what wants you and what works only where a machine is up, since a machine
+ * that is not up said them at its last word; the queue and the checks as
+ * their pages draw every machine's.
  */
-export function boardOf(store) {
-  const tasks = rowsOf(store, 'tasks')
+export function boardOf(store, picked = null) {
+  const drawn = storesDrawn(store, picked)
+  const live = drawn.filter((one) => one.up)
+  const tasks = drawn.flatMap((one) => rowsOf(one.store, 'tasks'))
 
-  const wanting = wantsYou(store)
+  const wanting = live.flatMap((one) => wantsYou(one.store))
   const approvals = wanting.filter((task) => task.approval !== null && task.approval !== undefined)
   const questions = wanting.filter((task) => !approvals.includes(task) && task.question === true)
   const deciding = wanting.length - approvals.length - questions.length
-  const requests = intakeWaiting(store).length
+  const requests = live.reduce((n, one) => n + intakeWaiting(one.store).length, 0)
 
-  const working = tasks.filter((task) => task.state === 'working')
+  const working = live
+    .flatMap((one) => rowsOf(one.store, 'tasks'))
+    .filter((task) => task.state === 'working')
   const stalled = working.filter((task) => task.stalled).length
   const running = working.length - stalled
 
-  const queue = queueIn(store, null)
+  const queue = drawn.flatMap((one) => queuedHere(one.store))
   const kinds = Object.fromEntries(QUEUE_KINDS.map((kind) => [kind, 0]))
   for (const row of queue) {
     const kind = row.state?.kind

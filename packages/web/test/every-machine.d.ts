@@ -13,6 +13,11 @@ declare module '*/assets/machines.js' {
     picked: string | null,
   ): { key: string | null; label: string; tone: string; said: string | null; on: boolean }[]
   export function reviewsOnce(drawn: { machine: string; store: any }[]): any[]
+  export function storesDrawn(
+    store: unknown,
+    picked: string | null,
+  ): { machine: string; store: any; up: boolean }[]
+  export function navCountsOf(store: unknown, picked: string | null): Record<string, number>
 }
 
 declare module '*/assets/there.js' {

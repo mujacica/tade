@@ -32,6 +32,7 @@ import { docksOn, forgetFolds } from './docks.js'
 import { classOn, el, textIn } from './dom.js'
 import { forget, startInstall, takeUpdate } from './install.js'
 import { backoffAt, connectionOf, outsideOf, standingOf } from './live.js'
+import { navCountsOf } from './machines.js'
 import { countsOf, forgetView, lastSeenScreen, readView, saveView } from './offline.js'
 import { accountsScreen } from './pages/accounts.js'
 import { taskScreen } from './pages/agent.js'
@@ -74,21 +75,17 @@ import {
 } from './shell.js'
 import { shellBars } from './shell-bars.js'
 import {
-  agentsOf,
   applyCopy,
   applyDelta,
   applySnapshot,
   asOf,
   emptyStore,
-  findingsUnanswered,
-  intakeWaiting,
-  omitted,
   rowsOf,
   streamPath,
   wantingIds,
 } from './store.js'
 import { talkScreen } from './talk.js'
-import { everyMachine, reviewsOnce, thereCtx, thereOn } from './there.js'
+import { everyMachine, machinePicked, reviewsOnce, thereCtx, thereOn } from './there.js'
 import { toasts } from './toasts.js'
 
 /** The ticket out of the fragment, taken out of the address bar as it is read. */
@@ -390,26 +387,13 @@ function paint() {
   heldOn(document.body, outside === null ? standing : 'live')
   insideIn(shown, outside === null)
   // The counts beside the navigation, once a paint: the rail, the tab bar
-  // and the More screen all draw these and nothing else.
-  const counts = held.store.had
-    ? {
-        wantsYou: rowsOf(held.store, 'tasks').filter((task) => task.wantsYou).length,
-        agents: agentsOf(held.store).length,
-        queue: held.store.rows.queue.size + omitted(held.store, 'queue'),
-        // **What is waiting on somebody**, not how many requests there are: a
-        // badge counting forty answered tickets is a badge nobody looks at
-        // twice. `intakeWaiting` is the domain's own list of states, copied
-        // into `store.js` and held equal to it.
-        intake: intakeWaiting(held.store).length,
-        runs: held.store.rows.runs.size + omitted(held.store, 'runs'),
-        workflows: held.store.rows.workflows.size + omitted(held.store, 'workflows'),
-        reviews: rowsOf(held.store, 'tasks').filter((task) => task.review !== null).length,
-        // **What is unanswered**, not how many findings there are: the
-        // projection sends those first, so a cut list still holds them.
-        findings: findingsUnanswered(held.store).length,
-        notes: held.store.rows.notes.size + omitted(held.store, 'notes'),
-      }
-    : null
+  // and the More screen all draw these and nothing else. Each is what its
+  // page draws for the machines the chips pick (`navCountsOf`), so a badge
+  // and the page it leads to never disagree about whose work is counted.
+  // **What is waiting on somebody** for the inbox and **what is unanswered**
+  // for findings, never how many there are: a badge counting forty answered
+  // tickets is a badge nobody looks at twice.
+  const counts = held.store.had ? navCountsOf(held.store, machinePicked(held.store)) : null
   if (counts !== null) navCounts(shown.links, counts)
   // The page's own standing, as two classes the stylesheet draws from: a
   // shimmer where figures will be before anything was read, and a line
@@ -420,7 +404,9 @@ function paint() {
     'is-reconnecting',
     standing === 'reconnecting' || standing === 'connecting',
   )
-  badgeIn(outside === null ? (counts?.wantsYou ?? 0) : 0)
+  // The icon's badge is this machine's own, whatever the chips pick.
+  const mine = held.store.had ? rowsOf(held.store, 'tasks').filter((task) => task.wantsYou) : []
+  badgeIn(outside === null ? mine.length : 0)
   keep(now)
   const view = {
     store: held.store,

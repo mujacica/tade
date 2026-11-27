@@ -4,7 +4,7 @@
 import { el, empty, into, keyed, textIn } from '../dom.js'
 import { count } from '../figures.js'
 import { createQueueRow, fillQueueRow, section } from '../rows.js'
-import { copiesOf, queueIn } from '../store.js'
+import { queuedHere } from '../store.js'
 import { panel } from '../ui.js'
 
 /* ── the queue ─────────────────────────────────────────────────────────────── */
@@ -75,20 +75,6 @@ export function queueScreen() {
   }
 
   return { node, update: draw }
-}
-
-/**
- * This machine's queue as the page draws it. A row `there` stands for another
- * machine's queued work, read out of its journal; where the page holds that
- * machine's own copy, its real rows are drawn under its line (`everyMachine`)
- * and replace the row here (ONE-AWAY-VIEW §5 step 4). One whose machine the
- * page holds no copy of stays, since it is the only place that work is seen.
- */
-function queuedHere(store) {
-  const held = new Set(copiesOf(store).map(({ machine }) => machine))
-  return queueIn(store, null).filter(
-    (row) => row.state.kind !== 'there' || !held.has(row.state.machine),
-  )
 }
 
 /** The standings a filter chip is offered for, in the order they are drawn. */

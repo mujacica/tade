@@ -169,10 +169,10 @@ export function nowScreen(ctx = null) {
       const had = store.had
       const open = projectsOf(store)
       textIn(top.figure, had ? countSaid(open.length, 'project', 'projects') : '')
-      // One fold per beat, read by the board and by the calm line alike.
-      const figures = had ? boardOf(store) : null
-      board.update(view, figures)
       const pick = machinePicked(store)
+      // One fold per beat, read by the board and by the calm line alike, of the machines picked.
+      const figures = had ? boardOf(store, pick) : null
+      board.update(view, figures)
       const mine = drawsOf(pick, HERE)
       chips.update(store)
 

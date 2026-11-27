@@ -1,7 +1,16 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { StillDocument } from '../scripts/still-dom.ts'
 import { agentsScreen } from '../src/assets/agents.js'
-import { chipsOf, drawsOf, HERE, pickedIn, reviewsOnce } from '../src/assets/machines.js'
+import {
+  chipsOf,
+  drawsOf,
+  HERE,
+  navCountsOf,
+  pickedIn,
+  reviewsOnce,
+  storesDrawn,
+} from '../src/assets/machines.js'
+import { boardOf } from '../src/assets/pages/overview-figures.js'
 import { queueScreen } from '../src/assets/pages/queue.js'
 import { reviewsScreen } from '../src/assets/pages/reviews.js'
 import { sideOf } from '../src/assets/side.js'
@@ -9,7 +18,7 @@ import { applyCopy, applySnapshot, emptyStore } from '../src/assets/store.js'
 import { everyMachine, machineChips, machinePicked } from '../src/assets/there.js'
 import { PROTOCOL_VERSION } from '../src/protocol.ts'
 import { snapshotOf } from '../src/snapshot.ts'
-import { input, NOW, queued, reach, task } from './fixtures.ts'
+import { blocked, input, NOW, queued, reach, task } from './fixtures.ts'
 
 // Every machine's rows on one page (ONE-AWAY-VIEW §2.4): the machine chips —
 // All · This machine · each other — over the side, the overview and every list
@@ -298,5 +307,68 @@ describe('the Agents page', () => {
     expect(doc.querySelector('.machine-chips')?.hidden).toBe(true)
     expect(doc.querySelector('.there-line')?.hidden).toBe(true)
     expect(agentHrefs(doc)).toEqual(['/t/tade/one'])
+  })
+})
+
+/** A door with an approval of its own and, on mac, one more: both want the person. */
+function wantingOf(state: 'up' | 'closed') {
+  const store = emptyStore()
+  const machines = [{ name: 'mac', way: 'from' as const, state, since: NOW - 60_000 }]
+  applySnapshot(
+    store,
+    snapshotOf(input({ reach: reach(), machines, tasks: [blocked()], intake: [] }), NOW),
+  )
+  const two = { ...blocked(), id: 'tade/two', project: 'tade' }
+  const theirs = snapshotOf(input({ reach: reach(), tasks: [two], intake: [] }), NOW - 60_000)
+  applyCopy(store, { v: PROTOCOL_VERSION, machine: 'mac', kind: 'whole', snapshot: theirs })
+  return store
+}
+
+describe('the counts beside the navigation and the overview’s board', () => {
+  it('are each machine’s the chips pick, as the pages they lead to draw them', () => {
+    const store = storeOf(true)
+    expect(storesDrawn(store, null).map((one) => one.machine)).toEqual([HERE, 'mac'])
+    expect(storesDrawn(store, 'mac').map((one) => one.machine)).toEqual(['mac'])
+    // A pick of a machine gone from the chips is All again.
+    expect(storesDrawn(store, 'box').map((one) => one.machine)).toEqual([HERE, 'mac'])
+
+    // A review both machines have is counted once.
+    expect(navCountsOf(store, null)).toMatchObject({ agents: 2, queue: 2, reviews: 1 })
+    expect(navCountsOf(store, HERE)).toMatchObject({ agents: 1, queue: 1, reviews: 1 })
+    expect(navCountsOf(store, 'mac')).toMatchObject({ agents: 1, queue: 1, reviews: 1 })
+    expect(boardOf(store, null).working.n).toBe(2)
+    expect(boardOf(store, null).queue.n).toBe(2)
+    expect(boardOf(store, 'mac').working.n).toBe(1)
+    expect(boardOf(store, HERE).queue.n).toBe(1)
+  })
+
+  it('count what wants the person only where its machine is up, as NEEDS YOU does', () => {
+    const up = wantingOf('up')
+    expect(navCountsOf(up, null).wantsYou).toBe(2)
+    expect(navCountsOf(up, 'mac').wantsYou).toBe(1)
+    expect(boardOf(up, null).wants.n).toBe(2)
+    expect(boardOf(up, null).wants.under).toBe('2 approvals')
+
+    const closed = wantingOf('closed')
+    expect(navCountsOf(closed, null).wantsYou).toBe(1)
+    expect(navCountsOf(closed, 'mac').wantsYou).toBe(0)
+    expect(boardOf(closed, null).wants.n).toBe(1)
+    // Its rows are still on its pages, dimmed: an agent there is counted as drawn.
+    expect(navCountsOf(closed, 'mac').agents).toBe(1)
+    expect(boardOf(closed, 'mac').working.n).toBe(0)
+  })
+
+  it('do not count another machine’s queued work twice where its copy is held', () => {
+    const store = storeOf(true)
+    const there = {
+      task: 'mac:tade/two',
+      project: 'tade',
+      state: { kind: 'there', machine: 'mac', heardAt: NOW - 60_000, silentDays: null },
+      order: null,
+      waitsOn: [],
+    }
+    store.rows.queue.set(there.task, there)
+    expect(navCountsOf(store, null).queue).toBe(2)
+    expect(boardOf(store, null).queue.n).toBe(2)
   })
 })

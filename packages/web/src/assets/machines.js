@@ -7,7 +7,16 @@
 // (`seenSaid` in `@tade/core`), held equal by `test/machines-client.test.ts`.
 
 import { shortClockOf } from './figures.js'
-import { agentsOf, emptyStore, wantsYou } from './store.js'
+import {
+  agentsOf,
+  emptyStore,
+  findingsUnanswered,
+  intakeWaiting,
+  omitted,
+  queuedHere,
+  rowsOf,
+  wantsYou,
+} from './store.js'
 
 /** Every machine, the ones that are not up first, then by name. */
 export function machinesOf(store) {
@@ -308,6 +317,55 @@ export function chipsOf(store, picked) {
       ),
     ),
   ]
+}
+
+/**
+ * Each store the pick draws, this machine's first and then each other's copy
+ * by name: `{ machine, store, up }`, this machine always up. A count the page
+ * draws beside the pick folds over these, as its screens draw them.
+ */
+export function storesDrawn(store, picked) {
+  const pick = pickedIn(store, picked)
+  const up = new Set(
+    seenIn(store)
+      .filter((row) => row.state === 'up')
+      .map((row) => row.name),
+  )
+  const copies = copiesIn(store)
+  return [
+    { machine: HERE, store, up: true },
+    ...namesIn(store).map((machine) => ({
+      machine,
+      store: copies.get(machine),
+      up: up.has(machine),
+    })),
+  ].filter((one) => drawsOf(pick, one.machine))
+}
+
+/**
+ * The counts beside the navigation for the machines the chips pick, each what
+ * its page draws under that pick: what wants you only where a machine is up
+ * (as NEEDS YOU, `wantsElsewhere`), a review two machines have once
+ * (`reviewsOnce`), and workflows this machine's alone, its page being only that.
+ */
+export function navCountsOf(store, picked) {
+  const drawn = storesDrawn(store, picked)
+  const sum = (count, among = drawn) => among.reduce((n, one) => n + count(one.store), 0)
+  const once = reviewsOnce(drawn).map((one) => ({ store: one }))
+  return {
+    wantsYou: sum(
+      (one) => wantsYou(one).length,
+      drawn.filter((one) => one.up),
+    ),
+    agents: sum((one) => agentsOf(one).length),
+    queue: sum((one) => queuedHere(one).length + omitted(one, 'queue')),
+    intake: sum((one) => intakeWaiting(one).length),
+    runs: sum((one) => one.rows.runs.size + omitted(one, 'runs')),
+    workflows: store.rows.workflows.size + omitted(store, 'workflows'),
+    reviews: sum((one) => rowsOf(one, 'tasks').filter((task) => task.review !== null).length, once),
+    findings: sum((one) => findingsUnanswered(one).length),
+    notes: sum((one) => one.rows.notes.size + omitted(one, 'notes')),
+  }
 }
 
 // A machine whose copy the page does not hold has no rows to pick: its card says why.

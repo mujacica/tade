@@ -279,6 +279,20 @@ export function queueIn(store, project) {
   return rows.sort((a, b) => order(a) - order(b) || byText(a.task, b.task))
 }
 
+/**
+ * This machine's queue as the page draws it. A row `there` stands for another
+ * machine's queued work, read out of its journal; where the page holds that
+ * machine's own copy, its real rows are drawn under its line (`everyMachine`)
+ * and replace the row here (ONE-AWAY-VIEW §5 step 4). One whose machine the
+ * page holds no copy of stays, since it is the only place that work is seen.
+ */
+export function queuedHere(store) {
+  const held = new Set(copiesOf(store).map(({ machine }) => machine))
+  return queueIn(store, null).filter(
+    (row) => row.state.kind !== 'there' || !held.has(row.state.machine),
+  )
+}
+
 // A written `order` is **only ever a preference among the ready**, so a row
 // without one sorts after every row with one rather than ahead of them.
 const order = (row) => (row.order === null || row.order === undefined ? 1e9 : row.order)
