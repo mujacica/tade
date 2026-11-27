@@ -881,8 +881,10 @@ export class Orchestrator {
     } catch (err) {
       // The turn readied above never started, so no `idle` will close it: the
       // gate's lease is let go here, or it stays held on every machine until
-      // it runs out.
+      // it runs out — and whatever a device said while the prompt was in the
+      // air, waiting on `turnOver`, goes now rather than at some later idle.
       this.closed()
+      this.free()
       throw err
     }
   }

@@ -83,6 +83,33 @@ describe('the gate around a turn of its own', () => {
     expect(one.arm).toEqual(LOCAL)
   })
 
+  it('sends a device’s words that waited behind a prompt that could not be sent, without waiting for an idle', async () => {
+    const adapter = harness()
+    const one = await start(adapter)
+    const { gate } = recording(adapter)
+    one.useTurns(gate)
+    const send = adapter.prompt.bind(adapter)
+    let refuse: (error: Error) => void = () => {}
+    adapter.prompt = (run, message, images, opts) => {
+      if (adapter.prompted.length > 0) return send(run, message, images, opts)
+      adapter.prompted.push({ run, message })
+      return new Promise((_resolve, reject) => {
+        refuse = reject
+      })
+    }
+    const phone = { how: 'owner', device: 'phone', theirs: true } as const
+    const first = one.askFrom('stop the api agent', phone)
+    await vi.waitFor(() => expect(adapter.prompted).toHaveLength(1))
+    // Said while the first prompt is in the air: taken at once, and waiting.
+    await one.askFrom('and the web one', phone)
+    expect(adapter.prompted).toHaveLength(1)
+    refuse(new Error('the harness refused the prompt'))
+    await expect(first).rejects.toThrow('the harness refused the prompt')
+    // No `idle` comes for a turn that never started, so nothing else would send it.
+    await vi.waitFor(() => expect(adapter.prompted).toHaveLength(2))
+    expect(adapter.prompted[1]?.message).toContain('and the web one')
+  })
+
   it('puts the gate’s sentence about another machine’s entries above the prompt, and nothing where it has none', async () => {
     const adapter = harness()
     const one = await start(adapter)
