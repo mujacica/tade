@@ -302,6 +302,41 @@ describe('reading a gate workflow', () => {
     expect(byId.get('tests')?.skip).toBeUndefined()
   })
 
+  it('reads every step of a workflow whose env needs a secret as one it cannot run', async () => {
+    const read = await readWorkflows(
+      repoWith({
+        '.github/workflows/secret.yml': [
+          'on: [pull_request]',
+          'env:',
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: GitHub's own syntax
+          '  TOKEN: ${{ secrets.TOKEN }}',
+          'jobs:',
+          '  calibrate:',
+          '    steps:',
+          '      - name: calibrate',
+          '        run: pnpm calibrate',
+          '',
+        ].join('\n'),
+        '.github/workflows/plain.yml': [
+          'on: [pull_request]',
+          'env:',
+          '  CI: true',
+          'jobs:',
+          '  check:',
+          '    steps:',
+          '      - name: tests',
+          '        run: pnpm test',
+          '',
+        ].join('\n'),
+      }),
+    )
+    const byId = new Map((read?.checks ?? []).map((check) => [check.id, check]))
+    expect(byId.get('calibrate')?.required).toBe(false)
+    expect(byId.get('calibrate')?.skip).toContain('only the runner knows')
+    expect(byId.get('tests')?.required).toBe(true)
+    expect(byId.get('tests')?.skip).toBeUndefined()
+  })
+
   it('runs a step in the folder it says, and skips one whose folder is not here to run in', async () => {
     const read = await readWorkflows(
       repoWith({

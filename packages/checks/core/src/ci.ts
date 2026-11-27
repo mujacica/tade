@@ -190,7 +190,19 @@ export async function readWorkflows(root: string): Promise<Reading | null> {
     }
     const before = checks.length
     const event = eventOf(raw?.on ?? raw?.true)
-    await readJobs(root, asObject(raw?.jobs), runDirOf(raw), at, event, checks, unread, taken)
+    // Every job sees the workflow's own `env:`, as every step sees its job's.
+    const envNeedsRunner = /\$\{\{/.test(JSON.stringify(raw?.env ?? ''))
+    await readJobs(
+      root,
+      asObject(raw?.jobs),
+      runDirOf(raw),
+      at,
+      event,
+      checks,
+      unread,
+      taken,
+      envNeedsRunner,
+    )
     if (checks.length > before) from.push(at)
   }
   if (checks.length === 0 && unread.length === 0) return null
@@ -206,6 +218,7 @@ async function readJobs(
   checks: Check[],
   unread: string[],
   taken: Set<string>,
+  workflowEnvNeedsRunner: boolean,
 ): Promise<void> {
   if (!jobs) return
   const skipped = notRunOn(jobs, event)
@@ -250,7 +263,7 @@ async function readJobs(
       cannot,
       // Every step sees its job's `env:` and is bounded by its job's
       // timeout, so both are read as if each step had said them.
-      /\$\{\{/.test(JSON.stringify(job?.env ?? '')),
+      workflowEnvNeedsRunner || /\$\{\{/.test(JSON.stringify(job?.env ?? '')),
       minutesOf(job, DEFAULT_MINUTES),
     )
   }
