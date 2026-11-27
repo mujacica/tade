@@ -33,10 +33,11 @@ import type { From, Outcome } from './acting.ts'
  * What one message carries, and the state it expects of the conversation.
  *
  * `was` is the conversation's own revision (`chatRev`): what the screen said
- * about whether anything was in flight, echoed back. A message that was typed
- * while Tade started answering somebody else meets a world that is not the one
- * it was written against, and the answer carries what is true now so the page
- * draws the truth rather than a toast about it.
+ * about whether anything was in flight, echoed back. A message is **not**
+ * refused for it: words typed while a turn started or ended wait for the turn
+ * in flight to be over and are a turn of their own (`askFrom`), so they assume
+ * nothing the revision says. The answer still carries what is true now, so the
+ * page draws the truth rather than a toast about it.
  */
 export interface AskCall {
   /** The revision the device's screen was of. */
@@ -105,7 +106,10 @@ export interface WebAsking {
  * assumes that is *not* here is a replay nothing refuses.
  */
 export interface ChatFacts {
-  /** Whether a turn is in flight, which is what a message needs to be false. */
+  /**
+   * Whether a turn is in flight, which is what a stop needs to be true. A
+   * message needs nothing of it: it waits for the turn to be over.
+   */
   busy: boolean
 }
 
@@ -125,8 +129,9 @@ export function noChat(): ChatFacts {
  * — so a revision that moved with them would refuse the commonest message
  * there is: the one somebody typed while an answer was arriving. That is
  * `TaskFacts`' own rule applied here — a field no call depends on refuses
- * perfectly current calls every time a figure moves — and what a message
- * genuinely assumes is the one thing left: that nothing is in flight.
+ * perfectly current calls every time a figure moves — and what a stop
+ * genuinely assumes is the one thing left: that a turn is in flight. A message
+ * is not compared against it at all, since it waits for that turn to be over.
  *
  * What is **not** given up by that is the replay: a captured `POST` sent again
  * carries the same key, and `receipts.ts` answers it out of the record rather

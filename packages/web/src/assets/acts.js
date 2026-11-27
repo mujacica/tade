@@ -165,9 +165,10 @@ export function actsOf(session) {
  * What one message sends.
  *
  * `was` is the **conversation's** own revision — what the screen said, echoed
- * back — so a message typed while Tade started answering somebody else is a
- * `409` that redraws the truth rather than words joining a turn they were not
- * meant for. The key is minted once per press and kept across a retry, which
+ * back. A message is not refused for it: words typed while a turn started wait
+ * for it to be over and are a turn of their own, never joining one they were
+ * not meant for. A stop is the one that compares it, and a `409` redraws the
+ * truth. The key is minted once per press and kept across a retry, which
  * is what makes the one failure a phone on a train actually has — send, lose
  * signal, send again — one turn rather than two.
  */
