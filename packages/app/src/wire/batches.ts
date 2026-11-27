@@ -238,6 +238,7 @@ export class Batches {
         baseGreen: covered.green,
         commits: covered.commits.map((one) => one.commit),
         command: command.run,
+        failing: command.files,
       })
     }
     const culprit: Culprit = narrowed?.culprit ?? { commit: null, because: cannot }
@@ -303,11 +304,11 @@ interface RedFacts {
 /** Whose it is, in one sentence: the commit and its trailer's task, or why nobody's. */
 function whoseSaid(facts: RedFacts): string {
   const { whose, culprit } = facts
-  if (culprit.commit === null) return `Whose commit broke it cannot be said: ${culprit.because}.`
+  if (culprit.commit === null) return `Whose commit broke it: cannot tell — ${culprit.because}.`
   const commit = `${culprit.commit.slice(0, 8)} (${whose?.subject ?? 'no subject'})`
   return whose?.task
-    ? `Run again on their own at each covered commit, the failing tests first fail at ${commit}, which is ${whose.task}'s by its trailer.`
-    : `Run again on their own at each covered commit, the failing tests first fail at ${commit}, which has no Tade-Task trailer.`
+    ? `Run again on their own at each covered commit, the failing tests first fail at ${commit}, the same way twice, which is ${whose.task}'s by its trailer.`
+    : `Run again on their own at each covered commit, the failing tests first fail at ${commit}, the same way twice, which has no Tade-Task trailer.`
 }
 
 /** What the orchestrator is told, now. */

@@ -205,7 +205,10 @@ and that record.
 - **A red batch is narrowed by rule, and is one proposal.** The failing tests (`readOutcome`'s files,
   handed to the related check) or a cheap failing check run again at the covered commits, HEAD first
   — a failure that does not come back on its own is a flake and nobody's — then the base, then
-  halving (`nextToTry`, `culpritOf`), under one machine slot. A suite that named no failing test (a
+  halving (`nextToTry`, `culpritOf`), under one machine slot. The commit it comes to is run a second
+  time before it is named, and a run that fails other tests than the batch did, or names none, ends
+  the narrowing (`changedAt`): either is "cannot tell", never a commit — a hook timeout that hangs on
+  load once blamed a commit whose parent had passed. A suite that named no failing test (a
   coverage floor) cannot be narrowed and says so rather than running whole again. Whose commit it is
   is its `Tade-Task:` trailer (`coveredBy`), never a guess. It becomes **one** parked task `by:
   extension:checks`, put to the orchestrator now (`putToOrchestrator`) naming the commit, the task and

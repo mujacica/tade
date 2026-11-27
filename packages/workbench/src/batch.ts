@@ -5,12 +5,14 @@ import {
   type Check,
   type CheckLog,
   type CheckRun,
+  failingFileIn,
   followRenames,
   HELD_MS,
   type Holders,
   heldBy,
   holdKept,
   type LockHolder,
+  plain,
   planFor,
   queueDir,
   RunnerError,
@@ -38,6 +40,7 @@ import {
   runProgram,
   shellQuote,
   type Tried,
+  withLook,
 } from '@tade/core'
 import { git } from '@tade/status'
 import { runProjectChecks } from './checks.ts'
@@ -463,7 +466,7 @@ export function narrowingCommand(
     ...(failed.failing?.files ?? []),
     ...readOutcome(failed.tail, { places: 40 }).places.map((place) => place.path),
   ]
-  const tests = [...new Set(files.filter((path) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(path)))]
+  const tests = testsIn(files)
   if (related && tests.length > 0) {
     return { run: `${related.run} ${tests.map(shellQuote).join(' ')}`, files: tests }
   }
@@ -481,6 +484,20 @@ export function narrowingCommand(
       ? `${failed.check} failed without naming a test that failed, so there is nothing to run again on its own`
       : `${failed.check} takes minutes and the project says no way to run part of it`,
   }
+}
+
+/** The test files among `paths`, each once, in the order first named. */
+function testsIn(paths: readonly string[]): string[] {
+  return [...new Set(paths.filter((path) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(path)))]
+}
+
+/** The test files a run's output names as failing, read from all of it. */
+export function failingTestsIn(output: string): string[] {
+  return testsIn(
+    plain(output)
+      .split('\n')
+      .flatMap((line) => failingFileIn(line) ?? []),
+  )
 }
 
 /** A narrowed red batch: what each commit said, whose it is, and every step taken. */
@@ -505,11 +522,17 @@ export async function narrowRed(opts: {
   baseGreen: boolean
   commits: readonly string[]
   command: string
+  /**
+   * The tests the batch failed, which `command` runs again: a run that fails
+   * a different set, or names none, means no commit can be named.
+   */
+  failing?: readonly string[]
   waitMs?: number
 }): Promise<Narrowed> {
-  const narrowing: Narrowing & { tried: Record<string, Tried> } = {
+  let narrowing: Narrowing = {
     commits: [opts.base, ...opts.commits],
     tried: opts.baseGreen ? { [opts.base]: 'green' } : {},
+    ...(opts.failing && opts.failing.length > 0 ? { failing: opts.failing } : {}),
   }
   const steps: string[] = []
   const waitMs = opts.waitMs ?? 30 * 60_000
@@ -552,10 +575,12 @@ export async function narrowRed(opts: {
   }
   try {
     for (let commit = nextToTry(narrowing); commit; commit = nextToTry(narrowing)) {
+      const second = narrowing.tried[commit] !== undefined
+      const where = `${commit.slice(0, 8)}${second ? ', a second time' : ''}`
       const tree = await treeAt({ ...opts, commit })
       if ('problem' in tree) {
-        narrowing.tried[commit] = 'cannot'
-        steps.push(`${commit.slice(0, 8)}: could not be checked out — ${tree.problem}`)
+        narrowing = withLook(narrowing, commit, { tried: 'cannot' })
+        steps.push(`${where}: could not be checked out — ${tree.problem}`)
         continue
       }
       const ran = await runProgram('sh', ['-c', opts.command], {
@@ -569,9 +594,13 @@ export async function narrowRed(opts: {
           : ran.code === 0
             ? 'green'
             : 'red'
-      narrowing.tried[commit] = said
+      const named = said === 'red' ? failingTestsIn(`${ran.stdout}\n${ran.stderr}`) : []
+      narrowing = withLook(narrowing, commit, {
+        tried: said,
+        ...(named.length > 0 ? { named } : {}),
+      })
       steps.push(
-        `${commit.slice(0, 8)}: ${said === 'green' ? 'passed' : said === 'red' ? 'failed' : `could not run (${ran.timedOut ? 'out of time' : lastLine(ran.stderr)})`}`,
+        `${where}: ${said === 'green' ? 'passed' : said === 'red' ? `failed${named.length > 0 ? ` (${named.join(', ')})` : ''}` : `could not run (${ran.timedOut ? 'out of time' : lastLine(ran.stderr)})`}`,
       )
     }
   } finally {

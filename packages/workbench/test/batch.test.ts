@@ -406,9 +406,114 @@ describe('a red batch, narrowed', () => {
     })
     expect(narrowed.culprit).toEqual({ commit: b })
     // HEAD first, so a failure that does not come back is nobody's; the base
-    // is known green from its run, so it is never run again.
+    // is known green from its run, so it is never run again; and the commit it
+    // came to is looked at a second time before it is named.
     expect(narrowed.steps[0]).toMatch(new RegExp(`^${c.slice(0, 8)}: failed`))
     expect(narrowed.steps.some((step) => step.startsWith(base.slice(0, 8)))).toBe(false)
+    expect(narrowed.steps.at(-1)).toBe(`${b.slice(0, 8)}, a second time: failed`)
+  })
+
+  /**
+   * A check whose failures vary: while `broken` is in the tree it fails the
+   * runs `fails` says, by how many times it has been run there (from 1), and
+   * names the tests `names` says. Its count is kept outside every tree.
+   */
+  function varying(
+    repo: ReturnType<typeof mkrepo>,
+    fails: (n: number) => boolean,
+    names: (n: number) => string[] = () => [],
+  ): string {
+    const count = join(repo.home, 'count')
+    const cases = Array.from({ length: 12 }, (_, i) => i + 1)
+      .map((n) => {
+        const lines = names(n).map((name) => `echo ' FAIL  ${name} > it holds'`)
+        return `  ${n}) ${[...lines, `exit ${fails(n) ? 1 : 0}`].join('; ')} ;;`
+      })
+      .join('\n')
+    const script = join(repo.home, 'varying.sh')
+    writeFileSync(
+      script,
+      [
+        'test -e broken || exit 0',
+        `n=$(( $(cat '${count}' 2>/dev/null || echo 0) + 1 ))`,
+        `echo "$n" > '${count}'`,
+        'case "$n" in',
+        cases,
+        'esac',
+        'exit 0',
+        '',
+      ].join('\n'),
+    )
+    return `sh '${script}'`
+  }
+
+  it('cannot tell when the commit it came to passes when the tests run there again', async () => {
+    const { repo, at } = project()
+    const base = repo.head()
+    const a = commit(repo, 'a', { 'a.txt': 'a' })
+    const b = commit(repo, 'b', { broken: 'yes' })
+    const c = commit(repo, 'c', { 'c.txt': 'c' })
+    // Red at c, then at b, then green at b a second time: load, not b.
+    const narrowed = await narrowRed({
+      ...at,
+      base,
+      baseGreen: true,
+      commits: [a, b, c],
+      command: varying(repo, (n) => n < 3),
+    })
+    expect(narrowed.steps).toEqual([
+      `${c.slice(0, 8)}: failed`,
+      `${a.slice(0, 8)}: passed`,
+      `${b.slice(0, 8)}: failed`,
+      `${b.slice(0, 8)}, a second time: passed`,
+    ])
+    expect(narrowed.culprit).toMatchObject({ commit: null, flaky: true })
+  })
+
+  it('cannot tell, and runs nothing more, when the tests fail other ones than the batch did', async () => {
+    const { repo, at } = project()
+    const base = repo.head()
+    const a = commit(repo, 'a', { broken: 'yes' })
+    const b = commit(repo, 'b', { 'b.txt': 'b' })
+    const narrowed = await narrowRed({
+      ...at,
+      base,
+      baseGreen: true,
+      commits: [a, b],
+      command: varying(
+        repo,
+        () => true,
+        (n) => (n === 1 ? ['test/hook.test.ts'] : ['test/hook.test.ts', 'test/worker.test.ts']),
+      ),
+      failing: ['test/worker.test.ts', 'test/hook.test.ts'],
+    })
+    expect(narrowed.steps).toEqual([`${b.slice(0, 8)}: failed (test/hook.test.ts)`])
+    expect(narrowed.culprit).toMatchObject({ commit: null, flaky: true })
+    expect(narrowed.culprit.commit === null && narrowed.culprit.because).toMatch(
+      /did not fail the same way/,
+    )
+  })
+
+  it('names the commit when the same tests fail the same way at every look', async () => {
+    const { repo, at } = project()
+    const base = repo.head()
+    const a = commit(repo, 'a', { broken: 'yes' })
+    const b = commit(repo, 'b', { 'b.txt': 'b' })
+    const both = ['test/hook.test.ts', 'test/worker.test.ts']
+    const narrowed = await narrowRed({
+      ...at,
+      base,
+      baseGreen: true,
+      commits: [a, b],
+      command: varying(
+        repo,
+        () => true,
+        (n) => (n % 2 === 0 ? both : [...both].reverse()),
+      ),
+      failing: both,
+    })
+    expect(narrowed.culprit).toEqual({ commit: a })
+    expect(narrowed.steps.at(-1)).toMatch(new RegExp(`^${a.slice(0, 8)}, a second time: failed`))
   })
 
   it('says a suite that named no failing test cannot be narrowed, rather than running all of it again', () => {

@@ -28,14 +28,16 @@ afterEach(async () => {
   for (const one of opened.splice(0)) await one.close().catch(() => {})
 })
 
-async function world(how: { held?: boolean } = {}) {
+async function world(how: { held?: boolean; run?: (home: string) => string } = {}) {
   const repo = mkrepo()
   // Held, the check waits for the test to let it finish: a batch that is going
   // for exactly as long as the test needs it to be.
   const gate = join(repo.home, 'let-it-finish')
-  const run = how.held
-    ? `while [ ! -e ${gate} ]; do sleep 0.05; done\ntest ! -e broken`
-    : 'test ! -e broken'
+  const run = how.run
+    ? how.run(repo.home)
+    : how.held
+      ? `while [ ! -e ${gate} ]; do sleep 0.05; done\ntest ! -e broken`
+      : 'test ! -e broken'
   repo.commit('the gate', { [CI_WORKFLOW]: ciWorkflow([{ id: 'tests', run }]) })
   const config = ConfigSchema.parse({
     projects: { shop: { root: repo.root, checks: { full: 'batched' } } },
@@ -245,6 +247,57 @@ describe('a batched project, from the window', () => {
     const file = await readTaskFile(w.repo.home, task)
     expect(file?.parked).toBe(true)
     expect(file?.by).toBe('extension:checks')
+  })
+
+  it('cannot tell whose commit it was when the one it came to passes on a second look', async () => {
+    // A check whose failures vary: with `broken` in the tree it fails the
+    // batch, the run again at HEAD and the first at the commit that added it,
+    // and then passes — a failure that hangs on the machine, not on a commit.
+    const w = await world({
+      run: (home) => {
+        const script = join(home, 'varying.sh')
+        const count = join(home, 'count')
+        writeFileSync(
+          script,
+          [
+            'test -e broken || exit 0',
+            `n=$(( $(cat '${count}' 2>/dev/null || echo 0) + 1 ))`,
+            `echo "$n" > '${count}'`,
+            'test "$n" -ge 4',
+            '',
+          ].join('\n'),
+        )
+        return `sh ${script}`
+      },
+    })
+    w.later(SETTLE_MS)
+    await w.batches.beat()
+    await w.batches.beat()
+    w.later(BATCH_LOOK_MS + SETTLE_MS)
+    await w.batches.beat()
+    await until(
+      'the green batch over',
+      async () => w.batches.running('shop') === null && (await w.runs()).length === 1,
+    )
+
+    w.repo.commit('work of a\n\nTade-Task: shop/a', { 'a.txt': 'a' })
+    const blamed = w.repo.commit('work of b\n\nTade-Task: shop/b', { broken: 'yes' })
+    const head = w.repo.commit('work of c\n\nTade-Task: shop/c', { 'c.txt': 'c' })
+    w.later(BATCH_LOOK_MS)
+    await w.batches.beat()
+    w.later(BATCH_LOOK_MS + SETTLE_MS)
+    await w.batches.beat()
+    await until('the orchestrator to be told', () => w.told.length > 0)
+
+    const [said] = w.told
+    expect(said).toContain(`went red at ${head.slice(0, 8)}`)
+    expect(said).toContain(
+      `Whose commit broke it: cannot tell — the failing tests failed at ${blamed.slice(0, 8)} and then passed when they ran there a second time.`,
+    )
+    expect(said).not.toContain("shop/b's by its trailer")
+    expect(said).toContain('Leave it if the next batch is green')
+    const file = await readTaskFile(w.repo.home, `shop/red-full-run-${head.slice(0, 7)}`)
+    expect(file?.parked).toBe(true)
   })
 })
 
