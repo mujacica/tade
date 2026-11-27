@@ -189,7 +189,8 @@ export async function readWorkflows(root: string): Promise<Reading | null> {
       continue
     }
     const before = checks.length
-    await readJobs(root, asObject(raw?.jobs), runDirOf(raw), at, checks, unread, taken)
+    const event = eventOf(raw?.on ?? raw?.true)
+    await readJobs(root, asObject(raw?.jobs), runDirOf(raw), at, event, checks, unread, taken)
     if (checks.length > before) from.push(at)
   }
   if (checks.length === 0 && unread.length === 0) return null
@@ -201,14 +202,21 @@ async function readJobs(
   jobs: Record<string, unknown> | null,
   workflowDir: string | null,
   at: string,
+  event: ChangeEvent | null,
   checks: Check[],
   unread: string[],
   taken: Set<string>,
 ): Promise<void> {
   if (!jobs) return
+  const skipped = notRunOn(jobs, event)
   for (const [name, value] of Object.entries(jobs)) {
     const job = asObject(value)
     const where = `${at} › ${name}`
+    const off = skipped.get(name)
+    if (off) {
+      unread.push(`${where} ${off}, so none of it was read`)
+      continue
+    }
     // A job that calls another workflow has no steps of its own. The workflow
     // it calls is read on its own terms, where it is a gate.
     if (typeof job?.uses === 'string') continue
@@ -227,14 +235,15 @@ async function readJobs(
       ? 'its job needs service containers, which only CI has'
       : job?.container
         ? 'its job runs in a container, which is not this machine'
-        : typeof job?.if === 'string'
-          ? `its job runs only when \`${job.if}\`, which only CI can answer`
+        : job?.if !== undefined && holdsOn(job.if, event) === null
+          ? `its job runs only when \`${conditionText(job.if)}\`, which only CI can answer`
           : null
     await readSteps(
       root,
       Array.isArray(job?.steps) ? job.steps : [],
       runDirOf(job) ?? workflowDir,
       where,
+      event,
       checks,
       unread,
       taken,
@@ -248,6 +257,7 @@ async function readSteps(
   steps: readonly unknown[],
   jobDir: string | null,
   where: string,
+  event: ChangeEvent | null,
   checks: Check[],
   unread: string[],
   taken: Set<string>,
@@ -262,6 +272,13 @@ async function readSteps(
     const name = typeof step?.name === 'string' ? step.name.trim() : ''
     const said = name ? `${where} › ${name}` : where
     const run = typeof step?.run === 'string' ? step.run.trim() : ''
+    // Before anything else about it: a step that never runs on a change makes
+    // no folder and checks nothing.
+    const when = step?.if === undefined ? true : holdsOn(step.if, event)
+    if (when === false) {
+      unread.push(`${said} ${neverOn(step?.if, event)}`)
+      continue
+    }
     if (!run) {
       const uses = typeof step?.uses === 'string' ? step.uses : ''
       // An action prepares the machine or talks to the forge; either way there
@@ -285,8 +302,8 @@ async function readSteps(
       /\$\{\{/.test(dir ?? '')
         ? 'it uses something only the runner knows'
         : ((dir ? await placeOf(root, dir, made) : null) ??
-          (typeof step?.if === 'string'
-            ? `it runs only when \`${step.if}\`, which only CI can answer`
+          (when === null
+            ? `it runs only when \`${conditionText(step?.if)}\`, which only CI can answer`
             : null)))
     const cwd = dir && !/\$\{\{/.test(dir) ? inside(dir) : null
     checks.push({
@@ -314,6 +331,200 @@ async function readSteps(
       ...(cannot ? { skip: cannot } : {}),
     })
   }
+}
+
+// An `if:` is a question about the run CI is making, and almost every one of
+// them is only CI's to answer — a ref, a secret, an earlier step's outcome.
+// One kind is not: a run here stands for a change, so a condition that asks
+// nothing but *which event this is* has an answer here too. That is what lets
+// a workflow that also runs on a schedule — `check` behind
+// `github.event_name != 'schedule'`, `calibrate` behind `== 'schedule'` — be
+// read as the gate it is, rather than have every check in it skipped.
+//
+// Only the narrowest grammar is answered: `github.event_name` compared with a
+// quoted literal by `==` or `!=`, joined by `&&`, `||`, `!` and parentheses,
+// bare or inside `${{ }}`. Anything else in the expression — another context,
+// a function such as `always()`, a literal compared with a literal, a value
+// used for its truth — makes the whole of it unanswerable, as every `if:` was
+// before, so the reading can only ever run less than it would by guessing.
+
+/** The event a run here stands for, in a workflow that is a gate. */
+type ChangeEvent = 'push' | 'pull_request'
+
+/**
+ * Which event a run here stands for: a push where the workflow runs on a push
+ * to a branch, a pull request where it runs on pull requests only. Null for
+ * anything else (`pull_request_target`, a push only of tags), where no event
+ * is answered for it and every condition on one stays CI's.
+ */
+export function eventOf(on: unknown): ChangeEvent | null {
+  if (typeof on === 'string') return on === 'push' || on === 'pull_request' ? on : null
+  const names = Array.isArray(on) ? on.map(String) : Object.keys(asObject(on) ?? {})
+  if (names.includes('push')) {
+    const at = asObject(asObject(on)?.push)
+    const tagsOnly =
+      at !== null && !at.branches && !at['branches-ignore'] && !!(at.tags || at['tags-ignore'])
+    if (!tagsOnly) return 'push'
+  }
+  return names.includes('pull_request') ? 'pull_request' : null
+}
+
+/**
+ * Whether an `if:` holds on a run standing for `event`: true or false where
+ * it asks nothing but which event this is (or is a YAML boolean), null where
+ * it asks anything else and only CI can answer.
+ */
+export function holdsOn(condition: unknown, event: ChangeEvent | null): boolean | null {
+  if (typeof condition === 'boolean') return condition
+  if (typeof condition !== 'string') return null
+  let text = condition.trim()
+  const wrapped = /^\$\{\{([\s\S]*)\}\}$/.exec(text)
+  if (wrapped) text = (wrapped[1] ?? '').trim()
+  const tokens = tokensOf(text)
+  if (!tokens || tokens.length === 0) return null
+  let at = 0
+  const peek = (): Token | undefined => tokens[at]
+  // Each returns null for "not this grammar", which the caller passes up whole.
+  const or = (): boolean | null => {
+    let value = and()
+    while (value !== null && peek()?.kind === '||') {
+      at++
+      const right = and()
+      value = right === null ? null : value || right
+    }
+    return value
+  }
+  const and = (): boolean | null => {
+    let value = unary()
+    while (value !== null && peek()?.kind === '&&') {
+      at++
+      const right = unary()
+      value = right === null ? null : value && right
+    }
+    return value
+  }
+  const unary = (): boolean | null => {
+    if (peek()?.kind === '!') {
+      at++
+      const value = unary()
+      return value === null ? null : !value
+    }
+    if (peek()?.kind === '(') {
+      at++
+      const value = or()
+      if (value === null || peek()?.kind !== ')') return null
+      at++
+      return value
+    }
+    return comparison()
+  }
+  const comparison = (): boolean | null => {
+    const left = tokens[at]
+    const op = tokens[at + 1]
+    const right = tokens[at + 2]
+    if (!left || !right || (op?.kind !== '==' && op?.kind !== '!=')) return null
+    const literal =
+      left.kind === 'event' && right.kind === 'literal'
+        ? right.text
+        : left.kind === 'literal' && right.kind === 'event'
+          ? left.text
+          : null
+    if (literal === null || event === null) return null
+    at += 3
+    // GitHub compares strings without regard to case.
+    const same = literal.toLowerCase() === event
+    return op.kind === '==' ? same : !same
+  }
+  const value = or()
+  return value !== null && at === tokens.length ? value : null
+}
+
+type Token =
+  | { kind: '(' | ')' | '!' | '==' | '!=' | '&&' | '||' | 'event' }
+  | { kind: 'literal'; text: string }
+
+/** The tokens of an expression in the grammar above, or null at anything outside it. */
+function tokensOf(text: string): Token[] | null {
+  const tokens: Token[] = []
+  let at = 0
+  while (at < text.length) {
+    const rest = text.slice(at)
+    const space = /^\s+/.exec(rest)
+    if (space) {
+      at += space[0].length
+      continue
+    }
+    const op = /^(==|!=|&&|\|\||[()!])/.exec(rest)
+    if (op) {
+      tokens.push({ kind: op[0] as '(' | ')' | '!' | '==' | '!=' | '&&' | '||' })
+      at += op[0].length
+      continue
+    }
+    // A context's property names are not case-sensitive either.
+    const name = /^github\.event_name(?![\w.[-])/i.exec(rest)
+    if (name) {
+      tokens.push({ kind: 'event' })
+      at += name[0].length
+      continue
+    }
+    const literal = /^'((?:[^']|'')*)'/.exec(rest)
+    if (literal) {
+      tokens.push({ kind: 'literal', text: (literal[1] ?? '').replaceAll("''", "'") })
+      at += literal[0].length
+      continue
+    }
+    return null
+  }
+  return tokens
+}
+
+/** An `if:` as somebody wrote it, for a sentence. */
+function conditionText(condition: unknown): string {
+  return typeof condition === 'string' ? condition.trim() : String(condition)
+}
+
+function kindOf(event: ChangeEvent | null): string {
+  return event === 'pull_request' ? 'a pull request' : event === 'push' ? 'a push' : 'a change'
+}
+
+/** Why a step or job whose `if:` came out false is not read, after its name. */
+function neverOn(condition: unknown, event: ChangeEvent | null): string {
+  return typeof condition === 'boolean'
+    ? `says \`if: ${condition}\`, so it never runs`
+    : `runs only when \`${conditionText(condition)}\`, which does not hold for ${kindOf(event)}`
+}
+
+/**
+ * The jobs of a workflow that do not run on a change, each with why. A job
+ * whose own `if:` is answered false, and — since GitHub puts an implicit
+ * `success()` before every condition without a status function, and a job
+ * whose needs were skipped is skipped — a job that needs one of those and
+ * whose own condition, if it has one, was answered. One whose condition was
+ * not answered may say `always()`, so it stays CI's to answer.
+ */
+function notRunOn(jobs: Record<string, unknown>, event: ChangeEvent | null): Map<string, string> {
+  const off = new Map<string, string>()
+  const answered = new Set<string>()
+  for (const [name, value] of Object.entries(jobs)) {
+    const condition = asObject(value)?.if
+    const held = condition === undefined ? true : holdsOn(condition, event)
+    if (held === false) off.set(name, neverOn(condition, event))
+    if (held !== null) answered.add(name)
+  }
+  for (let grew = true; grew; ) {
+    grew = false
+    for (const [name, value] of Object.entries(jobs)) {
+      if (off.has(name) || !answered.has(name)) continue
+      const needs = asObject(value)?.needs
+      const list =
+        typeof needs === 'string' ? [needs] : Array.isArray(needs) ? needs.map(String) : []
+      const gone = list.find((need) => off.has(need))
+      if (gone === undefined) continue
+      off.set(name, `needs ${gone}, which does not run on ${kindOf(event)}`)
+      grew = true
+    }
+  }
+  return off
 }
 
 /** `defaults.run.working-directory`, for a workflow or a job. */

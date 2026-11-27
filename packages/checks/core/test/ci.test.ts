@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { gateTrigger, readWorkflows } from '../src/ci.ts'
+import { eventOf, gateTrigger, holdsOn, readWorkflows } from '../src/ci.ts'
 
 // Reading what CI already says it checks.
 //
@@ -504,5 +504,187 @@ describe('reading a gate workflow', () => {
       }),
     )
     expect(read?.checks.map((check) => check.id)).toEqual(['tests'])
+  })
+})
+
+// A run here stands for a change, so an `if:` that asks only which event this
+// is has an answer here; every other `if:` is still CI's alone.
+describe('a condition on which event this is', () => {
+  // Shaped like slopmmelier's, which had every check skipped before this.
+  const NIGHTLY = [
+    'name: ci',
+    'on:',
+    '  push:',
+    '  pull_request:',
+    '  schedule:',
+    "    - cron: '17 3 * * *'",
+    'permissions:',
+    '  contents: read',
+    'jobs:',
+    '  check:',
+    "    if: github.event_name != 'schedule'",
+    '    runs-on: ubuntu-latest',
+    '    steps:',
+    '      - uses: actions/checkout@v5',
+    '      - uses: oven-sh/setup-bun@v2',
+    '      - run: bun install --frozen-lockfile',
+    '      - run: bun run lint',
+    '      - run: bun run typecheck',
+    '      - run: bun run test',
+    '  calibrate:',
+    "    if: github.event_name == 'schedule'",
+    '    runs-on: ubuntu-latest',
+    '    env:',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: GitHub's own syntax
+    '      KEY: ${{ secrets.KEY }}',
+    '    steps:',
+    "      - if: env.KEY != ''",
+    '        uses: actions/checkout@v5',
+    "      - if: env.KEY != ''",
+    '        working-directory: packages/rules',
+    '        run: bun run calibrate --max-usd 0.05',
+    '  report:',
+    '    needs: [calibrate]',
+    '    steps:',
+    '      - run: bun run report',
+    '',
+  ].join('\n')
+
+  it('runs the job a push runs, and names the one only a schedule runs', async () => {
+    const read = await readWorkflows(repoWith({ '.github/workflows/ci.yml': NIGHTLY }))
+    const checks = read?.checks ?? []
+    expect(checks.map((check) => check.run)).toEqual([
+      'bun run lint',
+      'bun run typecheck',
+      'bun run test',
+    ])
+    for (const check of checks) {
+      expect(check.skip).toBeUndefined()
+      expect(check.required).toBe(true)
+    }
+    expect(read?.from).toEqual(['.github/workflows/ci.yml'])
+    // Not a skipped check: something a change never runs is not a check of it.
+    expect(read?.unread).toContain(
+      ".github/workflows/ci.yml › calibrate runs only when `github.event_name == 'schedule'`, which does not hold for a push, so none of it was read",
+    )
+    // And what needs it is skipped with it, as GitHub skips it.
+    expect(read?.unread).toContain(
+      '.github/workflows/ci.yml › report needs calibrate, which does not run on a push, so none of it was read',
+    )
+  })
+
+  it("answers a step by the same rule, and leaves any other condition CI's", async () => {
+    const read = await readWorkflows(
+      repoWith({
+        '.github/workflows/ci.yml': [
+          'on: [pull_request]',
+          'jobs:',
+          '  check:',
+          '    steps:',
+          '      - name: on a pull request',
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: GitHub's own syntax
+          "        if: ${{ github.event_name == 'pull_request' }}",
+          '        run: pnpm test',
+          '      - name: on a push',
+          "        if: github.event_name == 'push'",
+          '        run: pnpm bench',
+          '      - name: never',
+          '        if: false',
+          '        run: pnpm nothing',
+          '      - name: and main',
+          "        if: github.event_name == 'pull_request' && github.ref == 'refs/heads/main'",
+          '        run: pnpm main',
+          '      - name: always',
+          "        if: always() && github.event_name != 'schedule'",
+          '        run: pnpm always',
+          '',
+        ].join('\n'),
+      }),
+    )
+    const byId = new Map((read?.checks ?? []).map((check) => [check.id, check]))
+    expect([...byId.keys()]).toEqual(['on-a-pull-request', 'and-main', 'always'])
+    expect(byId.get('on-a-pull-request')?.required).toBe(true)
+    expect(byId.get('on-a-pull-request')?.skip).toBeUndefined()
+    // One clause it cannot answer leaves the whole condition unanswered.
+    expect(byId.get('and-main')?.skip).toContain('only CI can answer')
+    expect(byId.get('always')?.skip).toContain('only CI can answer')
+    expect(read?.unread).toContain(
+      ".github/workflows/ci.yml › check › on a push runs only when `github.event_name == 'push'`, which does not hold for a pull request",
+    )
+    expect(read?.unread).toContain(
+      '.github/workflows/ci.yml › check › never says `if: false`, so it never runs',
+    )
+  })
+
+  it('leaves a job that needs a skipped one to CI where its own condition is not answered', async () => {
+    const read = await readWorkflows(
+      repoWith({
+        '.github/workflows/ci.yml': [
+          'on: [push]',
+          'jobs:',
+          '  nightly:',
+          "    if: github.event_name == 'schedule'",
+          '    steps:',
+          '      - run: pnpm nightly',
+          '  after:',
+          '    needs: nightly',
+          '    if: always()',
+          '    steps:',
+          '      - name: after',
+          '        run: pnpm after',
+          '',
+        ].join('\n'),
+      }),
+    )
+    expect(read?.checks.map((check) => [check.id, check.skip])).toEqual([
+      ['after', 'its job runs only when `always()`, which only CI can answer'],
+    ])
+  })
+
+  it('stands for a push, or a pull request where that is all it runs on', () => {
+    expect(eventOf({ push: null, pull_request: null })).toBe('push')
+    expect(eventOf({ push: { branches: ['main'] }, pull_request: null })).toBe('push')
+    expect(eventOf(['pull_request'])).toBe('pull_request')
+    expect(eventOf('push')).toBe('push')
+    // A push of tags is a release, so what a change is here is the pull request.
+    expect(eventOf({ push: { tags: ['v*'] }, pull_request: null })).toBe('pull_request')
+    // Nothing answered for these, so every condition on the event stays CI's.
+    expect(eventOf({ pull_request_target: null })).toBeNull()
+    expect(eventOf({ push: { tags: ['v*'] } })).toBeNull()
+  })
+
+  it('answers only event_name against a literal, and nothing beside it', () => {
+    const cases: [unknown, boolean | null][] = [
+      ["github.event_name != 'schedule'", true],
+      ["github.event_name == 'schedule'", false],
+      ["'push' == github.event_name", true],
+      ["github.event_name == 'PUSH'", true],
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: GitHub's own syntax
+      ["${{ github.event_name == 'push' }}", true],
+      ["!(github.event_name == 'schedule')", true],
+      ["github.event_name == 'schedule' || github.event_name == 'push'", true],
+      ["github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'", true],
+      ["github.event_name == 'it''s'", false],
+      [true, true],
+      [false, false],
+      // Everything else is CI's to answer.
+      ["github.ref == 'refs/heads/main'", null],
+      ["github.event_name == 'push' && success()", null],
+      ['github.event_name', null],
+      ['!github.event_name', null],
+      ["'push' == 'push'", null],
+      ["github.event_name == 'push' ||", null],
+      ["(github.event_name == 'push'", null],
+      ["github.event_name.foo == 'push'", null],
+      ["contains(github.event_name, 'push')", null],
+      ['', null],
+      [3, null],
+    ]
+    for (const [condition, holds] of cases) {
+      expect([condition, holdsOn(condition, 'push')]).toEqual([condition, holds])
+    }
+    // With no event to stand for, only a boolean is answered.
+    expect(holdsOn("github.event_name != 'schedule'", null)).toBeNull()
+    expect(holdsOn(false, null)).toBe(false)
   })
 })

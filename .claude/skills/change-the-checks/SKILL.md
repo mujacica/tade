@@ -62,6 +62,11 @@ and that record.
   fact is safe only if it may exclusively *exclude*. `unread` is carried all the way through —
   `ChecksRead.problems`, `checks_list`, `tade checks`, and its own rows on the ACTIONS page — so a
   step dropped in silence can never become a belief that Tade looked at it.
+- **An `if:` that asks only which event this is, is answered** (`holdsOn`, `eventOf`): a run here
+  stands for a push (a pull request where that is all the workflow runs on), so
+  `github.event_name` against a quoted literal, with `==` `!=` `&&` `||` `!` and parentheses, is
+  evaluated. A job or step it rules out goes in `unread`, and so does a job that `needs:` one
+  (GitHub's implicit `success()`); anything else in the expression leaves the whole of it CI's.
 - **`unknown` is a first-class answer, and absent is not fine.** `rollup` is over the **required**
   checks with a run **here** at the commit: a required check with no run is `missing`, and so is one
   that is queued, running, skipped or cancelled. A project with no required checks at all is
