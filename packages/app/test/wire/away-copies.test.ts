@@ -1,14 +1,16 @@
 import { request } from 'node:http'
-import type { Snapshot } from '@tade/web'
+import { digestOf, type Snapshot, writeDevices } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   COOKIE,
   closeAll,
+  DEVICE,
   type Machine,
   machine,
   OTHER,
   paired,
   projectionOf,
+  SECRET,
 } from './away-harness.ts'
 import { until } from './harness.ts'
 
@@ -102,5 +104,62 @@ describe('another machine’s copy on the person’s own phone', () => {
     await until('the change after it', () => machineFrames(resumed.text()).length === 1)
     expect(machineFrames(resumed.text())[0]).toMatchObject({ kind: 'change', from: 5 })
     resumed.close()
+  })
+})
+
+/** The harness's device again, as `tade web pair --owner` writes one: another machine's link. */
+async function owner(home: string, port: number): Promise<void> {
+  await writeDevices(home, [
+    {
+      kind: 'paired',
+      device: DEVICE,
+      at: new Date().toISOString(),
+      label: 'mac',
+      digest: digestOf(SECRET),
+      host: `127.0.0.1:${port}`,
+      csrf: 'x'.repeat(43),
+      until: new Date(Date.now() + 86_400_000).toISOString(),
+      from: '',
+      owner: true,
+    },
+  ])
+}
+
+describe('another machine’s copy on a machine’s own link', () => {
+  // `sentCopies` decides it on both paths, the stream's opening and the beat,
+  // and reads the device list as it is now. So one stream is followed from a
+  // link to a phone: the first copy it is sent has to be the one the beat moved
+  // after it became a phone, and anything a link was sent would come before it.
+  it('is sent neither on opening nor on the beat', async () => {
+    let held: Snapshot | null = null
+    const one = await machine({ copies: () => [{ name: 'ipax', projection: held }] })
+    await paired(one.home, one.port)
+    await one.away.open()
+
+    // A phone's page, so the window holds a copy a stream that opens could be sent.
+    held = ipax(one, 4, 'Fix the parser')
+    const phone = await listen(one.port)
+    await until('the phone’s stream to open', () => phone.text().includes('event: snapshot'))
+    await one.refresh()
+    await until('the copy on the phone', () => machineFrames(phone.text()).length === 1)
+    phone.close()
+
+    await owner(one.home, one.port)
+    await one.away.reread()
+    const link = await listen(one.port)
+    await until('the link’s stream to open', () => link.text().includes('event: snapshot'))
+    held = ipax(one, 5, 'Fix the parser for good')
+    await one.refresh()
+
+    await paired(one.home, one.port)
+    await one.away.reread()
+    held = ipax(one, 6, 'Fix the parser, and test it')
+    await one.refresh()
+    await until('the copy, once a phone', () => machineFrames(link.text()).length > 0)
+    const frames = machineFrames(link.text()) as { kind: string; snapshot?: Snapshot }[]
+    expect(frames).toHaveLength(1)
+    expect(frames[0]?.kind).toBe('whole')
+    expect(frames[0]?.snapshot?.fresh.rev).toBe(6)
+    link.close()
   })
 })
