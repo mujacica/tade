@@ -66,6 +66,23 @@ describe('the gate around a turn of its own', () => {
     expect(adapter.prompted).toHaveLength(2)
   })
 
+  it('closes the turn it readied for a paired device when the prompt could not be sent', async () => {
+    const adapter = harness()
+    const one = await start(adapter)
+    const { gate, log } = recording(adapter)
+    one.useTurns(gate)
+    adapter.prompt = async () => {
+      throw new Error('the harness refused the prompt')
+    }
+    await expect(
+      one.askFrom('stop the api agent', { how: 'owner', device: 'phone', theirs: true }),
+    ).rejects.toThrow('the harness refused the prompt')
+    // No `idle` will come for a turn that never started, so the lease is let go now.
+    expect(log).toEqual(['before not waiting (0 sent)', 'after'])
+    expect(one.busy).toBe(false)
+    expect(one.arm).toEqual(LOCAL)
+  })
+
   it('puts the gate’s sentence about another machine’s entries above the prompt, and nothing where it has none', async () => {
     const adapter = harness()
     const one = await start(adapter)

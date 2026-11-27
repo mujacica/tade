@@ -876,7 +876,15 @@ export class Orchestrator {
     }
     // Something here started while the turn was being readied.
     if (this.inFlight) return this.queued(text, arm)
-    await this.sendFrom(text, arm)
+    try {
+      await this.sendFrom(text, arm)
+    } catch (err) {
+      // The turn readied above never started, so no `idle` will close it: the
+      // gate's lease is let go here, or it stays held on every machine until
+      // it runs out.
+      this.closed()
+      throw err
+    }
   }
 
   /** A turn of this machine's is in flight, or a device's lease is still held. */
