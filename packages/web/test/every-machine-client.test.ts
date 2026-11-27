@@ -183,6 +183,31 @@ describe('a list page', () => {
       /^mac · closed .+ · as of /,
     )
   })
+
+  it('draws another machine’s queued work by its real rows where its copy is held, not as Elsewhere here too', () => {
+    const doc = page()
+    const screen = everyMachine(queueScreen)
+    doc.body.append(screen.node)
+    const store = storeOf(true)
+    // What this machine's own projection says of work queued on mac, and on box, of which no copy is held.
+    const there = (machine: string) => ({
+      task: `${machine}:tade/two`,
+      project: 'tade',
+      state: { kind: 'there', machine, heardAt: NOW - 60_000, silentDays: null },
+      order: null,
+      waitsOn: [],
+    })
+    for (const machine of ['mac', 'box'])
+      store.rows.queue.set(`${machine}:tade/two`, there(machine))
+    screen.update(viewOf(store))
+    const names = (inside: boolean) =>
+      doc
+        .querySelectorAll('li .name')
+        .filter((one) => (one.closest('.there-box') !== null) === inside)
+        .map((one) => one.textContent)
+    expect(names(false)).toEqual(['box:two', 'one'])
+    expect(names(true)).toEqual(['two'])
+  })
 })
 
 describe('a review two machines have', () => {
