@@ -206,7 +206,10 @@ export async function readChange(
   // Counted by asks that answered rather than by files, because a batch that was
   // halved and read is files that were read twice over in the arithmetic.
   if (read === 0) {
-    throw new Error(`none of the ${change.files.length} files in it could be read: ${why}`)
+    throw new NothingRead(
+      `none of the ${change.files.length} files in it could be read: ${why}`,
+      why,
+    )
   }
   reading.part = partSaid({ ...change, cut })
   if (refused.length > 0) {
@@ -253,6 +256,34 @@ export function untoldSaid(untold: readonly { unit: Unit; said: string }[]): str
 export function versionSaid(before: string, now: string): string | null {
   if (now === '' || before === '' || before === now) return null
   return `Jev now answers as ${now} (it was ${before}); what it raises from here is counted under ${now} in the precision table.`
+}
+
+/**
+ * A change of which the judge answered no ask at all: every batch was
+ * refused, so `why` is the judge's refusal and nothing about the change.
+ */
+export class NothingRead extends Error {
+  readonly why: string
+  constructor(message: string, why: string) {
+    super(message)
+    this.name = 'NothingRead'
+    this.why = why
+  }
+}
+
+/**
+ * What `jev_review` says when the judge could not be asked: one line, the
+ * reason and that nothing was reviewed. Agents filed a provider's 422 as a
+ * leftover in their own work a dozen times a night when it was said as a
+ * refusal per file; this says it is the judge's, not the change's. Anything
+ * else — an abort, a change git could not read — is handed back as it was.
+ */
+export function notAsked(err: unknown, signal?: AbortSignal): unknown {
+  if (signal?.aborted) return err
+  const reason =
+    err instanceof JudgeError ? err.message : err instanceof NothingRead ? err.why : null
+  if (reason === null) return err
+  return new Error(`the judge could not be asked: ${reason}; nothing was reviewed`)
 }
 
 /**

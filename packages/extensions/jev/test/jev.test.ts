@@ -265,6 +265,43 @@ describe('reading a change', () => {
     ).rejects.toThrow(/no branch|nothing to read/)
   })
 
+  it('says in one line that the judge could not be asked, never as something wrong in the change', async () => {
+    const cases: [string, typeof fetch, RegExp][] = [
+      [
+        'no version to ask with',
+        (async () => new Response('upstream timeout', { status: 504 })) as typeof fetch,
+        /no version to ask with/,
+      ],
+      [
+        'every ask refused',
+        (async (input: string | URL | Request) =>
+          String(input).endsWith('/v1/models')
+            ? Response.json({ data: [{ id: 'jev-1.14.0' }] })
+            : new Response('{"detail":[{"loc":["body","model"],"msg":"Field required"}]}', {
+                status: 422,
+              })) as typeof fetch,
+        /TypeSafe answered 422/,
+      ],
+    ]
+    for (const [, fetch, reason] of cases) {
+      const { repo } = repoWithWork()
+      const loaded = await host({
+        home: repo.home,
+        projects: { shop: { root: repo.root } },
+        env: { TYPESAFE_API_KEY: 'k' },
+        fetch,
+      })
+      const failed = await loaded
+        .call('jev_review', { project: 'shop', task: 'shop/add-refunds' }, asked)
+        .then(() => null)
+        .catch((err: unknown) => (err instanceof Error ? err.message : String(err)))
+      expect(failed).toMatch(/^the judge could not be asked: .*; nothing was reviewed$/)
+      expect(failed).toMatch(reason)
+      expect(failed).not.toMatch(/files in it could be read/)
+      expect(readReviews(repo.home)).toEqual([])
+    }
+  })
+
   it('sends nothing from a project nobody said it could read', async () => {
     const repo = mkrepo()
     const loaded = await host({

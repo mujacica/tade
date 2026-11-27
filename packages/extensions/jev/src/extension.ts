@@ -64,7 +64,7 @@ import {
 import { forgetRead, recordOf, whoseRecordOf } from './record.ts'
 import { judgeReplayFacts, replayTools } from './replay.ts'
 import { answersTable, describe, statusLine } from './report.ts'
-import { raisedIn, readChange, reviewLine, reviewWatch } from './review.ts'
+import { notAsked, raisedIn, readChange, reviewLine, reviewWatch } from './review.ts'
 import { recordReview } from './reviews.ts'
 import { standingsOf, stuckSays } from './stuck.ts'
 import { loopTools, verdictsWatch } from './verdicts.ts'
@@ -196,8 +196,13 @@ async function linesFor(
   }
   if (source === 'journal') {
     const since = ctx.now() - periodMs(input.period, 24 * 3_600_000)
+    // The newest `limit` are read and nothing else is held: the journal is in
+    // the order it was written, so the newest of those inside the period are
+    // the newest inside it — and without a task, asking for all of it was
+    // every line the journal has (a million, on the Mac on 26 Nov).
     const events = await readJournal(ctx.home, {
       ...(input.task ? { task: String(input.task) } : {}),
+      limit,
     })
     const lines = events
       .filter((event) => Date.parse(event.ts) >= since)
@@ -567,6 +572,8 @@ export const jevExtension: TadeExtension = {
         const reading = await readChange(asking, unit, change, reviewQuestions(only), {
           ...(ctx.signal ? { signal: ctx.signal } : {}),
           progress: ctx.progress,
+        }).catch((err: unknown) => {
+          throw notAsked(err, ctx.signal)
         })
         recordReview(
           ctx.home,
