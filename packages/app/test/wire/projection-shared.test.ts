@@ -189,6 +189,37 @@ describe('the Mac telling ipax, over the link', () => {
     expect(said[0]).not.toContain('private')
     expect(link.asked).toEqual([])
   })
+
+  it('does not rebuild a projection too big to send every beat, but once a minute', async () => {
+    const held = new ProjectionsHeld({ home: home(), now: () => 0, say: () => {} })
+    const link = linkTo(held)
+    const big = snap(4, [`x${'x'.repeat(2_600_000)}`])
+    const said: string[] = []
+    const clock = { now: 10_000 }
+    let built = 0
+    const shared = new ProjectionShared({
+      own: () => {
+        built++
+        return big
+      },
+      now: () => clock.now,
+      say: (one) => said.push(one),
+    })
+    shared.beat(['ipax'], link.reach)
+    await until('the too-large line', () => said.length > 0)
+    expect(built).toBe(1)
+    // Every beat of the next minute but its last: nothing is built or cut again.
+    for (let beat = 1; beat < 60_000 / TELL_EVERY_MS; beat++) {
+      clock.now += TELL_EVERY_MS
+      shared.beat(['ipax'], link.reach)
+    }
+    expect(built).toBe(1)
+    clock.now += TELL_EVERY_MS
+    shared.beat(['ipax'], link.reach)
+    expect(built).toBe(2)
+    expect(said).toHaveLength(1)
+    expect(link.asked).toEqual([])
+  })
 })
 
 describe('what ipax keeps of the Mac', () => {

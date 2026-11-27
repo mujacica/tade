@@ -297,8 +297,12 @@ export class ProjectionShared {
     try {
       pieces = piecesOf(told)
     } catch (err) {
+      // Too big to send: rebuilding and recutting several megabytes every two
+      // seconds only to throw again is work for nothing, so it is tried again
+      // once a minute, as a door that refused it is — and said once.
       if (!this.tooLarge) this.deps.say(`${messageOf(err)}; ${heaviestOf(own)}`)
       this.tooLarge = true
+      one.at = this.deps.now() + QUIET_MS - TELL_EVERY_MS
       return
     }
     try {
@@ -357,14 +361,9 @@ export function heaviestOf(own: Snapshot): string {
  * it was last told, or nothing where nothing moved.
  */
 export function toldOf(sent: Snapshot | null, own: Snapshot): ProjectionTold | null {
-  const whole: ProjectionTold = {
-    kind: 'whole',
-    epoch: own.fresh.epoch,
-    rev: own.fresh.rev,
-    text: JSON.stringify(own),
-  }
   if (sent === null || sent.fresh.epoch !== own.fresh.epoch || own.fresh.rev < sent.fresh.rev) {
-    return whole
+    // Only stringified where it is told whole: a change never pays for the whole text.
+    return { kind: 'whole', epoch: own.fresh.epoch, rev: own.fresh.rev, text: JSON.stringify(own) }
   }
   if (own.fresh.rev === sent.fresh.rev) return null
   const delta = deltaBetween(sent, own)
