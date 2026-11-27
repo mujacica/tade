@@ -76,12 +76,19 @@ export const CHECK_FILE = 'reload-check.json'
 /** The far side's door that starts its Tade again (`@tade/web`'s `restarted.ts`). */
 const RESTART_DOOR = '/api/restart'
 
+/**
+ * A commit against HEAD here, as git here answers: `not behind` where it is
+ * not an ancestor, or is a commit this machine has not got, and `cannot tell`
+ * where git failed, timed out or is not here — never read as either.
+ */
+export type Behind = 'behind' | 'not behind' | 'cannot tell'
+
 /** This machine's Tade checkout, as a reload of a checkout there needs it (`fleet-checkout.ts`). */
 export interface CheckoutHere {
   /** The commit its HEAD is at now, whole; null where it is no checkout, or git does not answer. */
   head(): Promise<string | null>
-  /** Whether `commit` is `head` or before it here: false where this machine has not got it. */
-  behind(commit: string, head: string): Promise<boolean>
+  /** Whether `commit` is `head` or before it here (`Behind`). */
+  behind(commit: string, head: string): Promise<Behind>
   /** Hand `commit` to the repository at `root` there; null where it went, why not otherwise. */
   hand(link: RemoteLink, remote: Remote, root: string, commit: string): Promise<string | null>
 }
@@ -304,7 +311,8 @@ export class FleetReload {
    * A checkout there moved to this machine's HEAD: handed the commit, then
    * fast-forwarded and restarted by its own `tade host upgrade --commit`.
    * `moved` where that ran, `already` where it is on HEAD, `as it is` where it
-   * is not behind HEAD here or cannot be moved from here — each then restarted
+   * is not behind HEAD here, git here cannot tell, or it cannot be moved from
+   * here — each then restarted
    * through its door; how it ended where it went wrong.
    */
   private async forward(
@@ -317,7 +325,14 @@ export class FleetReload {
     const here = this.deps.hereName
     const from = checkout.commit.slice(0, 9)
     const to = head.slice(0, 9)
-    if (!(await this.checkout.behind(checkout.commit, head))) {
+    const behind = await this.checkout.behind(checkout.commit, head)
+    if (behind === 'cannot tell') {
+      this.deps.say(
+        `${name} runs from ${from}, and git here could not tell whether that is behind ${here}’s ${to}: it is restarted on what it has.`,
+      )
+      return 'as it is'
+    }
+    if (behind === 'not behind') {
       this.deps.say(
         `${name} runs from ${from}, which is not behind ${here}’s ${to}: a checkout only moves forward, so it is restarted on what it has.`,
       )

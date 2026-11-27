@@ -816,16 +816,20 @@ export class Remotes implements Subject {
   /**
    * A commit there against HEAD here: behind where it is an ancestor of HEAD,
    * ahead where HEAD is one of its, and apart where git here can place it
-   * neither way. No HEAD here, or git that does not answer it, says nothing.
+   * neither way; `cannot tell` where git here failed to say whether it is
+   * behind. No HEAD here says nothing.
    */
   private async commitVersus(there: string): Promise<Versus | null> {
     const head = await this.checkout.head()
     if (head === null || there === head) return null
-    const order: CommitOrder = (await this.checkout.behind(there, head))
-      ? 'behind'
-      : (await this.checkout.behind(head, there))
-        ? 'ahead'
-        : 'apart'
+    const behind = await this.checkout.behind(there, head)
+    // Not behind is already the answer, so a second look that cannot tell leaves it apart.
+    const order: CommitOrder =
+      behind !== 'not behind'
+        ? behind
+        : (await this.checkout.behind(head, there)) === 'behind'
+          ? 'ahead'
+          : 'apart'
     return versusByCommit(there, head, this.deps.here, order)
   }
 

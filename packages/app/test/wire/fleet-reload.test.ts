@@ -411,6 +411,23 @@ describe('a machine that runs from a checkout moves to this one’s HEAD', () =>
     expect(box.said).toContain(`ipax is back on Tade ${HERE}.`)
   }, 60_000)
 
+  it('says git here could not tell, rather than not behind, and restarts it on what it has', async () => {
+    const { mine, there, was, head } = checkouts()
+    // Its commit is here and git cannot read it, so `--is-ancestor` fails rather than answers.
+    chmodSync(join(mine.root, '.git', 'objects', was.slice(0, 2), was.slice(2)), 0)
+    const box = await mac(['ipax'], undefined, checkoutAt(mine.root))
+    const ipax = box.fars.get('ipax')!
+    ipax.machine = { ...machine(HERE, UP), checkout: at(there, was) }
+    await box.linked()
+    await box.fleet.reload()
+    expect(box.asked()).toBe('')
+    expect(box.said).toContain(
+      `ipax runs from ${was.slice(0, 9)}, and git here could not tell whether that is behind this Mac’s ${head.slice(0, 9)}: it is restarted on what it has.`,
+    )
+    expect(box.said.some((one) => one.includes('which is not behind'))).toBe(false)
+    expect(ipax.restarted).toHaveLength(1)
+  }, 60_000)
+
   it('restarts nothing where the commit could not be handed over', async () => {
     const { mine, head } = checkouts()
     const box = await mac(['ipax'], undefined, checkoutAt(mine.root))
@@ -424,6 +441,36 @@ describe('a machine that runs from a checkout moves to this one’s HEAD', () =>
     const said = box.said.find((one) => one.startsWith(`${head.slice(0, 9)} could not be handed`))
     expect(said).toMatch(/^\w+ could not be handed to ipax, so it was not restarted: /)
   }, 60_000)
+})
+
+describe('this checkout, asked whether a commit is behind its HEAD', () => {
+  it('answers behind, not behind, or cannot tell — and a failed look is never not behind', async () => {
+    const mine = mkrepo()
+    const was = runGit(mine.root, 'rev-parse', 'HEAD').trim()
+    mine.commit('after', { 'a.txt': 'a\n' })
+    const head = runGit(mine.root, 'rev-parse', 'HEAD').trim()
+    const tree = runGit(mine.root, 'rev-parse', 'HEAD^{tree}').trim()
+    const apart = runGit(mine.root, 'commit-tree', tree, '-m', 'apart').trim()
+    const here = checkoutAt(mine.root)
+    expect(await here.behind(was, head)).toBe('behind')
+    expect(await here.behind(head, was)).toBe('not behind')
+    expect(await here.behind(apart, head)).toBe('not behind')
+    // A commit this machine has not got is not before its HEAD...
+    expect(await here.behind('d'.repeat(40), head)).toBe('not behind')
+    // ...but whether HEAD is before one it has not got, it cannot say.
+    expect(await here.behind(head, 'd'.repeat(40))).toBe('cannot tell')
+    // Not a repository at all, and no checkout: git failed, or was never asked.
+    expect(await checkoutAt(tmp('tade-not-a-repo-')).behind(was, head)).toBe('cannot tell')
+    expect(await checkoutAt(null).behind(was, head)).toBe('cannot tell')
+    expect(await here.behind('not a commit', head)).toBe('cannot tell')
+    // A shallow clone has not got what is past its edge, so absent says nothing there.
+    const shallow = `${tmp('tade-shallow-')}/s`
+    runGit(mine.root, 'clone', '-q', '--depth', '1', `file://${mine.root}`, shallow)
+    expect(await checkoutAt(shallow).behind('d'.repeat(40), head)).toBe('cannot tell')
+    // Here, and unreadable: git exits 128 as for one it has not got, and that is not an answer.
+    chmodSync(join(mine.root, '.git', 'objects', apart.slice(0, 2), apart.slice(2)), 0)
+    expect(await here.behind(apart, head)).toBe('cannot tell')
+  })
 })
 
 describe('a reload due, said once', () => {

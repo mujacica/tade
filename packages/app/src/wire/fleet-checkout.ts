@@ -32,8 +32,18 @@ export function checkoutAt(root: string | null): CheckoutHere {
       return ran.code === 0 && SHA.test(sha) ? sha : null
     },
     async behind(commit, head) {
-      if (root === null || !SHA.test(commit) || !SHA.test(head)) return false
-      return (await git(['merge-base', '--is-ancestor', commit, head])).code === 0
+      if (root === null || !SHA.test(commit) || !SHA.test(head)) return 'cannot tell'
+      const ran = await git(['merge-base', '--is-ancestor', commit, head])
+      if (ran.missing || ran.timedOut) return 'cannot tell'
+      if (ran.code === 0) return 'behind'
+      if (ran.code === 1) return 'not behind'
+      // 128 is both a commit git here has not got and git failing — one it
+      // could not read, a folder that is no repository. Only the first is an
+      // answer: every commit before HEAD is here, unless the clone is shallow.
+      const there = await git(['cat-file', '-e', commit])
+      if (there.missing || there.timedOut || there.code !== 1) return 'cannot tell'
+      const shallow = await git(['rev-parse', '--is-shallow-repository'])
+      return shallow.code === 0 && shallow.stdout.trim() === 'false' ? 'not behind' : 'cannot tell'
     },
     async hand(link, remote, there, commit) {
       if (root === null) return 'this machine runs no checkout of Tade to hand it from'

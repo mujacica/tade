@@ -334,6 +334,12 @@ describe('another machine’s Tade against this one’s', () => {
       commit: true,
       said: 'at 111111111, not behind this Mac’s 222222222',
     })
+    // Git here failed to say: neither behind nor not, and never drawn as either.
+    expect(versusByCommit(there, here, 'this Mac', 'cannot tell')).toEqual({
+      behind: null,
+      commit: true,
+      said: 'at 111111111, against this Mac’s 222222222: cannot tell',
+    })
     expect(versusByCommit(here, here, 'this Mac', 'behind')).toBeNull()
   })
 

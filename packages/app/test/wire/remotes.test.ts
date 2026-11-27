@@ -1,3 +1,4 @@
+import { chmodSync, existsSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -641,7 +642,7 @@ describe('a remote whose checkout is behind this one’s by commit', () => {
     head: async () => HERE,
     behind: async (commit, head) => {
       asked.push(`${commit}..${head}`)
-      return commit === THERE && head === HERE
+      return commit === THERE && head === HERE ? 'behind' : 'not behind'
     },
     hand: async () => null,
   })
@@ -696,7 +697,14 @@ describe('a remote whose checkout is ahead of or apart from this one’s by comm
     const tree = runGit(mine.root, 'rev-parse', 'HEAD^{tree}').trim()
     const ahead = runGit(mine.root, 'commit-tree', tree, '-p', head, '-m', 'ahead').trim()
     const apart = runGit(mine.root, 'commit-tree', tree, '-m', 'apart').trim()
-    return { checkout: checkoutAt(mine.root), head, ahead, apart, unknown: 'd'.repeat(40) }
+    return {
+      root: mine.root,
+      checkout: checkoutAt(mine.root),
+      head,
+      ahead,
+      apart,
+      unknown: 'd'.repeat(40),
+    }
   }
 
   it('says where it stands on its Tade line, offers no upgrade there and says nothing in the strip', async () => {
@@ -734,6 +742,35 @@ describe('a remote whose checkout is ahead of or apart from this one’s by comm
         () => said() === `at ${short(commit)}, not behind this Mac’s ${short(head)}`,
       )
     }
+  })
+
+  it('draws `cannot tell` where git here fails to place it, never `not behind`', async () => {
+    const { root, checkout, head, ahead } = here()
+    // The commit is here and git cannot read it: it exits 128, as for one it has not got.
+    const object = join(root, '.git', 'objects', ahead.slice(0, 2), ahead.slice(2))
+    expect(existsSync(object)).toBe(true)
+    chmodSync(object, 0)
+    const north = await far(['api'])
+    north.machine = { ...quiet(), version: '0.2.3', checkout: { root: '/srv/tade', commit: ahead } }
+    const one = await rig(
+      { vps: await block('north', north) },
+      {
+        version: '0.2.3',
+        checkout,
+        terminals: true,
+        machines: true,
+        open: { settings: true },
+      },
+    )
+    await until(one, 'the commit held against HEAD here', () =>
+      Boolean(one.remotes.panel()?.remotes?.[0]?.versus),
+    )
+    expect(one.remotes.panel()?.remotes?.[0]?.versus).toEqual({
+      behind: null,
+      commit: true,
+      said: `at ${ahead.slice(0, 9)}, against this Mac’s ${head.slice(0, 9)}: cannot tell`,
+    })
+    expect(one.said.filter((line) => line.includes('runs Tade'))).toEqual([])
   })
 })
 

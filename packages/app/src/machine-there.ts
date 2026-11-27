@@ -599,7 +599,8 @@ function producedIn(projection: Record<string, unknown>): ProducedThere[] {
 
 /** How another machine's Tade stands against this one's: behind it, or ahead. */
 export interface Versus {
-  behind: boolean
+  /** Null where git here could not tell (`CommitOrder`), which is never drawn as either. */
+  behind: boolean | null
   /** As it is said beside its version: `behind this Mac’s 0.2.4`. */
   said: string
   /**
@@ -632,9 +633,10 @@ export function versusHere(there: string, here: string, hereName: string): Versu
  * Where a checkout there stands against HEAD here, as git here can place it:
  * `behind` where its commit is an ancestor of HEAD, `ahead` where HEAD is one
  * of its, and `apart` otherwise — diverged, or a commit this machine has not
- * got, which git cannot place without fetching and is not behind either way.
+ * got, which git cannot place without fetching and is not behind either way;
+ * `cannot tell` where git here failed or timed out asking.
  */
-export type CommitOrder = 'behind' | 'ahead' | 'apart'
+export type CommitOrder = 'behind' | 'ahead' | 'apart' | 'cannot tell'
 
 /**
  * A checkout there against this machine's HEAD, by commit, where its version
@@ -656,6 +658,9 @@ export function versusByCommit(
     return { behind: true, commit: true, said: `${at}, behind ${head}: a reload moves it` }
   }
   if (order === 'ahead') return { behind: false, commit: true, said: `${at}, ahead of ${head}` }
+  if (order === 'cannot tell') {
+    return { behind: null, commit: true, said: `${at}, against ${head}: cannot tell` }
+  }
   return { behind: false, commit: true, said: `${at}, not behind ${head}` }
 }
 
