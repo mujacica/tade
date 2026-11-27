@@ -398,9 +398,9 @@ export class Orchestrator {
    * A prompt sent mid-turn is *steered into that turn* by every harness here,
    * so "is it busy" cannot be read after the fact — and a remote message
    * steered into a local turn would be a stranger's words inside a turn whose
-   * arm is the person's. So a remote ask is refused while this is true, and
-   * the phone is told plainly rather than having its words disappear into
-   * somebody else's question.
+   * arm is the person's. So a remote ask made while this is true waits for
+   * the turn to be over (`behind`) and is a turn of its own, rather than
+   * being steered into somebody else's question or refused.
    */
   private working = false
   /** Why this harness cannot run a remote turn, or null when it can. */
@@ -415,8 +415,10 @@ export class Orchestrator {
   private gate: TurnGate | null = null
   /** A turn being readied (`TurnGate.before`), which every other ask meanwhile waits for. */
   private opening: Promise<void> | null = null
-  /** A device's words waiting for another machine's turn to let go of the lease (`afterTheirs`). */
+  /** The last of a device's words waiting for the turn before them to be over (`behind`). */
   private waiting: Promise<void> | null = null
+  /** Whoever is waiting for the turn in flight to be over: `idle`, a compaction's end, or the harness gone. */
+  private freed: Array<() => void> = []
 
   private constructor(adapter: WorkerAdapter) {
     this.adapter = adapter
@@ -445,8 +447,8 @@ export class Orchestrator {
       )
     }
     // Whether a narrowed turn could be run at all. Said to a device that asks
-    // rather than at start-up: the person's own device (full access) is
-    // answered by every harness, so on most machines nothing is refused.
+    // rather than at start-up: every paired device is the person's own, and
+    // is answered by every harness, so on most machines nothing is refused.
     const armed = canBeArmed(adapter.capabilities)
 
     // The exact model, settled before anything starts and among what this
@@ -578,12 +580,14 @@ export class Orchestrator {
         if (quiet) emit({ type: 'quiet', tool: quiet })
         for (const listener of orchestrator.idleListeners) listener()
         emit({ type: 'idle' })
+        orchestrator.free()
       } else if (signal.type === 'failed') {
         orchestrator.leased = null
         orchestrator.working = false
         orchestrator.gone = signal.error
         orchestrator.closed()
         emit({ type: 'failed', reason: signal.error })
+        orchestrator.free()
       } else if (signal.type === 'exited') {
         orchestrator.leased = null
         orchestrator.working = false
@@ -592,6 +596,7 @@ export class Orchestrator {
         emit({ type: 'exited', code: signal.code })
         // Anyone waiting for it to finish a turn would wait forever.
         for (const listener of orchestrator.idleListeners) listener()
+        orchestrator.free()
       } else if (signal.type === 'context') {
         orchestrator.full = signal.percent ?? orchestrator.full
       } else if (signal.type === 'usage') {
@@ -687,12 +692,14 @@ export class Orchestrator {
    * here meanwhile takes the lease ahead of them and has them steered into it.
    */
   private async opened(wait: boolean, theirs = false): Promise<void> {
-    const gate = this.gate
-    if (!gate || this.working) return
+    if (this.working) return
+    // Gate or none: a turn of this machine's own goes after them too.
     if (this.waiting && !theirs) {
       await Promise.allSettled([this.waiting])
       return this.opened(wait)
     }
+    const gate = this.gate
+    if (!gate) return
     if (this.opening) {
       await Promise.allSettled([this.opening])
       return this.opened(wait, theirs)
@@ -714,6 +721,18 @@ export class Orchestrator {
   /** A turn of its own is over: what it said goes to the other machines. Never throws. */
   private closed(): void {
     void this.gate?.after()
+  }
+
+  /** The turn in flight is over, however it ended: whoever waited for it (`turnOver`) goes on. */
+  private free(): void {
+    const waited = this.freed
+    this.freed = []
+    for (const go of waited) go()
+  }
+
+  /** Settled the next time the turn in flight is over (`free`). */
+  private turnOver(): Promise<void> {
+    return new Promise((resolve) => this.freed.push(resolve))
   }
 
   /** What its conversation was told, and what of it the conversation does not hold. */
@@ -751,6 +770,7 @@ export class Orchestrator {
         this.working = false
         this.compacting = null
         this.closed()
+        this.free()
       }
     })()
     this.compacting = compacting
@@ -813,7 +833,7 @@ export class Orchestrator {
    * Say something a paired device asked, under an arm that narrows what the
    * turn may reach.
    *
-   * Four refusals before anything is sent, and each is a sentence rather than
+   * Three refusals before anything is sent, and each is a sentence rather than
    * a dropped message:
    *
    * 1. **not running** — nothing to say it to;
@@ -823,22 +843,21 @@ export class Orchestrator {
    *    by every gate as the keyboard's, so it needs no narrowing and is run on
    *    any harness, Claude Code and Codex included;
    * 3. **a local arm asked for** — the one caller is the away view's own door,
-   *    and the local path is `ask`;
-   * 4. **something is already in flight.** A prompt sent mid-turn is *steered
-   *    into that turn* by every harness here, so a remote message arriving
-   *    while the person's question is being answered would put a stranger's
-   *    words inside it — and inside its arm. Refused, with the phone told
-   *    plainly, which is also why the page keeps what somebody typed: only a
-   *    `200` clears the box.
+   *    and the local path is `ask`.
    *
    * Nothing waits for the answer. The reply streams through `onEvent` like any
    * other turn, and the lease is let go on `idle`.
    *
-   * **Another machine's turn holding the conversation is not a refusal**: the
-   * words wait their turn behind it, as a line typed here does, and the gate
-   * says so where the conversation is drawn. They are taken at once rather
-   * than held in the request, because a phone's request kept open for minutes
-   * is one it gives up on — and its line is in the transcript already.
+   * **A turn in flight is not a refusal** — this machine's own, an earlier
+   * device's, or another machine's holding the conversation. A prompt sent
+   * mid-turn is *steered into that turn* by every harness here, which would
+   * put a device's words inside somebody else's question and its arm, so they
+   * are never sent into it: they wait for it to be over and are a turn of
+   * their own (`behind`), after any device's words that came before them, and
+   * ahead of anything typed here once that turn is over. They are taken at
+   * once rather than held in the request, because a phone's request kept open
+   * for minutes is one it gives up on — and its line is in the transcript
+   * already.
    */
   async askFrom(text: string, arm: Arm): Promise<void> {
     if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
@@ -848,39 +867,60 @@ export class Orchestrator {
       )
     }
     if (arm.how === 'local') throw new Error('a turn asked for from away is never a local arm')
-    if (this.leased !== null || this.working || this.waiting) {
-      throw new Error('Tade is still answering the last thing it was asked')
-    }
+    if (this.inFlight || this.waiting) return this.queued(text, arm)
     try {
       await this.opened(false)
     } catch (err) {
       if (!(err instanceof TurnHeld)) throw err
-      const going = this.afterTheirs(text, arm)
-      this.waiting = going
-      void going.finally(() => {
-        if (this.waiting === going) this.waiting = null
-      })
-      return
+      return this.queued(text, arm)
     }
+    // Something here started while the turn was being readied.
+    if (this.inFlight) return this.queued(text, arm)
     await this.sendFrom(text, arm)
   }
 
+  /** A turn of this machine's is in flight, or a device's lease is still held. */
+  private get inFlight(): boolean {
+    return this.leased !== null || this.working
+  }
+
+  /** A device's words put behind the ones already waiting (`waiting`). */
+  private queued(text: string, arm: Arm): void {
+    const ahead = this.waiting
+    const going = (async () => {
+      if (ahead) await Promise.allSettled([ahead])
+      await this.behind(text, arm)
+    })()
+    this.waiting = going
+    void going.finally(() => {
+      if (this.waiting === going) this.waiting = null
+    })
+  }
+
   /**
-   * A device's words, sent once another machine's turn lets go of the lease
-   * (or once a turn here has waited it out). Never throws: whoever asked has
-   * had their answer, so a send that fails is said where the conversation is
-   * drawn, and the turn it never started is closed.
+   * A device's words, sent as a turn of their own once the turn before them
+   * is over — this machine's, an earlier device's, or another machine's
+   * holding the lease. Never throws: whoever asked has had their answer, so a
+   * send that fails is said where the conversation is drawn, and the turn it
+   * never started is closed.
    */
-  private async afterTheirs(text: string, arm: Arm): Promise<void> {
+  private async behind(text: string, arm: Arm): Promise<void> {
     let opened = false
     try {
-      await this.opened(true, true)
+      for (;;) {
+        while (this.inFlight && !this.gone) await this.turnOver()
+        if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
+        await this.opened(true, true)
+        // Readying it awaited, so a turn here may have started meanwhile:
+        // never steered into it, it is waited out too.
+        if (!this.inFlight) break
+      }
       opened = true
       if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
       await this.sendFrom(text, arm)
     } catch (err) {
       if (opened && !this.working) this.closed()
-      const reason = `what ${byOf(whoOf(arm))} said waited for another machine's turn and could not be sent: ${err instanceof Error ? err.message : String(err)}`
+      const reason = `what ${byOf(whoOf(arm))} said waited for the turn before it and could not be sent: ${err instanceof Error ? err.message : String(err)}`
       for (const listener of this.eventListeners) listener({ type: 'error', reason })
       for (const listener of this.eventListeners) listener({ type: 'idle' })
     }

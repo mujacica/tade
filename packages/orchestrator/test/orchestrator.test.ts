@@ -517,13 +517,18 @@ describe('Orchestrator', () => {
     expect(chat.arm).toEqual(arm)
     expect(chat.busy).toBe(true)
 
-    // A second message while that one is in flight is refused rather than
-    // steered into it: a harness delivers a mid-turn prompt *into* the turn.
-    await expect(chat.askFrom('and this too', arm)).rejects.toThrow(/still answering/)
+    // A second message while that one is in flight is taken and never steered
+    // into it — a harness delivers a mid-turn prompt *into* the turn — but
+    // goes after it, as a turn of its own.
+    await chat.askFrom('and this too', arm)
 
     arm = chat.arm
-    await until(() => events.some((event) => event.type === 'idle'))
+    await until(() => events.filter((event) => event.type === 'idle').length >= 2)
     arm = chat.arm
+    // The first turn's two requests never held the second message; the third did.
+    expect(told(0)).not.toContain('and this too')
+    expect(told(1)).not.toContain('and this too')
+    expect(told(2)).toContain('and this too')
     // **`bash` was refused**, by the gate inside Tade's own tools extension
     // asking the host at the call — which is the one thing no unit test can
     // show. The host said so, and said it to the audit.

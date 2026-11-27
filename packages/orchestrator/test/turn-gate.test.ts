@@ -130,18 +130,93 @@ describe('the gate around a turn of its own', () => {
     await one.askFrom('stop the api agent', phone)
     expect(adapter.prompted).toHaveLength(0)
     expect(one.arm).toEqual(LOCAL)
-    // A second message meanwhile is refused, never queued behind the first.
-    await expect(one.askFrom('and the web one', phone)).rejects.toThrow(
-      'Tade is still answering the last thing it was asked',
-    )
+    // A second message meanwhile is taken too, and goes behind the first.
+    await one.askFrom('and the web one', phone)
+    expect(adapter.prompted).toHaveLength(0)
     release()
     await vi.waitFor(() => expect(adapter.prompted).toHaveLength(1))
     expect(adapter.prompted[0]?.message).toContain('stop the api agent')
+    expect(adapter.prompted[0]?.message).not.toContain('and the web one')
     expect(one.arm).toEqual(phone)
     expect(log).toEqual(['before not waiting (0 sent)', 'before waiting (0 sent)'])
+    // Never steered into the first one's turn: its own, once that is over.
+    adapter.emit(ORCHESTRATOR_RUN, { type: 'idle' })
+    await vi.waitFor(() => expect(adapter.prompted).toHaveLength(2))
+    expect(adapter.prompted[1]?.message).toContain('and the web one')
+    expect(log).toEqual([
+      'before not waiting (0 sent)',
+      'before waiting (0 sent)',
+      'after',
+      'before waiting (1 sent)',
+    ])
+    expect(one.arm).toEqual(phone)
     adapter.emit(ORCHESTRATOR_RUN, { type: 'idle' })
     expect(one.busy).toBe(false)
     expect(one.arm).toEqual(LOCAL)
+  })
+
+  it('takes a paired device’s words while a turn of this machine’s own is running, and sends them as a turn of their own after it', async () => {
+    const adapter = harness()
+    const one = await start(adapter)
+    await one.ask('what is running?')
+    expect(one.busy).toBe(true)
+    // Answered at once, and nothing reaches the harness mid-turn, where it
+    // would be steered into the person's question and under their arm.
+    await one.askFrom('stop the api agent', phone)
+    await one.askFrom('and the web one', phone)
+    expect(adapter.prompted).toHaveLength(1)
+    expect(one.arm).toEqual(LOCAL)
+    adapter.emit(ORCHESTRATOR_RUN, { type: 'idle' })
+    await vi.waitFor(() => expect(adapter.prompted).toHaveLength(2))
+    expect(adapter.prompted[1]?.message).toContain('stop the api agent')
+    expect(adapter.prompted[1]?.message).not.toContain('and the web one')
+    expect(one.arm).toEqual(phone)
+    // What is typed here once that turn is over goes after the words still waiting.
+    adapter.emit(ORCHESTRATOR_RUN, { type: 'idle' })
+    await one.ask('and now?')
+    const words = ['what is running?', 'stop the api agent', 'and the web one', 'and now?']
+    expect(
+      adapter.prompted.map((p) => words.findIndex((word) => p.message.includes(word))),
+    ).toEqual([0, 1, 2, 3])
+    expect(one.arm).toEqual(phone)
+    adapter.emit(ORCHESTRATOR_RUN, { type: 'idle' })
+    expect(one.arm).toEqual(LOCAL)
+  })
+
+  it('takes a paired device’s words during a compaction, and sends them once it is over', async () => {
+    const adapter = harness()
+    const one = await start(adapter)
+    let finish = () => {}
+    adapter.compact = () =>
+      new Promise<void>((resolve) => {
+        finish = resolve
+      })
+    const compacting = one.compact()
+    await vi.waitFor(() => expect(one.busy).toBe(true))
+    await one.askFrom('stop the api agent', phone)
+    expect(adapter.prompted).toHaveLength(0)
+    finish()
+    await compacting
+    await vi.waitFor(() => expect(adapter.prompted).toHaveLength(1))
+    expect(adapter.prompted[0]?.message).toContain('stop the api agent')
+    expect(one.arm).toEqual(phone)
+  })
+
+  it('says where the conversation is drawn when the harness goes while a device’s words wait', async () => {
+    const adapter = harness()
+    const one = await start(adapter)
+    const events: string[] = []
+    one.onEvent((event) => {
+      if (event.type === 'error') events.push(event.reason)
+    })
+    await one.ask('what is running?')
+    await one.askFrom('stop the api agent', phone)
+    adapter.emit(ORCHESTRATOR_RUN, { type: 'exited', code: 1 })
+    await vi.waitFor(() => expect(events).toHaveLength(1))
+    expect(events[0]).toBe(
+      'what device phone said waited for the turn before it and could not be sent: The orchestrator is not running: it exited with code 1',
+    )
+    expect(adapter.prompted).toHaveLength(1)
   })
 
   it('sends what is typed here meanwhile after the device’s words, never ahead of them', async () => {
@@ -173,7 +248,7 @@ describe('the gate around a turn of its own', () => {
     release()
     await vi.waitFor(() => expect(events).toContain('idle'))
     expect(events).toEqual([
-      "what device phone said waited for another machine's turn and could not be sent: the record could not be read again",
+      'what device phone said waited for the turn before it and could not be sent: the record could not be read again',
       'idle',
     ])
     expect(adapter.prompted).toHaveLength(0)
