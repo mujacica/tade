@@ -18,6 +18,7 @@ import {
   mirrorDir,
   mirrorMachine,
   mirrorRef,
+  NOT_A_REMOTE,
   parseConfig,
   travels,
   writeSetting,
@@ -731,13 +732,21 @@ describe.skipIf(cannot !== null)(
       try {
         const vps = await box('vps', 'app', sshd.dir, undefined, slow.url)
         const remotes = pair(sshd, [vps])
+        // No hub: the box, the one machine linked, would be it, and the hub's
+        // tab folds into this strip (`sharesWith`) — A is typed on its own tab.
+        // In the file too, which the window reads again.
+        writeSetting(join(wired.home, 'config.yaml'), 'machine.hub', NOT_A_REMOTE)
         // The link's own ssh config, so the cable can be cut and put back.
         const cable = join(wired.home, 'ssh_config')
         copyFileSync(sshd.config, cable)
         terminal.rows = 50
         terminal.columns = 160
         const window = await wired.start({
-          config: ConfigSchema.parse({ projects: { app: { root: wired.repo.root } }, remotes }),
+          config: ConfigSchema.parse({
+            projects: { app: { root: wired.repo.root } },
+            remotes,
+            machine: { hub: NOT_A_REMOTE },
+          }),
           remoteLinks: { ssh: (options) => makeSshLink({ ...options, args: ['-F', cable] }) },
           thinker: { ask: async () => 'ok', tell: async () => {} },
         })
