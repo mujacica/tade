@@ -378,6 +378,28 @@ export async function waitingAhead(
   }
 }
 
+/**
+ * Who is waiting in `dir` at this moment, by their tickets alone, oldest
+ * first: a place kept aside belongs to somebody who gave up and may ask again,
+ * which is not the same as waiting. A run that has its checkout and waits for
+ * the machine has a ticket (`run.ts`); a run waiting for that checkout behind
+ * it holds its machine place kept aside, from the same process and where, and
+ * must not be taken for it.
+ */
+export async function waitingNow(dir: string): Promise<LockHolder[]> {
+  const names = await readdir(dir).catch((err: unknown) => {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [] as string[]
+    throw err
+  })
+  const held = await Promise.all(
+    names
+      .filter((name) => TICKET.test(name))
+      .sort()
+      .map((name) => holderAt(join(dir, name))),
+  )
+  return held.filter((one): one is LockHolder => one !== null)
+}
+
 /** A place that was listed and had gone by the time it was read. */
 const MOVED = Symbol('moved')
 /** How many times a queue is listed again for places that moved while it was read. */

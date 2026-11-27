@@ -1,11 +1,18 @@
 import { coverageOf } from './coverage.ts'
 import { type LockHolder, waitForRunLock } from './lock.ts'
-import { type Holders, holdersSaid, queueDir, SLOT_ENV, waitForMachineSlot } from './machine.ts'
+import {
+  type Holders,
+  holdersSaid,
+  queueDir,
+  SLOT_ENV,
+  slotHolders,
+  waitForMachineSlot,
+} from './machine.ts'
 import type { Check, CheckLog, CheckRun, Covered, ProjectRef, Runner } from './port.ts'
 import { RunnerError, settled } from './port.ts'
 import { writeRun } from './records.ts'
 import { clearRunning, type RunningCheck, type RunningNow, writeRunning } from './running.ts'
-import { HELD_MS, holdKept, joinQueue, KEPT_MS, STILL_MS } from './turn.ts'
+import { HELD_MS, holdKept, joinQueue, KEPT_MS, STILL_MS, waitingNow } from './turn.ts'
 
 // Running a project's checks the way Tade runs them: one run at a time in a
 // worktree and `checks.suites` on the machine, what is skipped said rather
@@ -139,10 +146,9 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
     // ask again, as a place given up for the machine does. Gone because whoever
     // asked has gone, there is nobody to hold it for.
     if (holding && !request.signal?.aborted) await holding(HELD_MS, lock.held)
-    const since = lock.held.at ? ` (since ${lock.held.at})` : ''
     throw new RunnerError(
       'busy',
-      `checks are already running in ${project.root}: ${lock.held.what || 'something'}${since}. ${waitedSaid(now() - asked, request.waitMs)}`,
+      `${await checkoutSaid(lock.held, project.root, request.machine?.home)} ${waitedSaid(now() - asked, request.waitMs)}`,
     )
   }
   const slot =
@@ -240,6 +246,34 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
     if (lock && !('held' in lock)) await lock.release()
   }
 }
+
+/**
+ * What whoever has this checkout is doing, as the machine says it. The lock's
+ * own `at` is when it was last claimed, and a run that gave the checkout up
+ * for want of the machine claims it again on every ask: that time is its
+ * latest retake, and the lock is held as much while it waits for the machine
+ * as while it runs. So a slot it holds says it is running, and since when it
+ * took the slot; a ticket in the machine's queue says it is waiting, since it
+ * first asked, which its place carries across retakes (`giveUp`, `takeBack`).
+ * Matched by process and where, as a kept place matches whoever has the lock
+ * (`holdKept`): only the checkout's holder waits for the machine from it.
+ */
+async function checkoutSaid(held: LockHolder, root: string, home?: string): Promise<string> {
+  const what = held.what || 'something'
+  const theirs = (one: LockHolder) => one.pid === held.pid && one.where === held.where
+  if (home && held.where !== undefined) {
+    const running = (await slotHolders(home)).find(theirs)
+    if (running) return `checks are already running in ${root}: ${what}${sinceSaid(running.at)}.`
+    const waiting = (await waitingNow(queueDir(home))).find(theirs)
+    if (waiting) {
+      return `checks are already waiting for the machine in ${root}: ${what}${sinceSaid(waiting.at)}, and have the checkout while they wait.`
+    }
+    return `checks already have the checkout ${root}: ${what}${sinceSaid(held.at)}.`
+  }
+  return `checks are already running in ${root}: ${what}${sinceSaid(held.at)}.`
+}
+
+const sinceSaid = (at: string): string => (at ? ` (since ${at})` : '')
 
 /**
  * The end of a busy refusal. One that came after a wait says how long, or

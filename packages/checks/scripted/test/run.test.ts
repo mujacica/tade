@@ -5,6 +5,7 @@ import {
   carryOver,
   heldBy,
   insideHeldSlot,
+  joinQueue,
   queueDir,
   RunnerError,
   readRuns,
@@ -197,6 +198,72 @@ describe('one suite on the machine, from any worktree', () => {
     })
     expect(ran.map((one) => one.state)).toEqual(['passed'])
     expect(told).toEqual(['/work/other'])
+  })
+
+  it('says the checkout’s holder is waiting for the machine, since it first asked, not running since its retake', async () => {
+    const home = tmp('tade-run-home-')
+    const root = tmp('tade-run-')
+    const asked = Date.parse('2026-11-27T10:00:00.000Z')
+    const retook = Date.parse('2026-11-27T10:20:00.000Z')
+    // Someone else has the machine; the checkout's holder took it back at
+    // 10:20 and waits for the machine from the place it has had since 10:00.
+    const other = await takeMachineSlot(home, 1, { what: 'tests', where: '/work/other' })
+    const lock = await takeRunLock(root, 'tests', () => retook, root)
+    const place = await joinQueue(
+      queueDir(home),
+      { what: 'tests', where: root, as: 'them' },
+      Date.now,
+      asked,
+    )
+    try {
+      const err = await runChecks({
+        runner: makeScriptedRunner({}),
+        project: { name: 'demo', root },
+        records: root,
+        checks: [check('tests', { alone: true })],
+        commit: 'a1b2c3d4e5',
+        by: 'you',
+        machine: { home, most: 1 },
+      }).catch((caught: unknown) => caught)
+      expect((err as RunnerError).trouble).toBe('busy')
+      const said = (err as RunnerError).message
+      expect(said).toContain(
+        `waiting for the machine in ${root}: tests (since 2026-11-27T10:00:00.000Z)`,
+      )
+      expect(said).not.toContain('already running')
+      expect(said).not.toContain('10:20')
+    } finally {
+      await place.leave()
+      if (!('held' in lock)) await lock.release()
+      if (!('held' in other)) await other.release()
+    }
+  })
+
+  it('says the checkout’s holder is running, since it took the machine, once it has a slot', async () => {
+    const home = tmp('tade-run-home-')
+    const root = tmp('tade-run-')
+    const retook = Date.parse('2026-11-27T10:20:00.000Z')
+    const started = Date.parse('2026-11-27T10:25:00.000Z')
+    const lock = await takeRunLock(root, 'tests', () => retook, root)
+    const slot = await takeMachineSlot(home, 1, { what: 'tests', where: root }, () => started)
+    try {
+      const err = await runChecks({
+        runner: makeScriptedRunner({}),
+        project: { name: 'demo', root },
+        records: root,
+        checks: [check('tests', { alone: true })],
+        commit: 'a1b2c3d4e5',
+        by: 'you',
+        machine: { home, most: 1 },
+      }).catch((caught: unknown) => caught)
+      expect((err as RunnerError).trouble).toBe('busy')
+      expect((err as RunnerError).message).toContain(
+        `already running in ${root}: tests (since 2026-11-27T10:25:00.000Z)`,
+      )
+    } finally {
+      if (!('held' in slot)) await slot.release()
+      if (!('held' in lock)) await lock.release()
+    }
   })
 
   it('says it waited when the machine stays held past the wait', async () => {

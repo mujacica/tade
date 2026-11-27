@@ -19,4 +19,12 @@ export * from './run.ts'
 export * from './running.ts'
 export * from './say.ts'
 export * from './tail.ts'
-export { HELD_MS, holdKept, STILL_MS, type WaitedFor, waitingAhead } from './turn.ts'
+export {
+  HELD_MS,
+  holdKept,
+  joinQueue,
+  STILL_MS,
+  type WaitedFor,
+  waitingAhead,
+  waitingNow,
+} from './turn.ts'
