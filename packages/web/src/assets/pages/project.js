@@ -28,7 +28,7 @@
 // classes into nodes that are already there, so a press keeps its place and a
 // half-made selection survives.
 
-import { PROJECT_SHOWN } from '../acts.js'
+import { afterAnswer, PROJECT_SHOWN } from '../acts.js'
 import {
   donut,
   donutIn,
@@ -39,7 +39,7 @@ import {
   stackIn,
   toneIn,
 } from '../charts.js'
-import { actsIn } from '../controls.js'
+import { actsIn, keyOf } from '../controls.js'
 import { classOn, el, glyphOf, into, keyed, skeleton, textIn, toneOn, unknown } from '../dom.js'
 import { flow, flowIn } from '../flow.js'
 import { AGENT_MARKS, checkMark, findingMark } from '../glyphs.js'
@@ -49,7 +49,7 @@ import { pageBar, section } from '../rows.js'
 import { servedBy, servingIn } from '../serving.js'
 import { projectAt, queueIn, tasksIn } from '../store.js'
 import { queuePaused, queueTree } from '../tree.js'
-import { facts, factsIn, panel, stateBox, stateBoxIn } from '../ui.js'
+import { answerIn, facts, factsIn, panel, stateBox, stateBoxIn } from '../ui.js'
 import {
   createAgent,
   createBranch,
@@ -81,6 +81,9 @@ import {
 /* ── the screen ────────────────────────────────────────────────────────────── */
 
 export function projectScreen(where, ctx) {
+  const live = ctx !== undefined && ctx !== null
+  // Not another machine's (`thereCtx`), whose outbox takes of these only its queue's hold.
+  const here = live && ctx.machine === undefined
   const node = el('div')
   const bar = pageBar(where.project, { name: true, back: { text: 'Overview', href: '/' } })
   // The pages every agent's dev servers here serve, a press out each.
@@ -131,7 +134,8 @@ export function projectScreen(where, ctx) {
   const outline = panel('ol', 'pj-list pj-outline')
   outline.setAttribute('aria-label', 'The queue, with what waits on each piece under it')
   const noQueue = stateBox()
-  into(queue.body, graph, outline, noQueue)
+  const hold = live && !here ? queueHold(ctx, where.project) : null
+  into(queue.body, graph, outline, noQueue, hold?.node)
 
   const branches = part('BRANCHES', 'pj-branches', {
     hint: 'Each agent’s branch: commits ahead of where it started and behind it, what is not committed, and whether it is offered for review.',
@@ -156,7 +160,7 @@ export function projectScreen(where, ctx) {
   // the two verbs about the whole project, at the foot where a reach for the
   // ordinary controls does not land on it.
   const foot = el('div', { class: 'pj-foot' })
-  const acts = ctx === undefined || ctx === null ? null : actsIn(foot, ctx, PROJECT_SHOWN)
+  const acts = here ? actsIn(foot, ctx, PROJECT_SHOWN) : null
 
   into(node, bar.node, coming, gone, ...regions.map((one) => one.node), foot)
 
@@ -242,7 +246,7 @@ export function projectScreen(where, ctx) {
         wantList,
         wants.rows,
         (task) => task.id,
-        () => createWant(ctx),
+        () => createWant(here ? ctx : null),
         (one, task) => fillWant(one, task, view),
       )
       failed.node.hidden = broke.length === 0
@@ -251,7 +255,7 @@ export function projectScreen(where, ctx) {
         failList,
         broke,
         (task) => task.id,
-        () => createWant(ctx),
+        () => createWant(here ? ctx : null),
         (one, task) => fillWant(one, task, view),
       )
 
@@ -294,6 +298,7 @@ export function projectScreen(where, ctx) {
       )
       graph.hidden = queued.length === 0
       outline.hidden = queued.length === 0
+      hold?.update(paused, queued.length > 0 && view.may?.acts?.steer === true)
       if (queued.length > 0) flowIn(graph, graphOf(store, where.project), 'right')
       keyed(
         outline,
@@ -696,6 +701,38 @@ function spendDetail() {
         (one, note) => textIn(one, note.line),
       )
       notes.hidden = said.length === 0
+    },
+  }
+}
+
+/**
+ * Another machine's project's whole queue, paused or resumed there: this door
+ * has no such verb of its own (`verbs.ts`), so the press is the outbox's
+ * `queue project` (`thereCtx`), drawn only where something is queued.
+ */
+function queueHold(ctx, project) {
+  const node = el('div')
+  const press = el('button', { class: 'press small quietly', attrs: { type: 'button' } })
+  const said = el('p', { attrs: { role: 'status' } })
+  into(node, into(el('div', { class: 'presses' }), press), said)
+  let change = 'pause'
+  press.addEventListener('click', async () => {
+    press.disabled = true
+    const answer = await ctx.ask('POST', '/api/act/queue project', {
+      key: keyOf(),
+      project,
+      change,
+    })
+    press.disabled = false
+    const came = afterAnswer(answer, ctx.sentence(answer))
+    answerIn(said, came.said, came.trouble)
+  })
+  return {
+    node,
+    update(paused, shown) {
+      node.hidden = !shown
+      change = paused ? 'resume' : 'pause'
+      textIn(press, paused ? 'Resume this queue' : 'Pause this queue')
     },
   }
 }

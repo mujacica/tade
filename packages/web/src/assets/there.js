@@ -156,6 +156,8 @@ const CARRIED = {
   note: (b) => ({ text: b.text }),
   queue: (b) => ({ change: b.change }),
   remove: () => ({}),
+  // A whole project's queue, which names no task (`projectScreen`'s one press there).
+  'queue project': (b) => ({ project: b.project, change: b.change }),
 }
 
 export const THERE_VERBS = Object.keys(CARRIED)
@@ -165,7 +167,10 @@ export function thereCtx(ctx, machine) {
   const ask = async (method, path, body) => {
     const verb = path.startsWith('/api/act/') ? path.slice(9) : ''
     const fields = method === 'POST' ? CARRIED[verb] : undefined
-    if (fields === undefined || (verb === 'queue' && !['pause', 'resume'].includes(body.change)))
+    if (
+      fields === undefined ||
+      (verb.startsWith('queue') && !['pause', 'resume'].includes(body.change))
+    )
       return refusedThere(`${machine} takes that only at its own screen: ask Tade`)
     const answer = await ctx.ask('POST', '/api/there/press', {
       machine,

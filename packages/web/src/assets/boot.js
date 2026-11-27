@@ -267,8 +267,8 @@ let keptAt = 0
 
 const SCREENS = {
   now: () => nowScreen(ctx),
-  // Another machine's asks nothing of this door; a task's presses go there (`thereCtx`).
-  project: (at) => projectScreen(at, at.machine === undefined ? ctx : null),
+  // Another machine's presses go there (`thereCtx`), and only those its outbox takes.
+  project: (at) => projectScreen(at, at.machine === undefined ? ctx : thereCtx(ctx, at.machine)),
   task: (at) => taskScreen(at, at.machine === undefined ? ctx : thereCtx(ctx, at.machine)),
   changes: (at) => changesScreen(at, ctx),
   agents: () => agentsScreen(ctx),

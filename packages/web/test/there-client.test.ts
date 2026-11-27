@@ -6,7 +6,7 @@ import { applyCopy, applySnapshot, emptyStore } from '../src/assets/store.js'
 import { linksThere, THERE_VERBS, thereCtx, thereOn } from '../src/assets/there.js'
 import { PROTOCOL_VERSION } from '../src/protocol.ts'
 import { snapshotOf } from '../src/snapshot.ts'
-import { EVERY, input, NOW, reach, task } from './fixtures.ts'
+import { EVERY, input, NOW, queued, reach, task } from './fixtures.ts'
 
 // Another machine's project and task, drawn out of the copy of it this door
 // keeps (`/m/<machine>/…`, ONE-AWAY-VIEW §2.4): that machine's own rows under
@@ -28,6 +28,7 @@ function drawn(
   path: { view: string; project: string; task?: string },
   state: 'up' | 'closed',
   ctx: unknown = null,
+  over: { queue?: ReturnType<typeof queued>[]; may?: unknown } = {},
 ) {
   const doc = new StillDocument()
   Object.defineProperty(globalThis, 'document', { value: doc, configurable: true, writable: true })
@@ -51,6 +52,7 @@ function drawn(
         task({ id: 'tade/one', project: 'tade', title: 'the mac’s one', state: 'blocked' }),
         task({ id: 'tade/two', project: 'tade' }),
       ],
+      ...(over.queue === undefined ? {} : { queue: over.queue }),
     }),
     NOW - 60_000,
   )
@@ -59,7 +61,8 @@ function drawn(
   const at = { ...path, machine: 'mac' }
   const screen = thereOn(at, (path.view === 'task' ? taskScreen : projectScreen)(at, ctx as never))
   doc.body.append(screen.node)
-  screen.update({ store, standing: 'live', asOf: NOW, frozen: false, now: NOW, may: {} })
+  const may = over.may ?? {}
+  screen.update({ store, standing: 'live', asOf: NOW, frozen: false, now: NOW, may })
   return { doc, screen }
 }
 
@@ -236,10 +239,78 @@ describe('a press on another machine’s row', () => {
     )
     const headings = doc.querySelectorAll('#ag-acts h2').map((one) => one.textContent)
     expect(headings).toEqual(['ACTIONS', 'IN THE QUEUE', 'A NOTE', 'SET ASIDE', 'ITS AGENT'])
-    expect(THERE_VERBS).toEqual(['steer', 'stop', 'park', 'note', 'queue', 'remove'])
+    expect(THERE_VERBS).toEqual([
+      'steer',
+      'stop',
+      'park',
+      'note',
+      'queue',
+      'remove',
+      'queue project',
+    ])
     // The box to tell its agent something, and no screen of this door's, no menu.
     expect(doc.querySelector('#ag-screen textarea')).not.toBeNull()
     expect(doc.querySelector('[aria-haspopup="dialog"]')).toBeNull()
+    expect(asked).toEqual([])
+  })
+})
+
+describe('a press on another machine’s project', () => {
+  const PAUSED = queued({
+    task: 'tade/three',
+    project: 'tade',
+    state: { kind: 'paused', all: true, parked: false },
+    waitsOn: [],
+  })
+  const press = (doc: StillDocument) =>
+    doc.querySelectorAll('#pj-queue button').find((one) => one.textContent?.endsWith('this queue'))
+
+  it('pauses or resumes that project’s whole queue there, and offers nothing its outbox does not take', async () => {
+    const { ctx, asked } = door({ status: 200, body: { ok: true, said: 'resumed there' } })
+    const { doc } = drawn({ view: 'project', project: 'tade' }, 'up', thereCtx(ctx, 'mac'), {
+      queue: [PAUSED],
+      may: { acts: { steer: true } },
+    })
+    const resume = press(doc)
+    expect(resume?.textContent).toBe('Resume this queue')
+    // Its close and open are this machine's own screen's, and so is a card's answer.
+    expect(doc.querySelectorAll('.pj-foot button')).toEqual([])
+    expect(doc.querySelectorAll('.pj-want-acts')).toEqual([])
+    resume?.click()
+    await new Promise((done) => setTimeout(done, 0))
+    expect(asked).toHaveLength(1)
+    expect(asked[0]?.path).toBe('/api/there/press')
+    expect(asked[0]?.body).toMatchObject({
+      machine: 'mac',
+      verb: 'queue project',
+      project: 'tade',
+      change: 'resume',
+    })
+    const said = resume?.parentElement?.parentElement?.querySelector('[role="status"]')
+    expect(said?.textContent).toBe('resumed there')
+  })
+
+  it('is not drawn where nothing is queued, or for a device that may not act', () => {
+    const { ctx } = door()
+    const bare = drawn({ view: 'project', project: 'tade' }, 'up', thereCtx(ctx, 'mac'), {
+      queue: [],
+      may: { acts: { steer: true } },
+    })
+    const clear = drawn({ view: 'project', project: 'tade' }, 'up', thereCtx(ctx, 'mac'), {
+      queue: [PAUSED],
+    })
+    for (const { doc } of [bare, clear])
+      expect(press(doc)?.parentElement?.parentElement?.hidden).toBe(true)
+  })
+
+  it('is refused here for anything but pausing or resuming', async () => {
+    const { ctx, asked } = door()
+    const answer = await thereCtx(ctx, 'mac').ask('POST', '/api/act/queue project', {
+      key: 'k'.repeat(32),
+      project: 'tade',
+      change: 'start',
+    })
+    expect(answer.status).toBe(409)
     expect(asked).toEqual([])
   })
 })
