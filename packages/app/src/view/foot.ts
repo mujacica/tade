@@ -151,6 +151,8 @@ export function bottomTabs(
   now = 0,
   unread = false,
   talks: readonly TalkTab[] = [],
+  /** Another machine is linked, whether or not it has a tab here. */
+  another = talks.length > 0,
 ): { text: string; hits: Hit[] } {
   const edge: Target = { kind: 'divider', edge: 'bottom' }
   const lit = state.resizing === 'bottom' || sameTarget(state.hover, edge)
@@ -213,9 +215,9 @@ export function bottomTabs(
   // button cannot mean both. ctrl+t still opens a terminal without asking,
   // which is why the menu says so beside it.
   // With another machine linked, it asks where first: this one's own items,
-  // then a terminal in each project there (`new-where.ts`).
-  // A tab is drawn for every other machine's orchestrator, so its tabs are the machines.
-  const another = talks.length > 0
+  // then a terminal in each project there (`new-where.ts`). Asked of the
+  // machines and not of the tabs: the hub this conversation is one with has no
+  // tab of its own (`sharesWith`), and its projects take a terminal all the same.
   row
     .space()
     .button(

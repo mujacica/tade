@@ -86,4 +86,14 @@ describe('the + with another machine linked', () => {
     expect(menu).toMatch(/▌ Terminal/)
     expect(menu.indexOf('Terminal on ipax')).toBeGreaterThan(menu.indexOf('▌ Terminal'))
   })
+
+  it('offers a terminal on the hub too, whose tab folds into the strip', async () => {
+    // ipax is the hub by default, the one machine linked: no tab of its own
+    // along the lower pane, and its projects take a terminal all the same.
+    await linkedToIpax(wired, (far) => fars.push(far), [], { hub: true })
+    const at = wired.find('[ + ]')
+    wired.click(at.col + 2, at.row)
+    await until(said('the menu below'), () => shown('Bring a chat back'))
+    await until(said('the menu below'), () => shown('Terminal on ipax'))
+  })
 })

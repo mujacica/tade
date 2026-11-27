@@ -9,13 +9,15 @@ import { screenOf, until, type Wired } from './harness.ts'
 // open there and wide enough for every tab along the top — the person's own
 // Mac and VPS, as the row first showed them. No hub is named: `ipax`, the one
 // machine linked, would be it otherwise, and the hub's tab folds into this
-// machine's strip (`sharesWith`) — this is a machine with a tab of its own.
+// machine's strip (`sharesWith`) — this is a machine with a tab of its own,
+// unless `hub` asks for the one whose tab folds.
 
 export async function linkedToIpax(
   wired: Wired,
   /** Handed the far end the moment it is up, so a test closes it whatever happens next. */
   keep: (far: FarEnd) => void,
   agents: readonly FarAgent[] = [],
+  opts: { hub?: boolean } = {},
 ): Promise<FarEnd> {
   const far = await startFarEnd({ projects: ['hello', 'tade'] })
   keep(far)
@@ -37,7 +39,7 @@ export async function linkedToIpax(
     join(wired.home, 'config.yaml'),
     [
       `projects:\n  app:\n    root: ${root}`,
-      `machine:\n  hub: ${NOT_A_REMOTE}`,
+      ...(opts.hub ? [] : [`machine:\n  hub: ${NOT_A_REMOTE}`]),
       'remotes:\n  ipax:',
       ...Object.entries(ipax).map(([key, value]) => `    ${key}: ${value}`),
       '',
@@ -47,7 +49,7 @@ export async function linkedToIpax(
     config: ConfigSchema.parse({
       projects: { app: { root } },
       remotes: { ipax },
-      machine: { hub: NOT_A_REMOTE },
+      ...(opts.hub ? {} : { machine: { hub: NOT_A_REMOTE } }),
     }),
     remoteLinks: { ssh: (options) => makeScriptedLink({ ...options, remotes: table }) },
   })

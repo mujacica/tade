@@ -59,6 +59,7 @@ export function renderStrip(
       frame.now ?? 0,
       frame.unread === true,
       frame.talkTabs ?? [],
+      (frame.machines?.remotes.length ?? 0) > 0,
     )
     bar = tabs.text
     barHits = tabs.hits
