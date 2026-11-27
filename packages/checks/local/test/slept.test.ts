@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { lastSleepOrWake, sleptBetween, sleptSince } from '../src/slept.ts'
+import {
+  lastSleepOrWake,
+  SUSPEND_NOISE_MS,
+  sleepMarks,
+  sleptBetween,
+  sleptSince,
+  suspendedOf,
+} from '../src/slept.ts'
 
 // What `sysctl -n kern.sleeptime kern.waketime` prints, read: the kernel's
 // word on whether a run was slept through, never the clock's.
@@ -29,8 +36,61 @@ describe('whether the machine slept', () => {
   })
 
   it("is this machine's own answer, never a throw", async () => {
-    const answer = await sleptBetween(Date.now() + 60_000, Date.now() + 60_000)
-    if (process.platform === 'darwin') expect(answer).toEqual({ slept: false, trouble: null })
-    else expect(answer.slept).toBeNull()
+    const at = Date.now() + 60_000
+    sleptBetween.mark?.(at)
+    const answer = await sleptBetween(at, at)
+    if (process.platform === 'darwin' || process.platform === 'linux') {
+      expect(answer).toEqual({ slept: false, trouble: null })
+    } else expect(answer.slept).toBeNull()
+  })
+})
+
+// Linux keeps no time of its last sleep, only how long it has slept in all:
+// `/proc/uptime` less the monotonic clock, marked at every beat.
+
+describe('whether a Linux machine slept', () => {
+  it('is suspended for the uptime less the monotonic clock either side of reading it', () => {
+    // 5000.12 s up, 4000 s on the monotonic clock: 1000.12 s suspended, and up
+    // to 10 ms more, since /proc/uptime prints hundredths.
+    expect(suspendedOf('5000.12 19000.50\n', 4_000_000, 4_000_002)).toEqual({ ms: 1_000_124 })
+  })
+
+  it('cannot be read from something that is not an uptime, or a read too slow to place', () => {
+    expect(suspendedOf('', 0, 1)).toEqual({ trouble: '/proc/uptime printed no uptime: ' })
+    expect(suspendedOf('5000.12 1.00\n', 0, SUSPEND_NOISE_MS)).toEqual({
+      trouble: `reading /proc/uptime took ${SUSPEND_NOISE_MS} ms`,
+    })
+  })
+
+  it('is yes when the total grew past the noise since the beat asked from, and no when it did not', () => {
+    // A gap ninety seconds long either way: a lid closed for it, or a loaded
+    // machine's late timer, which moves both clocks alike.
+    const marks = sleepMarks()
+    marks.mark(1_000, { ms: 500 })
+    marks.mark(2_000, { ms: 500 + SUSPEND_NOISE_MS })
+    expect(marks.since(2_000, { ms: 500 + 30 })).toEqual({ slept: false, trouble: null })
+    expect(marks.since(2_000, { ms: 90_500 })).toEqual({ slept: true, trouble: null })
+  })
+
+  it('does not count a sleep from before the moment asked from', () => {
+    const marks = sleepMarks()
+    marks.mark(1_000, { ms: 0 })
+    marks.mark(2_000, { ms: 90_000 })
+    marks.mark(3_000, { ms: 90_010 })
+    expect(marks.since(1_500, { ms: 90_010 })).toEqual({ slept: true, trouble: null })
+    expect(marks.since(3_000, { ms: 90_010 })).toEqual({ slept: false, trouble: null })
+  })
+
+  it('cannot be told without a reading at or before the moment, or past a failed one', () => {
+    const marks = sleepMarks()
+    expect(marks.since(1_000, { ms: 0 })).toEqual({
+      slept: null,
+      trouble: 'the suspended time was not read when the run began',
+    })
+    marks.mark(1_000, { ms: 0 })
+    marks.mark(2_000, { trouble: 'gone' })
+    marks.mark(3_000, { ms: 0 })
+    expect(marks.since(2_500, { ms: 0 })).toEqual({ slept: null, trouble: 'gone' })
+    expect(marks.since(3_000, { trouble: 'late' })).toEqual({ slept: null, trouble: 'late' })
   })
 })

@@ -260,6 +260,9 @@ async function one(
   // set once: a single timer would count a closed lid against the check.
   const limit = Math.max(1, Math.round(check.minutes * 60_000))
   const began = opts.now()
+  // Where the machine answers only from what it read before (Linux, `slept.ts`),
+  // it reads at the start and at every beat, so any gap can be asked about.
+  opts.asleep.mark?.(began)
   let clock = startAwake(began)
   let timer: ReturnType<typeof setTimeout> | undefined
   // Set once the check is gone, so a beat still waiting on the machine's
@@ -269,6 +272,7 @@ async function one(
   const tick = async () => {
     const at = opts.now()
     let next = awakeAt(clock, at)
+    opts.asleep.mark?.(at)
     // A gap long enough to be a sleep is asked about now, not only at the end:
     // a loaded machine's late timer with the lid open is time awake, and left
     // out it let the check run past its limit by every such gap.
