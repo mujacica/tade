@@ -1,13 +1,15 @@
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { ConfigSchema } from '@tade/core'
+import { ConfigSchema, NOT_A_REMOTE } from '@tade/core'
 import { type FarAgent, type FarEnd, startFarEnd } from '@tade/remotes-core/far'
 import { makeScriptedLink, type ScriptedRemote } from '@tade/remotes-scripted'
 import { screenOf, until, type Wired } from './harness.ts'
 
 // The window linked to a far end as the remote `ipax`, with `hello` and `tade`
 // open there and wide enough for every tab along the top — the person's own
-// Mac and VPS, as the row first showed them.
+// Mac and VPS, as the row first showed them. No hub is named: `ipax`, the one
+// machine linked, would be it otherwise, and the hub's tab folds into this
+// machine's strip (`sharesWith`) — this is a machine with a tab of its own.
 
 export async function linkedToIpax(
   wired: Wired,
@@ -35,13 +37,18 @@ export async function linkedToIpax(
     join(wired.home, 'config.yaml'),
     [
       `projects:\n  app:\n    root: ${root}`,
+      `machine:\n  hub: ${NOT_A_REMOTE}`,
       'remotes:\n  ipax:',
       ...Object.entries(ipax).map(([key, value]) => `    ${key}: ${value}`),
       '',
     ].join('\n'),
   )
   await wired.start({
-    config: ConfigSchema.parse({ projects: { app: { root } }, remotes: { ipax } }),
+    config: ConfigSchema.parse({
+      projects: { app: { root } },
+      remotes: { ipax },
+      machine: { hub: NOT_A_REMOTE },
+    }),
     remoteLinks: { ssh: (options) => makeScriptedLink({ ...options, remotes: table }) },
   })
   const top = () => screenOf(wired.terminal.written)[0] ?? ''
