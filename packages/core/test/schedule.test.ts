@@ -15,7 +15,14 @@ import {
   wallClock,
   whenProblem,
 } from '../src/schedule.ts'
-import { describeLook, newFindings, type WatchLook, watchedFrom } from '../src/watch-looks.ts'
+import {
+  describeLook,
+  newFindings,
+  saysSince,
+  sinceSaid,
+  type WatchLook,
+  watchedFrom,
+} from '../src/watch-looks.ts'
 
 const at = (iso: string) => Date.parse(iso)
 const iso = (moments: number[]) => moments.map((moment) => new Date(moment).toISOString())
@@ -330,6 +337,24 @@ describe('what a watch has done', () => {
         said: 'x',
       }),
     ).toBe('could not look: the radar is down')
+  })
+
+  it('writes a cursor that did not move as that it stayed, and reads it as the one before', () => {
+    // A watch over every branch has every branch's commit as its cursor: the
+    // same bytes again at every look were most of a real journal.
+    expect(sinceSaid('every-branch', 'every-branch')).toEqual({ sinceSame: true })
+    expect(sinceSaid('moved', 'every-branch')).toEqual({ since: 'moved' })
+    expect(sinceSaid('first', null)).toEqual({ since: 'first' })
+    expect(sinceSaid(null, null)).toEqual({ since: null })
+    const look = (detail: Record<string, unknown>) =>
+      event('watch_checked', { schedule: 'branches', found: 0, fresh: [], left: 0, ...detail })
+    const stayed = look({ sinceSame: true })
+    expect(saysSince(stayed)).toBe(true)
+    expect(saysSince(look({ problem: 'down', sinceSame: true }))).toBe(false)
+    expect(saysSince(look({}))).toBe(false)
+    const events = [look({ since: 'every-branch' }), stayed, look({ problem: 'down' }), stayed]
+    expect(watchedFrom(events, 'branches').since).toBe('every-branch')
+    expect(watchedFrom([...events, look({ since: null }), stayed], 'branches').since).toBeNull()
   })
 
   it('acts on what was never found, as far as one look may, and counts the rest', () => {

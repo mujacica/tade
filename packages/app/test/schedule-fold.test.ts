@@ -88,6 +88,29 @@ describe('what a schedule has done, folded', () => {
     expect(folded(lines).watchedOf('review').since).toBeNull()
   })
 
+  it('takes a look that said its cursor stayed as where the next starts, long after the line that wrote it', () => {
+    const stayed = (minutes: number, on?: string) =>
+      looked(minutes, { sinceSame: true, ...(on ? { on } : {}) })
+    const lines = [
+      looked(0, { since: 'every-branch' }),
+      ...Array.from({ length: KEPT + 5 }, (_, i) => stayed(1 + i)),
+      looked(40, { problem: 'no', since: 'not this' }),
+    ]
+    expect(watchedFrom(lines, 'review').since).toBe('every-branch')
+    expect(folded(lines).watchedOf('review').since).toBe('every-branch')
+    // A look here that stayed is a look here: what another machine had is behind it.
+    const back = [looked(0, { since: 'theirs', on: 'vps' }), ...lines.slice(1)]
+    expect(watchedFrom(back, 'review').elsewhereAt).toBeUndefined()
+    expect(folded(back).watchedOf('review')).toMatchObject({ since: 'theirs' })
+    expect(folded(back).watchedOf('review').elsewhereAt).toBeUndefined()
+    // One that moved it, then stayed: the new cursor, not the old one.
+    const moved = [...lines, looked(41, { since: 'moved' }), stayed(42)]
+    expect(folded(moved).watchedOf('review').since).toBe('moved')
+    // With nothing written before it, there is nowhere it stayed.
+    expect(folded([stayed(0)]).watchedOf('review').since).toBeNull()
+    expect(watchedFrom([stayed(0)], 'review').since).toBeNull()
+  })
+
   it('reads nothing off a line that names no schedule', () => {
     const fold = folded([line('schedule_fired', 0, { due: 'x' }), line('watch_found', 0, {})])
     expect(fold.runsOf('undefined')).toEqual({ ran: 0, runs: [] })

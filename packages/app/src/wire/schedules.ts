@@ -12,6 +12,7 @@ import {
   type Schedule,
   type ScheduleDoes,
   scheduleIdOf,
+  sinceSaid,
   standingSchedules,
   type Watched,
   type WatchWhere,
@@ -757,7 +758,8 @@ export class Schedules implements Subject {
       found: looked.found.length,
       fresh: fresh.map((finding) => finding.key),
       left,
-      since: left > 0 ? watched.since : looked.since,
+      // Where it stays, once rather than again at every look (`sinceSaid`).
+      ...sinceSaid(left > 0 ? watched.since : looked.since, watched.since),
       ...(looked.said ? { said: looked.said } : {}),
       // What it read of what deliveries named, let go of as `since` moves:
       // only by a look that left nothing for the next, which must find it again.

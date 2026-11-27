@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { taskDir, watchSchedule } from '@tade/core'
+import { taskDir, watchedFrom, watchSchedule } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import { readTaskFile, type Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
+import type { Wiring } from '../../src/wire/context.ts'
+import type { Schedules } from '../../src/wire/schedules.ts'
 import {
   type FakeTerminal,
   type Repo,
@@ -705,5 +707,61 @@ describe('the window, and what it watches', () => {
     await beats(12)
     expect(await looks()).toBeLessThanOrEqual(1)
     expect(checked).toBe(0)
+  })
+
+  it('writes where a watch’s next look starts once, and not again at every look it stays there', async () => {
+    // 26 Nov: a watch over every branch has every branch's commit as its
+    // cursor, which barely moves — and it was written again at every look,
+    // 387 MB of a 765 MB journal and 15–20 MB a day.
+    const started: (string | null)[] = []
+    let cursor = 'every-branch'
+    const extensions = await ExtensionHost.load({
+      builtin: [
+        {
+          name: 'weather',
+          title: 'Weather',
+          description: 'Whether it is raining.',
+          watches: [
+            {
+              id: 'rain',
+              title: 'Rain',
+              means: 'Asks the radar from where it last got to.',
+              every: '1h',
+              offers: 'ask',
+              check: async (ctx) => {
+                started.push(ctx.since)
+                return { found: [], since: cursor }
+              },
+            },
+          ],
+        },
+      ],
+      config: { extensions: {}, projects: { app: { root: repo.root } } },
+      home,
+    })
+    const window = await start({ extensions, thinker: { ask: async () => 'ok' } })
+    const { schedules, wire } = window as unknown as { schedules: Schedules; wire: Wiring }
+    await schedules.turnWatch('weather.rain', 'app', true, 'you')
+    const tools = window.queueTools()
+    const look = async (n: number) => {
+      await tools.change({ schedule: 'rain', change: 'start' })
+      await until(`look ${n} folded`, () => wire.live?.watchedOf('rain').looks.length === n)
+    }
+    for (const n of [1, 2, 3]) await look(n)
+    cursor = 'moved'
+    for (const n of [4, 5]) await look(n)
+
+    const lines = (await client.events({ types: ['watch_checked'] })).filter(
+      (one) => one.detail.schedule === 'rain',
+    )
+    const said = lines.map(({ detail }) =>
+      'since' in detail ? detail.since : detail.sinceSame === true ? 'stayed' : 'nothing',
+    )
+    expect(said).toEqual(['every-branch', 'stayed', 'stayed', 'moved', 'stayed'])
+    // Every look still starts where the last one got to, as the window folds
+    // it and as the whole journal says it.
+    expect(started).toEqual([null, 'every-branch', 'every-branch', 'every-branch', 'moved'])
+    expect(watchedFrom(lines, 'rain').since).toBe('moved')
+    expect(wire.live?.watchedOf('rain').since).toBe('moved')
   })
 })

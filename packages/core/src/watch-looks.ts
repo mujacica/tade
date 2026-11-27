@@ -131,8 +131,9 @@ export function watchedFrom(events: readonly TadeEvent[], schedule: string): Wat
       for (const key of handedKeys(event)) seen.add(key)
       const problem = text(event.detail.problem)
       const on = text(event.detail.on)
-      if (!problem && 'since' in event.detail) {
-        since = text(event.detail.since)
+      if (saysSince(event)) {
+        // `sinceSame` is a cursor that did not move: the one before stands.
+        if ('since' in event.detail) since = text(event.detail.since)
         elsewhereAt = on ? event.ts : undefined
       }
       const until = count(event.detail.until)
@@ -168,6 +169,34 @@ export function watchedFrom(events: readonly TadeEvent[], schedule: string): Wat
   }
   const back = elsewhereAt ? { elsewhereAt } : {}
   return { since, ...back, seen, looks: looks.reverse(), findings: findings.reverse() }
+}
+
+/**
+ * Where a look's next one starts, as its line says it: the cursor, or
+ * `sinceSame` where it is the one the last look that worked left.
+ *
+ * **Not the cursor again, because the cursor can be the size of a repository.**
+ * A watch over every branch has every branch's commit as its cursor, and it
+ * barely moves between looks: on 26 Nov a Mac's `since` came to 387 MB of a
+ * 765 MB journal, 82% of it the same bytes as the look before, 15–20 MB a day.
+ * Compaction never drops a `watch_checked`, so the line that said it is still
+ * there for every reader that folds forward to it.
+ */
+export type SinceSaid = { since: string | null } | { sinceSame: true }
+
+/** What a look writes of where the next starts, given where this one started (`was`). */
+export function sinceSaid(next: string | null, was: string | null): SinceSaid {
+  return next !== null && next === was ? { sinceSame: true } : { since: next }
+}
+
+/**
+ * Whether a look is one where the next starts from: one that worked and said,
+ * even where what it said was nothing, or that it stayed where it was.
+ */
+export function saysSince(event: TadeEvent): boolean {
+  const problem = event.detail.problem
+  if (typeof problem === 'string' && problem !== '') return false
+  return 'since' in event.detail || event.detail.sinceSame === true
 }
 
 /**

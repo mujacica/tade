@@ -1,6 +1,7 @@
 import {
   nothingToWatch,
   type Schedule,
+  sinceSaid,
   type Watched,
   type WatchTwin,
   type WatchWhere,
@@ -94,7 +95,7 @@ export async function notLooking(
       found: 0,
       fresh: [],
       left: 0,
-      since: watched.since,
+      ...sinceSaid(watched.since, watched.since),
       said: nothing,
     })
     return { said: `${one.name}: ${nothing}`, news: asked || last?.said !== nothing }

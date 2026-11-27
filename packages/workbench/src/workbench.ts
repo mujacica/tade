@@ -46,6 +46,7 @@ import {
   runtimeDir,
   type Schedule,
   type Scopes,
+  type SinceSaid,
   type StartCondition,
   signInChosen,
   sinceLastLook,
@@ -1427,11 +1428,10 @@ export class Workbench {
   async watchChecked(
     id: string,
     look:
-      | {
+      | ({
           found: number
           fresh: readonly string[]
           left: number
-          since: string | null
           /** Why it found nothing, where the watch said: never a problem. */
           said?: string
           on?: string
@@ -1443,7 +1443,7 @@ export class Workbench {
            * offers it again.
            */
           handed?: readonly string[]
-        }
+        } & SinceSaid)
       // `trouble` is classified by the `catch` that held the error (`troubleOf`): that is
       // the only moment anything knows, and a classifier over `problem` breaks on a rewording.
       | { problem: string; trouble: LookTrouble; until?: number },

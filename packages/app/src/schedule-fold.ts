@@ -2,6 +2,7 @@ import {
   type HookSource,
   handedKeys,
   rungFrom,
+  saysSince,
   type TadeEvent,
   type Watched,
   watchedFrom,
@@ -103,8 +104,10 @@ export class ScheduleFold {
       this.looked.set(schedule, kept)
       keep(kept.lines, event)
       // Held apart, because a look that has scrolled out of the newest is
-      // still where the next one starts until another that worked says so.
-      if (saysSince(event)) kept.since = event
+      // still where the next one starts until another that worked says so —
+      // and one that said its cursor stayed (`sinceSame`) is held with the
+      // cursor it stayed at, which only the line that wrote it carries.
+      if (saysSince(event)) kept.since = carried(event, kept.since)
       const handed = handedKeys(event)
       if (handed.length > 0) {
         const held = this.handed.get(schedule) ?? new Set<string>()
@@ -210,13 +213,10 @@ export class ScheduleFold {
   }
 }
 
-/**
- * Whether a look is one `watchedFrom` takes where the next starts from: one
- * that worked and said, even where what it said was nothing.
- */
-function saysSince(event: TadeEvent): boolean {
-  const problem = event.detail.problem
-  return !(typeof problem === 'string' && problem !== '') && 'since' in event.detail
+/** A look that worked, as where the next starts: one that said its cursor stayed, with the one it stayed at. */
+function carried(event: TadeEvent, before: TadeEvent | null): TadeEvent {
+  if ('since' in event.detail || before === null) return event
+  return { ...event, detail: { ...event.detail, since: before.detail.since } }
 }
 
 /**
