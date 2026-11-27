@@ -84,5 +84,11 @@ jobs:
       # tests spawn real git and PTY processes with short timeouts, and
       # anything CPU-heavy beside them starves them into what looks exactly
       # like a regression and is not one.
+      #
+      # Its deadline is said, because Tade reads it as the local run's too
+      # (`minutesOf`), and the 20 minutes it gives a step that says none is less
+      # than the suite takes on a laptop that is also running agents: every full
+      # run there from 25 Nov was cut at 20 minutes before vitest said a word.
       - name: tests
+        timeout-minutes: 40
         run: pnpm exec node scripts/coverage.ts
