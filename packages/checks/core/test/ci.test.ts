@@ -272,6 +272,36 @@ describe('reading a gate workflow', () => {
     expect(read?.checks[0]?.skip).toContain('only the runner knows')
   })
 
+  it('reads every step of a job whose env needs a secret as one it cannot run', async () => {
+    const read = await readWorkflows(
+      repoWith({
+        '.github/workflows/ci.yml': [
+          'on: [pull_request]',
+          'jobs:',
+          '  calibrate:',
+          '    env:',
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: GitHub's own syntax
+          '      TOKEN: ${{ secrets.TOKEN }}',
+          '    steps:',
+          '      - name: calibrate',
+          '        run: pnpm calibrate',
+          '  check:',
+          '    env:',
+          '      CI: true',
+          '    steps:',
+          '      - name: tests',
+          '        run: pnpm test',
+          '',
+        ].join('\n'),
+      }),
+    )
+    const byId = new Map((read?.checks ?? []).map((check) => [check.id, check]))
+    expect(byId.get('calibrate')?.required).toBe(false)
+    expect(byId.get('calibrate')?.skip).toContain('only the runner knows')
+    expect(byId.get('tests')?.required).toBe(true)
+    expect(byId.get('tests')?.skip).toBeUndefined()
+  })
+
   it('runs a step in the folder it says, and skips one whose folder is not here to run in', async () => {
     const read = await readWorkflows(
       repoWith({
@@ -398,6 +428,27 @@ describe('reading a gate workflow', () => {
       }),
     )
     expect(read?.checks.map((check) => check.minutes)).toEqual([3, 60, 20])
+  })
+
+  it("reads a job's timeout for the steps that say none of their own", async () => {
+    const read = await readWorkflows(
+      repoWith({
+        '.github/workflows/ci.yml': [
+          'on: [pull_request]',
+          'jobs:',
+          '  check:',
+          '    timeout-minutes: 15',
+          '    steps:',
+          '      - name: quick',
+          '        timeout-minutes: 3',
+          '        run: pnpm lint',
+          '      - name: unsaid',
+          '        run: pnpm test',
+          '',
+        ].join('\n'),
+      }),
+    )
+    expect(read?.checks.map((check) => check.minutes)).toEqual([3, 15])
   })
 
   it('reads continue-on-error as a check nothing is held on', async () => {

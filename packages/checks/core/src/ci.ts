@@ -248,6 +248,10 @@ async function readJobs(
       unread,
       taken,
       cannot,
+      // Every step sees its job's `env:` and is bounded by its job's
+      // timeout, so both are read as if each step had said them.
+      /\$\{\{/.test(JSON.stringify(job?.env ?? '')),
+      minutesOf(job, DEFAULT_MINUTES),
     )
   }
 }
@@ -262,6 +266,8 @@ async function readSteps(
   unread: string[],
   taken: Set<string>,
   jobCannot: string | null,
+  jobEnvNeedsRunner: boolean,
+  jobMinutes: number,
 ): Promise<void> {
   // The folders an earlier action in this job made — a second repository
   // checked out beside this one, an artifact downloaded — which this checkout
@@ -297,7 +303,8 @@ async function readSteps(
     const dir = typeof own === 'string' && own.trim() ? own.trim() : jobDir
     const cannot =
       jobCannot ??
-      (/\$\{\{/.test(run) ||
+      (jobEnvNeedsRunner ||
+      /\$\{\{/.test(run) ||
       /\$\{\{/.test(JSON.stringify(step?.env ?? '')) ||
       /\$\{\{/.test(dir ?? '')
         ? 'it uses something only the runner knows'
@@ -321,7 +328,7 @@ async function readSteps(
       // local run is never faster than CI and never starves anything. A
       // project that wants two of them at once has `checks.only`.
       alone: true,
-      minutes: minutesOf(step, DEFAULT_MINUTES),
+      minutes: minutesOf(step, jobMinutes),
       // Declared, not assumed: a step CI is willing to be red on is a step
       // nothing should be held on here either. Nor is one nothing here can run:
       // it is drawn, and it is out of what a local run adds up to.
