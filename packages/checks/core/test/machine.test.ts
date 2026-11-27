@@ -30,6 +30,25 @@ function slotFile(home: string, slot: number, pid: number): void {
   )
 }
 
+/**
+ * A wait for the machine that gives up at its deadline having joined the
+ * queue: its clock passes the deadline only once it has (`onWait` comes after
+ * the join). A real 40 ms could end before the join on a loaded machine, and a
+ * wait that never joined keeps no place.
+ */
+async function givesUpInTheQueue(home: string, where: string, as: string): Promise<void> {
+  let at = Date.now()
+  await waitForMachineSlot(home, 1, holder(where), {
+    waitMs: 1,
+    everyMs: 10,
+    as,
+    now: () => at,
+    onWait: () => {
+      at += 1
+    },
+  })
+}
+
 /** A place in the queue as another waiter would have taken it, at `at`. */
 function queueFile(home: string, at: number, pid: number): void {
   mkdirSync(queueDir(home), { recursive: true })
@@ -211,7 +230,7 @@ describe('the machine runs as many suites as it says, from any worktree', () => 
     const home = tmp('tade-machine-')
     const first = await takeMachineSlot(home, 1, holder('/work/one'))
     if ('held' in first) throw new Error('the slot should have been free')
-    await waitForMachineSlot(home, 1, holder('/work/a'), { waitMs: 40, everyMs: 10, as: 'a' })
+    await givesUpInTheQueue(home, '/work/a', 'a')
     expect(readdirSync(queueDir(home))).toEqual([expect.stringMatching(/\.kept$/)])
     const order: string[] = []
     const waiting = (as: string) => {
@@ -247,7 +266,7 @@ describe('the machine runs as many suites as it says, from any worktree', () => 
     const home = tmp('tade-machine-')
     const first = await takeMachineSlot(home, 1, holder('/work/one'))
     if ('held' in first) throw new Error('the slot should have been free')
-    await waitForMachineSlot(home, 1, holder('/work/a'), { waitMs: 40, everyMs: 10, as: 'a' })
+    await givesUpInTheQueue(home, '/work/a', 'a')
     await first.release()
     const soon = await takeMachineSlot(home, 1, holder('/work/newcomer'))
     expect('held' in soon).toBe(true)
