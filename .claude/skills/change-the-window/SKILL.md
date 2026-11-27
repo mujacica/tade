@@ -98,6 +98,19 @@ terminal; a subject moved into it keeps its own file under `wire/` and is reache
 the heart's field, and what of it needs the terminal moves to the face — a form on a borrowed
 screen, and the conversation kept where you scrolled to, are `screens.ts`.
 
+**A heart takes any number of faces** (`Heart.attach`, `App.attach`, `wire/face-screen.ts`). The one
+it is made with is the machine's own window; any other comes and goes while it beats, at its own
+size, sharing the subjects and their facts and holding only where it is looking. `faces.ts` splits
+`AppState` into the two (`FACE_OWN`, `FACE_SHARED`), and `test/faces.test.ts` fails on a field in
+neither — **a new field of the state is put in one, decided, never left out**. While a face is drawn
+or answered (`AttachedFace.as`, synchronous only), `wire.state` is that face's view and `wire.put`
+writes through it, so a subject never knows there is more than one. What a face can do on its
+machine is **declared** by whoever makes it (`FaceCapabilities`, read as `wire.face`; R3): a door that
+opens a link, an editor or the clipboard asks `cannot(wire.face, …)` and says the sentence where it
+cannot. Anything a subject's `facts()` *does* — which lane is read, where the line's rows are for a
+click — is done only for the face that `fronts`, or two faces at two sizes take turns undoing each
+other. A second face's frame has a performance test (`test/wire/faces.probe.test.ts`).
+
 **The window opens before anything slow does.** The orchestrator is a model in another process; it is
 started once `App.start` has drawn, by `packages/cli/src/orchestrating.ts` — `hold` hands its tools
 to the window, `start` starts it and hands it back with `attachThinker` — which `tade serve` runs over
