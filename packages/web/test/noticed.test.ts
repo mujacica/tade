@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import {
   type Change,
   changesBetween,
-  changesFor,
   HAPPENINGS,
   keyOf,
   NOTICE_TAG,
@@ -217,21 +216,6 @@ describe('what a notification is allowed to say', () => {
       noticing(),
     )
     expect(both.send && both.notice.body).toBe('2 have gone red')
-  })
-})
-
-describe('what one device may be told about', () => {
-  const across = () =>
-    changesBetween(
-      before(task({ id: 'a/one', project: 'a' }), task({ id: 'b/two', project: 'b' })),
-      [
-        task({ id: 'a/one', project: 'a', waiting: true }),
-        task({ id: 'b/two', project: 'b', state: 'failed' }),
-      ],
-    )
-
-  it('is every change: every paired device reads every project', () => {
-    expect(changesFor(across())).toHaveLength(2)
   })
 })
 

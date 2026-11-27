@@ -204,14 +204,6 @@ function done(task: TaskWas): boolean {
   return task.finished || task.state === 'merged'
 }
 
-/**
- * The changes one device may be told about: every one, since every paired
- * device is the person's own and reads every project.
- */
-export function changesFor(changes: readonly Change[]): Change[] {
-  return [...changes]
-}
-
 /** Everything that decides whether a notice is sent, and what it may say. */
 export interface Noticing {
   now: number

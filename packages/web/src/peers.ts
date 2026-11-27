@@ -83,7 +83,7 @@ export interface OpenRequest {
    * after a snapshot owed to a page that fell behind. Handed what the page
    * said it holds (`held`) on opening, and null after a resync, when every
    * copy goes whole. Absent is none: only the person's own device is sent
-   * any (`copiesFor`).
+   * any (`sentCopies`, `wire/web.ts`).
    */
   copies?: (held: ReadonlyMap<string, Cursor> | null) => readonly string[]
   /** Which revision of each copy the page says it holds (`copiesHeldOf`), so one it has is not sent again. */

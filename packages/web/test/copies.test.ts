@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { applyCopy, copiesOf, emptyStore, rowsOf, streamPath } from '../src/assets/store.js'
-import { Copies, copiesFor, copiesHeldOf, copyOf } from '../src/copies.ts'
+import { Copies, copiesHeldOf, copyOf } from '../src/copies.ts'
 import { applyDelta } from '../src/delta.ts'
 import type { Snapshot } from '../src/protocol.ts'
 import { projector } from '../src/reading.ts'
@@ -23,13 +23,6 @@ function snapshot(over: { rev?: number; epoch?: string; title?: string } = {}): 
   ).snapshot()
   return made
 }
-
-describe('who is sent the copies', () => {
-  it('is every paired phone, and never another machine’s link', () => {
-    expect(copiesFor(false)).toBe(true)
-    expect(copiesFor(true)).toBe(false)
-  })
-})
 
 describe('what a copy leaves out', () => {
   it('leaves out the conversation and the notes, which are one already', () => {

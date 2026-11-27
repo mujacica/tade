@@ -22,7 +22,7 @@ import { KEY } from './verbs.ts'
 // door either, whatever the far gate would say.
 //
 // **Any paired device**: every one is the person's own, and is sent the other
-// machines' rows (`copiesFor`). An owner link is a machine whose SSH key
+// machines' rows (`sentCopies`, `wire/web.ts`). An owner link is a machine whose SSH key
 // reaches everything here already. The tiers are that machine's (`outboxArm`)
 // and are about another *machine*, not a device.
 //
