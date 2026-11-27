@@ -1,7 +1,6 @@
 import type { IncomingMessage } from 'node:http'
 import type { SinceHere, SinceItem } from '@tade/core'
 import { z } from 'zod'
-import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
 
@@ -63,8 +62,8 @@ export const SinceAnswerSchema = z.strictObject({
 })
 export type SinceAnswer = z.infer<typeof SinceAnswerSchema>
 
-/** The window's half: the card from the cut on, for this device. */
-export type WebSince = (device: Device, cut: number) => Promise<SinceAnswer>
+/** The window's half: the card from the cut on. */
+export type WebSince = (cut: number) => Promise<SinceAnswer>
 
 const NONE = { rows: [], more: 0 }
 
@@ -116,7 +115,6 @@ function listOf(seen: readonly SinceItem[]): SinceAnswer['finished'] {
  */
 export async function sinceHereFor(
   req: IncomingMessage,
-  device: Device,
   now: number,
   since: WebSince | undefined,
 ): Promise<{ body: SinceAnswer } | { refusal: Refusal }> {
@@ -125,5 +123,5 @@ export async function sinceHereFor(
   if (!got.read) return { refusal: got.refusal }
   const parsed = SinceBody.safeParse(got.body)
   if (!parsed.success) return { refusal: refuse('malformed') }
-  return { body: await since(device, now - parsed.data.back) }
+  return { body: await since(now - parsed.data.back) }
 }

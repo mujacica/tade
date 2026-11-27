@@ -96,7 +96,7 @@ export class Presences {
 
   /** The card: folded over this machine's journal from the last moment it counted them present before `cut`. */
   since(): WebSince {
-    return async (_device, cut) => {
+    return async (cut) => {
       const events = await this.wire.opts.client.log.read({ types: SINCE_READS })
       const since = presentBefore(events, cut)
       const here =

@@ -377,7 +377,7 @@ class Far implements FarEnd {
         outbox: async () => ({ acts: [] }),
       },
       asking: this.talk.asking(),
-      since: async (_device, cut) => this.talk.since(cut, Date.now()),
+      since: async (cut) => this.talk.since(cut, Date.now()),
       projectionTold: {
         pieces: new Pieces(),
         take: async (told, _device, label) => {

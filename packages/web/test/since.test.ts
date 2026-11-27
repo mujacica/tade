@@ -1,6 +1,5 @@
 import { noSpend, type SinceHere } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { Device } from '../src/devices.ts'
 import { mintOwner } from '../src/owner.ts'
 import { CSRF_HEADER } from '../src/request.ts'
 import { OWNED } from '../src/routes.ts'
@@ -66,7 +65,7 @@ async function machine(now: number) {
     {},
     {
       now: () => now,
-      since: async (_device: Device, cut: number) => {
+      since: async (cut: number) => {
         cuts.push(cut)
         return sinceAnswerOf(here({ finished: [item('far/done', 5)] }), [])
       },

@@ -1,5 +1,4 @@
 import type { EventFilter, TadeEvent } from '@tade/core'
-import type { Device } from '@tade/web'
 import { describe, expect, it } from 'vitest'
 import type { Wiring } from '../../src/wire/context.ts'
 import { Presences } from '../../src/wire/web-presence.ts'
@@ -11,13 +10,6 @@ import { Presences } from '../../src/wire/web-presence.ts'
 
 const NOW = Date.UTC(2026, 9, 17, 9, 0)
 const MINUTE = 60_000
-
-const OWNER = {
-  id: 'a1b2c3d4e5f60718',
-  owner: true,
-  projects: null,
-  granted: ['spend'],
-} as unknown as Device
 
 /** Just enough of a window: a clock, a journal it appends to and reads by type, and a last look. */
 function windowAt(lines: TadeEvent[] = [], fails = false) {
@@ -106,7 +98,7 @@ describe('the person at another of their screens', () => {
       // Written the moment the link came back, a breath before the card was asked for.
       line('person_present', null, NOW - 1_000, { device: 'd1' }),
     ])
-    const card = await new Presences(window.wire, () => {}).since()(OWNER, NOW - 2_000)
+    const card = await new Presences(window.wire, () => {}).since()(NOW - 2_000)
     expect(card.since).toBe(new Date(NOW - 180 * MINUTE).toISOString())
     expect(card.finished.rows.map((one) => one.task)).toEqual(['tade/fix-login'])
     expect(card.waiting.rows).toEqual([
@@ -117,7 +109,7 @@ describe('the person at another of their screens', () => {
 
   it('has nothing to catch up on where nobody was ever counted present', async () => {
     const window = windowAt([line('task_done', 'tade/fix-login', NOW - MINUTE, { by: 'agent' })])
-    const card = await new Presences(window.wire, () => {}).since()(OWNER, NOW)
+    const card = await new Presences(window.wire, () => {}).since()(NOW)
     expect(card.since).toBeNull()
     expect(card.finished.rows).toEqual([])
   })

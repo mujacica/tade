@@ -180,7 +180,7 @@ export async function carryOwned(
 > {
   if (route === 'carry') return carryHere(req, device, opts.carrying, res)
   if (route === 'attach') return attachHere(req, opts.attaching)
-  if (route === 'since') return sinceHereFor(req, device, now, opts.since)
+  if (route === 'since') return sinceHereFor(req, now, opts.since)
   if (route === 'share notes') return shareHere(req, device, opts.notes)
   if (route === 'share feeds') return feedsHere(req, device, opts.feeds)
   if (route === 'conversation') return conversationHere(req, opts.conversation)
