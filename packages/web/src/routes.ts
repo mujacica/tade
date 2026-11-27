@@ -275,6 +275,21 @@ export const ROUTES: readonly Route[] = [
     under: true,
   },
 
+  // The window's own drawing code, for a browser that draws the window itself
+  // (the full view, `drawing.ts`): the document whose import map resolves it at
+  // `/draw/`, and the modules under a version. Public like the assets and for
+  // the same reason — it is Tade's own source, the same for everybody, and
+  // everything it draws it is handed by a route that needs a session.
+  {
+    method: 'GET',
+    path: '/draw',
+    name: 'drawing',
+    needs: 'read',
+    mutates: false,
+    public: true,
+    under: true,
+  },
+
   // Pairing: the one route that mints a credential, and the one route with no
   // credential to present.
   {

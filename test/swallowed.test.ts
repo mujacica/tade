@@ -366,6 +366,7 @@ const ALLOWED: Record<string, number> = {
   'packages/web/src/connect-tickets.ts': 1,
   'packages/web/src/devices.ts': 3,
   'packages/web/src/drafted.ts': 1,
+  'packages/web/src/drawn.ts': 1,
   'packages/web/src/endpoint.ts': 1,
   'packages/web/src/factory.ts': 1,
   'packages/web/src/files.ts': 2,

@@ -323,6 +323,13 @@ export function webServer(opts: ServerOptions): WebServer {
       if (!(await files.worker(req, res))) answer(res, refuse('no_such'))
       return
     }
+    // The window's drawing, where this listener has one to serve; a `404`
+    // like any file that is not here where it does not.
+    if (found.route.name === 'drawing') {
+      const served = await opts.drawing?.answer(req, res, found.params.rest ?? '')
+      if (served !== true) answer(res, refuse('no_such'))
+      return
+    }
     if (found.route.public === true && !found.route.mutates) {
       if (!(await files.asset(req, res, path))) answer(res, refuse('no_such'))
       return

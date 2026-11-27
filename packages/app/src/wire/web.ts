@@ -14,6 +14,7 @@ import {
   connectWhere,
   copyFrame,
   type Device,
+  drawingDoor,
   factsOf,
   type Host,
   MOMENTS,
@@ -55,6 +56,7 @@ import type { PanelInputs } from '../panels.ts'
 import type { ActAnswer } from './acts.ts'
 import { type Actions, notify, type Subject, type Submits, type Wiring, why } from './context.ts'
 import { hooksFor } from './doorbell.ts'
+import { drawing } from './drawing.ts'
 import { evaluationsAnswer } from './evaluations.ts'
 import { seenName } from './machines-seen.ts'
 import { armingFor, seenFrom } from './web-asking.ts'
@@ -280,6 +282,9 @@ export class Away implements Subject {
       surface,
       readingFor: (reach) => this.readingFor(reach),
       confirm: (ask) => this.confirm(ask),
+      // What a browser that draws the window itself is served (`/draw`):
+      // built the first time one asks, never as the listener opens.
+      drawing: drawingDoor(drawing),
       ...halvesFor(surface, {
         notifications: () => ({ half: this.push.half(), key: () => this.push.key() }),
         tade: this.wire.opts.client,

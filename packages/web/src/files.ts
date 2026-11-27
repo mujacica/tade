@@ -148,7 +148,7 @@ const gzipped = promisify(gzip)
  * once per file per encoding, and off the thread (`zlib`'s pool), so the
  * window that draws on this thread never waits on it.
  */
-function packing() {
+export function packing() {
   const held = new Map<string, Promise<Asset>>()
   return {
     of(file: Asset, how: Encoding): Promise<Asset> {

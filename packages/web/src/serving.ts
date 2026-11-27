@@ -13,6 +13,7 @@ import type { WebConnecting } from './connected.ts'
 import type { WebDisk } from './disk.ts'
 import type { WebDocument } from './document.ts'
 import type { WebDrafting } from './drafting.ts'
+import type { DrawingDoor } from './drawn.ts'
 import type { WebDuties } from './duties.ts'
 import type { WebEarlier } from './earlier.ts'
 import type { WebHooks } from './hooked.ts'
@@ -133,6 +134,12 @@ export interface ServerOptions {
    * nothing under them. Even asked, it is only ever on from the repository.
    */
   liveReload?: boolean
+  /**
+   * The window's drawing code, for a browser that draws the window itself
+   * (`/draw`, `drawn.ts`). The window's listener hands one over; with none,
+   * `/draw` is a `404` like any file that is not here.
+   */
+  drawing?: DrawingDoor
   /**
    * Ask the person at the machine. The one authorisation nothing remote can
    * obtain, and the reason a stolen ticket is worth nothing.
