@@ -32,7 +32,7 @@ import { docksOn, forgetFolds } from './docks.js'
 import { classOn, el, textIn } from './dom.js'
 import { forget, startInstall, takeUpdate } from './install.js'
 import { backoffAt, connectionOf, outsideOf, standingOf } from './live.js'
-import { navCountsOf } from './machines.js'
+import { navCountsOf, wantsAnywhere } from './machines.js'
 import { countsOf, forgetView, lastSeenScreen, readView, saveView } from './offline.js'
 import { accountsScreen } from './pages/accounts.js'
 import { taskScreen } from './pages/agent.js'
@@ -404,9 +404,9 @@ function paint() {
     'is-reconnecting',
     standing === 'reconnecting' || standing === 'connecting',
   )
-  // The icon's badge is this machine's own, whatever the chips pick.
-  const mine = held.store.had ? rowsOf(held.store, 'tasks').filter((task) => task.wantsYou) : []
-  badgeIn(outside === null ? mine.length : 0)
+  // The icon's badge is what wants you on every machine that is up, whatever
+  // the chips pick (`wantsAnywhere`): it sits outside the page.
+  badgeIn(outside === null && held.store.had ? wantsAnywhere(held.store) : 0)
   keep(now)
   const view = {
     store: held.store,

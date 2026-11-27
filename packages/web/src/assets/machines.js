@@ -253,6 +253,16 @@ export function wantsElsewhere(store) {
     .flatMap(([machine, copy]) => wantsYou(copy).map((task) => ({ machine, task })))
 }
 
+/**
+ * How many things want the person on every machine that is up, this one
+ * included, whatever the chips pick: the app icon's badge. It sits outside the
+ * page, so it follows no view filter, and it counts what NEEDS YOU draws under
+ * All, so a home screen never reads calm while another machine is waiting.
+ */
+export function wantsAnywhere(store) {
+  return wantsYou(store).length + wantsElsewhere(store).length
+}
+
 /* ── one other machine's screen ───────────────────────────────────────────── */
 
 /** What `/m/<machine>/…` is drawn from: its copy, its clock, whether it is up, and the line over it. */

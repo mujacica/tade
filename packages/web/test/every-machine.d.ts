@@ -18,6 +18,7 @@ declare module '*/assets/machines.js' {
     picked: string | null,
   ): { machine: string; store: any; up: boolean }[]
   export function navCountsOf(store: unknown, picked: string | null): Record<string, number>
+  export function wantsAnywhere(store: unknown): number
 }
 
 declare module '*/assets/there.js' {

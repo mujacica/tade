@@ -9,6 +9,7 @@ import {
   pickedIn,
   reviewsOnce,
   storesDrawn,
+  wantsAnywhere,
 } from '../src/assets/machines.js'
 import { boardOf } from '../src/assets/pages/overview-figures.js'
 import { queueScreen } from '../src/assets/pages/queue.js'
@@ -356,6 +357,12 @@ describe('the counts beside the navigation and the overview’s board', () => {
     // Its rows are still on its pages, dimmed: an agent there is counted as drawn.
     expect(navCountsOf(closed, 'mac').agents).toBe(1)
     expect(boardOf(closed, 'mac').working.n).toBe(0)
+  })
+
+  it('badge the app icon with what wants the person on every machine that is up, whatever is picked', () => {
+    // The icon is outside the page: it adds a machine that is up, and the chips never narrow it.
+    expect(wantsAnywhere(wantingOf('up'))).toBe(2)
+    expect(wantsAnywhere(wantingOf('closed'))).toBe(1)
   })
 
   it('do not count another machine’s queued work twice where its copy is held', () => {
