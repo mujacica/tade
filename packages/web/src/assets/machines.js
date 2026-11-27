@@ -271,6 +271,87 @@ export function thereOf(store, machine, live, now) {
   return { store: copy, asOf, frozen: !running && !Number.isNaN(said), up, line }
 }
 
+/* ── the machine chips ─────────────────────────────────────────────────────── */
+
+/** This machine, as a chip and a pick; `null` is All. */
+export const HERE = ''
+
+/** The pick as it stands: one gone from the chips is All again. */
+export function pickedIn(store, picked) {
+  if (picked === null || picked === HERE) return picked
+  return namesIn(store).includes(picked) ? picked : null
+}
+
+/** Whether `machine`'s rows are drawn under the pick (`null` is this machine). */
+export const drawsOf = (picked, machine) => picked === null || picked === (machine ?? HERE)
+
+/** All · This machine · each other by name, its state in its tone and words — none where only this one is. */
+export function chipsOf(store, picked) {
+  const names = namesIn(store)
+  if (names.length === 0) return []
+  const on = pickedIn(store, picked)
+  const chip = (key, label, row) => ({
+    key,
+    label,
+    tone: row === undefined ? '' : machineTone(row),
+    said: row === undefined ? null : row.state === 'up' ? 'up' : stateWord(row),
+    on: on === key,
+  })
+  return [
+    chip(null, 'All'),
+    { ...chip(HERE, 'This machine'), tone: 't-done', said: 'up' },
+    ...names.map((name) =>
+      chip(
+        name,
+        name,
+        seenIn(store).find((row) => row.name === name),
+      ),
+    ),
+  ]
+}
+
+// A machine whose copy the page does not hold has no rows to pick: its card says why.
+const namesIn = (store) => [...copiesIn(store).keys()].sort(byName)
+
+/**
+ * Each machine's store, a review two of them have drawn once: by its forge
+ * link, on the first machine drawn that has it, the later ones' tasks named
+ * under it (`alsoOn`) and left out of theirs. A store changes only if it has to.
+ */
+export function reviewsOnce(drawn) {
+  const first = new Map()
+  const out = drawn.map(() => ({ drop: new Set(), also: new Map() }))
+  drawn.forEach(({ machine, store }, at) => {
+    for (const task of store.rows.tasks.values()) {
+      const url = task.review?.url
+      if (typeof url !== 'string') continue
+      const held = first.get(url)
+      if (held === undefined) {
+        first.set(url, { at, id: task.id })
+        continue
+      }
+      // Two tasks of one machine on one review are drawn as they always were.
+      if (held.at === at) continue
+      out[at].drop.add(task.id)
+      const also = out[held.at].also
+      also.set(held.id, [
+        ...(also.get(held.id) ?? []),
+        `${machine === HERE ? 'this machine' : machine}’s ${task.id}`,
+      ])
+    }
+  })
+  return drawn.map(({ store }, at) => {
+    const { drop, also } = out[at]
+    if (drop.size === 0 && also.size === 0) return store
+    const tasks = new Map()
+    for (const [id, task] of store.rows.tasks) {
+      if (drop.has(id)) continue
+      tasks.set(id, also.has(id) ? { ...task, alsoOn: also.get(id) } : task)
+    }
+    return { ...store, rows: { ...store.rows, tasks } }
+  })
+}
+
 /** A machine's state in two or three words: `closed 14:02`. */
 function stateWord(row) {
   const at = shortClockOf(row.since)

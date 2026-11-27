@@ -176,6 +176,27 @@
   opacity: 0.6;
 }
 
+/* Another machine picked: this page keeps its bar and chips and nothing else of this one's. */
+.not-here > :not(.pg),
+.not-here > .pg > :not(.pg-bar, .machine-chips) {
+  display: none;
+}
+
+.not-here .pg-bar > .figure {
+  visibility: hidden;
+}
+
+/* Another machine's rows under a page's bar: its line is their heading, not a second bar. */
+.there-box .pg-bar {
+  display: none;
+}
+
+/* A machine chip's state, where it is not up: in words beside its dot. */
+.machine-chips .chip-said {
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
 /* The row the keyboard is on, and the one `j`/`k` moves: a step lighter again. */
 .rows > li.on > a,
 .rows > li.on > div {

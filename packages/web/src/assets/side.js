@@ -27,8 +27,10 @@ import { classOn, el, glyphOf, into, keyed, markIn, textIn, toneOn } from './dom
 import { count, shortClockOf } from './figures.js'
 import { checkMark, queueMark, rowMark, taskMark } from './glyphs.js'
 import { icon } from './icons.js'
+import { drawsOf, HERE, thereOf } from './machines.js'
 import { pathOf, taskPath } from './routes.js'
-import { projectsOf, queueIn, runAt, tasksIn } from './store.js'
+import { copiesOf, projectsOf, queueIn, runAt, tasksIn } from './store.js'
+import { linksThere, machineChips, machinePicked } from './there.js'
 import {
   agentGroups,
   queueAt,
@@ -49,7 +51,11 @@ export function sideOf(ctx = null) {
   const projects = el('div', { class: 'side-projects' })
   const none = el('p', { class: 'empty side-none' })
   const folded = new Set()
-  into(node, head, projects, none)
+  // The machine chips, and each other machine's projects under its line, after this one's.
+  const chips = machineChips()
+  const mark = el('p', { class: 'there-line', text: 'This machine' })
+  const elsewhere = el('div')
+  into(node, head, chips.node, mark, projects, none, elsewhere)
   // **An agent's row offers what the window's row does**: start or stop, close,
   // and its whole menu (`agent-menu.js`) — on a ⋯, a long-press or a
   // right-click. The rows the presses read are the ones last drawn, so a press
@@ -61,14 +67,24 @@ export function sideOf(ctx = null) {
   return {
     node,
     update(view) {
-      const shown = projectsOf(view.store)
+      const pick = machinePicked(view.store)
+      chips.update(view.store)
+      const mine = drawsOf(pick, HERE)
+      const shown = mine ? projectsOf(view.store) : []
       const working = shown.reduce((n, one) => n + one.counts.working, 0)
       textIn(figure, working === 0 ? '' : `${count(working)} working`)
-      none.hidden = shown.length > 0
+      none.hidden = !mine || shown.length > 0
       textIn(none, view.store.had ? 'no project is open' : 'not read yet')
-      const on = view.where.view === 'task' ? `${view.where.project}/${view.where.task}` : null
-      const here =
-        view.where.view === 'project' || view.where.view === 'task' ? view.where.project : null
+      const { on, here } = litOf(view.where, undefined)
+      const copies = copiesOf(view.store)
+      mark.hidden = !mine || copies.length === 0
+      keyed(
+        elsewhere,
+        copies.filter((one) => drawsOf(pick, one.machine)),
+        (one) => one.machine,
+        createThere,
+        (one, { machine }) => fillThere(one, machine, view),
+      )
       keyed(
         projects,
         shown,
@@ -91,6 +107,42 @@ export function sideOf(ctx = null) {
       }
     },
   }
+}
+
+/** The task and project the page is on, where they are `machine`'s (`undefined` is this one's). */
+function litOf(where, machine) {
+  if (where.machine !== machine) return { on: null, here: null }
+  const on = where.view === 'task' ? `${where.project}/${where.task}` : null
+  const here = where.view === 'project' || where.view === 'task' ? where.project : null
+  return { on, here }
+}
+
+/* ── another machine's ─────────────────────────────────────────────────────── */
+
+function createThere() {
+  const node = el('section', { class: 'side-there' })
+  into(node, el('p', { class: 'there-line' }), el('div', { class: 'side-projects' }))
+  // Its folds are its own: `tade` folded here is not `tade` folded there.
+  node.folded = new Set()
+  return node
+}
+
+/** Another machine's projects, out of its copy and clock, nothing to press, every link that machine's. */
+function fillThere(node, machine, view) {
+  const on = thereOf(view.store, machine, view.standing === 'live', view.now ?? Date.now())
+  const [line, list] = node.children
+  textIn(line, on.line)
+  classOn(node, 'is-there-down', !on.up)
+  const at = { ...view, store: on.store, asOf: on.asOf, frozen: on.frozen }
+  const lit = { ...litOf(view.where, machine), folded: node.folded, rows: new Map(), acting: null }
+  keyed(
+    list,
+    projectsOf(on.store),
+    (row) => row.name,
+    () => createProject(node.folded),
+    (one, row) => fillProject(one, row, at, lit),
+  )
+  linksThere(list, machine)
 }
 
 /**

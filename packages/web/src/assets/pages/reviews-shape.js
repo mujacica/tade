@@ -151,6 +151,8 @@ function becauseOf(hold, task) {
   return `agent ${rowMark(task).word}`
 }
 
+const alsoOf = (task) => (task.alsoOn ?? []).map((one) => `also ${one}`)
+
 /** Since when the person has been waited on, or the agent last moved. */
 function sinceOf(hold, task) {
   const at = hold === 'you' ? (task.approval?.since ?? task.movedAt) : task.movedAt
@@ -187,7 +189,8 @@ export function reviewOf(task, asOf, frozen = false) {
     hold,
     holdMark:
       kind === null ? reviewMark(task.review?.state ?? '') : { ...kind, tone: textTone(kind.tone) },
-    because: becauseOf(hold, task),
+    // Another machine's tasks on the same review are named on its one card (`reviewsOnce`).
+    because: [becauseOf(hold, task), ...alsoOf(task)].join(' · '),
     review: task.review?.state ?? null,
     reviewMark: reviewMark(task.review?.state ?? ''),
     forge: forgeOf(task.review),

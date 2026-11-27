@@ -61,8 +61,10 @@ import { ageSaid } from '../figures.js'
 import { rowMark, taskMark } from '../glyphs.js'
 import { icon } from '../icons.js'
 import {
+  drawsOf,
   figuresAsOf,
   figuresOf,
+  HERE,
   hereOf,
   lastWordSaid,
   machineFix,
@@ -77,6 +79,7 @@ import { quickActs } from '../quick.js'
 import { pathOf, taskPath, thereHref } from '../routes.js'
 import { section } from '../rows.js'
 import { closedOf, intakeWaiting, projectsOf, wantsYou } from '../store.js'
+import { machineChips, machinePicked } from '../there.js'
 import { changesSeen, KINDS } from '../toasts.js'
 import { meter, meterIn, panel, stateBox, stateBoxIn } from '../ui.js'
 import {
@@ -95,7 +98,9 @@ export function nowScreen(ctx = null) {
 
   const top = section('OVERVIEW', { top: true })
   const board = boardView()
-  into(top.body, board.node)
+  // The machine chips: what needs you, failed, the projects and the agents are the picked machine's.
+  const chips = machineChips()
+  into(top.body, chips.node, board.node)
 
   const wants = section('NEEDS YOU')
   wants.node.setAttribute('id', 'wants')
@@ -167,13 +172,16 @@ export function nowScreen(ctx = null) {
       // One fold per beat, read by the board and by the calm line alike.
       const figures = had ? boardOf(store) : null
       board.update(view, figures)
+      const pick = machinePicked(store)
+      const mine = drawsOf(pick, HERE)
+      chips.update(store)
 
       // What needs you: the rows, the inbox's requests under them, and a
       // calm line where there is neither.
-      const rows = wantsYou(store)
-      const others = wantsElsewhere(store)
+      const rows = mine ? wantsYou(store) : []
+      const others = wantsElsewhere(store).filter((one) => drawsOf(pick, one.machine))
       const all = rows.length + others.length
-      const waiting = intakeWaiting(store).length
+      const waiting = mine ? intakeWaiting(store).length : 0
       textIn(wants.figure, all === 0 ? '' : String(all))
       toneOn(wants.figure, all > 0 ? 't-wants' : '')
       wants.figure.setAttribute('aria-label', `${all} wanting you`)
@@ -193,9 +201,11 @@ export function nowScreen(ctx = null) {
         (node, one) => fillElsewhere(node, one, view),
       )
       inbox.update(waiting)
-      clear.update(figures, had && all === 0 && waiting === 0)
+      // Calm only where nothing wants you on any machine, whichever is picked.
+      const calm = pick === null || wantsYou(store).length + wantsElsewhere(store).length === 0
+      clear.update(figures, had && calm && all === 0 && waiting === 0)
 
-      const broke = failedOf(store)
+      const broke = mine ? failedOf(store) : []
       failed.node.hidden = broke.length === 0
       textIn(failed.figure, broke.length === 0 ? '' : String(broke.length))
       toneOn(failed.figure, broke.length > 0 ? 't-failed' : '')
@@ -207,7 +217,7 @@ export function nowScreen(ctx = null) {
         (one, task) => fillWant(one, task, view),
       )
 
-      const lines = had ? projectRowsOf(store) : []
+      const lines = had ? projectRowsOf(store).filter((one) => drawsOf(pick, one.machine)) : []
       const named = new Set(lines.map((one) => one.name)).size
       textIn(projects.figure, named === 0 ? '' : String(named))
       table.update(lines)
@@ -254,7 +264,7 @@ export function nowScreen(ctx = null) {
         (one, row) => fillMachine(one, row, store.copies?.get(row.name)),
       )
 
-      const agents = workingOf(store)
+      const agents = mine ? workingOf(store) : []
       working.node.hidden = agents.length === 0
       textIn(working.figure, agents.length === 0 ? '' : String(agents.length))
       keyed(

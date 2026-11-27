@@ -320,7 +320,11 @@ describe('the real folder', () => {
     // on the phone with a tab per machine (about 8.7 KB: `pages/accounts.js`,
     // its pure words and presses, its rules, an icon, and the sign-in sheet
     // taking any account's door) took it from 470.21 at aa2f8021 to 478.90.
-    expect(wire).toBeLessThan(481 * 1024)
+    // 481 until every list page drew every machine's rows under machine
+    // chips (about 3.1 KB: `everyMachine` and the chips in `there.js`, their
+    // words in `machines.js`, the side's other machines, a review two
+    // machines have drawn once) took it from 478.68 at 14ebd633 to 481.76.
+    expect(wire).toBeLessThan(483 * 1024)
     // And the files as they sit, which is what a browser holds once it has
     // them: about a megabyte, with the comments every module carries. 768
     // until the pages were redrawn one at a time, each 40–90 KB as it sits.
@@ -384,7 +388,11 @@ describe('the real folder', () => {
     // 1500.51 at aa2f8021 to 1528.93. 1531 until another machine's rows could
     // be pressed from this door (1.6 KB as it sits: `thereCtx`, the verbs its
     // outbox takes and their fields, and the rows and task screen using it)
-    // took it from 1529.30 at 0790ab6e to 1531.44.
-    expect(raw).toBeLessThan(1532 * 1024)
+    // took it from 1529.30 at 0790ab6e to 1531.44. 1532, already 1532.33 at
+    // 14ebd633, until every list page drew every machine's rows under the
+    // machine chips (10 KB as it sits: one wrapper the seven list pages share
+    // rather than seven, the chips, the side's other machines and
+    // `reviewsOnce`) took it to 1542.50.
+    expect(raw).toBeLessThan(1544 * 1024)
   })
 })

@@ -90,7 +90,7 @@ import {
   wantingIds,
 } from './store.js'
 import { talkScreen } from './talk.js'
-import { thereCtx, thereOn } from './there.js'
+import { everyMachine, reviewsOnce, thereCtx, thereOn } from './there.js'
 import { toasts } from './toasts.js'
 
 /** The ticket out of the fragment, taken out of the address bar as it is read. */
@@ -272,19 +272,19 @@ const SCREENS = {
   task: (at) => taskScreen(at, at.machine === undefined ? ctx : thereCtx(ctx, at.machine)),
   changes: (at) => changesScreen(at, ctx),
   agents: () => agentsScreen(ctx),
-  queue: () => queueScreen(),
-  inbox: () => inboxScreen(),
+  queue: () => everyMachine(queueScreen),
+  inbox: () => everyMachine(inboxScreen),
   request: (at) => requestScreen(at, ctx),
-  runs: () => runsScreen(),
+  runs: () => everyMachine(runsScreen),
   run: (at) => runScreen(at),
   workflows: () => workflowsScreen(),
   workflow: (at) => workflowScreen(at, ctx),
-  checks: () => checksScreen(),
+  checks: () => everyMachine(checksScreen),
   evals: () => evaluationsScreen(ctx),
-  reviews: () => reviewsScreen(ctx),
+  reviews: () => everyMachine(reviewsScreen, ctx, reviewsOnce),
   spend: () => spendScreen(),
-  findings: () => findingsScreen(),
-  notes: () => notesScreen(),
+  findings: () => everyMachine(findingsScreen),
+  notes: () => everyMachine(notesScreen),
   talk: () => talkScreen(ctx),
   lastSeen: () => lastSeenScreen(held.lastView ?? {}, Date.now()),
   devices: () => devicesScreen(ctx),
@@ -862,6 +862,7 @@ async function start() {
   )
   wireLinks()
   wireKeys()
+  addEventListener('tade:machine', () => paint())
   const mine = await ask('GET', '/api/devices')
   if (mine.status === 200 && mine.body !== null) {
     tookDevices(mine.body)
