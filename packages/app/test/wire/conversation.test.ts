@@ -12,7 +12,7 @@ import { STARTING } from '@tade/web'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import type { Wiring } from '../../src/wire/context.ts'
-import { FleetConversation } from '../../src/wire/conversation.ts'
+import { FleetConversation, saidOnIn } from '../../src/wire/conversation.ts'
 
 // The heart's and the window's half of one orchestrator conversation on every
 // machine (`conversation.ts`): the hub is the machine the config names, asked
@@ -58,6 +58,7 @@ function side(name: string, remotes: Record<string, unknown> = {}, harness = 'to
   mkdirSync(home, { recursive: true })
   const id = `00000000-0000-4000-8000-${String(++made).padStart(12, '0')}`
   const said: string[] = []
+  const marks: ReadonlyMap<number, string>[] = []
   let drawn = 0
   const wire = {
     opts: {
@@ -70,8 +71,9 @@ function side(name: string, remotes: Record<string, unknown> = {}, harness = 'to
   } as unknown as Wiring
   const fleet = new FleetConversation(wire, {
     say: (text) => said.push(text),
-    later: () => {
+    later: (whose) => {
       drawn++
+      marks.push(whose)
     },
   })
   const place = fleet.place()
@@ -91,12 +93,12 @@ function side(name: string, remotes: Record<string, unknown> = {}, harness = 'to
     reload: async () => {},
     say: (text) => place.say(text),
     warn: (text) => said.push(`warn: ${text}`),
-    took: () => place.took(),
+    took: (settled) => place.took(settled),
     now: () => place.now(),
     clock: (at) => place.clock(at),
   })
   place.use(one)
-  return { name, home, record, fleet, one, said, drawn: () => drawn }
+  return { name, home, record, fleet, one, said, marks, drawn: () => drawn }
 }
 
 const REMOTE = {
@@ -289,3 +291,27 @@ async function waitFor(check: () => boolean): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
 }
+
+describe('whose the entries taken in are, as the window marks them', () => {
+  it('names each by when it was written, in a host name’s letters, and leaves out what nobody could say', () => {
+    const whose = saidOnIn([
+      { from: 'vps', took: 0 },
+      {
+        from: 'vps',
+        took: 3,
+        merged: null,
+        said: [
+          { at: '2026-11-23T10:00:00.000Z', on: 'box.local' },
+          { at: '2026-11-23T10:05:00.000Z', on: 'vps <b>' },
+          { at: 'not a time', on: 'vps' },
+        ],
+      },
+    ])
+    expect(whose).toEqual(
+      new Map([
+        [Date.parse('2026-11-23T10:00:00.000Z'), 'box'],
+        [Date.parse('2026-11-23T10:05:00.000Z'), 'vps-b-'],
+      ]),
+    )
+  })
+})

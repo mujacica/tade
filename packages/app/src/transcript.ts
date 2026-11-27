@@ -274,11 +274,20 @@ export function withEarlier(
  * taken into this one's record between turns — put below it, drawn as
  * `withEarlier` draws a page. Only what is newer than the newest line shown,
  * so a page read twice adds nothing.
+ *
+ * **Marked with the machine that said it**, as a turn folded as it ran there
+ * is (`withThere`), where `saidOn` names one for when it was written — Tade's
+ * news that went with it included — because this is the only way some of it
+ * arrives: what was said there while the machines could not reach each other,
+ * past what that machine's projection carries, and a turn Tade composed there,
+ * whose news no projection folds. What nobody could say whose it was is drawn
+ * unmarked, never guessed.
  */
 export function withLater(
   transcript: Transcript,
   items: readonly HistoryItem[],
   theirs: (text: string) => boolean,
+  saidOn: ReadonlyMap<number, string> = new Map(),
 ): Transcript {
   const last = transcript.entries.reduce((most, entry) => Math.max(most, entry.at), 0)
   const newer = items.filter((item) => item.at > last)
@@ -298,10 +307,27 @@ export function withLater(
       used.add(twin)
       return true
     })
-    if (!matched) made.push(...drawn)
+    if (matched) continue
+    const machine = saidOn.get(item.at)
+    made.push(
+      ...(machine === undefined ? drawn : drawn.map((entry, n) => marked(entry, machine, n))),
+    )
   }
   if (made.length === 0) return transcript
   return { ...transcript, entries: [...transcript.entries, ...made] }
+}
+
+/**
+ * A line read back out of the record, marked as said on `machine`: its line
+ * there is a tool's call id, or when it was written and what it is, and a tool
+ * is asked for by its call's id there, as one folded as it ran is.
+ */
+function marked(entry: Entry, machine: string, n: number): Entry {
+  const there: There =
+    entry.kind === 'tool'
+      ? { machine, line: `record:${entry.id}`, call: entry.id }
+      : { machine, line: `record:${entry.at}:${entry.kind}:${n}` }
+  return { ...entry, there }
 }
 
 /**

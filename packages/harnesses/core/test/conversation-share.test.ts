@@ -276,7 +276,10 @@ describe('each machine’s half of one conversation', () => {
     const vps = machine('vps')
     turn(mac, 'heron', '2026-11-23T10:00:00.000Z')
     await mac.shared.exchange(via(vps))
-    expect(await vps.shared.settle(true)).toEqual([{ from: 'mac', took: 2, merged: null }])
+    // What the Mac gave is what it said itself, and the vps says so.
+    expect(await vps.shared.settle(true)).toEqual([
+      { from: 'mac', took: 2, merged: null, said: [{ at: '2026-11-23T10:00:00.000Z', on: 'mac' }] },
+    ])
     vps.leaf = mac.leaf
     // Apart: each carries on.
     turn(mac, 'wren', '2026-11-23T11:00:00.000Z')
@@ -306,7 +309,10 @@ describe('each machine’s half of one conversation', () => {
     appendFileSync(vps.record, `${JSON.stringify({ kind: 'telepathy', id: 'z' })}\n`)
     await mac.shared.exchange(via(vps))
     // The Mac takes what it knows of the vps's: the strange line never travelled.
-    expect(await mac.shared.settle(true)).toEqual([{ from: 'vps', took: 2, merged: null }])
+    // Written before the vps first looked, so it cannot say whose they are.
+    expect(await mac.shared.settle(true)).toEqual([
+      { from: 'vps', took: 2, merged: null, said: [] },
+    ])
     // The vps's own record holds it, and it says so rather than taking anything in.
     turn(mac, 'wren', '2026-11-23T11:00:00.000Z')
     await mac.shared.exchange(via(vps))
@@ -1139,6 +1145,91 @@ describe('what goes wrong around a turn, said rather than lost', () => {
   })
 })
 
+describe('which machine said each entry, across the hub', () => {
+  // The record never says, and a screen marks another machine's line with its
+  // name (`@tade/app`'s `withLater`): so the exchange says it, keyed by when
+  // each entry was written, and what nobody can say whose it is stays nobody's.
+
+  it('passes on its own since it started, what another machine gave it, and nothing older', async () => {
+    const vps = machine('vps')
+    const mac = machine('mac')
+    const box = machine('box')
+    turn(vps, 'old', '2026-11-23T09:00:00.000Z')
+    // The hub's first look: whose what it held then is, it cannot say.
+    await box.shared.exchange(via(vps))
+    expect(await box.shared.settle(false)).toEqual([
+      { from: 'vps', took: 2, merged: null, said: [] },
+    ])
+    box.leaf = vps.leaf
+    turn(vps, 'heron', '2026-11-23T10:00:00.000Z')
+    await box.shared.exchange(via(vps))
+    expect(await box.shared.settle(false)).toEqual([
+      { from: 'vps', took: 2, merged: null, said: [{ at: '2026-11-23T10:00:00.000Z', on: 'vps' }] },
+    ])
+    box.leaf = vps.leaf
+    turn(box, 'kestrel', '2026-11-23T11:00:00.000Z')
+    await box.shared.exchange(via(vps))
+    // The hub: what the box gave it is the box's.
+    expect(await vps.shared.settle(false)).toEqual([
+      { from: 'box', took: 2, merged: null, said: [{ at: '2026-11-23T11:00:00.000Z', on: 'box' }] },
+    ])
+    // A machine that only ever dials the hub learns both, and nothing of the old.
+    await mac.shared.exchange(via(vps))
+    expect(await mac.shared.settle(false)).toEqual([
+      {
+        from: 'vps',
+        took: 6,
+        merged: null,
+        said: [
+          { at: '2026-11-23T10:00:00.000Z', on: 'vps' },
+          { at: '2026-11-23T11:00:00.000Z', on: 'box' },
+        ],
+      },
+    ])
+  })
+
+  it('says nobody where the hub is an older Tade that never says', async () => {
+    const vps = machine('vps')
+    const mac = machine('mac')
+    const older = async (ask: ConversationAsk) => {
+      const { said: _said, ...answer } = await via(vps)(ask)
+      return answer
+    }
+    await mac.shared.exchange(older)
+    turn(vps, 'heron', '2026-11-23T10:00:00.000Z')
+    await mac.shared.exchange(older)
+    expect(await mac.shared.settle(false)).toEqual([
+      { from: 'vps', took: 2, merged: null, said: [] },
+    ])
+  })
+
+  it('says a merge’s copy is whoever’s the original was, whichever machine merged it', async () => {
+    const vps = machine('vps')
+    const mac = machine('mac')
+    const box = machine('box')
+    turn(vps, 'base', '2026-11-23T09:00:00.000Z')
+    await box.shared.exchange(via(vps))
+    await box.shared.settle(false)
+    box.leaf = vps.leaf
+    // Apart: each carries on, and the box merges once it reaches the hub.
+    turn(box, 'kestrel', '2026-11-23T10:00:00.000Z')
+    turn(vps, 'heron', '2026-11-23T11:00:00.000Z')
+    await box.shared.exchange(via(vps))
+    expect((await box.shared.settle(true))[0]).toMatchObject({
+      merged: { other: expect.any(String) },
+    })
+    await box.shared.exchange(via(vps))
+    await vps.shared.settle(true)
+    await mac.shared.exchange(via(vps))
+    const [settled] = await mac.shared.settle(false)
+    const said = settled && 'said' in settled ? settled.said : []
+    expect(said).toContainEqual({ at: '2026-11-23T10:00:00.000Z', on: 'box' })
+    expect(said).toContainEqual({ at: '2026-11-23T11:00:00.000Z', on: 'vps' })
+    expect(said).not.toContainEqual({ at: '2026-11-23T11:00:00.000Z', on: 'box' })
+    expect(said).not.toContainEqual({ at: '2026-11-23T10:00:00.000Z', on: 'vps' })
+  })
+})
+
 describe('a home that restarts, and lines given out of step', () => {
   it('takes up the copies it keeps, by the names they were kept under', async () => {
     const mac = machine('mac')
@@ -1161,7 +1252,8 @@ describe('a home that restarts, and lines given out of step', () => {
     // Its own id, and a folder a remote's name keeps, are not copies to take up.
     mkdirSync(join(vps.home, 'machines', 'vps-by-name'), { recursive: true })
     await again.known([...(await conversationCopies(vps.home)), { id: vps.id, name: 'vps' }])
-    expect(await again.settle(false)).toEqual([{ from: 'mac', took: 2, merged: null }])
+    // Who gave what before it started again is not written down, so it says nobody.
+    expect(await again.settle(false)).toEqual([{ from: 'mac', took: 2, merged: null, said: [] }])
     expect(await conversationCopies(tmp('tade-conv-empty-'))).toEqual([])
   })
 

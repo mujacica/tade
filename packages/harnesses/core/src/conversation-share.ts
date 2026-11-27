@@ -79,6 +79,16 @@ import { ifMissing } from './sessions.ts'
 // Settling puts what came beside this machine's own record, where the entries
 // taken in name it.
 //
+// **Which machine said each entry** goes with it (`ConversationReply.said`),
+// keyed by when it was written there, because the record never says and every
+// screen marks another machine's line with its name (`@tade/app`'s
+// `withLater`). An asker gives only what it said itself — what it took from
+// the far side is there already — and the far side answers with who said each
+// line it gives, as far as it knows: the entries it took in since it last
+// started, and its own after that. Anything else is `null`, drawn unmarked,
+// never guessed. A merge's copy keeps when the original was written, so it is
+// said to be whoever's the original was.
+//
 // **The turn lease** (`TurnLease`) is the hub's: one turn at a time across
 // the fleet while machines can reach it. It runs out by itself (`LEASE_MS`)
 // unless renewed, so a machine that went away mid-turn holds nobody up long.
@@ -116,6 +126,15 @@ export interface BesideSaid {
   gone: string[]
 }
 
+/**
+ * Which machine an entry was said on, by when it was written
+ * (`ConversationLine.at`): `on` null where whoever says cannot tell.
+ */
+export interface SaidOn {
+  at: string
+  on: string | null
+}
+
 /** The far side's answer to one request of the exchange. */
 export interface ConversationAnswer {
   machine: MachineNamed
@@ -128,6 +147,8 @@ export interface ConversationAnswer {
   piece?: { text: string; from: number; done: boolean }
   /** It has more after these. */
   more: boolean
+  /** Who said each of `lines`, and the line `piece` is of. Absent from an older Tade. */
+  said?: SaidOn[]
   /** How many entries it holds in all. */
   entries: number
   lease?: LeaseAnswer
@@ -147,7 +168,13 @@ export class TurnLease extends Lease {}
 /** What settling one copy into this record came to. */
 export type Settled =
   | { from: string; took: 0; refused?: string }
-  | { from: string; took: number; merged: null | { trunk: string; other: string } }
+  | {
+      from: string
+      took: number
+      merged: null | { trunk: string; other: string }
+      /** The entries taken in that another machine said, where it is known which, once each. */
+      said: { at: string; on: string }[]
+    }
 
 export interface SharedConversationOptions {
   home: string
@@ -180,6 +207,8 @@ interface Copy {
   have: Set<string>
   /** The ones its machine said it has nowhere: not asked for again. */
   gone: Set<string>
+  /** Who said its entries not settled here yet, by when they were written, as far as it is known. */
+  said: Map<string, string | null>
 }
 
 /**
@@ -251,6 +280,13 @@ export class SharedConversation {
    * from nothing (TADE-G), as two giving the same lines appended them twice.
    */
   private tail: Promise<unknown> = Promise.resolve()
+  /** Who said each entry this record took in since this machine started, by when it was written. */
+  private readonly saidOn = new Map<string, string | null>()
+  /**
+   * How many entries the record held when this machine first looked at it:
+   * whose those were it cannot tell, and every later one not taken in is its own.
+   */
+  private knownFrom: number | null = null
 
   constructor(opts: SharedConversationOptions) {
     this.opts = opts
@@ -287,6 +323,7 @@ export class SharedConversation {
         dir: conversationFilesPath(this.opts.home, machine.id),
         have: new Set(),
         gone: new Set(),
+        said: new Map(),
       }
       this.copies.set(machine.id, copy)
     }
@@ -298,6 +335,9 @@ export class SharedConversation {
 
   /** The machines whose copies a home already keeps, taken up: what a hub settles after it restarts. */
   async known(machines: readonly MachineNamed[]): Promise<void> {
+    // Whose what the record holds now is, nothing here can say: every later entry it can.
+    await this.own.look()
+    this.knownFrom ??= this.own.entries
     for (const machine of machines) if (machine.id !== this.me.id) await this.copyOf(machine)
   }
 
@@ -310,7 +350,8 @@ export class SharedConversation {
 
   private async answerNow(ask: ConversationAsk): Promise<ConversationAnswer> {
     await this.own.look()
-    const nothing = { after: 0, lines: [], more: false, entries: this.own.entries }
+    this.knownFrom ??= this.own.entries
+    const nothing = { after: 0, lines: [], more: false, said: [], entries: this.own.entries }
     if (ask.harness !== this.harness) {
       return {
         machine: this.me,
@@ -322,8 +363,16 @@ export class SharedConversation {
     }
     if (ask.from.id === this.me.id) throw new Error('a machine asked itself for its conversation')
     const copy = await this.copyOf(ask.from)
-    const refused = ask.give ? await this.taken(copy, ask.give) : undefined
-    const out = ask.want ? await this.give(this.own, ask.want, ANSWER_BYTES) : nothing
+    // What an asker gives is what it said itself: what it took from here is here already.
+    const refused = ask.give ? await this.taken(copy, ask.give, copy.name) : undefined
+    let out: Omit<ConversationAnswer, 'machine' | 'harness' | 'held'> = nothing
+    if (ask.want) {
+      const { at, ...given } = await this.give(this.own, ask.want, ANSWER_BYTES)
+      const said = at.flatMap((one, n) =>
+        one === '' ? [] : [{ at: one, on: this.whoseAt(one, given.after + n) }],
+      )
+      out = { ...given, said, entries: this.own.entries }
+    }
     if (ask.files?.give) await this.takeFile(copy, ask.files.give)
     for (const name of ask.files?.gone ?? []) copy.gone.add(name)
     const files = await this.filesFor(
@@ -350,6 +399,7 @@ export class SharedConversation {
   private async taken(
     copy: Copy,
     give: NonNullable<ConversationAsk['give']>,
+    saidBy?: string,
   ): Promise<string | undefined> {
     const record = copy.record
     const follows = give.after === record.entries && give.h === record.chainAt(record.entries)
@@ -375,12 +425,14 @@ export class SharedConversation {
         copy.piece = ''
       }
     }
+    const written: string[] = []
     for (const line of lines) {
       const read = this.opts.format.read(line)
       if (read.kind !== 'entry') {
         const what = read.kind === 'unknown' ? read.why : 'the harness’s own bookkeeping'
         return `a line from ${copy.name} is not an entry of the conversation Tade knows (${what}), so its copy here stays as it was`
       }
+      written.push(read.at)
     }
     const bytes = lines.reduce((sum, line) => sum + Buffer.byteLength(line) + 1, 0)
     if (bytes > 0 && !(await this.room.fits(bytes, Date.now()))) {
@@ -389,7 +441,23 @@ export class SharedConversation {
     await appendLines(record.path, lines)
     this.room.spent(bytes)
     await record.look()
+    if (saidBy !== undefined) {
+      for (const at of written) if (at !== '' && !copy.said.has(at)) copy.said.set(at, saidBy)
+    }
     return undefined
+  }
+
+  /**
+   * Who said the entry of this record at `place`, written at `at`: whoever it
+   * was taken in from, since this machine started; this machine, for one
+   * written here since — a merge's copy as its original, found by `at`; null
+   * for anything older, which it cannot tell.
+   */
+  private whoseAt(at: string, place: number): string | null {
+    const said = this.saidOn.get(at)
+    if (said !== undefined) return said
+    const first = this.own.placeOf(at) ?? place
+    return this.knownFrom !== null && first >= this.knownFrom ? this.me.name : null
   }
 
   /** A record's lines after `want`, as many as fit — from the start where `want` does not agree with it. */
@@ -402,6 +470,8 @@ export class SharedConversation {
     lines: string[]
     piece?: { text: string; from: number; done: boolean }
     more: boolean
+    /** When each of `lines` was written, or the line `piece` is of: `''` where it does not say. */
+    at: string[]
   }> {
     const agrees = want.after <= record.entries && record.chainAt(want.after) === want.h
     const after = agrees ? want.after : 0
@@ -423,9 +493,21 @@ export class SharedConversation {
         lines: [],
         piece: { text, from, done: from + text.length >= line.length },
         more: true,
+        at: [this.writtenAt(line)],
       }
     }
-    return { after, lines: fits, more: next < record.entries }
+    return {
+      after,
+      lines: fits,
+      more: next < record.entries,
+      at: fits.map((line) => this.writtenAt(line)),
+    }
+  }
+
+  /** When a canonical line says it was written: `''` where it does not. */
+  private writtenAt(line: string): string {
+    const read = this.opts.format.read(line)
+    return read.kind === 'entry' ? read.at : ''
   }
 
   // ── The near half ─────────────────────────────────────────────────────────
@@ -503,6 +585,8 @@ export class SharedConversation {
       this.hold.set(there, { ...answer.held, piece: answer.held.piece ?? 0 })
       const said = this.saidOf(answer, copy.name)
       this.lacking.set(there, said.lacks)
+      // Who said what it gives, as it says: an older Tade says nothing, and those stay unknown.
+      for (const one of answer.said ?? []) if (one.at !== '') copy.said.set(one.at, one.on)
       const { refused, grew } = await this.serially(async () => {
         if (said.piece) await this.takeFile(copy, said.piece)
         for (const name of said.gone) copy.gone.add(name)
@@ -573,6 +657,7 @@ export class SharedConversation {
   private async giving(machine: string): Promise<NonNullable<ConversationAsk['give']>> {
     const hold = this.hold.get(machine) ?? { after: 0, h: CONVERSATION_CHAIN_START, piece: 0 }
     const out = await this.give(this.own, hold, GIVE_BYTES)
+    // Who said it is not given: the far side takes what an asker gives as its own.
     return {
       after: out.after,
       h: this.own.chainAt(out.after) ?? CONVERSATION_CHAIN_START,
@@ -794,9 +879,14 @@ export class SharedConversation {
     const out: Settled[] = []
     for (const copy of this.copies.values()) {
       await this.own.look()
+      this.knownFrom ??= this.own.entries
       await copy.record.look()
       out.push(await this.settleOne(copy, merging))
       await this.place(copy)
+      // Who said what this record now holds is its own to say (`whoseAt`).
+      await this.own.look()
+      for (const at of copy.said.keys())
+        if (this.own.placeOf(at) !== undefined) copy.said.delete(at)
     }
     return out
   }
@@ -819,8 +909,9 @@ export class SharedConversation {
     for (const id of own) if (!theirs.has(id)) onlyOwn++
     if (onlyOwn === 0) {
       const lines = await copy.record.only((id) => !own.has(id))
+      const said = this.saidIn(copy, lines)
       await this.opts.take(lines, lastOnPath(this.opts.format, lines))
-      return { from: copy.name, took: lines.length, merged: null }
+      return { from: copy.name, took: lines.length, merged: null, said }
     }
     if (!merging) return { from: copy.name, took: 0 }
     const local = await this.own.all()
@@ -831,12 +922,33 @@ export class SharedConversation {
     )
     if (!merged.ok) return { from: copy.name, took: 0, refused: merged.why }
     const appendix = appendixFor(this.opts.format, local, merged.lines)
+    const said = this.saidIn(copy, appendix)
     await this.opts.take(appendix, merged.fork?.leaf ?? lastOnPath(this.opts.format, appendix))
     return {
       from: copy.name,
       took: appendix.length,
       merged: merged.fork ? { trunk: merged.fork.trunk, other: merged.fork.other } : null,
+      said,
     }
+  }
+
+  /**
+   * Who said each of the lines about to be taken in from `copy`, written down
+   * (`saidOn`) as its machine said it, and the ones another machine said, once
+   * each. A line written when one this record holds was is a merge's copy of
+   * it, and is whoever's that one is (`whoseAt`); the marker a merge here
+   * writes is nobody's.
+   */
+  private saidIn(copy: Copy, lines: readonly string[]): { at: string; on: string }[] {
+    const out = new Map<string, string>()
+    for (const line of lines) {
+      const at = this.writtenAt(line)
+      if (at === '' || this.own.placeOf(at) !== undefined) continue
+      if (!this.saidOn.has(at)) this.saidOn.set(at, copy.said.get(at) ?? null)
+      const on = this.saidOn.get(at)
+      if (on && on !== this.me.name) out.set(at, on)
+    }
+    return [...out].map(([at, on]) => ({ at, on }))
   }
 }
 

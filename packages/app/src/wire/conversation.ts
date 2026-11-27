@@ -5,6 +5,7 @@ import {
   HubStarting,
   type MachineNamed,
   type OneConversation,
+  type Settled,
 } from '@tade/harnesses-core'
 import { type Answer, LinkError, type Remote, type RemoteLink } from '@tade/remotes-core'
 import { type OrchestratorStanding, STARTING, type WebConversation } from '@tade/web'
@@ -49,8 +50,8 @@ export interface ConversationPlace {
   say(text: string): void
   /** Written down where Tade's own trouble goes. */
   warn(text: string): void
-  /** Entries another machine wrote were taken in: drawn below the conversation. */
-  took(): void
+  /** Entries another machine wrote were taken in: drawn below the conversation, marked with whose they are. */
+  took(settled: readonly Settled[]): void
   clock(at: number): string
   now(): number
   /**
@@ -64,8 +65,31 @@ export interface ConversationPlace {
 export interface FleetConversationDeps {
   /** Said in the strip. */
   say(said: string): void
-  /** Drawn below the conversation: what another machine said, read back out of the record. */
-  later(): void
+  /**
+   * Drawn below the conversation: what another machine said, read back out of
+   * the record — `said` naming the machine each entry was said on, by when it
+   * was written (`saidOnIn`).
+   */
+  later(said: ReadonlyMap<number, string>): void
+}
+
+/**
+ * Which machine said each entry just taken in, by when it was written, as the
+ * record's history reads that (`HistoryItem.at`): what marks another machine's
+ * line with its name where it arrives only by the record (`withLater`). Only a
+ * host name's letters of what that machine calls itself; an entry nobody could
+ * say whose it was is not in it, and is drawn unmarked rather than guessed.
+ */
+export function saidOnIn(settled: readonly Settled[]): Map<number, string> {
+  const out = new Map<number, string>()
+  for (const one of settled) {
+    if (!('said' in one)) continue
+    for (const { at, on } of one.said) {
+      const when = Date.parse(at)
+      if (!Number.isNaN(when)) out.set(when, machineLabel(on))
+    }
+  }
+  return out
 }
 
 export class FleetConversation {
@@ -117,7 +141,7 @@ export class FleetConversation {
           .append({ type: 'warning', task: null, detail: { message: `the conversation: ${text}` } })
           .catch((err: unknown) => this.wire.note(err))
       },
-      took: () => this.deps.later(),
+      took: (settled) => this.deps.later(saidOnIn(settled)),
       clock: (at) => clockOf(at),
       now: () => this.wire.now(),
       use: (one) => {

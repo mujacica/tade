@@ -96,6 +96,15 @@ export const ConversationReply = z.object({
   lines: z.array(z.string().max(SHARE_LINE)).max(SHARE_ANSWER),
   piece: z.object({ text: z.string().max(SHARE_LINE), from: Count, done: z.boolean() }).optional(),
   more: z.boolean(),
+  /**
+   * The machine each entry in `lines` (and the line `piece` is of) was said
+   * on, by when it was written there (`ConversationLine.at`): `on` null where
+   * the far side cannot tell. Absent from an older Tade, which never says.
+   */
+  said: z
+    .array(z.object({ at: z.string().max(64), on: z.string().min(1).max(120).nullable() }))
+    .max(SHARE_ANSWER)
+    .optional(),
   entries: Count,
   lease: z
     .object({

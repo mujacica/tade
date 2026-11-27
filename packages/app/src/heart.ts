@@ -638,7 +638,7 @@ export class Heart {
         this.put(notice(this.current, said, this.now()))
         this.draw()
       },
-      later: () => void this.earlier.later(),
+      later: (said) => void this.earlier.later(said),
     })
     this.fleetTalk = new FleetTalk(this.wire, { sources: () => this.talkThere() })
     this.acts = new MachineActs(this.wire, {

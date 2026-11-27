@@ -34,6 +34,11 @@ export class Earlier implements Subject {
   private theirs: Set<string> | null = null
   /** The look back in flight, which everybody asking meanwhile is answered by. */
   private reading: Promise<boolean> | null = null
+  /**
+   * Which machine said each entry taken in that is not drawn yet, by when it
+   * was written: kept across looks, so two that overlap mark what either was told.
+   */
+  private readonly saidOn = new Map<number, string>()
 
   constructor(wire: Wiring) {
     this.wire = wire
@@ -72,18 +77,23 @@ export class Earlier implements Subject {
   /**
    * What was said after what is shown: another machine's turn, taken into
    * this one's record between turns (`one-conversation.ts`), drawn below the
-   * conversation as it is written there. False is a record that could not be
-   * read, said where it happened.
+   * conversation as it is written there, each line marked with the machine
+   * `said` names for it. False is a record that could not be read, said where
+   * it happened.
    */
-  async later(): Promise<boolean> {
+  async later(said: ReadonlyMap<number, string> = new Map()): Promise<boolean> {
+    for (const [at, on] of said) this.saidOn.set(at, on)
     const history = this.wire.opts.history
     if (!history) return true
     try {
       const theirs = await this.said()
       const page = await history({ limit: EARLIER_PAGE })
       const now = this.wire.state.transcript
-      const next = withLater(now, page.items, (text) => theirs.has(text))
+      const next = withLater(now, page.items, (text) => theirs.has(text), this.saidOn)
       if (next !== now) this.put(next)
+      // What is drawn now is marked or never will be: nothing older is drawn below it.
+      const newest = next.entries.reduce((most, entry) => Math.max(most, entry.at), 0)
+      for (const at of this.saidOn.keys()) if (at <= newest) this.saidOn.delete(at)
       return true
     } catch (err) {
       notify(this.wire, `could not read what another machine said: ${why(err)}`)

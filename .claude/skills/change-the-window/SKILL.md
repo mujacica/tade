@@ -1179,7 +1179,10 @@ drawn from what its away view sends — the projection the link holds.
   as the mark on what was asked, and the hub folds each machine that exchanges with it the same way
   out of the copy it was told (`joinedBy`). Only that machine's own live lines fold — never one it
   folded in (`there`) or read from its record (`read`), which may be this machine's turn coming
-  back — and `withLater` draws its record once, matched by `sameLine`. **What is typed on its tab is
+  back — and `withLater` draws its record once, matched by `sameLine`, marked with the machine the
+  exchange says said each entry (`ConversationReply.said`, by when it was written; `saidOnIn`),
+  since a partition past the projection's budget and Tade's news arrive only that way — unmarked
+  where nobody can say, never guessed. **What is typed on its tab is
   `/api/ask/ask` there and nothing here, however that goes**: `App`'s keyboard `say` asks
   `Remotes.say` first, a refusal or a link that is down is a line on that tab with what was typed,
   and no `said` line is written. Escape there means its turn (`talkBusy`, put in the state by the

@@ -44,6 +44,8 @@ export class ConversationRecord {
   private chain: string[] = [CONVERSATION_CHAIN_START]
   private known = new Set<string>()
   private named = new Map<string, string | null>()
+  /** Where the first entry written at each moment (`ConversationLine.at`) is, by its place. */
+  private written = new Map<string, number>()
   private size = 0
   private tail = ''
   private strange: string | null = null
@@ -74,6 +76,14 @@ export class ConversationRecord {
   /** The chain over its first `n` canonical lines. */
   chainAt(n: number): string | null {
     return this.chain[n] ?? null
+  }
+
+  /**
+   * The place of the first entry it holds written at `at`: a merge's copy of
+   * an entry keeps when the original was written, so it finds the original.
+   */
+  placeOf(at: string): number | undefined {
+    return at === '' ? undefined : this.written.get(at)
   }
 
   /** The first line of a shape its format does not know, in words; null while there is none. */
@@ -135,6 +145,7 @@ export class ConversationRecord {
     // The same entry twice in one record is the harness's business; it is held once.
     if (this.known.has(read.id)) return
     this.known.add(read.id)
+    if (read.at !== '' && !this.written.has(read.at)) this.written.set(read.at, this.held.length)
     this.held.push({ offset, length, id: read.id })
     this.chain.push(conversationChain(this.chain.at(-1) ?? CONVERSATION_CHAIN_START, read.text))
     for (const one of read.beside ?? []) {
@@ -147,6 +158,7 @@ export class ConversationRecord {
     this.chain = [CONVERSATION_CHAIN_START]
     this.known = new Set()
     this.named = new Map()
+    this.written = new Map()
     this.size = 0
     this.tail = ''
     this.strange = null

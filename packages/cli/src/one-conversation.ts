@@ -44,7 +44,7 @@ export async function shareConversation(
     reload: () => started.reload(),
     say: (text) => place.say(text),
     warn: (text) => place.warn(text),
-    took: () => place.took(),
+    took: (settled) => place.took(settled),
     now: () => place.now(),
     clock: (at) => place.clock(at),
   })
