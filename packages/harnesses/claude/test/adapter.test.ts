@@ -441,14 +441,13 @@ describe('ClaudeAdapter', () => {
       tool_input,
       permission_suggestions: [],
     })
-    // Only the task trying the rule gets it, for now (`TRYING` in hook.ts):
-    // said outright, since the environment these run in may be anybody's.
-    const TRYING = { TADE_TASK_ID: 'tade/claude-code-asks-tade-answers' }
-    const OTHER = { TADE_TASK_ID: 'vrolta/money-formatted-and-buttons-iconed' }
-    const ready = async (approvals: 'bypass' | 'policy' = 'bypass', as = TRYING) => {
+    // Every agent gets the rule, whatever its task: said outright, since the
+    // environment these run in may be anybody's.
+    const AGENT = { TADE_TASK_ID: 'vrolta/money-formatted-and-buttons-iconed' }
+    const ready = async (approvals: 'bypass' | 'policy' = 'bypass') => {
       const up = await setUp(approvals)
       const hook = (event: Record<string, unknown>) =>
-        run(HOOK_PATH, JSON.stringify(event), { ...up.env, ...as }).then(({ stdout }) =>
+        run(HOOK_PATH, JSON.stringify(event), { ...up.env, ...AGENT }).then(({ stdout }) =>
           stdout ? JSON.parse(stdout) : null,
         )
       return { ...up, hook }
@@ -510,7 +509,7 @@ describe('ClaudeAdapter', () => {
         TADE_RUN_SOCKET: join(tmp('tcc-'), 'gone.sock'),
         TADE_APPROVALS: 'bypass',
         TADE_CLAUDE_WORKSPACE: cwd,
-        ...TRYING,
+        ...AGENT,
       }
       const ask = async (event: Record<string, unknown>) =>
         JSON.parse((await run(HOOK_PATH, JSON.stringify(event), nobody)).stdout)
@@ -530,7 +529,7 @@ describe('ClaudeAdapter', () => {
       const nobody = {
         TADE_RUN_SOCKET: join(tmp('tcc-'), 'gone.sock'),
         TADE_APPROVALS: 'policy',
-        ...TRYING,
+        ...AGENT,
       }
       const alone = await run(HOOK_PATH, JSON.stringify(prompt('Bash', { command: 'ls' })), nobody)
       expect(alone.stdout).toBe('')
@@ -565,7 +564,7 @@ describe('ClaudeAdapter', () => {
       const nobody = {
         TADE_RUN_SOCKET: join(tmp('tcc-'), 'gone.sock'),
         TADE_APPROVALS: 'bypass',
-        ...TRYING,
+        ...AGENT,
       }
       expect((await run(HOOK_PATH, JSON.stringify(look), nobody)).stdout).toBe('')
     })
@@ -582,21 +581,32 @@ describe('ClaudeAdapter', () => {
       ).toBeNull()
     })
 
-    it('leaves every other agent’s prompt as it was while the rule is tried', async () => {
-      const { hook, signals } = await ready('bypass', OTHER)
-      expect(await hook(prompt('Bash', { command: 'sudo ls' }))).toBeNull()
-      expect(signals.filter((s) => s.type === 'permission_prompt')).toEqual([])
+    it('allows tonight’s three heredocs, from the window and with Tade away', async () => {
+      // Each was refused live, for a path or a regex in text a program reads
+      // or for the agent's own scratchpad; each must run under bypass.
+      const { hook, signals, spec } = await ready()
+      const heredocs = [
+        `python3 /private/tmp/claude-501/-Users-sam-shop/0e1088a5/scratchpad/fix.py <<'EOF'\nsrc/money.ts\nEOF`,
+        `python3 - <<'EOF'\ns = open('src/pay.ts').read().replace("from '../bank/money.ts'", "from '../../bank/money.ts'")\nEOF`,
+        `python3 - <<'EOF'\nimport re\ns = re.sub(r'/\\B', '', open('src/a.ts').read())\nEOF`,
+      ]
       const nobody = {
         TADE_RUN_SOCKET: join(tmp('tcc-'), 'gone.sock'),
         TADE_APPROVALS: 'bypass',
-        ...OTHER,
+        TADE_CLAUDE_WORKSPACE: spec.cwd,
+        ...AGENT,
       }
-      const alone = await run(
-        HOOK_PATH,
-        JSON.stringify(prompt('Bash', { command: 'sudo ls' })),
-        nobody,
-      )
-      expect(alone.stdout).toBe('')
+      for (const command of heredocs) {
+        const asked = await hook(prompt('Bash', { command }))
+        expect(asked?.hookSpecificOutput.decision, command).toEqual({ behavior: 'allow' })
+        const alone = await run(HOOK_PATH, JSON.stringify(prompt('Bash', { command })), nobody)
+        expect(JSON.parse(alone.stdout).hookSpecificOutput.decision, command).toEqual({
+          behavior: 'allow',
+        })
+      }
+      expect(
+        signals.flatMap((s) => (s.type === 'permission_prompt' ? [s.answered?.allowed] : [])),
+      ).toEqual([true, true, true])
     })
   })
 

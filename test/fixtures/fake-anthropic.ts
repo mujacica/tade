@@ -4,12 +4,14 @@ import type { AddressInfo } from 'node:net'
 // A scripted Anthropic Messages server, so tests can drive a REAL Claude Code
 // deterministically with no network and no credentials: point it here with
 // `ANTHROPIC_BASE_URL` and give it any key through `apiKeyHelper`. The main
-// conversation asks for one tool, then answers; anything Claude Code asks on
+// conversation asks for its tools, one at a time, then answers; anything Claude Code asks on
 // the side — a title, a summary — gets a short answer.
 
 export interface FakeAnthropicOptions {
   /** The tool the model asks for on its first reply. Omit for a plain answer. */
   tool?: { name: string; input: Record<string, unknown> }
+  /** Tools it asks for one after another, each once the last one's result is back. */
+  tools?: Array<{ name: string; input: Record<string, unknown> }>
   /** What it says once the tool result comes back. */
   finalText?: string
 }
@@ -26,18 +28,23 @@ interface Message {
   content?: unknown
 }
 
-/** Whether the conversation already had its tool call: after one, the model only answers. */
-function toldAlready(messages: readonly Message[]): boolean {
-  return messages.some(
-    (message) =>
-      Array.isArray(message.content) &&
-      message.content.some((block: { type?: unknown }) => block?.type === 'tool_result'),
+/** How many tool results the conversation has had: the model asks for the next tool, or answers. */
+function resultsIn(messages: readonly Message[]): number {
+  return messages.reduce(
+    (count, message) =>
+      count +
+      (Array.isArray(message.content)
+        ? message.content.filter((block: { type?: unknown }) => block?.type === 'tool_result')
+            .length
+        : 0),
+    0,
   )
 }
 
 export async function startFakeAnthropic(opts: FakeAnthropicOptions = {}): Promise<FakeAnthropic> {
   const requests: Array<Record<string, unknown>> = []
   const finalText = opts.finalText ?? 'All done.'
+  const script = opts.tools ?? (opts.tool ? [opts.tool] : [])
   let n = 0
 
   const server: Server = createServer((req, res) => {
@@ -59,7 +66,7 @@ export async function startFakeAnthropic(opts: FakeAnthropicOptions = {}): Promi
       }
       requests.push(request as Record<string, unknown>)
       const main = Array.isArray(request.tools) && request.tools.length > 0
-      const callTool = main && opts.tool && !toldAlready(request.messages ?? [])
+      const next = main ? script[resultsIn(request.messages ?? [])] : undefined
       res.writeHead(200, { 'content-type': 'text/event-stream' })
       const send = (type: string, data: Record<string, unknown>) =>
         res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`)
@@ -74,19 +81,19 @@ export async function startFakeAnthropic(opts: FakeAnthropicOptions = {}): Promi
           usage: { input_tokens: 12, output_tokens: 1 },
         },
       })
-      if (callTool && opts.tool) {
+      if (next) {
         send('content_block_start', {
           index: 0,
           content_block: {
             type: 'tool_use',
             id: `toolu_fake_${n}`,
-            name: opts.tool.name,
+            name: next.name,
             input: {},
           },
         })
         send('content_block_delta', {
           index: 0,
-          delta: { type: 'input_json_delta', partial_json: JSON.stringify(opts.tool.input) },
+          delta: { type: 'input_json_delta', partial_json: JSON.stringify(next.input) },
         })
         send('content_block_stop', { index: 0 })
         send('message_delta', { delta: { stop_reason: 'tool_use' }, usage: { output_tokens: 7 } })

@@ -82,8 +82,10 @@ export function scratchPlaces(
  * Whether a `PermissionRequest` is a prompt Claude Code is putting to a person,
  * rather than its earlier look that only lets a hook refuse a call it may then
  * run unasked under bypass. 2.1.326 hands the prompt it builds its
- * suggestions (`permission_suggestions`, a list) and that look none. Only the
- * prompt is answered: refusing the look refused work that had always run.
+ * suggestions (`permission_suggestions`, a list) and that look none — both
+ * places it builds one (`hooksMayRefuse`) leave them unset — and a call it
+ * runs unasked sends no PermissionRequest at all (`live-lane.test.ts`). Only
+ * the prompt is answered: refusing the look refused work that had always run.
  */
 export function isPrompt(event: Readonly<Record<string, unknown>>): boolean {
   return (

@@ -253,7 +253,8 @@ everything said to it is typed into its lane. Each of these was found the hard w
 - **No hook runs when a turn is cut short**, and the Stop hook runs *before* the last of the reply is
   in the transcript: say the abort yourself, and count tokens after the status line is drawn.
 - **Bypass mode still asks, so Tade answers.** Claude Code shows its own yes/no for a few things
-  even under `bypassPermissions` (writes into `.git`/`.claude`, commands it rates dangerous). Its
+  even under `bypassPermissions` (in 2.1.326, a command it cannot be sure it read the way the shell
+  will; writes into `.git`/`.claude` it ran unasked — `live-lane.test.ts` holds which). Its
   `PermissionRequest` hook answers by `answerPrompt` (`core/src/policy.ts`, which imports only
   `node:` so the hook can load it by path): the window when it can be asked, the hook itself when
   it cannot (`prompt.ts`). Under `policy` it is left to the person. **Only a prompt for a person is

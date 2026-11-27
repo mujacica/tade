@@ -27,17 +27,11 @@ const GATED = process.env.TADE_APPROVALS === 'policy'
 /** How long a held tool call waits for a person: as long as Claude Code lets the hook run. */
 const HELD_MS = 24 * 60 * 60_000
 
-/**
- * Only the task building it answers its own prompt by rule while the rule is
- * being tried: every other agent's PermissionRequest is left exactly as it was
- * before, unanswered here and never sent to the window.
- */
-const TRYING = process.env.TADE_TASK_ID === 'tade/claude-code-asks-tade-answers'
-
 const event = await readInput()
-// Nor is anything but a prompt for a person answered (`isPrompt`), and the
-// window is not even asked about it: printing nothing is what it always was.
-if (event && event.hook_event_name === 'PermissionRequest' && (!TRYING || !isPrompt(event))) {
+// Nothing but a prompt for a person is answered (`isPrompt`), and the window
+// is not even asked about Claude Code's earlier look: printing nothing is
+// what it always was.
+if (event && event.hook_event_name === 'PermissionRequest' && !isPrompt(event)) {
   process.exit(0)
 }
 if (event && SOCKET) {
