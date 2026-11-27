@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { plain, readOutcome } from '../src/outcome.ts'
-import { keepTail } from '../src/tail.ts'
+import { FAILING_KEPT, keepTail } from '../src/tail.ts'
 
 // Shaped like the related run that left this to be fixed: vitest's failure
 // blocks, colour and code frame and all, ten of them in five files, which was
@@ -144,5 +144,52 @@ describe('the last failure a run named', () => {
       ...Array.from({ length: 400 }, (_, i) => ` ✓ test ${i}`),
     ].join('\n')
     expect(kept(passing, 4_000, 300)).toBe(passing.slice(-4_000))
+  })
+})
+
+describe('every file a run named as failing', () => {
+  // Shaped like the full run at 7a487708: about 165 failing files, of which
+  // the tail named the first few and `[and 159 more]`.
+  const failing = Array.from({ length: 165 }, (_, i) => `packages/p${i}/test/t.test.ts`)
+  const run = [
+    ...failing.map((file, i) => `\x1b[31m❯\x1b[39m ${file} (${i + 2} tests | 1 failed) 30001ms`),
+    ...failing.map(block),
+    ' Test Files  165 failed | 500 passed (665)',
+    '      Tests  165 failed | 9000 passed (9165)',
+  ].join('\n')
+
+  function read(text: string, chunk: number) {
+    const tail = keepTail(4_000)
+    for (let at = 0; at < text.length; at += chunk) tail.add(text.slice(at, at + chunk))
+    return tail.failing()
+  }
+
+  it('is every one of them, in the order named, though the tail holds a few', () => {
+    expect(readOutcome(kept(run, 4_000, 512), { places: 400 }).places.length).toBeLessThan(165)
+    expect(read(run, 512)).toEqual({ files: failing, more: 0 })
+  })
+
+  it('is the same however the output arrived, a last line with no newline included', () => {
+    const one = read(run, run.length)
+    expect(read(run, 7)).toEqual(one)
+    const unended = `${run}\n FAIL  packages/last/test/x.test.ts > stopped`
+    expect(read(unended, 5).files.at(-1)).toBe('packages/last/test/x.test.ts')
+    // Asking does not use the unended line up.
+    const tail = keepTail(4_000)
+    tail.add(' FAIL  a/b.test.ts > one')
+    expect(tail.failing()).toEqual(tail.failing())
+  })
+
+  it('is at most FAILING_KEPT names, and the rest counted', () => {
+    const lots = Array.from({ length: FAILING_KEPT + 25 }, (_, i) => ` FAIL  t/f${i}.test.ts > x`)
+    const said = read(lots.join('\n'), 1_000)
+    expect(said.files).toHaveLength(FAILING_KEPT)
+    expect(said.files[0]).toBe('t/f0.test.ts')
+    expect(said.more).toBe(25)
+  })
+
+  it('is nothing for a run that named none', () => {
+    const passing = Array.from({ length: 500 }, (_, i) => ` ✓ t${i}.test.ts (3 tests) 2ms`)
+    expect(read(passing.join('\n'), 300)).toEqual({ files: [], more: 0 })
   })
 })

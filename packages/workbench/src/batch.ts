@@ -458,7 +458,11 @@ export function narrowingCommand(
   checks: readonly Check[],
 ): { run: string; files: string[] } | { cannot: string } {
   const related = checks.find((check) => check.related)
-  const files = readOutcome(failed.tail, { places: 40 }).places.map((place) => place.path)
+  // What the record says failed, from all the run printed, before what its tail names.
+  const files = [
+    ...(failed.failing?.files ?? []),
+    ...readOutcome(failed.tail, { places: 40 }).places.map((place) => place.path),
+  ]
   const tests = [...new Set(files.filter((path) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(path)))]
   if (related && tests.length > 0) {
     return { run: `${related.run} ${tests.map(shellQuote).join(' ')}`, files: tests }

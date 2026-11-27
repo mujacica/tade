@@ -1,4 +1,5 @@
-import { plain } from './outcome.ts'
+import { failingFileIn, plain } from './outcome.ts'
+import type { Failing } from './port.ts'
 
 // How a run's output is kept: its end, because that is where a command says
 // how it went — and the lines that named a failure, wherever they were.
@@ -27,11 +28,28 @@ const NAMES_SHARE = 4
 /** How long one kept name may be: its file and test, never a page of it. */
 const NAME_CHARS = 200
 
+/**
+ * How many failing files a run's record keeps, whatever the tail holds: a
+ * full run at 7a487708 failed about 165 tests, and the tail named the first
+ * few and `[and 159 more]`. A few hundred names is every file of a red suite
+ * here and still a line of a record, not a log.
+ */
+export const FAILING_KEPT = 300
+
+/** How long a line is read for a failing file before its front is let go. */
+const LINE_CHARS = 4_000
+
 export interface KeptTail {
   /** More of what the command printed. */
   add(chunk: string): void
   /** What is kept: at most the room it was made with. */
   text(): string
+  /**
+   * Every file it named as failing (`failingFileIn`), read from all of what
+   * it printed rather than from the tail, in the order named, at most
+   * `FAILING_KEPT` of them and the rest counted.
+   */
+  failing(): Failing
 }
 
 /**
@@ -44,8 +62,28 @@ export function keepTail(room: number): KeptTail {
   // line and a name is read whole.
   let held = ''
   const names: string[] = []
+  // Read line by line as it arrives, the last line held until it ends.
+  let line = ''
+  const files: string[] = []
+  const seen = new Set<string>()
+  let more = 0
+  const read = (text: string) => {
+    for (const one of plain(text).split('\n')) {
+      const file = failingFileIn(one)
+      if (!file || seen.has(file)) continue
+      seen.add(file)
+      if (files.length < FAILING_KEPT) files.push(file)
+      else more += 1
+    }
+  }
   return {
     add(chunk) {
+      const ended = (line + chunk).lastIndexOf('\n')
+      if (ended === -1) line = (line + chunk).slice(-LINE_CHARS)
+      else {
+        read((line + chunk).slice(0, ended))
+        line = (line + chunk).slice(ended + 1).slice(-LINE_CHARS)
+      }
       held += chunk
       if (held.length <= room * 4) return
       const at = lineAfter(held, held.length - room * 2)
@@ -60,6 +98,19 @@ export function keepTail(room: number): KeptTail {
       const all = [...names, ...namedIn(held.slice(0, at), names)]
       if (all.length === 0) return held.slice(-room)
       return `${said(all, Math.floor(room / NAMES_SHARE) - 1)}\n${held.slice(at)}`
+    },
+    failing() {
+      // The last line, which may never have ended, is read too, and left
+      // where it is: asking twice says the same.
+      const out = [...files]
+      let over = more
+      for (const one of plain(line).split('\n')) {
+        const file = failingFileIn(one)
+        if (!file || seen.has(file) || out.includes(file)) continue
+        if (out.length < FAILING_KEPT) out.push(file)
+        else over += 1
+      }
+      return { files: out, more: over }
     },
   }
 }

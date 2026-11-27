@@ -33,6 +33,44 @@ describe('what a run printed, read back', () => {
     expect(outcome.read).toBe(true)
   })
 
+  it('names the files of a vitest run that stopped before its summary, from its listing', () => {
+    // Timed out: what it printed is the listing as each file finished, and
+    // nothing under it. Each failing file is still a place, so narrowing a red
+    // batch has something to run again.
+    const tail = [
+      ' \x1b[32m✓\x1b[39m packages/core/test/state.test.ts \x1b[2m(40 tests)\x1b[22m 30ms',
+      ' \x1b[31m❯\x1b[39m packages/app/test/frame.test.ts \x1b[2m(12 tests | \x1b[22m\x1b[31m3 failed\x1b[39m\x1b[2m)\x1b[22m 4567ms',
+      '   \x1b[31m×\x1b[39m draws the strip 30ms',
+      ' ❯ packages/workbench/test/lanes.test.ts (8 tests | 1 failed | 2 skipped) 900ms',
+      ' ❯ packages/app/test/wire/queue.test.ts 3/20',
+    ].join('\n')
+    const outcome = readOutcome(tail)
+    expect(outcome.counts).toEqual([])
+    expect(outcome.places).toEqual([
+      { path: 'packages/app/test/frame.test.ts', at: null, note: '12 tests | 3 failed' },
+      {
+        path: 'packages/workbench/test/lanes.test.ts',
+        at: null,
+        note: '8 tests | 1 failed | 2 skipped',
+      },
+    ])
+    expect(outcome.read).toBe(true)
+  })
+
+  it('names a listed file once when a FAIL line names it too', () => {
+    const tail = [
+      ' ❯ packages/app/test/frame.test.ts (12 tests | 1 failed) 4567ms',
+      ' ❯ packages/app/test/view.test.ts (3 tests | 1 failed) 10ms',
+      ' FAIL  packages/app/test/frame.test.ts > the strip > draws',
+      ' Test Files  2 failed | 1 passed (3)',
+      '      Tests  2 failed | 13 passed (15)',
+    ].join('\n')
+    expect(readOutcome(tail).places).toEqual([
+      { path: 'packages/app/test/frame.test.ts', at: null, note: 'the strip > draws' },
+      { path: 'packages/app/test/view.test.ts', at: null, note: '3 tests | 1 failed' },
+    ])
+  })
+
   it('reads a green vitest run without inventing a failure', () => {
     const tail = [
       '\x1b[2m Test Files \x1b[22m \x1b[1m\x1b[32m152 passed\x1b[39m\x1b[22m\x1b[2m | \x1b[22m\x1b[33m1 skipped\x1b[39m\x1b[90m (153)\x1b[39m',

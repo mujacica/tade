@@ -4,6 +4,7 @@ import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import type { Check, CheckLog } from '../src/port.ts'
 import { readRuns, recordsPath, relatedAt, rollup, writeRun } from '../src/records.ts'
 import { pendingWords } from '../src/say.ts'
+import { FAILING_KEPT } from '../src/tail.ts'
 
 const run = (over: Partial<CheckLog> = {}): CheckLog => ({
   id: `a1b2c3d:${over.check ?? 'tests'}:here:1`,
@@ -57,6 +58,25 @@ describe('the run record', () => {
     )
     const text = readFileSync(recordsPath(worktree), 'utf8')
     expect(text).not.toContain('ghp_0123456789abcdefghij')
+  })
+
+  it('keeps every file a red run named, bounded, and reads them back whole', async () => {
+    const worktree = tmp('tade-runs-')
+    const files = Array.from({ length: FAILING_KEPT + 4 }, (_, i) => `packages/p${i}/a.test.ts`)
+    await writeRun(
+      worktree,
+      run({ state: 'failed', failing: { files: ['/Users/nobody/x.test.ts', ...files], more: 2 } }),
+      { home: '/Users/nobody' },
+    )
+    await writeRun(worktree, run({ id: 'green' }))
+    const [red, green] = await readRuns(worktree)
+    expect(red?.failing?.files).toHaveLength(FAILING_KEPT)
+    expect(red?.failing?.files[0]).toBe('~/x.test.ts')
+    expect(red?.failing?.files[1]).toBe('packages/p0/a.test.ts')
+    // What did not fit is counted with what the run already could not name.
+    expect(red?.failing?.more).toBe(7)
+    // A run that named none says nothing, which is not "none failed".
+    expect(green && 'failing' in green).toBe(false)
   })
 
   it('keeps the newest runs and forgets the rest', async () => {

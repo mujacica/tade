@@ -355,6 +355,15 @@ export const checksExtension: TadeExtension = {
             '```',
             run.tail.split('\n').slice(-lines).join('\n').trimEnd() || '(it printed nothing)',
             '```',
+            // Every file it named as failing, read from all it printed: the
+            // tail above is its end, and a red suite names more than fit there.
+            ...(run.failing
+              ? [
+                  '',
+                  `Every file it named as failing (${run.failing.files.length}${run.failing.more > 0 ? `, and ${run.failing.more} more not written down` : ''}):`,
+                  ...run.failing.files.map((file) => `- ${file}`),
+                ]
+              : []),
           ].join('\n'),
           said: `${run.check} ${run.state}`,
           data: run,

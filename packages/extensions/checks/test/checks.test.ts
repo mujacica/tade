@@ -183,6 +183,34 @@ describe('running them', () => {
     ).rejects.toThrow(/has never run here/)
   })
 
+  it('names every file a red run said failed, past what its tail holds', async () => {
+    // 120 failing files, each with a block under it: more than the tail.
+    const where = project(
+      ciWorkflow([
+        {
+          id: 'suite',
+          run: [
+            'for i in $(seq 1 120); do',
+            '  echo " FAIL  t/f$i.test.ts > it broke"',
+            '  seq 1 20',
+            'done',
+            'exit 1',
+          ].join('\n'),
+        },
+      ]),
+    )
+    const host = await load(where)
+    await host.call('checks_run', {}, { caller: { kind: 'orchestrator' } })
+    const log = await host.call(
+      'checks_log',
+      { check: 'suite', lines: 5 },
+      { caller: { kind: 'orchestrator' } },
+    )
+    expect(log.text).toContain('Every file it named as failing (120):')
+    expect(log.text).toContain('- t/f1.test.ts\n')
+    expect(log.text).toContain('- t/f120.test.ts')
+  })
+
   it('runs where the agent works, not where the project is', async () => {
     const where = project()
     const other = project()

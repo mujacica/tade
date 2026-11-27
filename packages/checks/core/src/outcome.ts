@@ -162,13 +162,48 @@ function readVitest(lines: readonly string[], counts: CheckCount[], places: Chec
     // Only the failing file count: "152 passed" twice over is noise.
     if (failed) counts.push({ ...failed, label: 'files failed' })
   }
-  if (!summary && !files) return
+  // The listing as each file finishes — `❯ file (12 tests | 3 failed)` — is
+  // read whether or not a summary came: a run stopped before it (timed out,
+  // killed) printed nothing else, and that file is still what failed. A file
+  // a `FAIL` line names already is not named again by its listing.
+  const listed: CheckPlace[] = []
   for (const line of lines) {
-    const fail = /^\s*(?:FAIL|❯)\s+(\S+\.[A-Za-z]\w*)(?::(\d+:\d+))?(?:\s*>\s*(.*))?\s*$/.exec(line)
-    if (fail?.[1]) {
-      places.push({ path: fail[1], at: fail[2] ?? null, note: (fail[3] ?? '').trim() || null })
+    const one = LISTED_FAILING.exec(line)
+    if (one?.[1]) listed.push({ path: one[1], at: null, note: one[2]?.trim() || null })
+  }
+  const failed: CheckPlace[] = []
+  if (summary || files) {
+    for (const line of lines) {
+      const fail = /^\s*(?:FAIL|❯)\s+(\S+\.[A-Za-z]\w*)(?::(\d+:\d+))?(?:\s*>\s*(.*))?\s*$/.exec(
+        line,
+      )
+      if (fail?.[1]) {
+        failed.push({ path: fail[1], at: fail[2] ?? null, note: (fail[3] ?? '').trim() || null })
+      }
     }
   }
+  const named = new Set(failed.map((one) => one.path))
+  places.push(...failed, ...listed.filter((one) => !named.has(one.path)))
+}
+
+/**
+ * Vitest's line as a file finishes with a failure in it: `❯ file (12 tests |
+ * 3 failed) 4567ms`, the path and what is in the brackets. A file still
+ * running (`❯ file 3/12`) and one that passed (`✓`) are not it.
+ */
+const LISTED_FAILING = /^\s*❯\s+(\S+\.[A-Za-z]\w*)\s+\((\d+ tests?\b[^)]*\b\d+ failed[^)]*)\)/
+
+/**
+ * The file a line names as failing, wherever in a run it was printed: the
+ * `FAIL` that heads a failure, as vitest and jest print it, and vitest's
+ * listing of a file that finished with one. Null for every other line. What a
+ * run's record keeps of its whole output (`keepTail`), so no file it named is
+ * lost to the length of the tail.
+ */
+export function failingFileIn(line: string): string | null {
+  const listed = LISTED_FAILING.exec(line)?.[1]
+  if (listed) return listed
+  return /^\s*FAIL\s+(\S+\.[A-Za-z]\w*)(?=\s|$)/.exec(line)?.[1] ?? null
 }
 
 /** `Tests:  3 failed, 40 passed, 43 total` — jest, and everything that copied it. */

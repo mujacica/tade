@@ -6,6 +6,7 @@ import {
   type Check,
   type CheckLog,
   type CheckState,
+  type Failing,
   keepTail,
   OUT_OF_DISK,
   type ProjectRef,
@@ -331,7 +332,13 @@ async function one(
     code: outcome ? null : code,
     summary: slept ? SLEPT : full ? OUT_OF_DISK : state === 'passed' ? null : summaryOf(told),
     tail,
+    ...namedFailing(kept.failing()),
   }
   ctx.onRun(run)
   return run
+}
+
+/** The files a run named as failing, written down only where it named any. */
+function namedFailing(failing: Failing): { failing?: Failing } {
+  return failing.files.length > 0 || failing.more > 0 ? { failing } : {}
 }

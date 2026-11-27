@@ -1,8 +1,9 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { scrub } from '@tade/telemetry'
-import type { Check, CheckLog, CheckRun, Covered, CoveredPath } from './port.ts'
+import type { Check, CheckLog, CheckRun, Covered, CoveredPath, Failing } from './port.ts'
 import { settled } from './port.ts'
+import { FAILING_KEPT } from './tail.ts'
 
 // What ran here, kept because it cannot be recovered any other way.
 //
@@ -67,6 +68,11 @@ export async function writeRun(
   const line = JSON.stringify({
     ...run,
     tail: scrub(run.tail, opts.home ?? '').slice(-DEFAULT_TAIL),
+    // Scrubbed like the tail, and bounded here too whoever made the run.
+    failing: run.failing && {
+      files: run.failing.files.slice(0, FAILING_KEPT).map((file) => scrub(file, opts.home ?? '')),
+      more: run.failing.more + Math.max(0, run.failing.files.length - FAILING_KEPT),
+    },
   })
   const kept = [...(await readRuns(records))].slice(-(keep - 1)).map((one) => JSON.stringify(one))
   await mkdir(dirname(path), { recursive: true })
@@ -207,6 +213,24 @@ function asRun(value: unknown): CheckLog | null {
     // A record written before this existed, or one we cannot read, has no
     // coverage — which says the run is about its own commit and no other.
     covered: asCovered(raw.covered),
+    ...withFailing(asFailing(raw.failing)),
+  }
+}
+
+function withFailing(failing: Failing | null): { failing?: Failing } {
+  return failing ? { failing } : {}
+}
+
+/** What a record says failed, or nothing where it says nothing we can read. */
+function asFailing(value: unknown): Failing | null {
+  if (typeof value !== 'object' || value === null) return null
+  const raw = value as Record<string, unknown>
+  if (!Array.isArray(raw.files)) return null
+  const files = raw.files.filter((one): one is string => typeof one === 'string' && one !== '')
+  const more = typeof raw.more === 'number' && raw.more > 0 ? Math.floor(raw.more) : 0
+  return {
+    files: files.slice(0, FAILING_KEPT),
+    more: more + Math.max(0, files.length - FAILING_KEPT),
   }
 }
 

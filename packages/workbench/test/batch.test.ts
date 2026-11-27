@@ -462,6 +462,25 @@ describe('a red batch, narrowed', () => {
       run: 'pnpm run test:related packages/app/test/wire/queue.test.ts',
       files: ['packages/app/test/wire/queue.test.ts'],
     })
+    // One that stopped before its summary names its files in the listing; and
+    // what its record says failed is run too, though the tail no longer holds it.
+    const stopped = {
+      ...slow,
+      state: 'timed out' as const,
+      tail: ' ❯ packages/app/test/frame.test.ts (12 tests | 3 failed) 4567ms',
+      failing: {
+        files: ['packages/cli/test/attach.test.ts', 'packages/app/test/frame.test.ts'],
+        more: 0,
+      },
+    }
+    expect(narrowingCommand(stopped, checks)).toEqual({
+      run: 'pnpm run test:related packages/cli/test/attach.test.ts packages/app/test/frame.test.ts',
+      files: ['packages/cli/test/attach.test.ts', 'packages/app/test/frame.test.ts'],
+    })
+    expect(narrowingCommand({ ...stopped, failing: undefined }, checks)).toEqual({
+      run: 'pnpm run test:related packages/app/test/frame.test.ts',
+      files: ['packages/app/test/frame.test.ts'],
+    })
   })
 })
 

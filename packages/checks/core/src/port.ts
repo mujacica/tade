@@ -208,6 +208,19 @@ export interface CheckRun {
    * nothing about any commit but its own.
    */
   covered?: Covered | null
+  /**
+   * Every file it named as failing, read from all it printed rather than its
+   * tail (`keepTail`), so a red suite's whole list can be read back. Absent on
+   * a forge's run, on one that named none, and on every run recorded before
+   * this was written down — absent is "not recorded", never "none failed".
+   */
+  failing?: Failing
+}
+
+/** The files a run named as failing: at most `FAILING_KEPT`, and how many more it named. */
+export interface Failing {
+  files: readonly string[]
+  more: number
 }
 
 /** A run with what it printed. Kept as a tail, scrubbed; never the whole log. */
