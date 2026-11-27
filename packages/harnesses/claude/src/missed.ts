@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { readFile, rename, rm } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
@@ -98,4 +98,91 @@ export function missedIn(text: string): Missed | null {
     event: event as Record<string, unknown>,
     ...(typeof began === 'number' ? { began } : {}),
   }
+}
+
+/**
+ * A permission prompt a hook answered by rule while nobody heard it
+ * (`hook.ts`): what the journal would have had from the window, kept to be
+ * said by the one that comes back. Every one, not the last: each is its own
+ * answer, unlike a turn ending.
+ */
+export interface AnsweredAway {
+  at: number
+  /** The tool as Claude Code named it. */
+  tool: string
+  input: unknown
+  answered: { allowed: boolean; rule: string; reason: string }
+}
+
+/** Where a run's prompts answered with Tade away are kept, one JSON line each. */
+export function answeredPath(socket: string): string {
+  return `${socket}.answered`
+}
+
+/**
+ * Keep a prompt this hook answered with nobody to hear it. Never throws, and
+ * says why on standard error where it cannot, like `leave`.
+ */
+export function leaveAnswer(
+  socket: string,
+  prompt: Omit<AnsweredAway, 'at'>,
+  now = Date.now(),
+): void {
+  const path = answeredPath(socket)
+  try {
+    mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
+    appendFileSync(path, `${JSON.stringify({ at: now, ...prompt })}\n`, { mode: 0o600 })
+  } catch (err) {
+    process.stderr.write(
+      `tade: could not keep a permission prompt answered while Tade was away, so it will not be said: ${(err as Error).message}\n`,
+    )
+  }
+}
+
+/**
+ * What was left for this run, taken once, the same way as `takeMissed`: in the
+ * order they were answered, with how many lines were not one counted rather
+ * than passed over. Throws only where it cannot be taken.
+ */
+export async function takeAnswered(
+  socket: string,
+): Promise<{ answered: AnsweredAway[]; unread: number }> {
+  const taking = `${answeredPath(socket)}.taking`
+  try {
+    await rename(answeredPath(socket), taking)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { answered: [], unread: 0 }
+    throw err
+  }
+  const text = await readFile(taking, 'utf8')
+  await rm(taking, { force: true })
+  const answered: AnsweredAway[] = []
+  let unread = 0
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue
+    const one = answeredIn(line)
+    if (one) answered.push(one)
+    else unread++
+  }
+  return { answered, unread }
+}
+
+/** One kept answer, or null on any other shape. */
+export function answeredIn(line: string): AnsweredAway | null {
+  let raw: unknown
+  try {
+    raw = JSON.parse(line)
+  } catch (err) {
+    if (err instanceof SyntaxError) return null
+    throw err
+  }
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null
+  const { at, tool, input, answered } = raw as Record<string, unknown>
+  if (typeof at !== 'number' || typeof tool !== 'string') return null
+  if (typeof answered !== 'object' || answered === null) return null
+  const { allowed, rule, reason } = answered as Record<string, unknown>
+  if (typeof allowed !== 'boolean' || typeof rule !== 'string' || typeof reason !== 'string') {
+    return null
+  }
+  return { at, tool, input, answered: { allowed, rule, reason } }
 }

@@ -2,7 +2,16 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { leave, missedIn, missedPath, takeMissed } from '../src/missed.ts'
+import {
+  answeredIn,
+  answeredPath,
+  leave,
+  leaveAnswer,
+  missedIn,
+  missedPath,
+  takeAnswered,
+  takeMissed,
+} from '../src/missed.ts'
 
 // What a hook leaves when nobody heard it, and what the adapter taking the run
 // back takes. The hook runs it as a process of Claude Code's (`hook.ts`), so
@@ -71,5 +80,53 @@ describe('a turn nobody heard end', () => {
       expect(missedIn(text)).toBeNull()
     }
     expect(missedIn('{"at":1,"event":{},"began":"later"}')).toEqual({ at: 1, event: {} })
+  })
+})
+
+describe('a permission prompt answered with nobody to hear it', () => {
+  const refused = { allowed: false, rule: 'outside', reason: 'it writes outside the workspace' }
+  const allowed = { allowed: true, rule: 'inside', reason: 'it stays in the workspace' }
+
+  it('is kept, every one in the order answered, and taken once', async () => {
+    const at = socket()
+    leaveAnswer(at, { tool: 'Bash', input: { command: 'rm -rf /' }, answered: refused }, 1_000)
+    leaveAnswer(at, { tool: 'Write', input: { file_path: '.git/x' }, answered: allowed }, 2_000)
+    expect(statSync(answeredPath(at)).mode & 0o777).toBe(0o600)
+    expect(await takeAnswered(at)).toEqual({
+      answered: [
+        { at: 1_000, tool: 'Bash', input: { command: 'rm -rf /' }, answered: refused },
+        { at: 2_000, tool: 'Write', input: { file_path: '.git/x' }, answered: allowed },
+      ],
+      unread: 0,
+    })
+    expect(existsSync(answeredPath(at))).toBe(false)
+    expect(await takeAnswered(at)).toEqual({ answered: [], unread: 0 })
+  })
+
+  it('counts a line that is not one, rather than passing over it, and keeps the rest', async () => {
+    const at = socket()
+    leaveAnswer(at, { tool: 'Bash', input: {}, answered: allowed }, 1_000)
+    writeFileSync(answeredPath(at), `${readFileSync(answeredPath(at), 'utf8')}{"at":\n[]\n`)
+    expect(await takeAnswered(at)).toMatchObject({ answered: [{ at: 1_000 }], unread: 2 })
+    for (const line of ['{"at":1,"tool":"Bash"}', '{"at":1,"tool":2,"answered":{}}']) {
+      expect(answeredIn(line)).toBeNull()
+    }
+  })
+
+  it('never throws from a hook, and says why where it cannot be kept', () => {
+    const dir = tmp('tcc-missed-')
+    mkdirSync(join(dir, 'locked'))
+    chmodSync(join(dir, 'locked'), 0o500)
+    const said = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    try {
+      expect(() =>
+        leaveAnswer(join(dir, 'locked', 's.sock'), { tool: 'Bash', input: {}, answered: allowed }),
+      ).not.toThrow()
+      expect(said).toHaveBeenCalledWith(
+        expect.stringContaining('could not keep a permission prompt'),
+      )
+    } finally {
+      said.mockRestore()
+    }
   })
 })

@@ -1,5 +1,5 @@
 import { reach, readInput, SOCKET } from './ask.ts'
-import { leave } from './missed.ts'
+import { leave, leaveAnswer } from './missed.ts'
 import { answerFor, isPrompt, promptOutput, WORKSPACE_ENV } from './prompt.ts'
 
 // Every hook Tade gives a Claude Code agent: it tells Tade what happened and,
@@ -20,7 +20,8 @@ import { answerFor, isPrompt, promptOutput, WORKSPACE_ENV } from './prompt.ts'
 // Claude Code's own permission prompt (`PermissionRequest`) is never left up
 // for a person outside `policy`: Tade answers it by rule (`prompt.ts`), and
 // where Tade cannot be asked — or took it and said nothing — this answers by
-// the same rule itself. Under `policy` it is left to the person as it was,
+// the same rule itself, keeping what it answered for the window that comes
+// back, as a turn is kept. Under `policy` it is left to the person as it was,
 // since nothing may widen what that mode holds.
 
 const GATED = process.env.TADE_APPROVALS === 'policy'
@@ -48,8 +49,17 @@ if (event && SOCKET) {
     const workspace =
       process.env[WORKSPACE_ENV] || process.env.CLAUDE_PROJECT_DIR || cwd || process.cwd()
     const tool = typeof event.tool_name === 'string' ? event.tool_name : ''
-    const answer = await answerFor(tool, event.tool_input ?? {}, workspace, cwd)
-    // The agent's own log is the one place left to say it: the journal is the window's.
+    const input = event.tool_input ?? {}
+    const answer = await answerFor(tool, input, workspace, cwd)
+    // Kept for the window that comes back, which journals it (`missed.ts`);
+    // one that took it and said nothing heard it, and is not told it twice.
+    if (!reached) {
+      leaveAnswer(SOCKET, {
+        tool,
+        input,
+        answered: { allowed: answer.allow, rule: answer.rule, reason: answer.reason },
+      })
+    }
     process.stderr.write(
       `tade: answered a permission prompt by rule with Tade away: ${answer.allow ? 'allowed' : 'refused'} (${answer.rule})\n`,
     )

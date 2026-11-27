@@ -19,7 +19,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { ClaudeAdapter, HOOK_PATH, MCP_PATH, runSocket, writesOf } from '../src/adapter.ts'
 import { BACKGROUNDED } from '../src/background.ts'
-import { missedPath } from '../src/missed.ts'
+import { answeredPath, missedPath } from '../src/missed.ts'
 import { sessionIdFor } from '../src/transcript.ts'
 
 // The adapter without Claude Code: its hooks, status line and tool server are
@@ -731,6 +731,39 @@ describe('ClaudeAdapter', () => {
       expect(kinds()).toEqual(['turn_done', 'turn_started', 'turn_done', 'idle'])
     })
 
+    it('says a permission prompt its hook answered while Tade was away, once it is back, when it was answered, and once', async () => {
+      const was = await setUp()
+      await was.hook({ hook_event_name: 'SessionStart', session_id: 's' })
+      await was.adapter.detach()
+      const before = Date.now()
+      const said = await was.hook({
+        hook_event_name: 'PermissionRequest',
+        tool_name: 'Bash',
+        tool_input: { command: 'sudo rm -rf /opt/shared' },
+        permission_suggestions: [],
+      })
+      const after = Date.now()
+      expect(said?.hookSpecificOutput.decision.behavior).toBe('deny')
+      expect(was.kinds()).not.toContain('permission_prompt')
+
+      const { back, signals, kinds } = await comeBack(was)
+      await until(() => kinds().includes('idle'))
+      expect(kinds()).toEqual(['permission_prompt', 'idle'])
+      expect(signals[0]).toMatchObject({
+        tool: 'Bash',
+        input: { command: 'sudo rm -rf /opt/shared' },
+        summary: expect.stringContaining('sudo rm -rf /opt/shared'),
+        answered: { allowed: false, by: 'rule' },
+      })
+      expect(signals[0]?.at).toBeGreaterThanOrEqual(before)
+      expect(signals[0]?.at).toBeLessThanOrEqual(after)
+      expect(existsSync(answeredPath(runSocket(was.runDir, was.spec.run)))).toBe(false)
+      await back.detach()
+      const again = await comeBack(was)
+      await until(() => again.kinds().length > 0)
+      expect(again.kinds()).toEqual(['idle'])
+    })
+
     it('says it could not read what was left, rather than that no turn ended', async () => {
       const was = await setUp()
       await was.adapter.detach()
@@ -752,6 +785,22 @@ describe('ClaudeAdapter', () => {
       expect(existsSync(kept)).toBe(false)
       await was.hook({ hook_event_name: 'SessionStart', session_id: 's' })
       expect(launched.kinds()).toEqual(['started'])
+    })
+
+    it('says a prompt answered while Tade was away to a launch too, since it was answered', async () => {
+      const was = await setUp()
+      await was.adapter.detach()
+      await was.hook({
+        hook_event_name: 'PermissionRequest',
+        tool_name: 'Bash',
+        tool_input: { command: 'sudo rm -rf /opt/shared' },
+        permission_suggestions: [],
+      })
+      const launched = await comeBack(was, {})
+      await until(() => launched.kinds().length > 0)
+      expect(launched.signals).toEqual([
+        expect.objectContaining({ type: 'permission_prompt', answered: expect.anything() }),
+      ])
     })
 
     it('says a run taken back between turns is idle, so what is said to it is typed rather than held', async () => {

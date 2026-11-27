@@ -73,7 +73,7 @@ import {
 } from './headless.ts'
 import { optionsOf } from './installed.ts'
 import { signedInUntil } from './login.ts'
-import { type Missed, takeMissed } from './missed.ts'
+import { type AnsweredAway, type Missed, takeAnswered, takeMissed } from './missed.ts'
 import { answerFor, effectOfTool, isPrompt, promptOutput, WORKSPACE_ENV } from './prompt.ts'
 import { carryInto, sessionsIn } from './sessions.ts'
 import {
@@ -701,6 +701,19 @@ export class ClaudeAdapter implements WorkerAdapter {
         )
         return null
       })
+      // And the prompts its hooks answered by rule meanwhile, said to a launch
+      // too: each is an answer that was given, whichever process it was for.
+      const away = await takeAnswered(socket).catch((err: unknown) => {
+        this.opts.onWarning(
+          `could not read the permission prompts a Claude Code agent's hooks answered while Tade was away, so they are not said: ${(err as Error).message}`,
+        )
+        return { answered: [], unread: 0 }
+      })
+      if (away.unread > 0) {
+        this.opts.onWarning(
+          `${away.unread} of the permission prompts a Claude Code agent's hooks answered while Tade was away could not be read, so they are not said`,
+        )
+      }
       const transcript = await transcriptFor(spec.task, this.opts.configDir)
       const text = transcript
         ? await readFile(transcript, 'utf8').catch((err: unknown) => {
@@ -741,9 +754,10 @@ export class ClaudeAdapter implements WorkerAdapter {
         counting: null,
       }
       this.runs.set(spec.run, run)
-      if (spec.alreadyRunning) {
-        const under = turnIn(text)
-        taken = () => this.takenBack(run, missed, under)
+      const under = spec.alreadyRunning ? turnIn(text) : null
+      taken = () => {
+        this.answeredAway(run, away.answered)
+        if (spec.alreadyRunning) this.takenBack(run, missed, under)
       }
       return { ...run.handle }
     } finally {
@@ -1536,6 +1550,25 @@ export class ClaudeAdapter implements WorkerAdapter {
     entry.turn = 'idle'
     this.say(entry, { type: 'idle' })
     setTimeout(() => void this.flush(entry), 300).unref?.()
+  }
+
+  /** The prompts its hooks answered by rule while Tade was away, each when it was. */
+  private answeredAway(entry: Run, answered: readonly AnsweredAway[]): void {
+    if (this.runs.get(entry.handle.run) !== entry) return
+    for (const one of answered) {
+      const tool = toolName(one.tool)
+      this.say(
+        entry,
+        {
+          type: 'permission_prompt',
+          tool,
+          input: one.input,
+          summary: describeToolCall(tool, one.input),
+          answered: { ...one.answered, by: 'rule' },
+        },
+        one.at,
+      )
+    }
   }
 
   /** A turn is over: say how, then say whatever was waiting for it to be. */
