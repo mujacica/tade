@@ -1,4 +1,5 @@
-import { ENV_FILE_SAID, type GridRow, KEYS_AND_AGENTS, type Mark } from '@tade/core'
+import type { GridRow, Mark } from '@tade/core'
+import { ENV_FILE_SAID, KEYS_AND_AGENTS } from '@tade/core/pure'
 import type { Hit } from '../../hits.ts'
 import type { Look } from '../../skin.ts'
 import { Row } from '../../ui.ts'

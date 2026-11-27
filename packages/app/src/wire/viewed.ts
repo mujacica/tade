@@ -6,12 +6,11 @@ import {
   editedText,
   formattable,
   formattedLines,
-  readForView,
-  saveEdited,
   sourceLines,
   textLines,
   type ViewedFile,
 } from '../viewer.ts'
+import { readForView, saveEdited } from './file-read.ts'
 
 // The file the window has open, and everything worked out about it once.
 //

@@ -1,4 +1,4 @@
-import { stripTerminalSequences } from '@earendil-works/pi-tui'
+import { stripTerminalSequences } from '@earendil-works/pi-tui/dist/utils.js'
 import { findOpenable } from './editor.ts'
 import { type Hit, type Said, sameTarget, type Target } from './hits.ts'
 import type { Skin } from './skin.ts'

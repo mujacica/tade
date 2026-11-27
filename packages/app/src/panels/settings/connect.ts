@@ -1,4 +1,5 @@
-import { CONNECT_SOURCES, CONNECT_TITLES, type ConnectSource } from '@tade/core'
+import type { ConnectSource } from '@tade/core'
+import { CONNECT_SOURCES, CONNECT_TITLES } from '@tade/core/pure'
 import { Row } from '../../ui.ts'
 import { wrapTo } from '../cells.ts'
 import type { PanelContext } from '../context.ts'

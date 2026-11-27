@@ -1,4 +1,4 @@
-import { visibleWidth } from '@earendil-works/pi-tui'
+import { visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
 import type { WorkflowField, WorkflowPlace } from '@tade/core'
 import { treeStems } from '../../plan-graph.ts'
 import type { Skin } from '../../skin.ts'

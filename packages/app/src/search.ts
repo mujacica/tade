@@ -1,4 +1,5 @@
-import { type Document, printable, waitingDocuments } from '@tade/core'
+import type { Document } from '@tade/core'
+import { printable, waitingDocuments } from '@tade/core/pure'
 import type { Match, SearchRoot } from './finder.ts'
 import type { Machine } from './machines.ts'
 import {

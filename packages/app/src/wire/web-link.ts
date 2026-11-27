@@ -1,8 +1,9 @@
 import { type ConnectWhere, mintConnectTicket, type Tickets, ticketed } from '@tade/web'
-import { launch, openerForLink } from '../editor.ts'
+import { openerForLink } from '../editor.ts'
 import { AWAY_CONTROLS } from '../panels/away/state.ts'
 import { CONNECT_CONTROLS } from '../panels/settings/connect.ts'
 import { flash, type Wiring } from './context.ts'
+import { launch } from './launch.ts'
 
 // The pairing link's two buttons, `Open` and `Copy`, and a press on the link
 // itself, which is `Open`: there on the AWAY VIEW panel and on the Away page

@@ -1,5 +1,5 @@
 import type { TadeEvent } from './events.ts'
-import { foreign } from './feeds.ts'
+import { foreign } from './feed-lines.ts'
 
 // The lines of one journal array by task and by type, so a fold that asks
 // about one task reads that task's lines and not the whole journal.

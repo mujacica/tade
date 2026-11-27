@@ -1,4 +1,5 @@
-import { compositeTuiLine, sliceByColumn, stripTerminalSequences } from '@earendil-works/pi-tui'
+import { sliceByColumn, stripTerminalSequences } from '@earendil-works/pi-tui/dist/utils.js'
+import { compositeTuiLine } from '../composite.ts'
 import type { Frame, LaneView } from '../frame.ts'
 import type { Hit } from '../hits.ts'
 import { linkedRow } from '../links.ts'

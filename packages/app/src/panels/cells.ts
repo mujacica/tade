@@ -1,4 +1,4 @@
-import { truncateToWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
+import { truncateToWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui/dist/utils.js'
 import { fit as fitRow, type Pointer } from '../ui.ts'
 import { widthOf } from '../width.ts'
 

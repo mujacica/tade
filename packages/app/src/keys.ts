@@ -1,11 +1,5 @@
-import {
-  getKeybindings,
-  isKeyRelease,
-  type KeyId,
-  matchesKey,
-  parseKey,
-  TUI_KEYBINDINGS,
-} from '@earendil-works/pi-tui'
+import { getKeybindings, TUI_KEYBINDINGS } from '@earendil-works/pi-tui/dist/keybindings.js'
+import { isKeyRelease, type KeyId, matchesKey, parseKey } from '@earendil-works/pi-tui/dist/keys.js'
 
 // Which keystrokes the shell claims, and what it calls them.
 //

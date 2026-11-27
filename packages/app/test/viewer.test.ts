@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { stripTerminalSequences } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
+import { colourWith } from '../src/highlight.ts'
 import { offsetOf, placeOf } from '../src/input.ts'
 import {
   caretAt,
@@ -18,14 +19,16 @@ import {
   formattedLines,
   leftOf,
   matchesIn,
-  onlyItsAppShows,
-  readForView,
-  saveEdited,
   shownByItsApp,
   sourceLines,
   textLines,
   typeIn,
 } from '../src/viewer.ts'
+import { onlyItsAppShows, readForView, saveEdited } from '../src/wire/file-read.ts'
+import { requireHighlighter } from '../src/wire/highlighter.ts'
+
+// Code is coloured with the machine's highlight.js, as the heart registers it.
+colourWith(requireHighlighter)
 
 // A file, read for the viewer from a real disk.
 

@@ -1,5 +1,5 @@
-import { truncateToWidth } from '@earendil-works/pi-tui'
-import { taskOrigin } from '@tade/core'
+import { truncateToWidth } from '@earendil-works/pi-tui/dist/utils.js'
+import { taskOrigin } from '@tade/core/pure'
 import type { Frame } from '../frame.ts'
 import { widthOf } from '../width.ts'
 

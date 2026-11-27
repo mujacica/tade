@@ -1,4 +1,4 @@
-import { printable, printableLines } from '@tade/core'
+import { printable, printableLines } from '@tade/core/pure'
 import type { Hit } from '../hits.ts'
 import type { Skin } from '../skin.ts'
 import { Row } from '../ui.ts'

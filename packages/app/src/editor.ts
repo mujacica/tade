@@ -1,6 +1,5 @@
-import { spawn } from 'node:child_process'
-import { dirname } from 'node:path'
 import type { EditorName } from '@tade/core'
+import { folderOf } from './paths.ts'
 
 // Opening what you click: a file at a line in your editor, or a link in your
 // browser.
@@ -170,7 +169,7 @@ export function openerForReveal(
   // Finder picks the file out of its folder; elsewhere the folder is the answer.
   if (platform === 'darwin')
     return { kind: 'detached', command: 'open', args: folder ? [path] : ['-R', path] }
-  return { kind: 'detached', command: 'xdg-open', args: [folder ? path : dirname(path)] }
+  return { kind: 'detached', command: 'xdg-open', args: [folder ? path : folderOf(path)] }
 }
 
 function systemOpen(
@@ -193,36 +192,13 @@ function escapeVim(path: string): string {
  *
  * A seam rather than a direct call, because this is the one place the window
  * reaches past itself and onto the machine — and a test suite may never do
- * that. `launch` is the machine's own; the window's tests are handed one that
+ * that. `launch` is the machine's own (`wire/launch.ts`, which is where the
+ * spawn is, so this file draws in a browser too); the window's tests are handed one that
  * records the command and its arguments instead, which is the better
  * assertion anyway: what *would* have opened, rather than the hope that
  * something did offscreen.
  */
 export type Open = (opener: Extract<Opener, { kind: 'detached' }>) => Promise<void>
-
-/**
- * Start a detached opener and let it go. Resolves once it has started or
- * failed to, with the reason in words: "code is not installed" is an answer,
- * an unhandled ENOENT is not.
- */
-export function launch(opener: Extract<Opener, { kind: 'detached' }>): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(opener.command, opener.args, { detached: true, stdio: 'ignore' })
-    child.once('error', (err: NodeJS.ErrnoException) => {
-      reject(
-        new Error(
-          err.code === 'ENOENT'
-            ? `${opener.command} is not installed, or not on PATH`
-            : err.message,
-        ),
-      )
-    })
-    child.once('spawn', () => {
-      child.unref()
-      resolve()
-    })
-  })
-}
 
 /** Where text on screen points at something you can open: a link, or a file at a line. */
 export interface Found {

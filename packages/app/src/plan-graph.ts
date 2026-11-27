@@ -1,5 +1,5 @@
-import { visibleWidth } from '@earendil-works/pi-tui'
-import { printable } from '@tade/core'
+import { visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
+import { printable } from '@tade/core/pure'
 
 // A plan, drawn: which work comes first, what waits on what, and what can run
 // side by side. Each column is a step — everything in it can run once the

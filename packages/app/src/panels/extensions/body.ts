@@ -1,5 +1,5 @@
-import { visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
-import { printable, SERVER_HELD_BY_NOTHING, SERVER_RUNS_AS_YOU } from '@tade/core'
+import { visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui/dist/utils.js'
+import { printable, SERVER_HELD_BY_NOTHING, SERVER_RUNS_AS_YOU } from '@tade/core/pure'
 import type { Hit } from '../../hits.ts'
 import { blank, type Pointer, Row } from '../../ui.ts'
 import { cap, padTo } from '../cells.ts'

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { highlight } from '../src/highlight.ts'
+import { colourWith, highlight } from '../src/highlight.ts'
 import { COLOUR, contrast, inkOn, type Look, PLAIN, QUIET, type Rgb } from '../src/skin.ts'
+import { requireHighlighter } from '../src/wire/highlighter.ts'
+
+// Code is coloured with the machine's highlight.js, as the heart registers it.
+colourWith(requireHighlighter)
 
 // What can be read, and what cannot.
 //

@@ -1,17 +1,16 @@
-import {
-  type AgentMark,
-  type ConflictOn,
-  type DoneRule,
-  type Marked,
-  markOf,
-  type PlanChoice,
-  printable,
-  type QueueState,
-  type TadeEvent,
-  type TaskState,
-  type WatchFinding,
-  type WatchLook,
+import type {
+  AgentMark,
+  ConflictOn,
+  DoneRule,
+  Marked,
+  PlanChoice,
+  QueueState,
+  TadeEvent,
+  TaskState,
+  WatchFinding,
+  WatchLook,
 } from '@tade/core'
+import { markOf, printable } from '@tade/core/pure'
 import type { Turn } from '@tade/voice-core'
 import { parseCommand } from './commands.ts'
 import type { ScrollArea, Target } from './hits.ts'
@@ -1892,7 +1891,8 @@ export function sidebar(state: AppState): SidebarGroup[] {
   return [...groups.values()].sort((a, b) => a.project.localeCompare(b.project))
 }
 
-export { type AgentMark, markOf } from '@tade/core'
+export type { AgentMark } from '@tade/core'
+export { markOf } from '@tade/core/pure'
 
 /** Which of the skin's tones each mark is drawn in. */
 export const MARK_TONES: Readonly<Record<AgentMark, 'busy' | 'hint' | 'waiting' | 'bad' | 'done'>> =

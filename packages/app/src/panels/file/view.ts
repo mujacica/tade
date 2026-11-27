@@ -1,10 +1,10 @@
 import {
-  compositeTuiLine,
   sliceByColumn,
   stripTerminalSequences,
   visibleWidth,
-} from '@earendil-works/pi-tui'
-import { printable } from '@tade/core'
+} from '@earendil-works/pi-tui/dist/utils.js'
+import { printable } from '@tade/core/pure'
+import { compositeTuiLine } from '../../composite.ts'
 import { fileText } from '../../highlight.ts'
 import type { Hit } from '../../hits.ts'
 import { onLine, type Place, placeOf } from '../../input.ts'

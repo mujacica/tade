@@ -1,4 +1,5 @@
-import { type InboxRow, printable } from '@tade/core'
+import type { InboxRow } from '@tade/core'
+import { printable } from '@tade/core/pure'
 import type { SideAnswer, SideAsk } from '@tade/web'
 import type { FileEntry } from './files.ts'
 import type { ActionsView, Change, Frame, NoteShown, TaskSpent } from './frame.ts'

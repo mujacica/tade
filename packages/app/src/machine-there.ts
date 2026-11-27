@@ -1,15 +1,13 @@
+import type { ConnectSource, InboxState, SourceState } from '@tade/core'
 import {
   CONNECT_SOURCES,
   CONNECT_TITLES,
-  type ConnectSource,
   compareVersions,
   INBOX_STATES,
-  type InboxState,
   printable,
   printableLines,
   SOURCE_STATES,
-  type SourceState,
-} from '@tade/core'
+} from '@tade/core/pure'
 import type { Held } from '@tade/remotes-core'
 import type { ConnectAnswer, EvaluationsAnswer, MachineAnswer, RecordsAnswer } from '@tade/web'
 import {

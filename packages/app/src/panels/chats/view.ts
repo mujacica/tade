@@ -1,4 +1,4 @@
-import { printable } from '@tade/core'
+import { printable } from '@tade/core/pure'
 import { sameTarget } from '../../hits.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
 import { cap } from '../cells.ts'

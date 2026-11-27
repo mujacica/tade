@@ -1,5 +1,6 @@
-import { THINKING_LEVELS, windowUsed } from '@tade/core'
-import { type Offer, offer, type WorkerCapabilities } from '@tade/harnesses-core'
+import { THINKING_LEVELS, windowUsed } from '@tade/core/pure'
+import type { WorkerCapabilities } from '@tade/harnesses-core'
+import { type Offer, offer } from '@tade/harnesses-core/offer'
 import { close, type PanelOutcome, stay } from '../outcome.ts'
 import type { AccountShown } from '../settings/accounts.ts'
 

@@ -1,14 +1,5 @@
-import {
-  type CostPart,
-  duration,
-  ENOUGH,
-  type EvalBy,
-  perLanded,
-  perLandedCost,
-  type Scorecard,
-  UNRECORDED,
-  WITHOUT,
-} from '@tade/core'
+import type { CostPart, EvalBy, Scorecard } from '@tade/core'
+import { duration, ENOUGH, perLanded, perLandedCost, UNRECORDED, WITHOUT } from '@tade/core/pure'
 import type { CardThere } from '../../machine-looks.ts'
 import type { Skin } from '../../skin.ts'
 import type { Row } from '../../ui.ts'

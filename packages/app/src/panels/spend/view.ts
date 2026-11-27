@@ -1,15 +1,6 @@
-import { visibleWidth } from '@earendil-works/pi-tui'
-import {
-  duration,
-  MONEY_MARK,
-  noSpend,
-  type OnPlan,
-  type Priced,
-  planPressure,
-  pricedOf,
-  type Runtime,
-  workedOf,
-} from '@tade/core'
+import { visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
+import type { OnPlan, Priced, Runtime } from '@tade/core'
+import { duration, MONEY_MARK, noSpend, planPressure, pricedOf, workedOf } from '@tade/core/pure'
 import type { Machine, MachineSpend } from '../../machines.ts'
 import { type AgentPane, glyph, MARK_TONES, markOf } from '../../model.ts'
 import type { Skin } from '../../skin.ts'

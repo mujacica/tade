@@ -1,14 +1,14 @@
-import { stripTerminalSequences } from '@earendil-works/pi-tui'
+import { stripTerminalSequences } from '@earendil-works/pi-tui/dist/utils.js'
+import type { PlanWindow } from '@tade/core'
 import {
   duration,
   nextPlan,
-  type PlanWindow,
   planLabel,
   planPressure,
   planShown,
   printable,
   resetsIn,
-} from '@tade/core'
+} from '@tade/core/pure'
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, sameTarget, shift, type Target } from '../hits.ts'
 import { linkedRow } from '../links.ts'

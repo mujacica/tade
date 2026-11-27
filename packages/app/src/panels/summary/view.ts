@@ -1,5 +1,5 @@
-import { visibleWidth } from '@earendil-works/pi-tui'
-import { printable } from '@tade/core'
+import { visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
+import { printable } from '@tade/core/pure'
 import type { MarkView } from '../../frame.ts'
 import type { Skin } from '../../skin.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'

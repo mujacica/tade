@@ -1,4 +1,4 @@
-import { launch } from '@tade/app/editor'
+import { launch } from '@tade/app/wire/launch'
 import {
   CONNECT_SOURCES,
   CONNECT_TITLES,

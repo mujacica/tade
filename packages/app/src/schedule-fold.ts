@@ -1,12 +1,5 @@
-import {
-  type HookSource,
-  handedKeys,
-  rungFrom,
-  saysSince,
-  type TadeEvent,
-  type Watched,
-  watchedFrom,
-} from '@tade/core'
+import type { HookSource, TadeEvent, Watched } from '@tade/core'
+import { handedKeys, rungFrom, saysSince, watchedFrom } from '@tade/core/pure'
 
 // What each schedule has done, folded as the journal says it rather than kept
 // a line apiece.

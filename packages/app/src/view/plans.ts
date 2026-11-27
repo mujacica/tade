@@ -1,4 +1,4 @@
-import { printable } from '@tade/core'
+import { printable } from '@tade/core/pure'
 import type { Frame } from '../frame.ts'
 import { type Hit, sameTarget, type Target } from '../hits.ts'
 import type { AppState } from '../model.ts'

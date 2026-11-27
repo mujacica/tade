@@ -1,13 +1,11 @@
+import type { AgentMark, MachineState, MachineWay } from '@tade/core'
 import {
   AGENT_MARKS,
-  type AgentMark,
   MACHINE_WAYS,
-  type MachineState,
-  type MachineWay,
   machineStateOf,
   printable,
   printableLines,
-} from '@tade/core'
+} from '@tade/core/pure'
 import type { Held } from '@tade/remotes-core'
 import { whereYouWere } from './layout.ts'
 import type { MachineDetail } from './machine-there.ts'

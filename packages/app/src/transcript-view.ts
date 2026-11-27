@@ -1,9 +1,13 @@
-import { basename } from 'node:path'
-import { stripTerminalSequences, visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
-import { printable, printableLines } from '@tade/core'
+import {
+  stripTerminalSequences,
+  visibleWidth,
+  wrapTextWithAnsi,
+} from '@earendil-works/pi-tui/dist/utils.js'
+import { printable, printableLines } from '@tade/core/pure'
 import type { Hit, Said, Target } from './hits.ts'
 import { type Linker, linkedRow } from './links.ts'
 import { spinner } from './model.ts'
+import { fileName } from './paths.ts'
 import type { Skin } from './skin.ts'
 import { type Entry, type Transcript, toolName } from './transcript.ts'
 import { fit, type Pointer, Row } from './ui.ts'
@@ -167,7 +171,7 @@ function entryLines(entry: Entry, width: number, skin: Skin, now: number): Drawn
         out.push({ text: `  ${skin.hint(`from ${printable(entry.from)}, not from you`)}` })
       }
       for (const image of entry.images) {
-        out.push({ text: `  ${skin.hint(`▣ ${printable(basename(image))}`)}` })
+        out.push({ text: `  ${skin.hint(`▣ ${printable(fileName(image))}`)}` })
       }
       return out
     }

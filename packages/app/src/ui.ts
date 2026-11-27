@@ -1,9 +1,9 @@
 import {
-  compositeTuiLine,
   sliceByColumn,
   stripTerminalSequences,
   truncateToWidth,
-} from '@earendil-works/pi-tui'
+} from '@earendil-works/pi-tui/dist/utils.js'
+import { compositeTuiLine } from './composite.ts'
 import { type Hit, rowHit, sameTarget, shift, type Target } from './hits.ts'
 import type { Regions } from './selection.ts'
 import { type IconState, type Look, markLabel, type Skin, type SwitchState } from './skin.ts'

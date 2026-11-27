@@ -1,4 +1,4 @@
-import { duration } from '@tade/core'
+import { duration } from '@tade/core/pure'
 import type { ListRowView } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, type Target } from '../hits.ts'
 import type { Band, Skin } from '../skin.ts'

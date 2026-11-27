@@ -1,5 +1,3 @@
-import { join } from 'node:path'
-
 // Lessons, in the orchestrator's own words.
 //
 // A skill is something the model noticed and wrote down: "every time a task
@@ -45,15 +43,6 @@ export function skillAbout(text: string): string | undefined {
     if (found) return found[1]?.toLowerCase()
   }
   return undefined
-}
-
-export function skillDirs(root: string): SkillDirs {
-  return {
-    root,
-    active: join(root, 'active'),
-    proposed: join(root, 'proposed'),
-    rejected: join(root, 'rejected'),
-  }
 }
 
 /** Which files are skills, in a stable order. */

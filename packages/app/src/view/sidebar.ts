@@ -1,4 +1,4 @@
-import { devServerUrl, inboxWaiting, printable } from '@tade/core'
+import { devServerUrl, inboxWaiting, printable } from '@tade/core/pure'
 import { type FileEntry, folderMark } from '../files.ts'
 import type { Change, Frame, ListSectionView, NoteShown } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, sameTarget, type Target } from '../hits.ts'

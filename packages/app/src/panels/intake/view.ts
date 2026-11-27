@@ -1,5 +1,5 @@
-import { visibleWidth } from '@earendil-works/pi-tui'
-import { MATERIAL_LABEL, printable, printableLines } from '@tade/core'
+import { visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
+import { MATERIAL_LABEL, printable, printableLines } from '@tade/core/pure'
 import { inboxMark } from '../../intake-view.ts'
 import type { Skin } from '../../skin.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'

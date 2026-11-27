@@ -4,7 +4,6 @@ import { agentBranch, discardIn, pullIn, renameIn, switchIn } from '../checkout-
 import { type ParsedDiff, parseDiff } from '../diff.ts'
 import {
   chooseEditor,
-  launch,
   type Open,
   openerFor,
   openerForApp,
@@ -31,7 +30,7 @@ import { type BranchRow, branchPanel, promptPanel } from '../panels/small/state.
 import type { Panel } from '../panels.ts'
 import type { Ui } from '../screen.ts'
 import type { Skin } from '../skin.ts'
-import { editedText, onlyItsAppShows, shownByItsApp, type ViewedFile } from '../viewer.ts'
+import { editedText, shownByItsApp, type ViewedFile } from '../viewer.ts'
 import type { Shown } from './comments.ts'
 import {
   type Actions,
@@ -45,7 +44,9 @@ import {
   type Wiring,
   why,
 } from './context.ts'
+import { onlyItsAppShows } from './file-read.ts'
 import { Here } from './here.ts'
+import { launch } from './launch.ts'
 import { Viewed } from './viewed.ts'
 
 // The file you have open, the diff beside it, and the branch underneath.

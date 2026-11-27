@@ -1,13 +1,14 @@
 import { existsSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 import type { Terminal } from '@earendil-works/pi-tui'
-import { launch, openerForLink } from '../editor.ts'
+import { openerForLink } from '../editor.ts'
 import type { AppState } from '../model.ts'
 import { runScreen, ScreenCancelled, type Ui } from '../screen.ts'
 import { PLAIN } from '../skin.ts'
 import { transcriptLines } from '../transcript-view.ts'
 import { editRecorded, writeRecorded } from './config-written.ts'
 import { copyText, notify, type Wiring, why } from './context.ts'
+import { launch } from './launch.ts'
 
 // The terminal the window draws on, lent to a form for a moment, and the
 // conversation kept where you were reading it while it grows.

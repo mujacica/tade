@@ -1,5 +1,5 @@
-import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
-import { printable } from '@tade/core'
+import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
+import { printable } from '@tade/core/pure'
 import { sameTarget } from '../../hits.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
 import type { PanelContext } from '../context.ts'

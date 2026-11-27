@@ -1,4 +1,5 @@
-import { describeLook, printable, printableLines, type WatchLook } from '@tade/core'
+import type { WatchLook } from '@tade/core'
+import { describeLook, printable, printableLines } from '@tade/core/pure'
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, type Target } from '../hits.ts'
 import { type AppState, glyph, projects, type ScheduleView, shownName } from '../model.ts'

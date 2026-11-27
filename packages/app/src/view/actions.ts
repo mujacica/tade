@@ -1,4 +1,4 @@
-import { duration, printable } from '@tade/core'
+import { duration, printable } from '@tade/core/pure'
 import type { ActionsView, CheckView, CommitView, Frame } from '../frame.ts'
 import { type Hit, rowHit, sameTarget, type Target } from '../hits.ts'
 import { type AgentPane, type AppState, sectionOpen, spinner } from '../model.ts'

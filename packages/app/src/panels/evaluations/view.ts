@@ -1,11 +1,5 @@
-import {
-  type Calibration,
-  precisionSaid,
-  scorecardsBy,
-  UNRECORDED,
-  WITHOUT,
-  worthSaid,
-} from '@tade/core'
+import type { Calibration } from '@tade/core'
+import { precisionSaid, scorecardsBy, UNRECORDED, WITHOUT, worthSaid } from '@tade/core/pure'
 import { EVAL_TABS } from '../../evaluations.ts'
 import type { Skin } from '../../skin.ts'
 import { SPEND_WINDOWS } from '../../spend.ts'

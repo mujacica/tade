@@ -1,7 +1,17 @@
+import type {
+  Conflict,
+  PlanBusy,
+  Queued,
+  QueueFacts,
+  QueueHolds,
+  QueueState,
+  Schedule,
+  Watched,
+  WatchWhere,
+} from '@tade/core'
 import {
   bellSaid,
   bellWhen,
-  type Conflict,
   decidesOf,
   describeLook,
   describeQueueState,
@@ -11,20 +21,12 @@ import {
   mirrorRef,
   ONLY_TELLS,
   otherSide,
-  type PlanBusy,
-  type Queued,
-  type QueueFacts,
-  type QueueHolds,
-  type QueueState,
   queueStateOf,
   runsOf,
-  type Schedule,
   STARTS_AGENTS,
   scheduleEnded,
   WATCH_REACH,
-  type Watched,
-  type WatchWhere,
-} from '@tade/core'
+} from '@tade/core/pure'
 import type { WatchOffer } from '@tade/extensions-core'
 import {
   type AppState,

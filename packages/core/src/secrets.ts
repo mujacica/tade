@@ -1,5 +1,3 @@
-import { fileURLToPath } from 'node:url'
-
 // A key is a setting, and lives in the config like every other one.
 //
 // Tade used to refuse credentials on principle, then kept them in the OS
@@ -99,16 +97,4 @@ export function findSecret(opts: {
   return typeof written === 'string' && written.trim() !== ''
     ? { value: written.trim(), from: IN_CONFIG }
     : null
-}
-
-/**
- * A shell command that prints one credential out of the config, read at the
- * moment it runs: for a program that asks for its key that way — Claude Code's
- * `apiKeyHelper` — so the key is never written into what launches it, where it
- * would sit in the process table for anybody on the machine to read.
- */
-export function secretCommand(home: string, path: string): string {
-  const script = fileURLToPath(new URL('./print-secret.ts', import.meta.url))
-  const word = (text: string) => `'${text.replace(/'/g, `'\\''`)}'`
-  return [process.execPath, script, home, path].map(word).join(' ')
 }

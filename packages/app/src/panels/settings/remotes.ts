@@ -1,10 +1,5 @@
-import {
-  type ConnectSource,
-  conflictSays,
-  duration,
-  KEYS_TO_REMOTE,
-  TALK_TO_REMOTE,
-} from '@tade/core'
+import type { ConnectSource } from '@tade/core'
+import { conflictSays, duration, KEYS_TO_REMOTE, TALK_TO_REMOTE } from '@tade/core/pure'
 // Type-only, so the pure panel model never loads what makes a checklist.
 import type { Checklist } from '@tade/workbench/carry'
 import type { Hit } from '../../hits.ts'

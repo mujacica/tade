@@ -1,9 +1,9 @@
-import { closeSync, openSync, readSync, statSync, writeFileSync } from 'node:fs'
-import { extname } from 'node:path'
-import { Markdown, type MarkdownTheme, visibleWidth } from '@earendil-works/pi-tui'
-import { printableLines } from '@tade/core'
-import { highlight, languageOf } from './highlight.ts'
+import { Markdown, type MarkdownTheme } from '@earendil-works/pi-tui/dist/components/markdown.js'
+import { visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
+import { printableLines } from '@tade/core/pure'
+import { highlight } from './highlight.ts'
 import { placeOf, type Span, wordStep } from './input.ts'
+import { extensionOf } from './paths.ts'
 import { QUIET } from './skin.ts'
 
 // A file, read to be looked at inside the window — and typed into, a little.
@@ -16,7 +16,8 @@ import { QUIET } from './skin.ts'
 //
 // The edit itself is a value (`Edited`): lines, a caret and where each line
 // came from, changed by pure functions and tested without a disk. Only reading
-// and saving touch one.
+// and saving touch one, and they are behind the wire (`wire/file-read.ts`), so
+// what is here draws in a browser too (`browser.ts`).
 
 /** More than anyone reads in a terminal panel, and a bound on what one click can cost. */
 export const VIEW_BYTES = 1_000_000
@@ -56,9 +57,6 @@ const SHOWN_BY_ITS_APP: ReadonlySet<string> = new Set([
   '.pdf',
 ])
 
-/** How far into a file the viewer looks to tell what it is. */
-const TELLS_ITS_KIND = 8000
-
 export interface ViewedFile {
   /** Absolute. */
   path: string
@@ -77,46 +75,6 @@ export interface ViewedFile {
   error: string | null
 }
 
-export function readForView(path: string, limit = VIEW_BYTES): ViewedFile {
-  const empty = { path, size: 0, binary: false, truncated: false, text: '', mtimeMs: 0 }
-  const language = languageOf(path)
-  try {
-    const stat = statSync(path)
-    if (stat.isDirectory()) return { ...empty, language, error: 'That is a folder.' }
-    const size = stat.size
-    const buffer = Buffer.alloc(Math.min(size, limit))
-    const fd = openSync(path, 'r')
-    try {
-      readSync(fd, buffer, 0, buffer.length, 0)
-    } finally {
-      closeSync(fd)
-    }
-    // The test git itself uses: a NUL in the first 8000 bytes.
-    const binary = buffer.subarray(0, TELLS_ITS_KIND).includes(0)
-    return {
-      path,
-      size,
-      binary,
-      truncated: size > limit,
-      language,
-      text: binary ? '' : buffer.toString('utf8'),
-      mtimeMs: stat.mtimeMs,
-      error: null,
-    }
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code
-    const error =
-      code === 'ENOENT'
-        ? 'It is not there any more.'
-        : code === 'EACCES' || code === 'EPERM'
-          ? 'Tade is not allowed to read it.'
-          : err instanceof Error
-            ? err.message
-            : String(err)
-    return { ...empty, language, error }
-  }
-}
-
 /**
  * Whether what was read is one of those, so its app is what shows it. Read first,
  * so a file that is gone, a folder, or text under such a name keeps what the
@@ -125,14 +83,9 @@ export function readForView(path: string, limit = VIEW_BYTES): ViewedFile {
  * drawn as pages of noise.
  */
 export function shownByItsApp(file: ViewedFile): boolean {
-  const extension = extname(file.path).toLowerCase()
+  const extension = extensionOf(file.path).toLowerCase()
   if (file.error !== null || !SHOWN_BY_ITS_APP.has(extension)) return false
   return file.binary || (extension === '.pdf' && file.text.startsWith('%PDF-'))
-}
-
-/** The same answer about a file not opened yet, from no more of it than that takes. */
-export function onlyItsAppShows(path: string): boolean {
-  return shownByItsApp(readForView(path, TELLS_ITS_KIND))
 }
 
 /** Whether a file can be shown formatted as well as as source. */
@@ -588,39 +541,6 @@ export function cutSelection(edit: Edited, span: Span): Edited {
 export function editedText(edit: Edited, file: ViewedFile): string {
   const eol = file.text.includes('\r\n') ? '\r\n' : '\n'
   return edit.lines.join(eol) + (file.text.endsWith('\n') ? eol : '')
-}
-
-/**
- * Write what was typed back, and read the file again so what is on screen is
- * what is on disk.
- *
- * Refused if the file moved underneath: agents edit these files while you are
- * looking at them, and a window that quietly writes a minute-old copy over an
- * agent's work is worse than one that cannot save at all.
- */
-export function saveEdited(file: ViewedFile, text: string): ViewedFile {
-  let stat: ReturnType<typeof statSync>
-  try {
-    stat = statSync(file.path)
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code
-    throw new Error(code === 'ENOENT' ? 'It is not there any more.' : why(err))
-  }
-  if (stat.size !== file.size || stat.mtimeMs !== file.mtimeMs)
-    throw new Error('It changed on disk since you opened it. Close it and open it again.')
-  try {
-    writeFileSync(file.path, text)
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code
-    throw new Error(
-      code === 'EACCES' || code === 'EPERM' ? 'Tade is not allowed to write it.' : why(err),
-    )
-  }
-  return readForView(file.path)
-}
-
-function why(err: unknown): string {
-  return err instanceof Error ? err.message : String(err)
 }
 
 /** The caret, put back inside the text it is in. */

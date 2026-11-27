@@ -4,15 +4,14 @@ import {
   actedOnSays,
   approvedFrom,
   compactedSays,
-  documentMovedTo,
   documentsIn,
   documentsToCompact,
   everyDocumentSays,
   producedClause,
-  producesPath,
   producesProblem,
   waitingDocuments,
 } from '../src/produces.ts'
+import { documentMovedTo, producesPath } from '../src/produces-path.ts'
 
 let seq = 0
 function event(

@@ -1,4 +1,4 @@
-import { MONEY_MARK, noSpend, pricedOf, printable } from '@tade/core'
+import { MONEY_MARK, noSpend, pricedOf, printable } from '@tade/core/pure'
 import type { LaneScrolling } from '@tade/drivers-core'
 import type { TaskSpent } from '../frame.ts'
 import type { Hit, ScrollArea, Target } from '../hits.ts'

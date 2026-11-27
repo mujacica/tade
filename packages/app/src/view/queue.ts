@@ -1,14 +1,6 @@
-import { sliceByColumn } from '@earendil-works/pi-tui'
-import {
-  type ConflictOn,
-  DONE_RULE_MEANS,
-  printable,
-  printableLines,
-  type QueuedThere,
-  type QueueState,
-  thereSays,
-  waitOn,
-} from '@tade/core'
+import { sliceByColumn } from '@earendil-works/pi-tui/dist/utils.js'
+import type { ConflictOn, QueuedThere, QueueState } from '@tade/core'
+import { DONE_RULE_MEANS, printable, printableLines, thereSays, waitOn } from '@tade/core/pure'
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, type Target } from '../hits.ts'
 import { startsOnFor } from '../machines.ts'

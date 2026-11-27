@@ -11,7 +11,10 @@ import { GIVE_WAY_DEFAULT, GIVE_WAY_MAX } from './priority.ts'
 import { PUSH_MODES } from './project.ts'
 import { MachineName, RemotesSchema } from './remotes.ts'
 import { PROJECT_SYNC } from './sync.ts'
+import { THINKING_LEVELS, type ThinkingLevel } from './thinking.ts'
 import { WatchesOn } from './watch-where.ts'
+
+export { THINKING_LEVELS, type ThinkingLevel }
 
 // Schema for ~/.tade/config.yaml. Objects are strict so a typo'd key is named
 // rather than silently ignored: `parseConfig` reads past it and names it, the
@@ -31,13 +34,6 @@ const RouteName = z.string().regex(/^[a-z0-9][a-z0-9-]*$/)
  * which owns credentials, so a subscription, an API key and a local endpoint
  * are all just different routes.
  */
-/**
- * How hard an agent thinks before it answers, least to most. A harness takes
- * the nearest its model can do: a model that cannot think at all is `off`
- * whatever it is asked.
- */
-export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
-export type ThinkingLevel = (typeof THINKING_LEVELS)[number]
 
 export const WorkerRoute = z.strictObject({
   harness: Harness.default('pi'),

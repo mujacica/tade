@@ -1,6 +1,10 @@
 import { stripTerminalSequences } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
-import { ansiLines, highlight, languageOf } from '../src/highlight.ts'
+import { ansiLines, colourWith, highlight, languageOf } from '../src/highlight.ts'
+import { requireHighlighter } from '../src/wire/highlighter.ts'
+
+// Code is coloured with the machine's highlight.js, as the heart registers it.
+colourWith(requireHighlighter)
 
 // Colouring code for the viewer. The colours are decoration; what matters is
 // that the text is untouched and that no colour leaks from one line to the next.

@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { hostNameForms } from '../packages/core/src/remotes.ts'
+import { hostNameForms } from '../packages/core/src/host-names.ts'
 
 // What `.githooks/pre-push` runs: a push that would publish this machine's host
 // name is refused before it leaves.

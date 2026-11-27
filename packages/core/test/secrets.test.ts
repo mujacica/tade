@@ -12,7 +12,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { loadConfig, writeSetting } from '../src/config-file.ts'
-import { findSecret, secretCommand, secretPath } from '../src/secrets.ts'
+import { secretCommand } from '../src/secret-command.ts'
+import { findSecret, secretPath } from '../src/secrets.ts'
 
 // A key pasted into Tade goes in the config, as itself: it can be read back,
 // copied and checked for a typo. What the shell says still wins, and the file

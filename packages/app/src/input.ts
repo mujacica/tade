@@ -1,9 +1,9 @@
 import {
-  compositeTuiLine,
   sliceByColumn,
   stripTerminalSequences,
   visibleWidth,
-} from '@earendil-works/pi-tui'
+} from '@earendil-works/pi-tui/dist/utils.js'
+import { compositeTuiLine } from './composite.ts'
 import type { Skin } from './skin.ts'
 
 // Selecting text: in the line you type on, and in the file you have open.

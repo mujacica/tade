@@ -1,4 +1,4 @@
-import { visibleWidth } from '@earendil-works/pi-tui'
+import { visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
 
 // How many columns a row takes, when the row is one Tade drew.
 //

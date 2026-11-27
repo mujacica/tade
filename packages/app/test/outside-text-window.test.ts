@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseDiff } from '../src/diff.ts'
-import { highlight } from '../src/highlight.ts'
+import { colourWith, highlight } from '../src/highlight.ts'
 import {
   focusTask,
   initialState,
@@ -24,11 +24,15 @@ import { racePanel } from '../src/panels/race/state.ts'
 import { searchPanel } from '../src/panels/search/state.ts'
 import { branchPanel } from '../src/panels/small/state.ts'
 import { sourceLines, textLines, type ViewedFile } from '../src/viewer.ts'
+import { requireHighlighter } from '../src/wire/highlighter.ts'
 import { expectOnlyText, hostile, see } from './outside-text.ts'
 import { awayFixture } from './screens/scenarios/away.ts'
 import { EVALUATION_SCREENS } from './screens/scenarios/evaluations.ts'
 import { actions, base, NOW, utcClock } from './screens/scenarios/fixtures.ts'
 import { RACE_SCREENS } from './screens/scenarios/races.ts'
+
+// Code is coloured with the machine's highlight.js, as the heart registers it.
+colourWith(requireHighlighter)
 
 // The rest of the window, drawn with outside text in it: the foot, the side's
 // git and files, menus, search, models and devices, the queue and the watches,

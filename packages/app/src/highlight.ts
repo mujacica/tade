@@ -1,5 +1,4 @@
-import { createRequire } from 'node:module'
-import { printable } from '@tade/core'
+import { printable } from '@tade/core/pure'
 import { QUIET } from './skin.ts'
 
 /**
@@ -7,39 +6,44 @@ import { QUIET } from './skin.ts'
  * they bring the browser's DOM types into the whole program, which quietly
  * changes what `ReadableStream` means in packages that never draw anything.
  */
-interface Highlighter {
+export interface Highlighter {
   getLanguage(name: string): object | undefined
   registerLanguage(name: string, language: unknown): void
   highlight(code: string, options: { language: string; ignoreIllegals: boolean }): { value: string }
 }
 
-const require = createRequire(import.meta.url)
+/**
+ * Where highlight.js comes from: asked for the first time a file is coloured,
+ * and asked once. **The machine's is a lazy `require`** (`wire/highlighter.ts`,
+ * registered by the heart before anything is drawn), and a browser drawing the
+ * window registers its own import of the same version (`browser.ts`) — so this
+ * file loads in either, and colours the same in both.
+ *
+ * Nobody registered is plain, which is what a language highlight.js does not
+ * know has always been: colour is decoration, never a reason to fail.
+ */
+let source: () => Highlighter | null = () => null
+let loaded: Highlighter | null | undefined
+
+/** Colour code with this highlight.js from now on, asked for the first time it is needed. */
+export function colourWith(load: () => Highlighter | null): void {
+  source = load
+  loaded = undefined
+}
+
+function hljs(): Highlighter | null {
+  if (loaded === undefined) loaded = source()
+  return loaded
+}
 
 /**
- * highlight.js's core and the languages a file is ever coloured as, loaded the
- * first time a file is — never on the way to the window's first frame.
- *
- * The whole library registers all 193 languages it ships as it loads: 195
- * modules of the 1,185 an open read, 70–100 ms before anything was drawn
- * (load 5–22 on 14 cores), for a viewer that is opened later or not at all.
- * The core alone is 4 ms, and a language Tade has no name for here was never
- * coloured anyway, so registering only the named ones colours exactly what
- * the whole library did. One it does not ship is left plain, as it was.
+ * Every language a file is ever coloured as — what a highlighter has to have
+ * registered for a file to be coloured as it is here. highlight.js's whole
+ * library registers all 193 it ships as it loads, so a highlighter registers
+ * these and only these (`wire/highlighter.ts` says what that saves).
  */
-let loaded: Highlighter | null = null
-function hljs(): Highlighter {
-  if (loaded) return loaded
-  const core = require('highlight.js/lib/core') as Highlighter
-  for (const language of new Set([...Object.values(EXTENSIONS), ...Object.values(NAMES)])) {
-    try {
-      const module = require(`highlight.js/lib/languages/${language}`) as { default?: unknown }
-      core.registerLanguage(language, module.default ?? module)
-    } catch {
-      // Not one highlight.js ships: plain, which is what it always was.
-    }
-  }
-  loaded = core
-  return core
+export function languagesNamed(): string[] {
+  return [...new Set([...Object.values(EXTENSIONS), ...Object.values(NAMES)])]
 }
 
 // Colouring source code for the file viewer, in the window's 256 colours.
@@ -58,7 +62,7 @@ export function languageOf(path: string): string | null {
   const dot = name.lastIndexOf('.')
   if (dot < 0) return null
   const language = EXTENSIONS[name.slice(dot + 1)]
-  return language && hljs().getLanguage(language) ? language : null
+  return language && hljs()?.getLanguage(language) ? language : null
 }
 
 const NAMES: Record<string, string> = {
@@ -203,9 +207,10 @@ export function fileText(line: string): string {
  */
 export function highlight(code: string, language: string | null, plain = false): string[] {
   const lines = code.replace(/\r\n/g, '\n').split('\n').map(fileText)
-  if (plain || !language || !hljs().getLanguage(language)) return lines
+  const colours = plain || !language ? null : hljs()
+  if (!colours || !language || !colours.getLanguage(language)) return lines
   try {
-    const html = hljs().highlight(lines.join('\n'), {
+    const html = colours.highlight(lines.join('\n'), {
       language,
       ignoreIllegals: true,
     }).value

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { skillDirs } from '../src/skill-dirs.ts'
 import {
   isSkillName,
   livingSkills,
@@ -6,7 +7,6 @@ import {
   SKILL_LIMIT,
   type Skill,
   skillAbout,
-  skillDirs,
   skillStanding,
   skillText,
 } from '../src/skills.ts'

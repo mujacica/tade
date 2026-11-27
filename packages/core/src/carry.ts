@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto'
 import { compareStamps, lineStamp, type Stamp, stampOf, stampText } from './hlc.ts'
-import { TALKING_IS_NOT_YOU_SHORT } from './origin.ts'
 import { settingReach } from './reach.ts'
-import { heldSays, IN_CONFIG, SEEN_BY_AGENTS } from './secrets.ts'
+import { heldSays } from './secrets.ts'
+
+export { conflictSays, KEYS_TO_REMOTE, TALK_TO_REMOTE } from './carry-said.ts'
 
 // What another machine's Tade is given of this one's: the decision for every
 // key, beside `settingReach` because it is the same kind of question — what a
@@ -585,26 +586,6 @@ export interface SettingConflict {
 }
 
 /**
- * The conflict as said, once, on each machine: "approvals.mode: vps set ask
- * at 14:02, this machine set auto at 14:05; this machine’s kept". Each side
- * is named as the person names it — this machine, and the other by `there`,
- * what this one calls it (the remote's name) — never by two host names, which
- * may be one. `hm` is the clock face of a stamp, the caller's, so this stays pure.
- */
-export function conflictSays(
-  c: SettingConflict,
-  hm: (wall: number) => string,
-  there: string,
-): string {
-  const who = (side: 'kept' | 'lost') => (side === c.mine ? 'this machine' : there)
-  const one = (side: 'kept' | 'lost') => {
-    const { value, at } = c[side]
-    return `${who(side)} set ${value === '' ? 'nothing' : value} ${at === null ? 'before anything wrote it down' : `at ${hm(at.wall)}`}`
-  }
-  return `${c.path}: ${one('lost')}, ${one('kept')}; ${who('kept')}’s kept.`
-}
-
-/**
  * The `settings_conflict` line one machine writes: the path, whose value
  * stood and whose lost, each with its stamp, and the machine it was settled
  * with. Never a key: only kept settings are registers.
@@ -696,20 +677,6 @@ export function carriedSays(carry: Carry, value: unknown): string {
 }
 
 /**
- * What is said where somebody is about to send keys to another machine.
- *
- * `KEYS_AND_AGENTS` again, one machine further — its clause, never a second
- * wording of it: on that machine too the file is read by every agent, and that
- * machine may be on the internet. The way out in the same breath, because that
- * is the rule for every sentence of this kind.
- */
-export const KEYS_TO_REMOTE =
-  `Sends these to that machine’s ${IN_CONFIG}, written 0600 there and replacing any of the same ` +
-  `name — and there too ${SEEN_BY_AGENTS}: agents run as you, and nothing sandboxes them. That ` +
-  'they were sent, and by whom, is written down on both machines; a key never is. To keep one off ' +
-  'that machine, export its variable there instead, or leave it unsent.'
-
-/**
  * Talking to that machine's orchestrator from another screen — this one's tab
  * for it, and a phone paired there — which is that machine's own setting
  * (`surfaces.web` is `here`), so it is never carried and never sent by itself.
@@ -721,12 +688,6 @@ export const KEYS_TO_REMOTE =
  * whole of `surfaces.web` is `never` to it — and never a carry by itself.
  */
 export const TALK_THERE = 'surfaces.web.orchestrator'
-
-/** What is said where somebody is about to turn `TALK_THERE` on over there. */
-export const TALK_TO_REMOTE =
-  'Turns on Talk to Tade on that machine: what you type in its tab here goes to its orchestrator as ' +
-  `you at its keyboard, and a device paired there may send one too — ${TALKING_IS_NOT_YOU_SHORT}. ` +
-  'Its Settings › Away view turns it off again.'
 
 /**
  * Everything a Tade home holds, and what becomes of each when a remote is

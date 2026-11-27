@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { type EventType, type TadeEvent, typeNow } from './events.ts'
+import { type FleetEvent, foreign, MACHINE_ID } from './feed-lines.ts'
 
 // Every machine's journal, held on every other machine of the person's: the
 // rules, pure. The file work is `@tade/workbench`'s `feeds.ts`, the exchange's
@@ -158,9 +159,6 @@ export function travels(type: string): boolean {
   return TRAVELS.has(typeNow(type))
 }
 
-/** What a machine id looks like: a UUID, minted once (`machine.json`). */
-export const MACHINE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-
 /** One life of a machine's journal: minted when it was created, and again by a restore. */
 export interface Epoch {
   /** Sixteen hex digits. */
@@ -222,13 +220,7 @@ export interface FeedSummary {
 
 // ── Labels ──────────────────────────────────────────────────────────────────
 
-/** A line out of another machine's feed, labelled with what that machine calls itself. */
-export type FleetEvent = TadeEvent & { machine: string }
-
-/** Whether a line came out of another machine's feed rather than this one's journal. */
-export function foreign(event: TadeEvent): event is FleetEvent {
-  return typeof (event as Partial<FleetEvent>).machine === 'string'
-}
+export { type FleetEvent, foreign, MACHINE_ID }
 
 /**
  * Only this machine's own lines. Anything that compares `seq` reads these and

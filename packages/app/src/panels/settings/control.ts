@@ -1,4 +1,4 @@
-import { visibleWidth } from '@earendil-works/pi-tui'
+import { visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
 import type { Setting } from '@tade/core'
 import { type Hit, sameTarget, type Target } from '../../hits.ts'
 import { checkTalkKey, keyCaps, TALK_SUGGESTIONS } from '../../keys.ts'

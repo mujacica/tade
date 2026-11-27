@@ -1,4 +1,4 @@
-import { printable } from '@tade/core'
+import { printable } from '@tade/core/pure'
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, type ScrollArea, sameTarget, type Target } from '../hits.ts'
 import { linkedRow } from '../links.ts'

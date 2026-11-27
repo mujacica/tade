@@ -137,7 +137,7 @@ const FIXED: Record<string, string> = {
 const ALLOWED: Record<string, number> = {
   'packages/app/src/checkout-look.ts': 1,
   'packages/app/src/editor.ts': 1,
-  'packages/app/src/highlight.ts': 2,
+  'packages/app/src/highlight.ts': 1,
   'packages/app/src/images.ts': 6,
   'packages/app/src/live.ts': 9,
   'packages/app/src/projects.ts': 5,
@@ -150,6 +150,7 @@ const ALLOWED: Record<string, number> = {
   'packages/app/src/wire/files.ts': 3,
   'packages/app/src/wire/finding.ts': 1,
   'packages/app/src/wire/fitting.ts': 1,
+  'packages/app/src/wire/highlighter.ts': 1,
   'packages/app/src/wire/keeping.ts': 2,
   'packages/app/src/wire/keyboard.ts': 5,
   'packages/app/src/wire/lanes.ts': 1,

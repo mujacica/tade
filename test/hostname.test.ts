@@ -134,6 +134,6 @@ describe("a machine's host name", () => {
       }
     }
     walk(join(ROOT, 'packages'))
-    expect(readers).toEqual(['packages/core/src/remotes.ts'])
+    expect(readers).toEqual(['packages/core/src/host-names.ts'])
   })
 })

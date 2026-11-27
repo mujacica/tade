@@ -1,5 +1,5 @@
-import { visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
-import { KEY_BINDINGS, KEYS_AND_AGENTS, printable } from '@tade/core'
+import { visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui/dist/utils.js'
+import { KEY_BINDINGS, KEYS_AND_AGENTS, printable } from '@tade/core/pure'
 import { type Hit, sameTarget } from '../../hits.ts'
 import { keyCaps } from '../../keys.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'

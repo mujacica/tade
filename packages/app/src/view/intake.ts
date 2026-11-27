@@ -1,4 +1,5 @@
-import { type InboxRow, printable } from '@tade/core'
+import type { InboxRow } from '@tade/core'
+import { printable } from '@tade/core/pure'
 import { pointingIn, type Target } from '../hits.ts'
 import { inboxMark, inboxSays } from '../intake-view.ts'
 import type { AppState } from '../model.ts'

@@ -1,4 +1,5 @@
-import { type Setting, type SettingGroup, settingFound, stepped } from '@tade/core'
+import type { Setting, SettingGroup } from '@tade/core'
+import { settingFound, stepped } from '@tade/core/pure'
 // Type-only, so the pure panel model never loads the driver stack behind it.
 import type { UpdateLook as UpdatesShown } from '@tade/workbench/programs'
 import { normalKey } from '../../keys.ts'

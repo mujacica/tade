@@ -1,4 +1,4 @@
-import { printable } from '@tade/core'
+import { printable } from '@tade/core/pure'
 import { isAction, matchActions } from '../commands.ts'
 import type { Frame } from '../frame.ts'
 import { type Hit, rowHit, sameTarget, shift } from '../hits.ts'

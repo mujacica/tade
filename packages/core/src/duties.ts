@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { LeaseOp } from './conversation-share.ts'
-import { MACHINE_ID } from './feeds.ts'
+import { MACHINE_ID } from './feed-lines.ts'
 
 // What exactly one of the person's machines does when one repository is a
 // project on several: a duty, and the rule that says whose it is.

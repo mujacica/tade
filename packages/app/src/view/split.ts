@@ -1,4 +1,4 @@
-import { stripTerminalSequences } from '@earendil-works/pi-tui'
+import { stripTerminalSequences } from '@earendil-works/pi-tui/dist/utils.js'
 import { type Hit, rowHit, shift, type Target } from '../hits.ts'
 import type { Skin } from '../skin.ts'
 import { type Drawn, fit, type Pointer, Row } from '../ui.ts'

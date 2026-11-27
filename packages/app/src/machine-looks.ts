@@ -1,4 +1,5 @@
-import { type DomainLine, EVAL_BY, type EvalBy, printable } from '@tade/core'
+import type { DomainLine, EvalBy } from '@tade/core'
+import { EVAL_BY, printable } from '@tade/core/pure'
 import type { CardRead, ConnectAnswer, EvaluationsAnswer, RecordsAnswer } from '@tade/web'
 
 // Two things another machine says only while somebody here is looking, beside

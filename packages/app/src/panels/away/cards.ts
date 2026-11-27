@@ -1,4 +1,4 @@
-import { printable } from '@tade/core'
+import { printable } from '@tade/core/pure'
 import { sameTarget, shift, type Target } from '../../hits.ts'
 import { blank, Row } from '../../ui.ts'
 import { widthOf } from '../../width.ts'

@@ -1,5 +1,5 @@
-import { visibleWidth } from '@earendil-works/pi-tui'
-import { KEYS_AND_AGENTS, printable } from '@tade/core'
+import { visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
+import { KEYS_AND_AGENTS, printable } from '@tade/core/pure'
 import { type Hit, sameTarget } from '../../hits.ts'
 import { linkedRow } from '../../links.ts'
 import { SPEND_WINDOWS } from '../../spend.ts'

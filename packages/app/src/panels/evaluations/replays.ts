@@ -1,3 +1,4 @@
+import type { ReplayEntrant } from '@tade/core'
 import {
   candidateSays,
   countsSay,
@@ -5,10 +6,9 @@ import {
   ENOUGH,
   minutes,
   printable,
-  type ReplayEntrant,
   sizeBeside,
   spentSays,
-} from '@tade/core'
+} from '@tade/core/pure'
 import type { JudgeReplayFact } from '@tade/extensions-core'
 import type { ReplaysView } from '../../evaluations.ts'
 import type { Skin } from '../../skin.ts'

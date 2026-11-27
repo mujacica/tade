@@ -1,4 +1,5 @@
-import { IDLE_REASON, type QueueState } from '@tade/core'
+import type { QueueState } from '@tade/core'
+import { IDLE_REASON } from '@tade/core/pure'
 import type { ScheduleThere } from './machine-there.ts'
 import type { Machine, Place, RemoteAgent, RemoteProject } from './machines.ts'
 import type { AgentPane, QueuedView, ScheduleView } from './model.ts'

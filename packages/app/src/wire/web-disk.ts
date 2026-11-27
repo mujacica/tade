@@ -13,8 +13,8 @@ import {
   type Wrote,
 } from '../checkout-write.ts'
 import type { AgentPane } from '../model.ts'
-import { readForView, saveEdited } from '../viewer.ts'
 import type { Wiring } from './context.ts'
+import { readForView, saveEdited } from './file-read.ts'
 
 // The window's half of `/api/disk` (`@tade/web`'s `disk.ts`): a file, a
 // change or the branches in one project of this machine's, for another of the

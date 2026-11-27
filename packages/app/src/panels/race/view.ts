@@ -1,11 +1,5 @@
-import {
-  printable,
-  type Race,
-  type Racer,
-  raceDollars,
-  racerRunsOn,
-  raceSpentSays,
-} from '@tade/core'
+import type { Race, Racer } from '@tade/core'
+import { printable, raceDollars, racerRunsOn, raceSpentSays } from '@tade/core/pure'
 import { sameTarget, type Target } from '../../hits.ts'
 import type { Skin } from '../../skin.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'

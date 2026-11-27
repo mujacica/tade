@@ -1,4 +1,4 @@
-import { printable } from '@tade/core'
+import { printable } from '@tade/core/pure'
 import { fileText } from '../../highlight.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
 import { TAB } from '../../viewer.ts'

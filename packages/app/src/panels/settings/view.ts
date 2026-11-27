@@ -1,12 +1,6 @@
-import { visibleWidth } from '@earendil-works/pi-tui'
-import {
-  HARNESS_CHOICES,
-  KEYS_AND_AGENTS,
-  type Setting,
-  type SettingGroup,
-  settingLabel,
-  windowUsed,
-} from '@tade/core'
+import { visibleWidth } from '@earendil-works/pi-tui/dist/utils.js'
+import type { Setting, SettingGroup } from '@tade/core'
+import { HARNESS_CHOICES, KEYS_AND_AGENTS, settingLabel, windowUsed } from '@tade/core/pure'
 import { type Hit, sameTarget, type Target } from '../../hits.ts'
 import { blank, box, NO_POINTER, type Pointer, Row } from '../../ui.ts'
 import { awayLines } from '../away/view.ts'

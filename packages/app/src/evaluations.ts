@@ -1,13 +1,5 @@
-import {
-  EVAL_BY,
-  type EvalBy,
-  type EvalFinding,
-  type Evaluations,
-  evaluationsFrom,
-  type Replay,
-  type Spend,
-  type TadeEvent,
-} from '@tade/core'
+import type { EvalBy, EvalFinding, Evaluations, Replay, Spend, TadeEvent } from '@tade/core'
+import { EVAL_BY, evaluationsFrom } from '@tade/core/pure'
 import type { JudgeReplayFact } from '@tade/extensions-core'
 import { type SpendWindow, sinceOf } from './spend.ts'
 

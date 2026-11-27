@@ -1,4 +1,4 @@
-import { MATERIAL_LABEL } from '@tade/core'
+import { MATERIAL_LABEL } from '@tade/core/pure'
 import { inboxStateMark } from '../../intake-view.ts'
 import type { RequestThere } from '../../machine-there.ts'
 import type { Machine, Machines } from '../../machines.ts'

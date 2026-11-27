@@ -1,4 +1,4 @@
-import { printable } from '@tade/core'
+import { printable } from '@tade/core/pure'
 import { type Hit, sameTarget } from '../../hits.ts'
 import { completed, GROUPS, parseQuery, SCOPES, type SearchEntry } from '../../search.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
