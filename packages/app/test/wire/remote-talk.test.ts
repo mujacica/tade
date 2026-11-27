@@ -1,5 +1,5 @@
 import { rm } from 'node:fs/promises'
-import { ConfigSchema } from '@tade/core'
+import { ConfigSchema, NOT_A_REMOTE } from '@tade/core'
 import { type FarEnd, startFarEnd } from '@tade/remotes-core/far'
 import { makeScriptedLink, type ScriptedRemote } from '@tade/remotes-scripted'
 import type { Workbench } from '@tade/workbench'
@@ -76,7 +76,14 @@ describe('another machine’s orchestrator, from this window', () => {
     }
     const table = new Map<string, ScriptedRemote>([['vps', far]])
     const app = await wired.start({
-      config: ConfigSchema.parse({ projects: { app: { root } }, remotes: { vps } }),
+      // No hub: `vps`, the one machine linked, would be it otherwise, and the
+      // hub's tab folds into this strip (`sharesWith`) — this is a machine
+      // that keeps a conversation of its own.
+      config: ConfigSchema.parse({
+        projects: { app: { root } },
+        remotes: { vps },
+        machine: { hub: NOT_A_REMOTE },
+      }),
       remoteLinks: { ssh: (options) => makeScriptedLink({ ...options, remotes: table }) },
       ...over,
     })
