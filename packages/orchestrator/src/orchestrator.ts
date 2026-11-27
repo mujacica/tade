@@ -10,6 +10,7 @@ import type {
   Unsubscribe,
 } from '@tade/core'
 import {
+  byOf,
   cameFromAway,
   changedFrom,
   extensionsRoot,
@@ -19,6 +20,7 @@ import {
   orchestratorAccount,
   orchestratorRoute,
   wentQuiet,
+  whoOf,
   wordsHeading,
 } from '@tade/core'
 import {
@@ -29,6 +31,7 @@ import {
   modelsOffered,
   NO_HISTORY,
   type ToolAnswer,
+  TurnHeld,
   type WorkerAdapter,
   type WorkerCapabilities,
   type WorkerExtras,
@@ -412,6 +415,8 @@ export class Orchestrator {
   private gate: TurnGate | null = null
   /** A turn being readied (`TurnGate.before`), which every other ask meanwhile waits for. */
   private opening: Promise<void> | null = null
+  /** A device's words waiting for another machine's turn to let go of the lease (`afterTheirs`). */
+  private waiting: Promise<void> | null = null
 
   private constructor(adapter: WorkerAdapter) {
     this.adapter = adapter
@@ -676,13 +681,21 @@ export class Orchestrator {
     await replica.reload(ORCHESTRATOR_RUN)
   }
 
-  /** A turn readied, where it is not one already under way. */
-  private async opened(wait: boolean): Promise<void> {
+  /**
+   * A turn readied, where it is not one already under way. A device's words
+   * waiting for another machine's turn (`waiting`) go first, so nothing said
+   * here meanwhile takes the lease ahead of them and has them steered into it.
+   */
+  private async opened(wait: boolean, theirs = false): Promise<void> {
     const gate = this.gate
     if (!gate || this.working) return
+    if (this.waiting && !theirs) {
+      await Promise.allSettled([this.waiting])
+      return this.opened(wait)
+    }
     if (this.opening) {
       await Promise.allSettled([this.opening])
-      return this.opened(wait)
+      return this.opened(wait, theirs)
     }
     this.opening = gate.before(wait)
     try {
@@ -820,6 +833,12 @@ export class Orchestrator {
    *
    * Nothing waits for the answer. The reply streams through `onEvent` like any
    * other turn, and the lease is let go on `idle`.
+   *
+   * **Another machine's turn holding the conversation is not a refusal**: the
+   * words wait their turn behind it, as a line typed here does, and the gate
+   * says so where the conversation is drawn. They are taken at once rather
+   * than held in the request, because a phone's request kept open for minutes
+   * is one it gives up on — and its line is in the transcript already.
    */
   async askFrom(text: string, arm: Arm): Promise<void> {
     if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
@@ -829,12 +848,46 @@ export class Orchestrator {
       )
     }
     if (arm.how === 'local') throw new Error('a turn asked for from away is never a local arm')
-    if (this.leased !== null || this.working) {
+    if (this.leased !== null || this.working || this.waiting) {
       throw new Error('Tade is still answering the last thing it was asked')
     }
-    // Another machine's turn holds the conversation: refused with who, never
-    // waited for — a request from a phone that hangs is one it gives up on.
-    await this.opened(false)
+    try {
+      await this.opened(false)
+    } catch (err) {
+      if (!(err instanceof TurnHeld)) throw err
+      const going = this.afterTheirs(text, arm)
+      this.waiting = going
+      void going.finally(() => {
+        if (this.waiting === going) this.waiting = null
+      })
+      return
+    }
+    await this.sendFrom(text, arm)
+  }
+
+  /**
+   * A device's words, sent once another machine's turn lets go of the lease
+   * (or once a turn here has waited it out). Never throws: whoever asked has
+   * had their answer, so a send that fails is said where the conversation is
+   * drawn, and the turn it never started is closed.
+   */
+  private async afterTheirs(text: string, arm: Arm): Promise<void> {
+    let opened = false
+    try {
+      await this.opened(true, true)
+      opened = true
+      if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
+      await this.sendFrom(text, arm)
+    } catch (err) {
+      if (opened && !this.working) this.closed()
+      const reason = `what ${byOf(whoOf(arm))} said waited for another machine's turn and could not be sent: ${err instanceof Error ? err.message : String(err)}`
+      for (const listener of this.eventListeners) listener({ type: 'error', reason })
+      for (const listener of this.eventListeners) listener({ type: 'idle' })
+    }
+  }
+
+  /** A device's words into a turn of their own, under their arm. */
+  private async sendFrom(text: string, arm: Arm): Promise<void> {
     if (this.leased !== null || this.working) {
       throw new Error('Tade is still answering the last thing it was asked')
     }

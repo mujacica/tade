@@ -42,9 +42,11 @@ import {
 // **The hub not there is not trouble.** A machine that cannot reach it runs its
 // turns on its own branch, and the strip says so once ("carrying on here");
 // the two branches are merged at the first turn after it comes back. A turn
-// asked for from a paired device does not wait for the lease — it is refused
-// with who is answering, like any busy conversation is — because a request
-// from a phone that hangs for minutes is one it gives up on.
+// asked for from a paired device does not hold its request open for the lease,
+// because a request from a phone that hangs for minutes is one it gives up on:
+// `before(false)` throws `TurnHeld` with who is answering, and the orchestrator
+// takes the words and asks again waiting, so they go after that turn
+// (`Orchestrator.askFrom`).
 //
 // **Waiting for the hub's lease has a deadline** (`LEASE_WAITED_AT_MOST_MS`),
 // past which the turn runs here apart, exactly as it would with the hub down,
@@ -66,6 +68,18 @@ export class HubStarting extends Error {
   constructor(hub: string) {
     super(`${hub}'s orchestrator is starting`)
     this.name = 'HubStarting'
+  }
+}
+
+/**
+ * Another machine's turn holds the lease, and `before(false)` was asked not to
+ * wait for it: thrown with who is answering, so whoever asked can have the
+ * turn wait some other way than in a request held open.
+ */
+export class TurnHeld extends Error {
+  constructor(who: string) {
+    super(`${who}: this conversation takes one turn at a time across the machines`)
+    this.name = 'TurnHeld'
   }
 }
 
@@ -213,7 +227,7 @@ export class OneConversation {
 
   /**
    * Ready for a turn of this machine's: the lease, the exchange, what came in
-   * taken in, the harness reading it again. `wait` false refuses, in words,
+   * taken in, the harness reading it again. `wait` false throws `TurnHeld`
    * where another machine's turn holds the lease, rather than waiting.
    */
   async before(wait: boolean): Promise<void> {
@@ -289,10 +303,7 @@ export class OneConversation {
       const who = holder
         ? `${holder.name} is answering (since ${this.opts.clock(holder.since)})`
         : 'another machine is answering'
-      if (!wait)
-        throw new Error(
-          `${who}: this conversation takes one turn at a time across the machines, so say it again once it is done`,
-        )
+      if (!wait) throw new TurnHeld(who)
       // Holding nothing: the turn runs here apart, and `after` gives what it
       // wrote without a lease to let go.
       const name = holder?.name ?? ''
@@ -325,10 +336,7 @@ export class OneConversation {
       const who = holder
         ? `${holder.name} is answering (since ${this.opts.clock(holder.since)})`
         : 'another machine is answering'
-      if (!wait)
-        throw new Error(
-          `${who}: this conversation takes one turn at a time across the machines, so say it again once it is done`,
-        )
+      if (!wait) throw new TurnHeld(who)
       this.once(
         `Waiting: ${who}, and this goes after its turn.`,
         `wait:${holder?.name}:${holder?.since}`,

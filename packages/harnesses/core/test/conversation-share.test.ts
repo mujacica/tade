@@ -29,6 +29,7 @@ import {
   HubStarting,
   LEASE_WAITED_AT_MOST_MS,
   OneConversation,
+  TurnHeld,
 } from '../src/one-conversation.ts'
 
 // Each machine's half of one conversation, two homes on one disk: the
@@ -586,7 +587,7 @@ describe('the gate around a turn', () => {
     return { one, said, reloads: () => reloads }
   }
 
-  it('takes the hub’s lease, waits while another machine’s turn holds it, and refuses a phone rather than make it wait', async () => {
+  it('takes the hub’s lease, waits while another machine’s turn holds it, and says who holds it rather than make a phone’s request wait', async () => {
     const mac = machine('mac')
     const vps = machine('vps')
     const hubSide = gate(vps, () => null)
@@ -599,8 +600,10 @@ describe('the gate around a turn', () => {
     const macSide = gate(mac, () => link)
     // The hub's own turn holds the lease.
     await hubSide.one.before(true)
-    await expect(macSide.one.before(false)).rejects.toThrow(
-      'vps is answering (since 14:02): this conversation takes one turn at a time across the machines, so say it again once it is done',
+    const held = macSide.one.before(false)
+    await expect(held).rejects.toBeInstanceOf(TurnHeld)
+    await expect(held).rejects.toThrow(
+      'vps is answering (since 14:02): this conversation takes one turn at a time across the machines',
     )
     // Waiting: it goes after the hub's turn.
     const waiting = macSide.one.before(true)
@@ -926,7 +929,7 @@ describe('what goes wrong around a turn, said rather than lost', () => {
     await one.after()
   })
 
-  it('refuses a phone on the hub while a machine that links to it holds the lease', async () => {
+  it('says who holds the lease to a phone on the hub while a machine that links to it holds it', async () => {
     const vps = machine('vps')
     const { one } = gated(vps, () => null)
     await one.answer({
@@ -934,7 +937,9 @@ describe('what goes wrong around a turn, said rather than lost', () => {
       harness: 'toy',
       lease: { op: 'take', key: 'k' },
     })
-    await expect(one.before(false)).rejects.toThrow(
+    const held = one.before(false)
+    await expect(held).rejects.toBeInstanceOf(TurnHeld)
+    await expect(held).rejects.toThrow(
       'mac is answering (since 14:02): this conversation takes one turn at a time across the machines',
     )
     expect(one.leased).toBe(false)
