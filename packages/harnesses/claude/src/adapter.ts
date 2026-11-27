@@ -1342,7 +1342,13 @@ export class ClaudeAdapter implements WorkerAdapter {
         if (!isPrompt(event)) return null
         const tool = toolName(str('tool_name') ?? '')
         const input = event.tool_input ?? {}
-        const answer = await answerFor(str('tool_name') ?? '', input, entry.cwd, str('cwd'))
+        const answer = await answerFor(
+          str('tool_name') ?? '',
+          input,
+          entry.cwd,
+          str('cwd'),
+          entry.handle.task,
+        )
         this.say(entry, {
           type: 'permission_prompt',
           tool,

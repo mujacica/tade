@@ -365,7 +365,9 @@ export interface PromptFacts {
   scratch?: readonly string[]
   /**
    * Where the agent is standing as it asks, which a relative path in a command
-   * is read against. Unknown, a relative path is not judged at all.
+   * is read against. Unknown, a relative path is not judged at all. Its own,
+   * like `roots`, whatever root it is under — unless it is the home folder or
+   * above it, which would make the whole of the home its own (`ownCwd`).
    */
   cwd?: string | null
   /** The home folder of whoever runs the agent: off limits outside `roots`. */
@@ -474,6 +476,7 @@ function placesAnswer(
       return refuse('home', `it reaches into the home folder (${path})`)
     }
     if (facts.roots.some((root) => inside(absolute, root))) continue
+    if (ownCwd(facts) && inside(absolute, facts.cwd ?? null)) continue
     if ((facts.scratch ?? []).some((place) => inScratch(absolute, place))) continue
     if (facts.home && inside(absolute, facts.home)) {
       return refuse('home', `it reaches into the home folder, outside the project (${path})`)
@@ -481,6 +484,18 @@ function placesAnswer(
     return refuse('outside', `it reaches outside the project (${path})`)
   }
   return { allow: true, rule: 'in-workspace', reason: 'it stays inside its own workspace' }
+}
+
+/**
+ * Whether where the agent stands counts as its own: an absolute folder that is
+ * not the home folder, nor one the home folder is inside. An agent the harness
+ * let stand somewhere has its work there — Tade's batch tree, a sibling
+ * checkout — while one standing in `~` or `/` would own everything.
+ */
+function ownCwd(facts: PromptFacts): boolean {
+  const cwd = facts.cwd
+  if (!cwd || !isAbsolute(cwd)) return false
+  return !(facts.home && inside(facts.home, cwd))
 }
 
 /**

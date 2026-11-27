@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
-import { isAbsolute, resolve } from 'node:path'
+import { isAbsolute, join, resolve } from 'node:path'
 import { answerPrompt, type PromptAnswer, type ToolEffect } from '../../../core/src/policy.ts'
 
 // Claude Code's own yes/no, answered by rule.
@@ -94,20 +94,39 @@ export function isPrompt(event: Readonly<Record<string, unknown>>): boolean {
 }
 
 /**
+ * The agent's own places in Tade's home: its project's folder there — the
+ * batch tree the full checks run in, its tasks' files, their documents
+ * (`projectDir` in core, laid out the same). Read from `TADE_HOME` as a launch
+ * hands it down, so the window and a hook answering alone say the same; none
+ * for a task whose project is not a folder name.
+ */
+export function ownPlacesIn(
+  task: string | null | undefined,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string[] {
+  const project = task?.split('/')[0] ?? ''
+  if (project === '' || project === '.' || project === '..' || /[\\\0]/.test(project)) return []
+  return [join(env.TADE_HOME || join(homedir(), '.tade'), 'projects', project)]
+}
+
+/**
  * Tade's answer for the tool a prompt asks about, in `workspace`, asked from
- * `cwd` — where the agent stands, which a relative path is read against.
+ * `cwd` — where the agent stands, which a relative path is read against — for
+ * `task`, whose project's folder in Tade's home is its own too: a hook's own
+ * task (`TADE_TASK_ID`) unless said.
  */
 export async function answerFor(
   tool: string,
   input: unknown,
   workspace: string,
   cwd: string | null = null,
+  task: string | null = process.env.TADE_TASK_ID ?? null,
 ): Promise<PromptAnswer> {
   return answerPrompt({
     tool,
     input,
     effect: effectOfTool(tool),
-    roots: await rootsOf(workspace),
+    roots: [...(await rootsOf(workspace)), ...ownPlacesIn(task)],
     scratch: scratchPlaces(),
     cwd,
     home: homedir(),

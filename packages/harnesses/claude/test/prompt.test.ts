@@ -1,9 +1,9 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { answerFor, isPrompt, rootsOf, scratchPlaces } from '../src/prompt.ts'
+import { answerFor, isPrompt, ownPlacesIn, rootsOf, scratchPlaces } from '../src/prompt.ts'
 
 // What counts as the agent's own beside its workspace, as Claude Code lays it
 // out: its scratchpads under /tmp/claude-*, and $TMPDIR, under both of the
@@ -40,6 +40,49 @@ describe('answerFor', () => {
       tmp('tade-claude-cwd-'),
     )
     expect(answer).toMatchObject({ allow: true, rule: 'in-workspace' })
+  })
+})
+
+describe('ownPlacesIn', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('is its project’s folder in Tade’s home, as a launch hands the home down', () => {
+    expect(ownPlacesIn('tade/one-run', { TADE_HOME: '/h/.tade' })).toEqual([
+      '/h/.tade/projects/tade',
+    ])
+    expect(ownPlacesIn('tade/one-run', { HOME: '/x' })[0]).toMatch(/\/\.tade\/projects\/tade$/)
+    for (const task of [null, '', '../x', './x']) expect(ownPlacesIn(task, {})).toEqual([])
+  })
+
+  it('lets a hook’s own task cd into the batch tree, and not another project’s', async () => {
+    // Outside every temporary folder, which is the agent's scratch anyway.
+    const home = '/srv/tade-home'
+    vi.stubEnv('TADE_HOME', home)
+    vi.stubEnv('TADE_TASK_ID', 'tade/one-run-of-all-the-tests')
+    const workspace = tmp('tade-claude-cwd-')
+    const ours = await answerFor(
+      'Bash',
+      { command: `cd ${home}/projects/tade/batch && pnpm check` },
+      workspace,
+    )
+    expect(ours).toMatchObject({ allow: true })
+    const theirs = await answerFor(
+      'Bash',
+      { command: `cd ${home}/projects/bank/batch && ls` },
+      workspace,
+    )
+    expect(theirs.allow).toBe(false)
+    // Said outright, the task is the window's to name.
+    const named = await answerFor(
+      'Bash',
+      { command: `ls ${home}/projects/bank` },
+      workspace,
+      null,
+      'bank/x',
+    )
+    expect(named).toMatchObject({ allow: true })
   })
 })
 

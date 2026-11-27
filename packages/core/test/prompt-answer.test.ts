@@ -180,13 +180,65 @@ describe('answerPrompt refuses, with a reason the agent reads', () => {
   })
 
   it('refuses a relative path when there is no workspace to read it against', () => {
-    const answered = answerPrompt({ ...facts('Write', 'write', { file_path: 'x' }), roots: [] })
+    // Nor where it stands, which is its own as much as its roots are.
+    const answered = answerPrompt({
+      ...facts('Write', 'write', { file_path: 'x' }),
+      roots: [],
+      cwd: null,
+    })
     expect(answered.allow).toBe(false)
   })
 
   it('reads a command off a tool that is not an exec one', () => {
     const answered = answerPrompt(facts('mcp__x__run', 'other', { command: 'sudo ls' }))
     expect(answered).toMatchObject({ allow: false, rule: 'sudo' })
+  })
+})
+
+describe('answerPrompt counts the agent’s own places in Tade’s home, and where it stands', () => {
+  // Its project's folder in Tade's home is among its roots (`ownPlacesIn`):
+  // the batch tree the full checks run in, its tasks' files, their documents.
+  const PROJECT = `${HOME}/.tade/projects/shop`
+  const own = (input: unknown, more: Partial<PromptFacts> = {}) =>
+    answerPrompt({ ...facts('Bash', 'exec', input), roots: [WORK, GIT, PROJECT], ...more })
+
+  it('allows the full run in the batch tree, as refused live at 08:43', () => {
+    // What tade/one-run-of-all-the-tests ran, with its paths made Sam's.
+    const command = `cd ${PROJECT}/batch && S=/private/tmp/claude-501/-Users-sam-shop/a2ee5797/scratchpad; (node $S/pty.mjs $PWD/packages/drivers/pty > $S/pty.out 2>&1 &) ; sleep 4; cat $S/pty.out; S2=$S/tty2; mkdir -p $S2; rm -f $S2/*.ok; for t in $(python3 -I -c "import os;print(' '.join(sorted(n for n in os.listdir('/dev') if n.startswith('ttys'))))"); do ( stat -f %N /dev/$t >/dev/null 2>&1 && touch $S2/$t.ok ) & done; sleep 5; pkill -f '^stat -f %N /dev/ttys'; true`
+    expect(bash(command)).toMatchObject({ allow: false, rule: 'home' })
+    expect(own({ command })).toMatchObject({ allow: true, rule: 'in-workspace' })
+    expect(
+      own(
+        {},
+        {
+          tool: 'Write',
+          effect: 'write',
+          input: { file_path: `${PROJECT}/tasks/refunds/context.md` },
+        },
+      ),
+    ).toMatchObject({ allow: true })
+  })
+
+  it('keeps another project’s folder, the rest of Tade’s home and its keys out', () => {
+    expect(own({ command: `rm -rf ${HOME}/.tade/projects/bank` })).toMatchObject({ rule: 'home' })
+    expect(own({ command: `cat ${HOME}/.tade/events.jsonl` })).toMatchObject({ rule: 'home' })
+    expect(own({ command: `cat ${PROJECT}/batch/.env` })).toMatchObject({ rule: 'credentials' })
+  })
+
+  it('counts where it stands as its own, whatever root it is under', () => {
+    const there = { cwd: '/srv/sibling' }
+    expect(own({ command: 'rm -rf /srv/sibling/build' }, there)).toMatchObject({ allow: true })
+    expect(own({ command: 'rm -rf build' }, there)).toMatchObject({ allow: true })
+    expect(own({ command: 'rm -rf /srv/other/build' }, there)).toMatchObject({ rule: 'outside' })
+    expect(own({ command: 'cat /srv/sibling/.env' }, there)).toMatchObject({ rule: 'credentials' })
+  })
+
+  it('never counts the home folder, or anywhere above it, as where it stands', () => {
+    expect(own({ command: 'rm -rf ~/Downloads/x' }, { cwd: HOME })).toMatchObject({ rule: 'home' })
+    expect(own({ command: 'rm -rf /Users/ann/x' }, { cwd: '/Users' })).toMatchObject({
+      rule: 'outside',
+    })
+    expect(own({ command: 'rm -rf /etc/x' }, { cwd: '/' })).toMatchObject({ rule: 'outside' })
   })
 })
 
