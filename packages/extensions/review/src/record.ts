@@ -25,9 +25,12 @@ export interface Found {
 
 /** What the review watches found, oldest first. No network: the journal answers with Tade closed. */
 export async function found(ctx: ExtensionContext): Promise<Found[]> {
-  const events = await readJournal(ctx.home, { types: ['watch_found', 'watch_checked'] }).catch(
-    () => [],
-  )
+  // `watch_found` alone, because findings are folded out of nothing else: a
+  // look (`watch_checked`) carries where the next one starts, which for a
+  // watch over every branch is every branch's commit, written again at each
+  // look — 421 MB of the Mac's 762 MB journal on 26 Nov, read on every look
+  // of a review watch to answer a question none of it is part of.
+  const events = await readJournal(ctx.home, { types: ['watch_found'] }).catch(() => [])
   const { readSchedules } = await import('@tade/workbench/schedules')
   let ids: string[] = []
   try {

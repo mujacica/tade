@@ -48,6 +48,19 @@ export function forgetRead(): void {
   if (lastRead) lastRead = { ...lastRead, at: Number.NEGATIVE_INFINITY }
 }
 
+/**
+ * An event as this keeps it, for as long as the window is open: without where
+ * a look's next one starts (`since`), which nothing folded here reads. For a
+ * watch over every branch that is every branch's commit, written again at each
+ * look — on 26 Nov the Mac's `watch_checked` lines came to 421 MB of a 762 MB
+ * journal, nearly all of it that, and all of it held here from the first read.
+ */
+export function held(event: TadeEvent): TadeEvent {
+  if (event.type !== 'watch_checked' || !('since' in event.detail)) return event
+  const { since: _since, ...detail } = event.detail
+  return { ...event, detail }
+}
+
 /** What the record says, read from the journal and the review log. Asks nobody anything. */
 export async function recordOf(ctx: ExtensionContext, keepMs = 0): Promise<ReviewRecord> {
   const fresh = lastRead
@@ -61,13 +74,14 @@ export async function recordOf(ctx: ExtensionContext, keepMs = 0): Promise<Revie
   // the whole journal rather than a delta.
   const had = fresh?.home === ctx.home ? fresh : null
   const since = await readJournalSince(ctx.home, { types: WATCHED }, had?.readTo ?? 0)
+  const read = since.events.map(held)
   const events =
     since.readFrom === (had?.readTo ?? 0)
-      ? [...(had?.events ?? []), ...since.events]
+      ? [...(had?.events ?? []), ...read]
       : // It started over, so what it hands back is the whole journal rather
         // than a delta — and what was held of a file that is no longer that
         // file goes with it.
-        since.events
+        read
   const looks: Look[] = []
   const findings: Found[] = []
   let schedules: ReturnType<typeof readSchedules> = []

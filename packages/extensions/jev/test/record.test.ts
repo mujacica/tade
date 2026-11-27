@@ -1,9 +1,10 @@
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { watchedFrom } from '@tade/core'
 import type { ExtensionContext } from '@tade/extensions-core'
 import { describe, expect, it } from 'vitest'
-import { forgetRead, recordOf } from '../src/record.ts'
+import { forgetRead, held, recordOf } from '../src/record.ts'
 import { statusLine } from '../src/report.ts'
 import { NOW } from './harness.ts'
 
@@ -84,5 +85,32 @@ describe('the looks of several Jev watches', () => {
     // The last look there was worked, so the strip does not say it could not.
     expect(record.looks[0]?.problem).toBeNull()
     expect(statusLine(record).strip).not.toContain('no key')
+  })
+})
+
+describe('what the record keeps of a look', () => {
+  it('is the look without where the next one starts, and folds to the same looks', () => {
+    const lines = [
+      look(1, 'jev-review', 20),
+      look(2, 'jev-review', 10, 'no key'),
+      look(3, 'jev-review', 5),
+    ]
+    const events = lines.map((text) => JSON.parse(text))
+    const kept = events.map(held)
+    // A watch over every branch writes every branch's commit here at each look.
+    expect(kept.some((event) => 'since' in event.detail)).toBe(false)
+    expect(watchedFrom(kept, 'jev-review').looks).toEqual(watchedFrom(events, 'jev-review').looks)
+    // Anything else is kept as it was read.
+    const found = {
+      seq: 4,
+      ts: new Date(NOW).toISOString(),
+      type: 'watch_found',
+      urgency: 'routine',
+      task: null,
+      lane: null,
+      run: null,
+      detail: { schedule: 'jev-review', key: 'k', since: 'kept' },
+    }
+    expect(held(found as never)).toBe(found)
   })
 })

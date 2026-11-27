@@ -146,7 +146,7 @@ export class EventLog {
     let unindexed: string | null = null
     if (index && indexPath) {
       try {
-        if (!agrees(index, compacted, tail)) index.rebuild(await readAll(opts.path))
+        if (!agrees(index, compacted, tail)) index.rebuild(await readMatching(opts.path, {}))
       } catch {
         // An index that could not be brought into line is thrown away with its
         // write-ahead log — a database file beside a log that is not its own is
@@ -157,7 +157,7 @@ export class EventLog {
         await forgetIndex(indexPath)
         index = EventIndex.open(indexPath)
         try {
-          index?.rebuild(await readAll(opts.path))
+          index?.rebuild(await readMatching(opts.path, {}))
         } catch (cause) {
           index?.close()
           index = null
@@ -301,8 +301,7 @@ export class EventLog {
 
   async read(filter: EventFilter = {}): Promise<TadeEvent[]> {
     if (this.index) return this.index.query(filter)
-    const all = (await readAll(this.path)).filter((e) => matchesFilter(e, filter))
-    return filter.limit ? all.slice(-filter.limit) : all
+    return readMatching(this.path, filter)
   }
 
   async close(): Promise<void> {
@@ -469,16 +468,30 @@ async function forgetIndex(indexPath: string): Promise<void> {
  * For anyone who only wants to know what happened — `tade brief`, `tade
  * logs`, a script — and must not have to wait on, or disturb, an open window
  * to find out. Unparseable lines are skipped, never thrown over.
+ *
+ * **What it holds is what it answers, never the file**: each line is matched
+ * as it is read and one that does not match is let go there, and a `limit`
+ * keeps only the newest it could still answer with. It used to read the
+ * whole journal into one array and filter that — on 26 Nov the Mac's was
+ * 762 MB, a review watch asked it for the few thousand `watch_found` lines
+ * among a million, and the window died in `JSON.parse` with its heap full.
  */
 export async function readJournal(home: string, filter: EventFilter = {}): Promise<TadeEvent[]> {
-  const all = (await readAll(join(home, 'events.jsonl'))).filter((e) => matchesFilter(e, filter))
-  return filter.limit ? all.slice(-filter.limit) : all
+  return readMatching(join(home, 'events.jsonl'), filter)
 }
 
-async function readAll(path: string): Promise<TadeEvent[]> {
-  const out: TadeEvent[] = []
-  for await (const e of iterate(path)) if (e) out.push(e)
-  return out
+/** The lines of a journal that match, read through once and holding only those. */
+async function readMatching(path: string, filter: EventFilter): Promise<TadeEvent[]> {
+  const limit = filter.limit && filter.limit > 0 ? filter.limit : 0
+  let out: TadeEvent[] = []
+  for await (const e of iterate(path)) {
+    if (e === null || !matchesFilter(e, filter)) continue
+    out.push(e)
+    // Cut back to the newest `limit` once it holds twice that, so the cost of
+    // cutting is shared out over the lines rather than paid on every one.
+    if (limit && out.length >= limit * 2) out = out.slice(-limit)
+  }
+  return limit ? out.slice(-limit) : out
 }
 
 /**
