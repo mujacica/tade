@@ -25,14 +25,15 @@ import { parseCommand } from '../commands.ts'
 //
 // ## The three things only the window can do, and this file owes all three
 //
-// 1. **Re-check the state at the moment of the act.** The revision the device
-//    echoed (`was`) against the conversation as it stands *now* — which for a
-//    message means, above everything else, that nothing is in flight. A
-//    harness delivers a prompt that arrives mid-turn *into* that turn, so a
-//    message accepted while the person's question is being answered would put
-//    a stranger's words inside it, under the person's own arm. That is the one
-//    failure here that is not recoverable by refusing afterwards, and it is
-//    why `busy` is in the revision rather than only in a guard.
+// 1. **Re-check the state at the moment of the act** — for a stop, the
+//    revision the device echoed (`was`) against the conversation as it stands
+//    *now*, because a stop assumes a turn is in flight. A message assumes
+//    nothing, and is not refused for one: a harness delivers a prompt that
+//    arrives mid-turn *into* that turn, which would put a device's words
+//    inside somebody else's question and arm, so `askRemote` never sends one
+//    mid-turn — it waits for that turn to be over and is a turn of its own
+//    (the orchestrator's `askFrom`). Refusing it here too would only cost the
+//    person a resend whenever a turn started or ended after their screen drew.
 // 2. **Build the arm**, out of the device record read at the act and never out
 //    of the session the request arrived on. A device revoked a second ago
 //    must not be answered as though it were still paired — so the arm is
@@ -263,14 +264,13 @@ export interface AskingDeps {
   /** The devices as they are now, so a device revoked a second ago means something. */
   devices: () => readonly Device[]
   /**
-   * The conversation as it stands: the fact its revision is made of, and who
-   * is being answered.
+   * The conversation as it stands: the fact its revision is made of.
    *
    * The same fact `talkIn` builds the projected revision from, through the
    * same function — so what a device echoes back and what is compared here
    * cannot be two spellings of one value.
    */
-  seen: () => { busy: boolean; whose: string }
+  seen: () => { busy: boolean }
   /**
    * Hand the words to the orchestrator under this arm.
    *
@@ -316,20 +316,11 @@ export function webAsking(deps: AskingDeps): WebAsking {
       if (windows !== null) {
         return { did: false, rev: chatRev({ busy: deps.seen().busy }), said: windows }
       }
-      const seen = deps.seen()
-      // **The state the act named, re-checked against the world now.** A
-      // mismatch is the conversation having moved — somebody said something,
-      // or a turn started — and the answer carries what is true now so the
-      // page redraws the truth rather than a toast about it.
-      const now = chatRev({ busy: seen.busy })
-      if (call.was !== now) {
-        throw new Moved(
-          seen.busy
-            ? `Tade is already answering ${seen.whose || 'something'}`
-            : 'the conversation moved on',
-          now,
-        )
-      }
+      // **`was` is not compared.** A turn that started or ended since the
+      // screen drew is no reason to refuse: the words wait for a turn in
+      // flight to be over and are a turn of their own (`askFrom`), never
+      // steered into it, so the revision a message was typed against assumes
+      // nothing a message needs.
       // Written down *before* the words are handed over, so a line nobody can
       // see is not the first thing a person reads about a turn Tade is already
       // on. It is the device's line and never the person's: `deviceSaid` is a

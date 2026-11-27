@@ -211,20 +211,6 @@ describe('a message that is refused', () => {
     expect(one.said).toEqual([])
   })
 
-  it('refuses a second message while a turn is in flight, and says whose', async () => {
-    // **The interleaving case**, and the one that is not recoverable by
-    // refusing afterwards: a harness delivers a prompt that arrives mid-turn
-    // *into* that turn, so a message accepted here would put a stranger's
-    // words inside the person's question — and inside the person's arm.
-    const one = await ready({ busy: true, whose: 'you' })
-    const answer = await ask(one.port, 'ask', { was: revOf(), key: KEY, rev: 0, said: 'hello' })
-    expect(answer.status).toBe(409)
-    expect(answer.body.error).toBe('gone')
-    // And what is true now, so the page draws it rather than a toast.
-    expect(answer.body.rev).toBe('b1')
-    expect(one.said).toEqual([])
-  })
-
   it('refuses a device that was disconnected while it was typing', async () => {
     // **The arm is built from the device record at the act**, not from the
     // session the request arrived on: a person who disconnected a phone
@@ -239,10 +225,44 @@ describe('a message that is refused', () => {
   })
 
   it('writes a refusal down too, which is the case the audit matters most in', async () => {
-    const one = await ready({ busy: true, whose: 'you' })
+    const one = await ready({
+      ask: () => Promise.reject(new Error('the orchestrator is not running')),
+    })
     await ask(one.port, 'ask', { was: revOf(), key: KEY, rev: 0, said: 'hello' })
     const lines = await waitFor(one.client, 'web_asked')
     expect(lines[0]?.detail).toMatchObject({ device: DEVICE, state: 'refused' })
+  })
+})
+
+describe('a message the screen typed against a turn that has since started or ended', () => {
+  it('is handed over all the same, and never refused for it', async () => {
+    // A harness delivers a prompt that arrives mid-turn *into* that turn, so
+    // the words are never sent mid-turn: `askFrom` waits for the turn to be
+    // over and makes them a turn of their own. Refusing them at the door as
+    // well would only cost the person a resend — once when a turn started
+    // after the screen drew, and once when it ended.
+    const started = await ready({ busy: true, whose: 'you' })
+    const late = await ask(started.port, 'ask', {
+      was: revOf(false),
+      key: KEY,
+      rev: 0,
+      said: 'hello',
+    })
+    expect(late.status).toBe(200)
+    expect(late.body.did).toBe(true)
+    expect(late.body.rev).toBe(revOf(true))
+    expect(started.said).toEqual([{ text: 'hello', device: DEVICE }])
+    expect(started.armed).toHaveLength(1)
+
+    const ended = await ready({ busy: false })
+    const early = await ask(ended.port, 'ask', {
+      was: revOf(true),
+      key: KEY,
+      rev: 0,
+      said: 'and this',
+    })
+    expect(early.status).toBe(200)
+    expect(ended.said).toEqual([{ text: 'and this', device: DEVICE }])
   })
 })
 
