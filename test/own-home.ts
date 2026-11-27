@@ -147,7 +147,8 @@ export const PROVIDER_KEYS = [
 /**
  * What a running Tade hands its children, and none of it the suite's: the
  * home's three names, everything a harness's launch gives an agent
- * (`WORKER_ENV`, and Claude Code's own status line), and the window's socket
+ * (`WORKER_ENV`, and Claude Code's own status line and the
+ * workspace its permission prompt is answered for), and the window's socket
  * and CLI that `toolEnv` gives the orchestrator's tools. What a check run gives
  * the suite itself — `TADE_CHECK`, `TADE_CHECKS_SLOT` — stays.
  */
@@ -163,6 +164,7 @@ export const HANDED_DOWN = [
   'TADE_TITLE',
   'TADE_CALLED',
   'TADE_CLAUDE_STATUSLINE',
+  'TADE_CLAUDE_WORKSPACE',
   'TADE_SOCKET',
   'TADE_CLI',
   'TADE_CLI_ARGS',
