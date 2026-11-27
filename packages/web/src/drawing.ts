@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto'
 import { readFile, realpath as realpathOnDisk } from 'node:fs/promises'
 import { stripTypeScriptTypes } from 'node:module'
 import { dirname, join, relative, sep } from 'node:path'
+import { promisify } from 'node:util'
+import { brotliCompress, constants } from 'node:zlib'
 
 // The window's drawing code, served to a browser as it is (the away view's
 // full view: the phone draws its own copy of the window from the state the
@@ -87,6 +89,30 @@ function realpath(path: string): Promise<string> {
   }
   return found
 }
+
+/**
+ * What the full view's code may weigh: its own ceiling, never counted against
+ * the overview's page (`measure.ts`), because it is loaded only when the full
+ * view is first opened and then kept, `immutable`, for as long as this Tade
+ * is. Measured on 27 Nov 2026 at 323 files, 3,921 KB as served and 1,093 KB on
+ * the wire — brotli at quality 9, file by file, which is what a phone is sent —
+ * of which highlight.js is 112 KB. Never minified: that would be a build step.
+ * `change-the-window` has the decision and what to do when it is reached.
+ */
+export const DRAWING_CEILING = { rawKb: 4000, wireKb: 1120 } as const
+
+/** What the drawing weighs as served, and as sent: each file brotli'd as `files.ts` sends it. */
+export async function wireBytes(made: Drawing): Promise<{ raw: number; wire: number }> {
+  let raw = 0
+  let wire = 0
+  for (const one of made.files.values()) {
+    raw += one.bytes.length
+    wire += (await brotli(one.bytes, { params: { [constants.BROTLI_PARAM_QUALITY]: 9 } })).length
+  }
+  return { raw, wire }
+}
+
+const brotli = promisify(brotliCompress)
 
 /** Where everything is served from. */
 export const DRAW_PREFIX = '/draw'

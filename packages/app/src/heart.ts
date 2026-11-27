@@ -9,6 +9,7 @@ import {
   seenBy,
   sharedFrom,
 } from './faces.ts'
+import { colourWith } from './highlight.ts'
 import { agentEnded, eventNews } from './inbox.ts'
 import type { LayoutPrefs } from './layout.ts'
 import { Live } from './live.ts'
@@ -47,6 +48,7 @@ import { Earlier } from './wire/earlier.ts'
 import { type FleetFeeds, fleetFeedsFor } from './wire/feeds.ts'
 import { FleetTalk, type TalkThere } from './wire/fleet-talk.ts'
 import { type Tellable, tellNow, tellOrKeep } from './wire/handed.ts'
+import { requireHighlighter } from './wire/highlighter.ts'
 import { Intake } from './wire/intake.ts'
 import { Inventories, type InventoriesDeps, type InventoryTools } from './wire/inventory.ts'
 import { LinearTokens, lending } from './wire/linear-tokens.ts'
@@ -507,6 +509,9 @@ export class Heart {
   private updates: Updates | null = null
 
   constructor(opts: AppOptions, face: Face, said: ((line: Said) => void) | null = null) {
+    // Code is coloured with the machine's highlight.js; `highlight.ts` asks for
+    // it rather than importing it, so the same drawing runs in a browser.
+    colourWith(requireHighlighter)
     this.opts = opts
     this.face = face
     this.said = said

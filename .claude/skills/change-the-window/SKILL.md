@@ -16,6 +16,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `split.ts` | A pane cut in two: which lane the second half draws, which half types | a terminal |
 | `frame.ts` | `Frame`: the shape of what the window is handed to draw, and nothing else | — (types only) |
 | `view.ts` | `draw(state, frame, last?) → { rows, hits }`, one row per line: the composition, and nothing else | a terminal |
+| `browser.ts` | The one door a browser draws the window through — the view, the panels, the hit map, scrolling, layout, the model — and everything it reaches holds no Node (*The drawing runs in a browser*, below) | — |
 | `view/last-frame.ts` | `LastFrame`: the five regions the last frame drew and what each read, so one whose inputs did not move is handed back rather than drawn (`same`, `drawnFor`, `checked`) | a terminal |
 | `view/` | One file per region — `top`, `sidebar`, `main`, `queue`, `plan`, `schedule`, `actions`, `strip`, `foot` — over four shared ones: `text` (width, words, moments, numbers), `rows` (a tab, a section, a scrollbar, a mark's tone), `list` (a row an extension keeps, in two rows: the side and the ACTIONS page both draw one) and `lane`/`split`, which two regions each reach for | a terminal |
 | `ui.ts` | `Row` (controls that know where they are clickable), `box`, `overlay` | a terminal |
@@ -43,10 +44,10 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `meant.ts` | What happens when the letters were not enough: whether what was typed is a sentence, whether it was already answered, and the shortlist put to whoever reads one | a disk or git |
 | `finder.ts` | What search looks through: `git ls-files` and `git grep`, and parsing both | — (a real repo) |
 | `happening.ts` | What is happening about each thing search can go to (`happeningOn`, `happeningIn`) | a terminal |
-| `highlight.ts` | Code coloured in 256 colours from highlight.js, line by line | a terminal |
-| `viewer.ts` | Reading a file to show (size cap, binary), Markdown laid out, finding in it and typing into it | a terminal (not a disk) |
+| `highlight.ts` | Code coloured in 256 colours from highlight.js, line by line, by whichever highlighter was registered (`colourWith`: the heart registers `wire/highlighter.ts`'s lazy `require`, a page its own import) | a terminal |
+| `viewer.ts` | A file to show (size cap, binary), Markdown laid out, finding in it and typing into it; reading and saving one are `wire/file-read.ts` | a terminal (not a disk) |
 | `wire/viewed.ts` | The one file the window has open: read once, coloured once, laid out for the width it has, and the rows git's answer makes of it — `files.ts` owns what is on disk *here*, this owns what is open | a terminal |
-| `editor.ts` | Which editor opens a file, with what arguments; what on screen is a link | a terminal |
+| `editor.ts` | Which editor opens a file, with what arguments; what on screen is a link. The spawn is `wire/launch.ts` | a terminal |
 | `diff.ts` | A unified diff as drawable lines | a terminal |
 | `comments.ts` | A comment on a line of a diff, the hunk it carries, and what Tade and an agent are each told (`forTade`, `forAgent`) | a terminal |
 | `router.ts` | Whether a keystroke is for the agent or for Tade | a terminal |
@@ -1346,6 +1347,76 @@ the window's.
   reader, and a rule at the door bounds every reader. Off, each choice goes with its name and where it
   is and nothing else; the letters go on matching all of it either way, because matching it here sends
   nothing anywhere. On by default, said out loud where somebody is deciding.
+
+## The drawing runs in a browser
+
+A phone draws its own copy of the window from the state the machine sends (the away view's full
+view, Duo plan §10 T2–T4), so **what the window draws is loadable in a browser, and that is held for
+the whole closure, not file by file**. `browser.ts` is the entry; `test/browser.test.ts` walks
+everything it reaches with TypeScript's parser, the way a browser walks it — through the import map
+and its swap — and fails on any `node:` import or Node-only package, printing the chain that brought
+it in. `import { type A } from 'a'` still loads `a` (stripping leaves `import {} from 'a'`); only
+`import type` is free.
+
+What keeps it so, and what to do when you are about to break it:
+
+- **A pure file imports `@tade/core/pure`, never `@tade/core`** (type-only imports may stay on the
+  barrel). `pure.ts` lists the core modules the drawing needs. When the drawing needs a name from a
+  module that reaches Node, move **only the part that reaches Node** out beside it
+  (`produces-path.ts`, `host-names.ts`, `secret-command.ts`, `skill-dirs.ts`,
+  `settings-decimals.ts`), or move the few names drawn into a pure file the old module hands on
+  (`feed-lines.ts`, `carry-said.ts`, `settings-shown.ts`, `thinking.ts`), so no importer elsewhere
+  changes. Never add a module to `pure.ts` whose closure is not pure: the test names it.
+- **pi-tui from its `dist/` files** — `utils.js`, `keys.js`, `keybindings.js`,
+  `components/markdown.js` — never the barrel, which loads the renderer. `compositeTuiLine` lives in
+  pi-tui's `tui.js`, so it is copied to `composite.ts` and held equal over every golden row
+  (`test/composite.test.ts`). pi-tui's Markdown imports `terminal-image.js`, which asks
+  `child_process` about the terminal: a browser is given `browser-terminal.ts` instead (the import
+  map swaps the URL), told what the page can draw (`setCapabilities`) rather than detecting it.
+- **Node's parts live behind the wire**: a spawn is `wire/launch.ts`, a file read or saved is
+  `wire/file-read.ts`, highlight.js's lazy `require` is `wire/highlighter.ts`. A path's name is
+  `paths.ts` (Node's own POSIX loops, held to `node:path`).
+- **Code is coloured by whichever highlighter was registered** (`colourWith`). Nothing registered is
+  plain, so anything in Node that draws code registers first: the heart does, the golden scenarios
+  do through `test/screens/colours.ts`, and a test that checks colour does at its top.
+
+**How it is served** (`@tade/web`'s `drawing.ts` and `drawn.ts`, wired by `wire/drawing.ts`): the
+closure of `browser.ts`, highlight.js's core and the languages `languagesNamed` lists, each file as
+it is with its types stripped by `stripTypeScriptTypes`, at `/draw/<version>/pkg/<package>/<path>`.
+The bare specifiers resolve through an **import map**, inline in the document at `/draw/` under the
+page's own policy with that script's hash added to `script-src` and nothing else. highlight.js's core
+is CommonJS that requires nothing, so it is wrapped (`module` above, `export default` below); a file
+that calls `require` is refused by name. The runtime walk is a small lexer over stripped code, and the
+test holds it to find exactly the files the parser does. `node packages/app/scripts/browser-goldens.ts`
+builds and draws every golden scenario **in a browser**, from the same modules, and holds each screen
+byte for byte to its `.ansi`; it says `unrun` without Playwright, like the away view's harness.
+
+**Its size is its own, decided 27 Nov 2026.** The full view's code is 323 files, 3,921 KB as served
+and 1,093 KB on the wire (brotli, file by file, which is what a phone is sent), 112 KB of it
+highlight.js — twice the overview's whole page. So:
+
+- it is **never counted against the overview's ceiling** and never loaded by it: the page imports it
+  when the full view is **first opened**, and not before;
+- every URL carries a hash over everything served, so each file is `immutable` and a phone pays once
+  per Tade version; the service worker keeping it for offline use is T4's;
+- it has **its own ceiling**, `DRAWING_CEILING` in `drawing.ts` (4,000 KB served, 1,120 KB on the
+  wire), held by `test/browser.test.ts`. Raising it is a sentence in the commit saying what grew;
+- **never minified, never bundled**: either is a build step, and a line on the phone is a line here,
+  comments and all. What to do when it is reached is to send less — a panel's code loaded when it
+  opens, a language list cut — not to compress it differently.
+
+**Facts that depend on the width.** Every subject's `facts()` is width-free except these, which T3
+sends per phone or the phone computes (nothing here moved them yet):
+
+- **the orchestrator's line** (`wire/keyboard.ts` `input(width)`): pi's editor rendered to the
+  width. The line is pi's editor and is changed only by keys, so a phone needs its own line, not the
+  machine's at another width;
+- **the file viewer** (`wire/files.ts` `panel(width)`, `wire/viewed.ts`): Markdown laid out to the
+  panel's width, kept per width because it is a pass over the whole file, and the file and diff
+  bodies sized from the machine's terminal (`size()`, also `wire/extensions.ts`). `formattedLines`
+  is pure now, so the phone can lay out a file whose text it is sent;
+- **a lane's screen** (`wire/lanes.ts`): a terminal's screen at the lane's own size, which cannot be
+  drawn again at another width — the phone draws it as captured, cut and scrolled as the window does.
 
 ## What the window says outside itself
 

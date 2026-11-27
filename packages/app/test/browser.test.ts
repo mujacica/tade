@@ -2,7 +2,13 @@ import { readFileSync } from 'node:fs'
 import { realpath } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { type Drawing, isNodeOnly, resolveBare } from '@tade/web/drawing'
+import {
+  DRAWING_CEILING,
+  type Drawing,
+  isNodeOnly,
+  resolveBare,
+  wireBytes,
+} from '@tade/web/drawing'
 // The compiler as a library, for its parser: `typescript` 7 ships no API
 // (`test/dead-keys.test.ts` says why the 6 compatibility package is the one).
 import ts from '@typescript/typescript6'
@@ -174,5 +180,14 @@ describe("the window's drawing, in a browser", () => {
       expect(url.startsWith(`/draw/${built.version}/pkg/`), url).toBe(true)
       expect(built.files.has(url.slice(`/draw/${built.version}/`.length)), url).toBe(true)
     }
+  })
+})
+
+describe("the full view's code, on the wire", () => {
+  it('fits its own ceiling, as served and as sent', async () => {
+    const { raw, wire } = await wireBytes(built)
+    const kb = (bytes: number) => `${(bytes / 1024).toFixed(1)} KB`
+    expect(raw / 1024, `${kb(raw)} as served`).toBeLessThanOrEqual(DRAWING_CEILING.rawKb)
+    expect(wire / 1024, `${kb(wire)} brotli`).toBeLessThanOrEqual(DRAWING_CEILING.wireKb)
   })
 })

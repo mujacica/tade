@@ -1,6 +1,7 @@
+// First, so code is coloured before any scenario here is built (`colours.ts`).
+import '../colours.ts'
 import type { LineComment } from '../../../src/comments.ts'
 import { type ParsedDiff, parseDiff } from '../../../src/diff.ts'
-import { colourWith } from '../../../src/highlight.ts'
 import { offsetOf } from '../../../src/input.ts'
 import { initialState, toggleSection, withProjects } from '../../../src/model.ts'
 import type { CommentChoice } from '../../../src/panels/comment.ts'
@@ -17,11 +18,7 @@ import {
   typeIn,
   type ViewedFile,
 } from '../../../src/viewer.ts'
-import { requireHighlighter } from '../../../src/wire/highlighter.ts'
 import { base, frame, type Scenario } from './fixtures.ts'
-
-// Code is coloured with the machine's highlight.js, as the heart registers it.
-colourWith(requireHighlighter)
 
 // The files: the tree down the side, what git marks, a diff, and the viewer —
 // reading, finding, editing and selecting in one.

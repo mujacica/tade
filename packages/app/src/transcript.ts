@@ -1,7 +1,7 @@
-import { byOf, printable, wentQuiet } from '@tade/core'
+import { byOf, printable, wentQuiet } from '@tade/core/pure'
 import type { HistoryItem } from '@tade/harnesses-core'
 import type { Turn } from '@tade/voice-core'
-import { unwrapped } from './inbox.ts'
+import { unwrapped } from './headings.ts'
 
 // The conversation with the orchestrator, as it happens.
 //
