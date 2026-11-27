@@ -18,13 +18,12 @@
 // Nothing here decides a note's place, its group or its window
 // (`notes-shape.js`).
 
-import { mayFor } from '../access.js'
 import { lanes, lanesIn } from '../charts.js'
 import { el, into, keyed, proseOf, skeleton, textIn, unknown } from '../dom.js'
 import { count, shortClockOf } from '../figures.js'
 import { icon } from '../icons.js'
 import { section } from '../rows.js'
-import { notesOf, omitted, projectAt, taskAt } from '../store.js'
+import { notesOf, projectAt, taskAt } from '../store.js'
 import { stateBox, stateBoxIn } from '../ui.js'
 import { asOfLine, BANDS, leadLine, notesPage, tallyOf, wholeOf } from './notes-shape.js'
 
@@ -76,17 +75,16 @@ export function notesScreen() {
     state.last = view
     const store = view.store
     const had = store.had === true
-    const may = had && mayFor(store, 'notes')
-    const rows = may ? notesOf(store) : []
+    const rows = had ? notesOf(store) : []
     const total = rows.length
-    const page = may ? notesPage(rows, view.asOf, placesIn(store)) : null
+    const page = had ? notesPage(rows, view.asOf, placesIn(store)) : null
     const shut = view.standing === 'unreachable' || view.standing === 'closed'
     coming.hidden = had || shut
     textIn(made.figure, total === 0 ? '' : count(total))
     // A label on an empty figure is one axe refuses: said only when drawn.
     if (total === 0) made.figure.removeAttribute('aria-label')
     else made.figure.setAttribute('aria-label', `${total} notes`)
-    stateBoxIn(whole, stateOf(wholeOf(had, shut, may, page?.total ?? 0, omitted(store, 'notes'))))
+    stateBoxIn(whole, stateOf(wholeOf(had, shut, page?.total ?? 0)))
     const drawn = page !== null && page.total > 0
     by.node.hidden = !drawn
     lead.node.hidden = !drawn

@@ -1,10 +1,9 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { taskDir } from '@tade/core'
-import { digestOf, type ProjectRow, writeDevices } from '@tade/web'
+import type { ProjectRow } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
-import { AWAY_CONTROLS, awayPanel } from '../../src/panels/away/state.ts'
 import {
   act,
   closeAll,
@@ -16,7 +15,6 @@ import {
   projectionOf,
   revOf,
   rowOf,
-  SECRET,
   waitFor,
 } from './away-harness.ts'
 
@@ -32,12 +30,12 @@ import {
 
 afterEach(closeAll)
 
-/** A machine listening, with an agent running on its task and a device granted `scopes`. */
-async function ready(scopes: readonly string[]): Promise<Machine> {
+/** A machine listening, with an agent running on its task and a device paired. */
+async function ready(): Promise<Machine> {
   const one = await machine()
   one.running(one.task)
   one.lane(one.task, true)
-  await paired(one.home, one.port, scopes)
+  await paired(one.home, one.port)
   await one.away.open()
   await one.refresh()
   return one
@@ -45,7 +43,7 @@ async function ready(scopes: readonly string[]): Promise<Machine> {
 
 /** The project's own row, as a device that may read it would have it. */
 function projectRow(one: Machine, name = 'app', device = DEVICE): ProjectRow {
-  const row = projectionOf(one, [], device).projects.find((each) => each.name === name)
+  const row = projectionOf(one, device).projects.find((each) => each.name === name)
   if (row === undefined) throw new Error(`no row for ${name}`)
   return row
 }
@@ -96,7 +94,7 @@ async function did(
 
 describe('stopping an agent and opening it again', () => {
   it('stops the running agent, keeps its lane, and opens it again where it left off', async () => {
-    const one = await ready(['read', 'agents'])
+    const one = await ready()
     const row = rowOf(one, one.task)
     expect(row.lane).toBe('running')
     expect(row.can.map((each) => each.verb)).toContain('stop')
@@ -143,7 +141,7 @@ describe('stopping an agent and opening it again', () => {
     // lane is running exactly as the first screen said — so a captured stop
     // sent under a fresh key (its receipt gone) meets a revision that moved,
     // rather than stopping the agent somebody opened since.
-    const one = await ready(['read', 'agents'])
+    const one = await ready()
     const first = rowOf(one, one.task).rev
     const body = { task: one.task, was: first, key: KEY, rev: 0, confirm: true }
     expect((await act(one.port, 'stop', body)).status).toBe(200)
@@ -166,7 +164,7 @@ describe('stopping an agent and opening it again', () => {
   })
 
   it('reads the lane at the act, so a screen saying running cannot stop an agent that already stopped', async () => {
-    const one = await ready(['read', 'agents'])
+    const one = await ready()
     const was = rowOf(one, one.task).rev
     // The agent ended on its own after the row was drawn and before the beat
     // that would have said so: the registry is the truth, and it is asked.
@@ -179,7 +177,7 @@ describe('stopping an agent and opening it again', () => {
 
   it('never reopens a task no agent has run on: starting one is `start`, saying nothing to it', async () => {
     const one = await machine()
-    await paired(one.home, one.port, ['read', 'agents'])
+    await paired(one.home, one.port)
     await one.away.open()
     await one.refresh()
     const row = rowOf(one, one.task)
@@ -194,7 +192,7 @@ describe('stopping an agent and opening it again', () => {
   })
 
   it('takes two presses on the page and the literal here: a stop without it is not one', async () => {
-    const one = await ready(['read', 'agents'])
+    const one = await ready()
     const was = rowOf(one, one.task).rev
     const no = await act(one.port, 'stop', { task: one.task, was, key: KEY, rev: 0 })
     expect(no.status).toBe(400)
@@ -204,7 +202,7 @@ describe('stopping an agent and opening it again', () => {
 
 describe('closing a project and opening it again', () => {
   it('closes it with an agent working, deletes nothing, and opens it again with everything back', async () => {
-    const one = await ready(['read', 'projects'])
+    const one = await ready()
     const root = projectsIn(one).app?.root
     expect(root).toBeDefined()
     const row = projectRow(one)
@@ -259,7 +257,7 @@ describe('closing a project and opening it again', () => {
   })
 
   it('refuses a close replayed after the project was opened again', async () => {
-    const one = await ready(['read', 'projects'])
+    const one = await ready()
     const first = projectRow(one).rev
     const body = { project: 'app', was: first, key: KEY, rev: 0, confirm: true }
     expect((await act(one.port, 'close', body)).status).toBe(200)
@@ -277,7 +275,7 @@ describe('closing a project and opening it again', () => {
   })
 
   it('answers a repeat across a restart from the receipts, and closes once', async () => {
-    const one = await ready(['read', 'projects'])
+    const one = await ready()
     const body = { project: 'app', was: projectRow(one).rev, key: KEY, rev: 0, confirm: true }
     const first = await act(one.port, 'close', body)
     expect(first.status).toBe(200)
@@ -294,7 +292,7 @@ describe('closing a project and opening it again', () => {
   })
 
   it('does not open a project whose folder has gone, and says nothing about where it was', async () => {
-    const one = await ready(['read', 'projects'])
+    const one = await ready()
     const root = String(projectsIn(one).app?.root)
     expect(
       (
@@ -327,7 +325,7 @@ describe('a journal line nobody at this machine wrote', () => {
     // claiming a project closed from a relative path is not one the close
     // wrote — it writes the config's own root — so opening it is refused, and
     // nothing is resolved against wherever the window happens to be.
-    const one = await ready(['read', 'projects'])
+    const one = await ready()
     await one.client.log.append({
       type: 'config_changed',
       // `.` is this process's own folder — a git checkout, here — which is
@@ -343,107 +341,15 @@ describe('a journal line nobody at this machine wrote', () => {
   })
 })
 
-describe('who may', () => {
-  it('refuses a device granted both acting tiers and neither lifecycle scope', async () => {
-    const one = await ready(['read', 'answer', 'steer'])
-    const stop = await act(one.port, 'stop', {
-      task: one.task,
-      was: rowOf(one, one.task).rev,
-      key: KEY,
-      rev: 0,
-      confirm: true,
-    })
-    expect(stop.status).toBe(403)
-    const close = await act(one.port, 'close', {
-      project: 'app',
-      was: projectRow(one).rev,
-      key: 'closekey12345678',
-      rev: 0,
-      confirm: true,
-    })
-    expect(close.status).toBe(403)
-    expect(one.lane(one.task)).toBe(true)
-    expect(projectsIn(one).app).toBeDefined()
-  })
-
-  it('keeps the two scopes apart: agents is not projects, and projects is not agents', async () => {
-    const agents = await ready(['read', 'agents'])
-    const close = await act(agents.port, 'close', {
-      project: 'app',
-      was: projectRow(agents).rev,
-      key: KEY,
-      rev: 0,
-      confirm: true,
-    })
-    expect(close.status).toBe(403)
-    expect(projectsIn(agents).app).toBeDefined()
-
-    const projects = await ready(['read', 'projects'])
-    const stop = await act(projects.port, 'stop', {
-      task: projects.task,
-      was: rowOf(projects, projects.task).rev,
-      key: KEY,
-      rev: 0,
-      confirm: true,
-    })
-    expect(stop.status).toBe(403)
-    expect(projects.lane(projects.task)).toBe(true)
-  })
-
-  it('holds a device to the projects it reads, which is the per-project boundary', async () => {
-    const one = await machine()
-    one.running(one.task)
-    one.lane(one.task, true)
-    // Granted both lifecycle scopes, and the reading of one other project.
-    await writeDevices(one.home, [
-      {
-        kind: 'paired',
-        device: DEVICE,
-        at: new Date().toISOString(),
-        label: 'iPhone',
-        digest: digestOf(SECRET),
-        host: `127.0.0.1:${one.port}`,
-        csrf: 'x'.repeat(43),
-        until: new Date(Date.now() + 86_400_000).toISOString(),
-        scopes: ['read', 'agents', 'projects'],
-        projects: ['shop'],
-        granted: [],
-        from: '127.0.0.1',
-      },
-    ])
-    await one.away.open()
-    await one.refresh()
-    const close = await act(one.port, 'close', {
-      project: 'app',
-      was: projectRow(one).rev,
-      key: KEY,
-      rev: 0,
-      confirm: true,
-    })
-    expect(close.status).toBe(403)
-    const stop = await act(one.port, 'stop', {
-      task: one.task,
-      was: rowOf(one, one.task).rev,
-      key: 'stopkey123456789',
-      rev: 0,
-      confirm: true,
-    })
-    expect(stop.status).toBe(403)
-    expect(projectsIn(one).app).toBeDefined()
-    expect(one.lane(one.task)).toBe(true)
-  })
-})
-
 describe('the audit', () => {
   it('writes a line under the device for every act, and for every refusal', async () => {
-    const one = await ready(['read', 'agents'])
+    const one = await ready()
     const was = rowOf(one, one.task).rev
     await act(one.port, 'stop', { task: one.task, was, key: KEY, rev: 0, confirm: true })
-    // Refused at the door: no `projects` scope. The body is never read there,
-    // so the line names the device and the verb and nothing it did not read.
+    // Refused: a screen drawn before the project moved.
     await act(one.port, 'close', {
       project: 'app',
-      was: projectRow(one).rev,
+      was: 'o1.c9',
       key: 'closekey12345678',
       rev: 0,
       confirm: true,
@@ -457,12 +363,12 @@ describe('the audit', () => {
     const door = lines.find((line) => (line.detail as { tool?: string }).tool === 'close')
     expect(door).toMatchObject({
       task: null,
-      detail: { device: DEVICE, tool: 'close', state: 'refused', why: 'out_of_scope' },
+      detail: { device: DEVICE, tool: 'close', state: 'refused', why: 'gone' },
     })
   })
 
   it('names the project, never as a task, on a project act the window refused', async () => {
-    const one = await ready(['read', 'projects'])
+    const one = await ready()
     const stale = await act(one.port, 'close', {
       project: 'app',
       was: 'o1.c9',
@@ -480,86 +386,5 @@ describe('the audit', () => {
       detail: { device: DEVICE, tool: 'close', project: 'app', state: 'refused', why: 'gone' },
     })
     expect(projectsIn(one).app).toBeDefined()
-  })
-})
-
-describe('granting it, at the machine', () => {
-  /** Press one of the panel's own controls, the way a click reaches the subject. */
-  async function press(one: Machine, control: string): Promise<void> {
-    const submit = one.away.submits().away
-    if (submit === undefined) throw new Error('the away panel has no submit')
-    await submit(awayPanel(), control)
-  }
-
-  it('is off for a paired device until a person presses its chip, one scope per chip', async () => {
-    const one = await machine()
-    one.running(one.task)
-    one.lane(one.task, true)
-    await paired(one.home, one.port, ['answer', 'steer'])
-    await one.away.open()
-    await one.away.reread()
-    one.show()
-    const before = one.away.panel()?.away?.devices[0]
-    expect(before).toMatchObject({ mayAct: true, mayStop: false, mayClose: false })
-
-    await press(one, `${AWAY_CONTROLS.agents}${DEVICE}`)
-    expect(one.news.join(' ')).toContain('can start, stop, rename or switch an agent’s model')
-    expect(one.away.panel()?.away?.devices[0]).toMatchObject({
-      mayAct: true,
-      mayStop: true,
-      mayClose: false,
-    })
-    // The grant composes: both acting tiers are still there, and reading.
-    const lines = readFileSync(join(one.home, 'web-devices.jsonl'), 'utf8').trim().split('\n')
-    expect(JSON.parse(lines.at(-1) ?? '{}')).toMatchObject({
-      kind: 'allowed',
-      scopes: expect.arrayContaining(['read', 'answer', 'steer', 'agents']),
-    })
-    expect(JSON.parse(lines.at(-1) ?? '{}').scopes).not.toContain('projects')
-    // And it is in the journal as a grant at the machine.
-    const granted = await waitFor(one.client, 'web_paired')
-    expect(granted.at(-1)).toMatchObject({ detail: { device: DEVICE, granted: 'at the machine' } })
-
-    // The device can now stop the agent, and still cannot close the project.
-    await one.refresh()
-    const stop = await act(one.port, 'stop', {
-      task: one.task,
-      was: rowOf(one, one.task).rev,
-      key: KEY,
-      rev: 0,
-      confirm: true,
-    })
-    expect(stop.status).toBe(200)
-    const close = await act(one.port, 'close', {
-      project: 'app',
-      was: projectRow(one).rev,
-      key: 'closekey12345678',
-      rev: 0,
-      confirm: true,
-    })
-    expect(close.status).toBe(403)
-
-    // Pressed again, it is taken back — and nothing else with it.
-    await press(one, `${AWAY_CONTROLS.agents}${DEVICE}`)
-    expect(one.news.join(' ')).toContain('can no longer start, stop')
-    expect(one.away.panel()?.away?.devices[0]).toMatchObject({ mayAct: true, mayStop: false })
-  })
-
-  it('draws both chips only where acting is on, and refuses a grant while it is off', async () => {
-    const on = await machine()
-    await paired(on.home, on.port, [])
-    await on.away.open()
-    await on.away.reread()
-    on.show()
-    expect(on.away.panel()?.away?.acting).toBe(true)
-
-    const off = await machine({ acting: false })
-    await paired(off.home, off.port, [])
-    await off.away.open()
-    await off.away.reread()
-    off.show()
-    await press(off, `${AWAY_CONTROLS.projects}${DEVICE}`)
-    expect(off.away.panel()?.away?.problem).toContain('“Act”')
-    expect(off.away.panel()?.away?.devices[0]?.mayClose).toBe(false)
   })
 })

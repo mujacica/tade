@@ -5,7 +5,7 @@ import { type Admitted, REVISIONS_BEHIND, type Standing } from './acts.ts'
 import { ASK_BOUND, type WebAsking } from './asking.ts'
 import { type Refusal, refuse } from './errors.ts'
 import type { Claimed, Receipts } from './receipts.ts'
-import { type Scope, thisMachine, trusted } from './surface.ts'
+import { thisMachine, trusted } from './surface.ts'
 import { KEY } from './verbs.ts'
 
 // One message to Tade, from a parsed body to what the device is told and what
@@ -36,16 +36,10 @@ import { KEY } from './verbs.ts'
 //
 // ## The one step that is different, and why that is sound
 //
-// `admit`'s third check is the project: a verb names a task, and the device's
-// read scope is the per-project boundary. A message names no project, so there
-// is nothing here to check — and the honest thing is not to invent one.
-//
-// What takes its place is that the boundary is **carried into the turn**: the
-// arm the turn runs under holds the device's own project list, and the two
-// tables in `@tade/orchestrator` refuse every call that names a task outside
-// it. So the check still happens, at every tool call rather than once at the
-// door, which is the stronger place for it — a message is not about one
-// project and whatever it leads to always is.
+// `admit` asks that a verb names a project. A message names none, so there is
+// nothing here to check — and the honest thing is not to invent one. Every
+// paired device is the person's own, so its turn runs under the owner arm and
+// reaches every project, as the keyboard's does.
 
 /** What one message's body carries. Strict: an undeclared field is a refusal. */
 const AskBody = z.strictObject({
@@ -152,11 +146,8 @@ export const SAYINGS: Readonly<Record<string, (body: unknown) => ReadingAsk>> = 
  * Every check is a *re-check*: each was true when the device was paired or
  * when the page drew the composer, and each can have stopped being true since.
  *
- * It is told `Standing` — the verbs' own shape — and reads four of its six
- * fields. **`reach` is carried and not read here**, deliberately: the
- * per-project boundary for a message is the arm the turn runs under, asked at
- * every tool call rather than once at the door (see the head of this file). A
- * second shape with four fields would be a second spelling of one thing.
+ * It is told `Standing` — the verbs' own shape — rather than a second shape
+ * with the same fields, which would be a second spelling of one thing.
  */
 export function admitAsk(saying: Saying, standing: Standing): Admitted {
   // 1. The capability, read now. A person who turned it off a second ago meant
@@ -166,15 +157,9 @@ export function admitAsk(saying: Saying, standing: Standing): Admitted {
     return no('locked', `${saying.verb} while talking to Tade is turned off`)
   }
 
-  // 2. The scope. `ask` and never `answer` or `steer`: a device granted both
-  //    acting tiers has been granted eight bounded things and not this.
-  if (!standing.scopes.includes('ask')) {
-    return no('out_of_scope', `${saying.verb} needs ask, device has ${said(standing.scopes)}`)
-  }
-
-  // 3. The origin, again — the one that is *only* ever a re-check, because the
+  // 2. The origin, again — the one that is *only* ever a re-check, because the
   //    network a device is on changes under it. A session that crossed a LAN
-  //    in the clear reads and never talks, whatever was granted at the machine.
+  //    in the clear reads and never talks.
   if (!trusted(standing.origin, standing.surface)) {
     return no(
       'locked',
@@ -182,7 +167,7 @@ export function admitAsk(saying: Saying, standing: Standing): Admitted {
     )
   }
 
-  // 4. How old the screen was. A soft check, and the sentence says so.
+  // 3. How old the screen was. A soft check, and the sentence says so.
   if (saying.rev > standing.rev || standing.rev - saying.rev > REVISIONS_BEHIND) {
     return no(
       'stale',
@@ -193,12 +178,8 @@ export function admitAsk(saying: Saying, standing: Standing): Admitted {
   return { ok: true }
 }
 
-function no(error: 'locked' | 'out_of_scope' | 'stale', why: string): Admitted {
+function no(error: 'locked' | 'stale', why: string): Admitted {
   return { ok: false, refusal: refuse(error), why }
-}
-
-function said(scopes: readonly Scope[]): string {
-  return scopes.join(', ') || 'nothing'
 }
 
 /** Everything one message is decided against. */

@@ -27,7 +27,7 @@ import {
 import type { FindingIn } from '../src/input.ts'
 import { BUDGET } from '../src/page.ts'
 import { snapshotOf } from '../src/snapshot.ts'
-import { EVERY, finding, input, NOW, reach } from './fixtures.ts'
+import { finding, input, NOW, reach } from './fixtures.ts'
 
 // What the findings page draws, against **real projected rows** rather than
 // shapes a test assembled: every whose-move, wait, order and figure goes
@@ -39,9 +39,9 @@ import { EVERY, finding, input, NOW, reach } from './fixtures.ts'
 const minutes = (n: number) => NOW - n * 60_000
 const iso = (n: number) => new Date(minutes(n)).toISOString()
 
-/** The rows a device granted everything is handed, for these findings. */
+/** The rows a paired device is handed, for these findings. */
 function rows(findings: FindingIn[]) {
-  return snapshotOf(input({ reach: reach(EVERY), findings }), NOW).findings
+  return snapshotOf(input({ reach: reach(), findings }), NOW).findings
 }
 
 /** The page over these findings, counted against the fixtures' own moment. */
@@ -300,20 +300,20 @@ describe('the words around it', () => {
     })
   })
 
-  it('crosses no finding to a device that was not granted them', () => {
-    const made = snapshotOf(input({ reach: reach([]), findings: [finding()] }), NOW)
-    expect(made.findings).toEqual([])
-    expect(findingsPage(made.findings, NOW).total).toBe(0)
+  it('crosses every finding to a paired device', () => {
+    const made = snapshotOf(input({ reach: reach(), findings: [finding()] }), NOW)
+    expect(made.findings).toHaveLength(1)
+    expect(findingsPage(made.findings, NOW).total).toBe(1)
   })
 })
 
 describe('the count beside Findings in the menu', () => {
-  /** A store holding what a device granted everything is sent, under `budget`. */
+  /** A store holding what a paired device is sent, under `budget`. */
   function held(findings: FindingIn[], most = BUDGET.findings) {
     const store = emptyStore()
     applySnapshot(
       store,
-      snapshotOf(input({ reach: reach(EVERY), findings }), NOW, {}, { ...BUDGET, findings: most }),
+      snapshotOf(input({ reach: reach(), findings }), NOW, {}, { ...BUDGET, findings: most }),
     )
     return store
   }
@@ -390,7 +390,7 @@ describe('the page’s layout', () => {
       store,
       snapshotOf(
         input({
-          reach: reach(EVERY),
+          reach: reach(),
           findings: [yours('a', 5), read('b', 'confirmed', 5, { question: 'test_missing' })],
         }),
         NOW,

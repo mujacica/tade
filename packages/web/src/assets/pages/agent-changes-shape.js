@@ -100,13 +100,6 @@ export function stateFor(answer, failed) {
       )
     case 'not looked':
       return boxOf('loading', 'Looking at its tree', 'The machine has not looked yet.')
-    case 'not granted':
-      return boxOf(
-        'empty',
-        'Changes not granted',
-        'A diff is source: it goes with “see screens”, ticked for this device at the machine.',
-        'devices',
-      )
     case 'not here':
       return boxOf(
         'empty',

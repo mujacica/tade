@@ -81,9 +81,7 @@ import {
   asOf,
   emptyStore,
   findingsUnanswered,
-  GRANTS,
   intakeWaiting,
-  mayRead,
   omitted,
   rowsOf,
   streamPath,
@@ -432,19 +430,13 @@ function paint() {
     now,
     where,
     counts,
-    // What this device was granted, read once a paint rather than per row.
+    // What this device may ask for, read once a paint rather than per row.
     may: {
-      ...Object.fromEntries(GRANTS.map((grant) => [grant, mayRead(held.store, grant)])),
-      // **A drawing hint and never an authority.** It is the scopes on this
-      // device's own session, so a control it was not granted is *absent*
-      // rather than drawn and refused — and the machine re-asks every part of
-      // it at the act anyway: the setting, the origin, the project and the
-      // state the screen said. A page that lied here would get a `403`, which
-      // is the right way round.
-      //
-      // Per verb and not one flag, because the two tiers are two scopes: a
-      // device granted `answer` and not `steer` draws the approval control and
-      // nothing else.
+      // **A drawing hint and never an authority.** Every paired device may
+      // act, but one paired in the clear (`you.clear`) never does, so its
+      // controls are *absent* rather than drawn and refused — and the machine
+      // re-asks every part of it at the act anyway: the setting, the origin,
+      // the passkey and the state the screen said.
       acts: actsOf(held.session),
     },
   }

@@ -3,7 +3,6 @@ import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
-import { ownsOrTheirs } from './surface.ts'
 
 // A project another machine of the person's is moving here:
 // "moving a whole project is closing it on one machine and opening it
@@ -14,11 +13,9 @@ import { ownsOrTheirs } from './surface.ts'
 //
 // **An owner's, and only at this machine's own door** (`here` in
 // `routes.ts`), for the reason the take is: whoever holds the SSH key can
-// already `git clone` here and add the project to this machine's config. A
-// phone's session is refused it however much it was granted — **but the
-// person's own** (`Route.theirs`, `theirsOf`), on any door, off this machine's
-// asked a trusted origin and the passkey, and like an owner only where it
-// reads every project.
+// already `git clone` here and add the project to this machine's config. **And
+// a paired device's**, on any door, every one being the person's own — off this
+// machine's door asked a trusted origin and the passkey.
 //
 // **What it is asked for is a repository, not a path.** The asking machine
 // says what the repository is called (`repositoryNamed`'s answer, no
@@ -77,9 +74,6 @@ export async function openHere(
   opening: WebOpening | undefined,
 ): Promise<{ body: OpenAnswer } | { refusal: Refusal }> {
   if (opening === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
-  // A device narrowed to some projects is narrowed away from opening another.
-  if (device.projects !== null) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const asked = OpenSchema.safeParse(got.body)

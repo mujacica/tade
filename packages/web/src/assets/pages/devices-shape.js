@@ -1,14 +1,14 @@
 // The devices page's pure half: what kind of thing a device is, how this one
-// reaches the machine, what it was granted as a matrix, every device in the
-// order the list draws them, the session as a share of its length, and what
-// this device itself said to Tade.
+// reaches the machine, what it may do, every device in the order the list
+// draws them, the session as a share of its length, and what this device
+// itself said to Tade.
 //
 // **Nothing here widens what a device is told.** Another device arrives from
 // `/api/devices` as a label and the moment it was paired — no address, no
-// grant, no activity (`listing` in `src/devices.ts` says why) — so that is all
-// this module ever says about one. Everything else on the page is about *this*
+// activity (`listing` in `src/devices.ts` says why) — so that is all this
+// module ever says about one. Everything else on the page is about *this*
 // device, out of its own session, its own address bar and the conversation it
-// was already granted.
+// already reads.
 //
 // No DOM and no clock: `asOf` is handed in. Held by `test/devices-client.test.ts`.
 
@@ -111,74 +111,20 @@ export function reachOf(hostname, protocol) {
   return { kind, word, under, plain }
 }
 
-/* ── what this device was granted ──────────────────────────────────────────── */
-
-/** The floor every device reads, granted by pairing and never taken away. */
-export const FLOOR = { key: 'names', word: 'Names and counts' }
+/* ── what this device may do ──────────────────────────────────────────────── */
 
 /**
- * Every reading grant, in `GRANTS`' own order (`store.js`, held equal by the
- * test), in the words a person would look for — a name each, never the
- * sentence `GRANT_MEANS` says where somebody is deciding.
+ * What this device may do, as the lead's fact says it — or null with no
+ * session to read it from. **Every paired device is the person's own** and
+ * may do everything, but one paired in the clear (`you.clear`), whose
+ * credential crossed a network anybody on it could read, reads and never
+ * acts; pairing it again over https is the way out.
  */
-export const READS = [
-  { key: 'titles', word: 'Work titles' },
-  { key: 'intent', word: 'What you asked for' },
-  { key: 'notes', word: 'Notes' },
-  { key: 'findings', word: 'Findings' },
-  { key: 'spend', word: 'Spend' },
-  { key: 'reviews', word: 'Review links' },
-  { key: 'accounts', word: 'Sign-ins' },
-  { key: 'talk', word: 'Conversation' },
-  { key: 'requests', word: 'Request titles' },
-  { key: 'material', word: 'Request text' },
-  { key: 'workflows', word: 'Workflows' },
-  { key: 'lanes', word: 'Agent screens' },
-  { key: 'settings', word: 'Settings' },
-]
-
-/**
- * Every scope beyond reading, each with the verbs it is the door for — the
- * scopes `SCOPES` (`surface.ts`) lists after `read`, held equal by the test.
- * `read` is not a cell: a paired device has it, and it is the floor above.
- */
-export const DOES = [
-  { key: 'answer', word: 'Answer', under: 'approvals, requests' },
-  { key: 'steer', word: 'Steer', under: 'park, queue, finish, note' },
-  { key: 'ask', word: 'Talk to Tade', under: 'send messages' },
-  { key: 'agents', word: 'Stop agents', under: 'and reopen' },
-  { key: 'projects', word: 'Close projects', under: 'and reopen' },
-  { key: 'draft', word: 'Save drafts', under: 'of workflows' },
-  { key: 'configure', word: 'Change settings', under: 'a few, from away' },
-]
-
-/**
- * The matrix: every reading and every doing, each on or off, and how many of
- * each are on — or null with no session to read it from.
- *
- * Off is drawn as well as on, because a grant that is simply absent from a
- * list cannot be told from one this page forgot to draw. A word the session
- * carries that this table does not name is left out, never drawn as a cell
- * nobody can explain — the machine drops one too (`reachOf`).
- */
-export function matrixOf(you) {
+export function accessOf(you) {
   if (you === null || you === undefined) return null
-  const reads = new Set(Array.isArray(you.reads) ? you.reads : [])
-  const scopes = new Set(Array.isArray(you.scopes) ? you.scopes : [])
-  const read = [
-    { ...FLOOR, under: null, on: true, floor: true },
-    ...READS.map((one) => ({ ...one, under: null, on: reads.has(one.key), floor: false })),
-  ]
-  const does = DOES.map((one) => ({ ...one, on: scopes.has(one.key), floor: false }))
-  const on = (cells) => cells.filter((one) => one.on).length
-  return {
-    read,
-    does,
-    readOn: on(read),
-    doOn: on(does),
-    readSaid: `${on(read)} of ${read.length}`,
-    doSaid: on(does) === 0 ? 'read only' : `${on(does)} of ${does.length}`,
-  }
+  return you.clear === true
+    ? { value: 'read only', under: 'paired over plain HTTP' }
+    : { value: 'everything', under: 'every device is yours' }
 }
 
 /* ── ages and moments ──────────────────────────────────────────────────────── */
@@ -428,24 +374,17 @@ export function tellingOf(standing) {
 
 /**
  * What this device itself sent to Tade and the notes it left, newest first —
- * the record of it a device is already granted, and nothing else.
- *
- * **Two grants and two nulls.** The conversation rides on `talk` and the notes
- * on `notes`; with neither, `granted` is false and the page says *not granted*
- * rather than *nothing* — a device that may not read the conversation has not
- * said nothing in it. The verbs a device asked for are journalled under its id
- * at the machine and are not on the wire, which the section's `?` says.
+ * out of the conversation and the notes it already reads, and nothing else.
+ * The verbs a device asked for are journalled under its id at the machine and
+ * are not on the wire, which the section's `?` says.
  */
-export function recentOf({ chat, notes, device, mayTalk, mayNotes }, asOf) {
-  const granted = mayTalk === true || mayNotes === true
-  if (!granted || device === null || device === undefined) {
-    return { granted, items: [], more: 0, said: '' }
-  }
+export function recentOf({ chat, notes, device }, asOf) {
+  if (device === null || device === undefined) return { items: [], more: 0, said: '' }
   const by = `device ${device}`
-  const lines = (mayTalk ? (chat ?? []) : [])
+  const lines = (chat ?? [])
     .filter((one) => one.kind === 'asked' && one.from === by && one.text !== null)
     .map((one) => ({ key: `c:${one.id}`, kind: 'asked', icon: 'talk', said: one.text, at: one.at }))
-  const kept = (mayNotes ? (notes ?? []) : [])
+  const kept = (notes ?? [])
     .filter((one) => one.by === by && (one.summary ?? one.text) !== null)
     .map((one) => ({
       key: `n:${one.id}`,
@@ -468,27 +407,19 @@ export function recentOf({ chat, notes, device, mayTalk, mayNotes }, asOf) {
     .filter(([, n]) => n > 0)
     .map(([kind, n]) => `${n} ${of[kind]}${n === 1 ? '' : 's'}`)
     .join(' · ')
-  return { granted, items, more, said }
+  return { items, more, said }
 }
 
 /**
- * What the region draws where it has no lines: not granted, which is about
- * this device, or nothing sent yet, which is about what it did — two nulls
- * and two sentences. Null where there are lines, or before the first snapshot.
+ * What the region draws where it has no lines: nothing sent yet. Null where
+ * there are lines, or before the first snapshot.
  */
 export function recentState(recent) {
   if (recent === null || recent === undefined || recent.items.length > 0) return null
-  return recent.granted
-    ? {
-        kind: 'empty',
-        icon: 'talk',
-        heading: 'Nothing sent from here yet',
-        line: 'A message to Tade or a note left from this device shows here.',
-      }
-    : {
-        kind: 'empty',
-        icon: 'talk',
-        heading: 'Not granted to this device',
-        line: 'Reading the conversation or the notes is granted at the machine.',
-      }
+  return {
+    kind: 'empty',
+    icon: 'talk',
+    heading: 'Nothing sent from here yet',
+    line: 'A message to Tade or a note left from this device shows here.',
+  }
 }

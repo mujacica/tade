@@ -1,15 +1,14 @@
 import { IDLE_REASON, type PlanStanding } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { BUDGET, type Budget, pageOf, textOf } from '../src/page.ts'
-import type { Grant } from '../src/reach.ts'
 import { reasonOf, snapshotOf, wantsYou } from '../src/snapshot.ts'
-import { EVERY, finding, input, NOW, note, plan, project, reach, task } from './fixtures.ts'
+import { finding, input, NOW, note, plan, project, reach, task } from './fixtures.ts'
 
 const budget = (over: Partial<Budget> = {}): Budget => ({ ...BUDGET, ...over })
 
 describe('the projection', () => {
   it('is of the moment it was handed, and of the server’s own lifetime', () => {
-    const snapshot = snapshotOf(input({ reach: reach(EVERY) }), NOW)
+    const snapshot = snapshotOf(input({ reach: reach() }), NOW)
     expect(snapshot.fresh.at).toBe('2026-10-08T14:30:00.000Z')
     expect(snapshot.fresh.epoch).toBe('7f3a9c21-0000-4000-8000-000000000000')
     expect(snapshot.fresh.rev).toBe(12)
@@ -30,9 +29,9 @@ describe('the projection', () => {
 
   it('says whether this machine’s agents outlive its window, and nothing where it was not told', () => {
     // What another machine's page reads once this one goes quiet (`machines.js`'s `wasDoingSaid`).
-    expect(snapshotOf(input({ reach: reach(EVERY), detach: false }), NOW).fresh.detach).toBe(false)
-    expect(snapshotOf(input({ reach: reach(EVERY), detach: true }), NOW).fresh.detach).toBe(true)
-    expect('detach' in snapshotOf(input({ reach: reach(EVERY) }), NOW).fresh).toBe(false)
+    expect(snapshotOf(input({ reach: reach(), detach: false }), NOW).fresh.detach).toBe(false)
+    expect(snapshotOf(input({ reach: reach(), detach: true }), NOW).fresh.detach).toBe(true)
+    expect('detach' in snapshotOf(input({ reach: reach() }), NOW).fresh).toBe(false)
   })
 
   it('says how many more could not be read rather than carrying all of them', () => {
@@ -40,27 +39,21 @@ describe('the projection', () => {
     // budget is about what a connected phone pays for ever rather than about
     // what fits on a screen.
     const many = Array.from({ length: 25 }, (_, n) => `project-${n}: could not be read`)
-    const snapshot = snapshotOf(input({ reach: reach(EVERY), warnings: many }), NOW)
+    const snapshot = snapshotOf(input({ reach: reach(), warnings: many }), NOW)
     expect(snapshot.fresh.warnings).toHaveLength(10)
     expect(snapshot.fresh.warnings[8]).toBe('project-8: could not be read')
     expect(snapshot.fresh.warnings.at(-1)).toBe('and 16 more things could not be read')
   })
 
-  it('says which device it is for and what that device may read', () => {
-    const snapshot = snapshotOf(input({ reach: reach(['notes', 'spend']) }), NOW)
+  it('says which device it is for', () => {
+    const snapshot = snapshotOf(input({ reach: reach() }), NOW)
     expect(snapshot.you).toEqual({
       device: 'dev_7f3a9c21',
-      reads: ['notes', 'spend'],
       // The conversation as it stands, and `mine` **false**: the collections
       // are built once for everybody and whoever knows this device's scopes
       // raises it (`inputFor`).
       talk: { rev: 'b0', busy: false, whose: null, since: null, mine: true, earlier: false },
     })
-  })
-
-  it('drops a grant nothing here understands rather than drawing the word', () => {
-    const odd = reach(['notes', 'everything' as never])
-    expect(snapshotOf(input({ reach: odd }), NOW).you.reads).toEqual(['notes'])
   })
 
   it('carries `deriveState`’s clause as it was written', () => {
@@ -100,7 +93,7 @@ describe('the projection', () => {
   })
 
   it('sorts every collection by its own stable id', () => {
-    const snapshot = snapshotOf(input({ reach: reach(EVERY) }), NOW)
+    const snapshot = snapshotOf(input({ reach: reach() }), NOW)
     expect(snapshot.tasks.map((one) => one.id)).toEqual([
       'sentry/away-projection',
       'sentry/blocked',
@@ -111,7 +104,7 @@ describe('the projection', () => {
   })
 
   it('counts each project’s tasks, and how many of them are here', () => {
-    const snapshot = snapshotOf(input({ reach: reach(EVERY) }), NOW)
+    const snapshot = snapshotOf(input({ reach: reach() }), NOW)
     const sentry = snapshot.projects.find((one) => one.name === 'sentry')
     expect(sentry?.counts).toEqual({ tasks: 3, shown: 3, wantsYou: 1, working: 2, queued: 0 })
   })
@@ -120,7 +113,7 @@ describe('the projection', () => {
     const at = Date.parse('2026-10-09T09:00:00.000Z')
     const snapshot = snapshotOf(
       input({
-        reach: reach(EVERY),
+        reach: reach(),
         queue: [
           {
             task: 'sentry/later',
@@ -140,7 +133,7 @@ describe('the projection', () => {
   it('counts the files a collision is about and never names them', () => {
     const snapshot = snapshotOf(
       input({
-        reach: reach(EVERY),
+        reach: reach(),
         queue: [
           {
             task: 'sentry/later',
@@ -167,7 +160,7 @@ describe('the projection', () => {
   it('sorts findings by their key and plans by harness and account', () => {
     const snapshot = snapshotOf(
       input({
-        reach: reach(EVERY),
+        reach: reach(),
         findings: [
           finding({ key: 'sentry/b:swallowed_error' }),
           finding({ key: 'sentry/a:path_traversal' }),
@@ -191,7 +184,7 @@ describe('the projection', () => {
       note({ at: `2026-10-0${n + 1}T00:00:00.000Z`, text: `note ${n}` }),
     )
     const snapshot = snapshotOf(
-      input({ reach: reach(EVERY), notes: many }),
+      input({ reach: reach(), notes: many }),
       NOW,
       {},
       budget({ notes: 2 }),
@@ -203,7 +196,7 @@ describe('the projection', () => {
   it('says a queue pause and a park apart, being two holds and one answer', () => {
     const snapshot = snapshotOf(
       input({
-        reach: reach(EVERY),
+        reach: reach(),
         queue: [
           {
             task: 'sentry/a-parked',
@@ -232,7 +225,7 @@ describe('the projection', () => {
   it('leaves a cursor on a cut findings list, so the rest can be asked for', () => {
     const snapshot = snapshotOf(
       input({
-        reach: reach(EVERY),
+        reach: reach(),
         findings: [finding({ key: 'sentry/a' }), finding({ key: 'sentry/b' })],
       }),
       NOW,
@@ -246,7 +239,7 @@ describe('the projection', () => {
   it('says a plan window has no reset time rather than placing it at the epoch', () => {
     const snapshot = snapshotOf(
       input({
-        reach: reach(EVERY),
+        reach: reach(),
         plans: [
           {
             harness: 'pi',
@@ -265,40 +258,34 @@ describe('the projection', () => {
     expect(snapshot.plans[0]?.id).toBe('pi/0')
   })
 
-  it('says who runs as a sign-in to a device granted the accounts, as the window says it', () => {
-    const uses = (granted: Grant[], over: Partial<PlanStanding> = {}, projects?: string[]) =>
-      snapshotOf(input({ reach: reach(granted, projects), plans: [plan(over)] }), NOW, {}).plans[0]
-        ?.uses
-    expect(uses(['spend', 'accounts'])).toEqual({
+  it('says who runs as a sign-in, as the window says it', () => {
+    const uses = (over: Partial<PlanStanding> = {}) =>
+      snapshotOf(input({ reach: reach(), plans: [plan(over)] }), NOW, {}).plans[0]?.uses
+    expect(uses()).toEqual({
       newAgents: true,
       projects: ['sentry', 'tade'],
       notShown: 0,
     })
-    // Which sign-in a project's agents run as is `tasks.account`'s fact.
-    expect(uses(['spend'])).toBeNull()
-    // A project the device may not read is neither named nor counted.
-    expect(uses(['spend', 'accounts'], {}, ['tade'])).toEqual({
-      newAgents: true,
-      projects: ['tade'],
-      notShown: 0,
-    })
     // Nobody said: null, never nobody.
-    expect(uses(['spend', 'accounts'], { uses: undefined })).toBeNull()
-    expect(uses(['spend', 'accounts'], { uses: { newAgents: false, projects: [] } })).toEqual({
+    expect(uses({ uses: undefined })).toBeNull()
+    expect(uses({ uses: { newAgents: false, projects: [] } })).toEqual({
       newAgents: false,
       projects: [],
       notShown: 0,
     }) // The orchestrator's sign-in says so; nobody else's says anything about it.
-    expect(
-      uses(['spend', 'accounts'], { uses: { newAgents: false, projects: [], orchestrator: true } }),
-    ).toEqual({ newAgents: false, projects: [], notShown: 0, orchestrator: true })
+    expect(uses({ uses: { newAgents: false, projects: [], orchestrator: true } })).toEqual({
+      newAgents: false,
+      projects: [],
+      notShown: 0,
+      orchestrator: true,
+    })
   })
 
   it('counts the projects past the budget rather than cutting them in silence', () => {
     const names = ['a', 'b', 'c']
     const snapshot = snapshotOf(
       input({
-        reach: reach(['spend', 'accounts']),
+        reach: reach(),
         plans: [plan({ uses: { newAgents: false, projects: names } })],
       }),
       NOW,
@@ -309,42 +296,13 @@ describe('the projection', () => {
   })
 })
 
-describe('a device that may read only some projects', () => {
-  it('is told about those and about nothing else', () => {
-    const snapshot = snapshotOf(input({ reach: reach(EVERY, ['tade']) }), NOW)
-    expect(snapshot.projects.map((one) => one.name)).toEqual(['tade'])
-    expect(snapshot.tasks.map((one) => one.id)).toEqual(['tade/window'])
-    expect(snapshot.queue).toEqual([])
-    expect(snapshot.findings).toEqual([])
-    expect(snapshot.pages.tasks.total).toBe(1)
-  })
-
-  it('does not count what it cannot see as omitted, which would say it exists', () => {
-    const snapshot = snapshotOf(input({ reach: reach(EVERY, ['tade']) }), NOW)
-    expect(snapshot.pages.tasks.omitted).toBe(0)
-    expect(snapshot.pages.findings.total).toBe(0)
-  })
-
-  it('keeps a note about a project it cannot read out of the notes as well', () => {
-    const snapshot = snapshotOf(input({ reach: reach(EVERY, ['tade']) }), NOW)
-    expect(snapshot.notes).toEqual([])
-    expect(snapshot.pages.notes.total).toBe(0)
-  })
-
-  it('keeps a note about everything, which belongs to no project', () => {
-    const one = input({ reach: reach(EVERY, ['tade']) })
-    const snapshot = snapshotOf({ ...one, notes: [{ ...one.notes[0]!, scope: null }] }, NOW)
-    expect(snapshot.notes).toHaveLength(1)
-  })
-})
-
 describe('the budget', () => {
   it('counts what it left out instead of going quiet about it', () => {
     const many = Array.from({ length: 9 }, (_, n) =>
       task({ id: `sentry/t${n}`, project: 'sentry' }),
     )
     const snapshot = snapshotOf(
-      input({ reach: reach(EVERY), tasks: many, projects: [project()] }),
+      input({ reach: reach(), tasks: many, projects: [project()] }),
       NOW,
       {},
       budget({ tasks: 4, tasksPerProject: 9 }),
@@ -364,7 +322,7 @@ describe('the budget', () => {
       task({ id: 'tade/window', project: 'tade' }),
     ]
     const snapshot = snapshotOf(
-      input({ reach: reach(EVERY), tasks }),
+      input({ reach: reach(), tasks }),
       NOW,
       {},
       budget({ tasksPerProject: 2 }),
@@ -388,7 +346,7 @@ describe('the budget', () => {
       task({ id: `sentry/t${n}`, project: 'sentry' }),
     )
     const snapshot = snapshotOf(
-      input({ reach: reach(EVERY), tasks }),
+      input({ reach: reach(), tasks }),
       NOW,
       {},
       budget({ tasksPerProject: 2 }),
@@ -402,7 +360,7 @@ describe('the budget', () => {
       task({ id: `sentry/t${n}`, project: 'sentry' }),
     )
     const snapshot = snapshotOf(
-      input({ reach: reach(EVERY), tasks: many }),
+      input({ reach: reach(), tasks: many }),
       NOW,
       { tasks: 'sentry/t2' },
       budget({ tasks: 2 }),
@@ -436,14 +394,10 @@ describe('the budget', () => {
 })
 
 describe('whose subscription a plan is, on the page', () => {
-  it('is sent to a device granted the accounts, and to nobody else', () => {
-    const row = (granted: Grant[]) =>
-      snapshotOf(
-        input({ reach: reach(granted), plans: [plan({ identity: '0123456789abcdef' })] }),
-        NOW,
-        {},
-      ).plans[0]
-    expect(row(['spend', 'accounts'])?.identity).toBe('0123456789abcdef')
-    expect(row(['spend'])).not.toHaveProperty('identity')
+  it('is sent where somebody asked who it is', () => {
+    const row = (identity?: string) =>
+      snapshotOf(input({ reach: reach(), plans: [plan({ identity })] }), NOW, {}).plans[0]
+    expect(row('0123456789abcdef')?.identity).toBe('0123456789abcdef')
+    expect(row()).not.toHaveProperty('identity')
   })
 })

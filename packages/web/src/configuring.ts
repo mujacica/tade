@@ -1,6 +1,5 @@
-import { type Setting, type SettingGroup, settingReach } from '@tade/core'
+import type { Setting, SettingGroup } from '@tade/core'
 import type { From, Outcome } from './acting.ts'
-import { has, type Reach, sees } from './reach.ts'
 import { cleanScreen } from './screen.ts'
 
 // What a paired device may read of the config, and the one thing it may do to
@@ -14,62 +13,22 @@ import { cleanScreen } from './screen.ts'
 // every setting is written by (`Settings.write` in the window, which writes
 // `config_changed`), and how far it may reach is a question this repository
 // already answers in one place: `settingReach` in `@tade/core`. So it is its
-// own interface, its own route table (`SETTINGS`), its own setting
-// (`surfaces.web.settings`), its own scope (`configure`) and a reading grant
-// (`settings`) — and nothing else implies any of them.
+// own interface, its own route table (`SETTINGS`) and its own setting
+// (`surfaces.web.settings`).
 //
-// ## What a device may change, tier by tier
+// ## Every tier, from every paired device
 //
-// - **`open`: yes, and nothing else.** The tier where an ordinary request is
-//   enough: the window's two sizes, the editor, and one project's push mode
-//   (`OPEN`, `OPEN_UNDER`). Each argues for itself in `reach.ts`, and the
-//   argument — the worst case is something a person is looking at, or a
-//   workflow preference that carries no credential and deletes nothing — is
-//   not weakened by the request coming from a phone the person granted it to.
-// - **`asked`: no, and this is the decision worth the words.** That tier is
-//   passed by *the person's own words* naming the setting (`namedBy`, over the
-//   journal's `said` lines). Three provenance models were weighed and none is
-//   safe:
-//   1. **The device's request as the words.** Then `asked` is `open` for a
-//      device, and a device is not the person: an agent on this machine can
-//      append a line and pair itself (`DEVICES_AND_AGENTS`), and a stolen
-//      session is a stranger. A request from a device is never your own words
-//      (`ACTING_IS_NOT_YOU`) — that is the sentence the whole surface stands on.
-//   2. **The person's journalled lines, as the orchestrator reads them.** Then
-//      a phone rides on a sentence they said last week about something else:
-//      the hole Phase 3 found in remote turns, where `namedBy` would authorise a
-//      remote turn by the person's old line. Words said at the keyboard are
-//      about what was asked at the keyboard.
-//   3. **Words typed on the phone, written as a `said` line.** That is a
-//      device writing the one record nothing outside the keyboard may write —
-//      `test/separation.test.ts` holds that this package never reaches it —
-//      and it would give every paired device authority over every `asked`
-//      setting at once.
-//   So an `asked` setting is drawn with *at this machine* and no control, and a
-//   crafted call for one is the `404` of a path nobody built. The gap is real
-//   and is said (`SETTINGS_FROM_AWAY`): most settings are changed at the
-//   machine.
-// - **`never`: no route, by construction.** `readSettingChange` refuses any
-//   path that is not `open` before a key is claimed, so there is no shape of a
-//   request in which `approvals`, `accounts`, `extensions`, `mcp`,
-//   `surfaces.web` or a project's root arrives — and the window asks
-//   `settingReach` again at the write, because the tier is core's decision and
-//   a second reading of it costs one call.
-//
-// ## The person's own device is the exception, and only it
-//
-// A device with full access (`theirsOf`) is the person's own phone, or the
-// link of a machine they paired as owner: they decided it may do everything they can at the
-// machine, and that if it is stolen they revoke it. So for it — and for no
-// other device — every tier is `change` (`awayReach(path, true)`), its key rows
-// may be set as well as cleared (`sets`), and the change is written `by` that
-// device, so the record still says it came from the phone. Provenance model 3
-// above is answered by the same two halves the orchestrator's arm asks
-// (`armOf`): the record says full access, and it is read at **every** request
-// and again at the write, so revoking the phone or unticking one box makes it
-// an ordinary device at the next press. Nothing anybody else wrote — an agent,
-// a page, a machine link's model — becomes the person's here: the change is
-// what the person pressed on their own screen, against the value they saw.
+// Every paired device is the person's own (decided 26 Nov): their phone, or
+// the link of a machine they paired as owner, and if one is stolen they revoke
+// it. So every setting is `change` from it, `asked` and `never` tiers
+// included, its key rows may be set as well as cleared (`sets`), and the
+// change is written `by` that device, so the record still says it came from
+// the phone. The window asks `settingReach` again at the write. Nothing
+// anybody else wrote — an agent, a page, a machine link's model — becomes the
+// person's here: the change is what the person pressed on their own screen,
+// against the value they saw. An agent on this machine that paired itself
+// reaches nothing it could not already: it runs as the person and can edit
+// `config.yaml` itself (`SETTINGS_FROM_AWAY`).
 //
 // ## Keys
 //
@@ -77,13 +36,9 @@ import { cleanScreen } from './screen.ts'
 // and carries no value, no revision derived from one and no fallback naming
 // where one is kept — the rule `tade_settings` already follows. Every value
 // that *is* shown goes through `cleanScreen` with every key Tade holds, so a
-// key pasted into an ordinary text setting is taken out too. And where a key
-// could ever be changed from here it is **clear-only** (`clearOnly`): the one
-// value a device may send is nothing, which for the notification key mints a
-// new one when it is next needed. Today no key is in the `open` tier, so from
-// away nothing clears one and clearing stays where it is — the Settings page —
-// but the rule is in code for the day one is, rather than a masked value
-// waiting to be round-tripped into a write.
+// key pasted into an ordinary text setting is taken out too. A key may be
+// typed in from a device and is never shown one: the page sends what was
+// typed rather than anything it was shown.
 
 /** One setting, as a device is told it. */
 export interface SettingOut {
@@ -99,10 +54,7 @@ export interface SettingOut {
   fallback: string
   /** For a key: whether one is held. Null for everything else. */
   held: 'set' | 'not set' | null
-  /**
-   * For a key this device may change: whether it may set a new one, not only
-   * clear it — true for the person's own device alone. False everywhere else.
-   */
+  /** For a key: whether a new one may be typed in. False for everything else. */
   sets: boolean
   /** What kind of value it takes. */
   kind: Setting['type']['kind']
@@ -127,53 +79,16 @@ export interface SettingsGroupOut {
 
 /** What `GET /api/settings` answers. */
 export interface SettingsOut {
-  /**
-   * Whether this device was granted `settings`. `false` is the whole answer,
-   * and is a different fact from a config with nothing in it.
-   */
-  granted: boolean
   groups: SettingsGroupOut[]
-  /** How many settings were left out because they are another project's. A count. */
-  withheld: number
 }
 
-/** Saying no without saying anything: what an ungranted device is told. */
-export const NOT_GRANTED: SettingsOut = { granted: false, groups: [], withheld: 0 }
-
 /**
- * Why a setting is changed only at this machine, by tier.
- *
- * Tade's own clauses rather than `settingReach`'s `because`, which are written
- * in the orchestrator's voice — *I read pages all day* — and are about a model
- * rather than about a phone.
+ * Why a setting is changed only at this machine: its value could not be shown
+ * whole, so a change would echo a value nobody saw.
  */
 export const AT_THE_MACHINE = {
-  asked:
-    'changed at this machine: it needs your own words, and a request from a device is never your own words',
-  never:
-    'changed at this machine only: it decides what agents may do, who is asked, a key, or where Tade sends things',
-  key: 'a key is changed at this machine, and is never shown here',
   partial: 'changed at this machine: its value could not be shown here whole',
 } as const
-
-/** How far a device reaches into one setting, decided by its path alone. */
-export type AwayReach = { may: 'change' } | { may: 'machine'; why: string }
-
-/**
- * How far a device reaches into one setting: `settingReach`'s `open` tier, and
- * nothing else — unless it is the person's own device (`theirs`, `theirsOf`),
- * which reaches every tier as the keyboard does.
- *
- * By path and that one fact of the record, so the gate can ask it of a body
- * before anything is looked up — which is what makes a `never` path
- * unrepresentable for every other device rather than refused late.
- */
-export function awayReach(path: string, theirs = false): AwayReach {
-  if (theirs) return { may: 'change' }
-  const { reach } = settingReach(path)
-  if (reach === 'open') return { may: 'change' }
-  return { may: 'machine', why: reach === 'asked' ? AT_THE_MACHINE.asked : AT_THE_MACHINE.never }
-}
 
 /**
  * The project a setting is one of, read out of its path.
@@ -205,27 +120,6 @@ export function isCredential(group: Pick<SettingGroup, 'id'>, setting: Setting):
   return /(?:^|_)(?:key|token|secret|password)$/.test(leaf)
 }
 
-/**
- * Whether a change may only clear the setting: true of every credential, for
- * every device but the person's own (`theirs`).
- *
- * A device never sees a key, so it can never have meant to *set* one — and a
- * form that round-tripped the `set` it was shown back into the file would put
- * the word `set` where somebody's key was. Clearing is the one thing a key's
- * owner could want from away (where the setting reaches at all), and for the
- * notification key it is the revocation lever: a new one is minted when one is
- * next needed. The person's own phone may also type a new key in, as they
- * could at the keyboard — it is still never shown one, and the page sends what
- * was typed rather than anything it was shown.
- */
-export function clearOnly(
-  group: Pick<SettingGroup, 'id'>,
-  setting: Setting,
-  theirs = false,
-): boolean {
-  return !theirs && isCredential(group, setting)
-}
-
 /** What a credential's revision is: whether one is held, and never anything of it. */
 export function heldOf(value: string): 'set' | 'not set' {
   return value === '' ? 'not set' : 'set'
@@ -234,9 +128,8 @@ export function heldOf(value: string): 'set' | 'not set' {
 /**
  * The longest value a setting may be shown with or changed to.
  *
- * Far above anything in the `open` tier, which is a number, an editor's name
- * and a push mode; it is a bound on what a phone is sent for a long text
- * setting, not a guess at one somebody types.
+ * A bound on what a phone is sent for a long text setting, and on what it may
+ * send back.
  */
 export const SETTING_BOUND = 2_000
 
@@ -258,12 +151,8 @@ function cleaned(value: string, known: readonly string[]): { text: string; whole
 }
 
 /**
- * The settings, as one device may read them.
- *
- * **Built from the request's reach**, like an agent's screen: the device list
- * is read at every request, so a grant taken back a second ago is gone here.
- * A project's settings only for a project this device reads, counted where
- * they are left out. Every value through `cleanScreen` with every key Tade
+ * The settings, as a paired device reads them: every one. Every value through
+ * `cleanScreen` with every key Tade
  * holds — the ones in `known` and the credential rows' own — so what leaves is
  * Tade's own words, the owner's values with paths and keys taken out, and for
  * a key nothing but whether one is held.
@@ -272,28 +161,19 @@ function cleaned(value: string, known: readonly string[]): { text: string; whole
  */
 export function settingsFor(
   groups: readonly SettingGroup[],
-  reach: Reach,
   known: readonly string[] = [],
 ): SettingsOut {
-  if (!has(reach, 'settings')) return NOT_GRANTED
   const keys = keysOf(groups, known)
-  let withheld = 0
   const out: SettingsGroupOut[] = []
   for (const group of groups) {
-    const settings: SettingOut[] = []
-    for (const setting of group.settings) {
-      // Out of the path, never the row's `scope`: a scope is whatever a group
-      // holds over and over, and an intake source's is not a project.
-      const project = projectOfSetting(setting.path)
-      if (project !== null && !sees(reach, project)) {
-        withheld += 1
-        continue
-      }
-      settings.push(settingOut(group, setting, project, keys, reach.theirs === true))
-    }
+    // Out of the path, never the row's `scope`: a scope is whatever a group
+    // holds over and over, and an intake source's is not a project.
+    const settings = group.settings.map((setting) =>
+      settingOut(group, setting, projectOfSetting(setting.path), keys),
+    )
     if (settings.length > 0) out.push({ id: group.id, title: group.title, settings })
   }
-  return { granted: true, groups: out, withheld }
+  return { groups: out }
 }
 
 /**
@@ -316,26 +196,20 @@ export function keysOf(groups: readonly SettingGroup[], known: readonly string[]
  * Exported because the window asks it again **at the write**: what a change
  * may echo and whether it may be made at all are this row's `was` and `may`,
  * so the write accepts exactly what the read offered and there is no second
- * reading of either to drift. `theirs` is whether the device is the person's
- * own (`theirsOf`), read off the record at that request.
+ * reading of either to drift.
  */
 export function settingOut(
   group: SettingGroup,
   setting: Setting,
   project: string | null,
   keys: readonly string[],
-  theirs = false,
 ): SettingOut {
   const credential = isCredential(group, setting)
   const shown = credential ? { text: '', whole: true } : cleaned(setting.value, keys)
   const fallback = cleaned(setting.fallback, keys).text
-  const reach = awayReach(setting.path, theirs)
-  const may: AwayReach =
-    reach.may === 'machine'
-      ? reach
-      : !shown.whole
-        ? { may: 'machine', why: AT_THE_MACHINE.partial }
-        : reach
+  const may: { may: 'change' } | { may: 'machine'; why: string } = shown.whole
+    ? { may: 'change' }
+    : { may: 'machine', why: AT_THE_MACHINE.partial }
   return {
     path: setting.path,
     title: setting.title,
@@ -344,12 +218,12 @@ export function settingOut(
     shown: shown.text,
     fallback,
     held: credential ? heldOf(setting.value) : null,
-    sets: credential && may.may === 'change' && !clearOnly(group, setting, theirs),
+    sets: credential && may.may === 'change',
     kind: setting.type.kind,
     options: setting.type.kind === 'choice' ? [...setting.type.options] : [],
     live: setting.live,
     may: may.may,
-    why: may.may === 'machine' ? (credential ? AT_THE_MACHINE.key : may.why) : '',
+    why: may.may === 'machine' ? may.why : '',
     // **The value as shown, and only where it may be changed.** A credential's
     // is whether one is held and never the key; a row a device cannot change
     // has nothing to echo, so it carries nothing that could be.
@@ -373,11 +247,10 @@ export interface SettingCall {
 
 /**
  * Changing one setting: the one method, and the whole of what a paired device
- * may ever do to the config — the `open` tier for any device granted it, and
- * every setting for the person's own (`theirsOf`).
+ * may ever do to the config.
  *
  * **There is no method here that reads one** — reading is `WebReading`'s
- * `settings`, behind its grant — and no method that grants, signs in, turns an
+ * `settings` — and no method that grants, signs in, turns an
  * extension on or names a server. A method that does not exist cannot be
  * reached.
  */

@@ -70,8 +70,6 @@ export const ANSWER_SAYS = [
   'unread',
   /** Not a task this device reads, or no such task. One answer, so neither is told apart. */
   'not here',
-  /** This device was not granted an agent's own bytes. */
-  'not granted',
 ] as const
 
 export const CallAnswerSchema = z.strictObject({
@@ -114,7 +112,7 @@ export type CleanAnswer = { text: string; taken: number }
  */
 export function answerOut(
   call: string,
-  read: CleanAnswer | null | 'nothing' | 'unread' | 'not here' | 'not granted',
+  read: CleanAnswer | null | 'nothing' | 'unread' | 'not here',
 ): CallAnswer {
   const base = { v: PROTOCOL_VERSION, call, text: null, taken: 0 } as const
   if (read === null) return { ...base, says: 'unrecorded' }

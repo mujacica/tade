@@ -13,10 +13,9 @@ import {
   TooMuch,
   type WebActing,
 } from '../src/acting.ts'
-import { namesOnly } from '../src/reach.ts'
 import { Receipts } from '../src/receipts.ts'
 import { ACTS, type Route } from '../src/routes.ts'
-import type { Scope, Surface } from '../src/surface.ts'
+import type { Surface } from '../src/surface.ts'
 import { actingStub, homeFor } from './harness.ts'
 
 // One act, end to end, with a real receipt store on disk and a window that
@@ -89,8 +88,6 @@ async function context(
     surface: SURFACE,
     unlocked: true,
     rev: 4,
-    reach: namesOnly('00112233445566aa'),
-    scopes: ['read', 'steer'] as readonly Scope[],
     origin: { scheme: 'http', host: '127.0.0.1', listener: 'loopback' },
     device: '00112233445566aa',
     now: Date.parse('2026-10-09T09:00:00.000Z'),
@@ -142,15 +139,15 @@ describe('an act that goes through', () => {
 describe('what is written down whatever happened', () => {
   it('is a line for a refusal too, which is the case audit matters most', async () => {
     const made = window_()
-    const ctx = await context(made.acting, { scopes: ['read'] }, 'acted-refused')
+    const ctx = await context(made.acting, { unlocked: false }, 'acted-refused')
     const answered = await carryOut(ROUTE, BODY, ctx)
-    expect(answered.refusal?.error).toBe('out_of_scope')
+    expect(answered.refusal?.error).toBe('locked')
     expect(answered.did).toEqual({
       device: '00112233445566aa',
       tool: 'park',
       task: 'tade/away-action-gate',
       state: 'refused',
-      why: 'out_of_scope',
+      why: 'locked',
     })
     expect(made.calls).toEqual([])
   })
@@ -405,7 +402,7 @@ describe('an act about a whole project', () => {
     const acting = actingStub({
       close: () => Promise.resolve<Outcome>({ did: true, rev: 'o0.c1', said: 'closed it' }),
     })
-    const ctx = await context(acting, { scopes: ['read', 'projects'] }, 'acted-project')
+    const ctx = await context(acting, {}, 'acted-project')
     const answered = await carryOut(CLOSE, BODY_CLOSE, ctx)
     expect(answered.refusal).toBeNull()
     expect(answered.did).toEqual({
@@ -419,9 +416,9 @@ describe('an act about a whole project', () => {
   })
 
   it('writes the project into a refusal too, which is the line audit matters most on', async () => {
-    const ctx = await context(actingStub(), { scopes: ['read', 'steer'] }, 'acted-project-no')
+    const ctx = await context(actingStub(), { unlocked: false }, 'acted-project-no')
     const answered = await carryOut(CLOSE, BODY_CLOSE, ctx)
-    expect(answered.refusal?.error).toBe('out_of_scope')
+    expect(answered.refusal?.error).toBe('locked')
     expect(answered.did).toMatchObject({
       tool: 'close',
       task: '',
@@ -438,7 +435,7 @@ describe('an act about a whole project', () => {
         return Promise.resolve<Outcome>({ did: true, rev: 'o0.c1', said: 'closed it' })
       },
     })
-    const ctx = await context(acting, { scopes: ['read', 'projects'] }, 'acted-project-again')
+    const ctx = await context(acting, {}, 'acted-project-again')
     await carryOut(CLOSE, BODY_CLOSE, ctx)
     const again = await carryOut(CLOSE, BODY_CLOSE, ctx)
     expect(again.body).toEqual({ did: true, rev: 'o0.c1', said: 'closed it' })

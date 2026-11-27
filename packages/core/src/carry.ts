@@ -508,8 +508,7 @@ export function whoChanged(detail: Readonly<Record<string, unknown>> | undefined
 /**
  * Who is the person, as a line says who changed something: the window's own
  * Settings, a terminal's `tade config`, an edit to the file found by a carry,
- * and a device — which only reaches past `open` when it is theirs, with full
- * access (`web-settings.ts`). Never `orchestrator`, never Tade itself, never a
+ * and a paired device, every one of which is theirs (`web-settings.ts`). Never `orchestrator`, never Tade itself, never a
  * line that does not say.
  */
 const THE_PERSON: ReadonlySet<string> = new Set(['window', 'you', 'cli', 'file'])
@@ -726,7 +725,7 @@ export const TALK_THERE = 'surfaces.web.orchestrator'
 /** What is said where somebody is about to turn `TALK_THERE` on over there. */
 export const TALK_TO_REMOTE =
   'Turns on Talk to Tade on that machine: what you type in its tab here goes to its orchestrator as ' +
-  `you at its keyboard, and a device paired there and granted it may send one too — ${TALKING_IS_NOT_YOU_SHORT}. ` +
+  `you at its keyboard, and a device paired there may send one too — ${TALKING_IS_NOT_YOU_SHORT}. ` +
   'Its Settings › Away view turns it off again.'
 
 /**

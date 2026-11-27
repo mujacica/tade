@@ -9,7 +9,6 @@
 //
 // Nothing here decides a state, a count or a reason (`inbox-shape.js`).
 
-import { mayFor } from '../access.js'
 import { afterAnswer, bodyFor, standingOf, wordsFor } from '../acts.js'
 import {
   classOn,
@@ -27,17 +26,7 @@ import { count } from '../figures.js'
 import { intakeMark } from '../glyphs.js'
 import { icon } from '../icons.js'
 import { safeHref, taskPath } from '../routes.js'
-import {
-  createLocally,
-  dl,
-  dlIn,
-  fillLocally,
-  nothingSaid,
-  pageBar,
-  rowFor,
-  sayIn,
-  section,
-} from '../rows.js'
+import { createLocally, dl, dlIn, fillLocally, pageBar, rowFor, sayIn, section } from '../rows.js'
 import { intakeAt } from '../store.js'
 import { TROUBLES } from '../trouble.js'
 import { answerIn, panel, stateBox, stateBoxIn } from '../ui.js'
@@ -193,7 +182,7 @@ function requestLeadOf(ctx) {
       textIn(because, row.because)
       moved.hidden = standing.moved === null
       textIn(moved.lastChild, standing.moved ?? '')
-      chipsIn(chips, row, view)
+      chipsIn(chips, row)
       control.update(row, view)
       // A held request's work is a task with its own controls: one press to it.
       const to = heldTaskOf(row, known)
@@ -209,10 +198,10 @@ function requestLeadOf(ctx) {
 }
 
 /** Where it came from, as a line of chips (`chipsOf`). */
-function chipsIn(list, row, view) {
+function chipsIn(list, row) {
   keyed(
     list,
-    chipsOf(row, mayFor(view.store, 'intake.who')),
+    chipsOf(row),
     (one) => one.key,
     () => el('li', { class: 'ui-pill' }),
     (chip, one) => {
@@ -267,7 +256,7 @@ function approveIn(parent, ctx) {
     const body = bodyFor('intake', held, keyOf(), ctx.revOf(), {})
     void ctx.ask('POST', '/api/act/intake', body).then((answer) => {
       press.disabled = false
-      const came = afterAnswer(answer, ctx.sentence(answer), ctx.session?.() ?? null)
+      const came = afterAnswer(answer, ctx.sentence(answer))
       answerIn(said, came.said, came.trouble)
       textIn(press, wordsFor('intake', held ?? {}))
       // **The key is kept across a retry and minted again only once it
@@ -281,7 +270,7 @@ function approveIn(parent, ctx) {
     update(row, view) {
       const task = row.approve === null ? null : rowFor(view.store, row.approve)
       held = task
-      const acts = view.may.acts ?? { answer: false, steer: false }
+      const acts = view.may.acts ?? { steer: false }
       const standing = task === null ? { kind: 'no', why: '' } : standingOf('intake', task, acts)
       line.hidden = standing.kind !== 'yes'
       if (!asked) textIn(press, wordsFor('intake', task ?? {}))
@@ -309,8 +298,8 @@ function wordsOf() {
   into(made.body, box)
   return {
     made,
-    fill(row, view) {
-      materialIn({ label, body, noBody }, row, view)
+    fill(row, _view) {
+      materialIn({ label, body, noBody }, row)
     },
   }
 }
@@ -318,12 +307,11 @@ function wordsOf() {
 /**
  * The request's own words, or **which** nothing there is instead.
  *
- * Three nothings and the page says which: this device was not granted them,
- * Tade never wrote one down, or the words are not on this frame because the
- * snapshot carries the ones waiting on somebody first. A single "nothing to
- * read" over all three tells somebody a request is empty.
+ * Two nothings and the page says which: Tade never wrote one down, or the
+ * machine said why they are not here (`materialSays`). A single "nothing to
+ * read" over both tells somebody a request is empty.
  */
-export function materialIn(nodes, row, view) {
+export function materialIn(nodes, row) {
   const has = row.material !== null
   nodes.label.hidden = !has
   textIn(nodes.label, row.materialLabel ?? '')
@@ -334,13 +322,7 @@ export function materialIn(nodes, row, view) {
     if (has) into(nodes.body, proseOf(row.material))
   }
   nodes.noBody.hidden = has
-  textIn(
-    nodes.noBody,
-    has
-      ? ''
-      : (row.materialSays ??
-          nothingSaid(mayFor(view.store, 'intake.material'), 1, 'nothing was written down')),
-  )
+  textIn(nodes.noBody, has ? '' : (row.materialSays ?? 'nothing was written down'))
 }
 
 /* ── what approving would start ───────────────────────────────────────────── */
@@ -363,21 +345,18 @@ function startsOf() {
   into(made.body, card)
   return {
     made,
-    fill(row, view) {
+    fill(row, _view) {
       const would = row.would
       made.node.hidden = would === null || row.state !== 'proposed'
       if (made.node.hidden) return
       sectionCount(made.figure, would.starts.length, would.starts.length === 1 ? 'task' : 'tasks')
       keyed(steps, would.starts, (one) => one.task, createStart, fillStart)
       steps.hidden = would.starts.length === 0
-      const money = mayFor(view.store, 'intake.would.limits')
       const lines = [
         ...would.problems.map((said) => ({ key: `p${said}`, said, mark: PROBLEM })),
         ...would.warnings.map((said) => ({ key: `w${said}`, said, mark: WARNING })),
         ...would.grant.map((said) => ({ key: `g${said}`, said, mark: ALLOWS })),
-        ...(money
-          ? would.limits.map((said) => ({ key: `l${said}`, said, mark: BOUNDS }))
-          : [{ key: 'l-', said: 'what it may spend is not granted to this device', mark: BOUNDS }]),
+        ...would.limits.map((said) => ({ key: `l${said}`, said, mark: BOUNDS })),
       ]
       keyed(notes, lines, (one) => one.key, createNote, fillNote)
     },
@@ -517,8 +496,8 @@ function fromOf() {
   into(made.body, first, press, more)
   return {
     made,
-    fill(row, view) {
-      const split = factsSplit(factsOf(row, view), row)
+    fill(row, _view) {
+      const split = factsSplit(factsOf(row), row)
       dlIn(first, split.first)
       dlIn(more, split.more)
       foldIn()
@@ -526,13 +505,9 @@ function fromOf() {
   }
 }
 
-/**
- * Where it came from, as labelled facts, with this device's grant read off the
- * view: `—` where nobody said who asked, *not granted* where this device may
- * not read the handle (`provenanceOf`).
- */
-export function factsOf(row, view) {
-  return provenanceOf(row, mayFor(view.store, 'intake.title'))
+/** Where it came from, as labelled facts: `—` where nobody said who asked (`provenanceOf`). */
+export function factsOf(row) {
+  return provenanceOf(row)
 }
 
 /* ── what went back ───────────────────────────────────────────────────────── */

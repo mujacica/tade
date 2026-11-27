@@ -218,5 +218,5 @@ function menusOf(lifecycle: Lifecycle): AgentMenuDoors {
  */
 export function menusFor(lifecycle: Lifecycle): WebMenus | undefined {
   if (lifecycle.menus === undefined) return undefined
-  return { menu: (task, theirs) => menusOf(lifecycle).menu(task, theirs) }
+  return { menu: (task) => menusOf(lifecycle).menu(task) }
 }

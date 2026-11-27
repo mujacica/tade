@@ -24,16 +24,12 @@ import {
   connectWhere,
   type Device,
   devicesPath,
-  GRANTS,
   mintConnectTicket,
   mintOwner,
   PENDING_MS,
   pairingUrl,
-  reachOf,
   readDevices,
-  readsOf,
   revokeAll,
-  SCOPES,
   type Surface,
   surfaceOf,
   ticketed,
@@ -147,44 +143,41 @@ export function registerWeb(program: Command, io: Io, setExit: (code: number) =>
       'Let a device in from this shell: a one-time code to scan, or with --owner a session for the machine you reached this one from over SSH',
     )
     .option('--owner', 'an owner device: a session bound to this machine, printed once')
-    .option('--read-only', 'it may read everything and change nothing')
     .option('--label <name>', 'what to call it in the device list')
     .option('--json', 'machine-readable output')
-    .action(
-      async (opts: { owner?: boolean; readOnly?: boolean; label?: string; json?: boolean }) => {
-        const label = opts.label ?? ''
-        if (label.length > 120) {
-          io.err('a label is at most 120 characters')
-          setExit(Exit.invalidInput)
-          return
-        }
-        const path = defaultConfigPath()
-        const loaded = await loadConfig(path)
-        if (!loaded.ok) {
-          // Never a code minted against defaults: the port and the name a link
-          // carries are the config's, and a guessed one goes nowhere.
-          io.err(`${path} could not be read, so this cannot say where a device would go`)
-          io.err('`tade config --check` says what is wrong with it')
-          setExit(Exit.error)
-          return
-        }
-        const surface = surfaceOf(loaded.config.surfaces.web)
-        if (!surface.enabled) {
-          io.err('the away view is off: `tade web on` first')
-          setExit(Exit.error)
-          return
-        }
-        const window = (await heldBy(tadeHome())) !== null
-        const pairing = { label, json: opts.json === true, window }
-        if (opts.owner === true) await pairOwner(io, setExit, surface, pairing)
-        else await pairCode(io, setExit, surface, { ...pairing, readOnly: opts.readOnly === true })
-      },
-    )
+    .action(async (opts: { owner?: boolean; label?: string; json?: boolean }) => {
+      const label = opts.label ?? ''
+      if (label.length > 120) {
+        io.err('a label is at most 120 characters')
+        setExit(Exit.invalidInput)
+        return
+      }
+      const path = defaultConfigPath()
+      const loaded = await loadConfig(path)
+      if (!loaded.ok) {
+        // Never a code minted against defaults: the port and the name a link
+        // carries are the config's, and a guessed one goes nowhere.
+        io.err(`${path} could not be read, so this cannot say where a device would go`)
+        io.err('`tade config --check` says what is wrong with it')
+        setExit(Exit.error)
+        return
+      }
+      const surface = surfaceOf(loaded.config.surfaces.web)
+      if (!surface.enabled) {
+        io.err('the away view is off: `tade web on` first')
+        setExit(Exit.error)
+        return
+      }
+      const window = (await heldBy(tadeHome())) !== null
+      const pairing = { label, json: opts.json === true, window }
+      if (opts.owner === true) await pairOwner(io, setExit, surface, pairing)
+      else await pairCode(io, setExit, surface, pairing)
+    })
 
   web
     .command('devices')
     .description(
-      'Every paired device, owners marked, and every code nobody has used yet: what each may read, and when',
+      'Every paired device, owners marked, and every code nobody has used yet: what each is, and when',
     )
     .option('--json', 'machine-readable output')
     .action(async (opts: { json?: boolean }) => {
@@ -204,16 +197,12 @@ export function registerWeb(program: Command, io: Io, setExit: (code: number) =>
       const label = (one: (typeof live)[number]) => printable(one.label || 'a device')
       const width = Math.max(0, ...live.map((one) => label(one).length))
       for (const one of live) {
-        const reads = readsOf(reachOf(one))
         io.out(
           `${label(one).padEnd(width)}  ${one.id}  paired ${when(one.pairedAt)}  ${
-            // An owner reads everything and its reach is the keyboard's, so
-            // the word that matters is that one, said first.
-            one.owner
-              ? 'owner, over SSH'
-              : reads.length === 0
-                ? 'names and counts'
-                : reads.join(', ')
+            // Every device is the person's own; what tells them apart is
+            // whether it is another machine's link, and whether it paired in
+            // the clear, which reads and never acts.
+            one.owner ? 'owner, over SSH' : one.clear ? 'reads only: paired in the clear' : 'phone'
           }${
             // Whether it can still act from a public name is its passkey, and
             // when it last used it is the question about a phone gone missing.
@@ -511,10 +500,8 @@ function asJson(device: Device) {
     label: device.label,
     pairedAt: new Date(device.pairedAt).toISOString(),
     until: new Date(device.until).toISOString(),
-    scopes: device.scopes,
-    reads: readsOf(reachOf(device)),
-    projects: device.projects,
     owner: device.owner,
+    clear: device.clear,
     // Its passkey's dates and whether it syncs — never its id or its key,
     // which are nobody's business in a terminal's scrollback.
     passkey:
@@ -560,7 +547,7 @@ async function pairCode(
   io: Io,
   setExit: (code: number) => void,
   surface: Surface,
-  pairing: Pairing & { readOnly: boolean },
+  pairing: Pairing,
 ): Promise<void> {
   const base = pairingUrl(surface)
   if (base === null) {
@@ -571,15 +558,9 @@ async function pairCode(
   const host = new URL(base).host
   const written = await writeCode(
     tadeHome(),
-    {
-      host,
-      label: pairing.label,
-      // Everything, opt-out, as the window's own yes is (`EVERYTHING`); the
-      // origin's ceiling still holds at the claim (`scopesOn`).
-      scopes: pairing.readOnly ? ['read'] : [...SCOPES],
-      projects: null,
-      granted: [...GRANTS],
-    },
+    // Every paired device is the person's own: a code says where it goes
+    // and what to call it, never what it may have.
+    { host, label: pairing.label },
     Date.now(),
   )
   const url = `${base}#t=${written.secret}`
@@ -593,8 +574,8 @@ async function pairCode(
           host,
           until,
           answering: pairing.window,
-          // What claiming it grants, said in the answer a script reads too.
-          access: pairing.readOnly ? 'read' : 'full',
+          // What claiming it gives, said in the answer a script reads too.
+          access: 'full',
         },
         null,
         2,
@@ -614,9 +595,7 @@ async function pairCode(
       : `open it on this machine, or in a browser through \`ssh -L ${surface.port}:localhost:${surface.port}\` — once, within ${minutes} minutes`,
   )
   io.out(
-    pairing.readOnly
-      ? 'it may read everything and change nothing'
-      : 'full access: it may read and do whatever is turned on here, and the AWAY VIEW panel takes any of it back',
+    'full access: it may read and do whatever is turned on here, until `tade web revoke` or the AWAY VIEW panel signs it out',
   )
   // **Nobody is asked at the claim**, unlike the window's own code, whose
   // claim waits for a press there: the link is the access itself, and the

@@ -3,18 +3,18 @@ import { describe, expect, it } from 'vitest'
 import { BUDGET } from '../src/page.ts'
 import { inScope, notesOf, projector } from '../src/reading.ts'
 import { snapshotOf } from '../src/snapshot.ts'
-import { EVERY, input, NOW, note, reach, task } from './fixtures.ts'
+import { input, NOW, note, reach } from './fixtures.ts'
 
 describe('the projector', () => {
   it('answers from what it holds and builds nothing per question', () => {
-    const one = input({ reach: reach(EVERY) })
+    const one = input({ reach: reach() })
     const held = projector(one, NOW)
     expect(held.snapshot()).toBe(held.snapshot())
     expect(held.rev).toBe(12)
   })
 
   it('advances on a beat that changed something, and not otherwise', () => {
-    const one = input({ reach: reach(EVERY) })
+    const one = input({ reach: reach() })
     const held = projector(one, NOW)
     expect(held.beat(one, NOW + 2_000)).toBeNull()
     expect(held.rev).toBe(12)
@@ -27,7 +27,7 @@ describe('the projector', () => {
   it('keeps its own revision whatever the caller puts on the input', () => {
     // The server owns its lifetime; a caller that forgot to carry `rev`
     // forward must not reset the stream's cursor underneath its clients.
-    const one = input({ reach: reach(EVERY) })
+    const one = input({ reach: reach() })
     const held = projector(one, NOW)
     held.beat({ ...one, notes: [] }, NOW + 2_000)
     held.beat({ ...one, notes: [], findings: [] }, NOW + 4_000)
@@ -35,7 +35,7 @@ describe('the projector', () => {
   })
 
   it('answers the notes route from the input of its last beat', () => {
-    const one = input({ reach: reach(EVERY) })
+    const one = input({ reach: reach() })
     const held = projector(one, NOW)
     expect(held.notes('sentry')).toMatchObject({ total: 2 })
     held.beat({ ...one, notes: [] }, NOW + 2_000)
@@ -43,7 +43,7 @@ describe('the projector', () => {
   })
 
   it('ticks without advancing anything', () => {
-    const held = projector(input({ reach: reach(EVERY) }), NOW)
+    const held = projector(input({ reach: reach() }), NOW)
     const beat = held.tick(NOW + 2_000)
     expect(beat.rev).toBe(12)
     expect(beat.set).toEqual({})
@@ -53,7 +53,7 @@ describe('the projector', () => {
 
 describe('notes in one scope', () => {
   const one = input({
-    reach: reach(EVERY),
+    reach: reach(),
     notes: [
       note({ scope: null, text: 'about everything', at: '2026-10-01T00:00:00.000Z' }),
       note({ scope: 'sentry', text: 'about the project', at: '2026-10-02T00:00:00.000Z' }),
@@ -81,12 +81,6 @@ describe('notes in one scope', () => {
     )
   })
 
-  it('answers the count and nothing else when notes were not granted', () => {
-    const page = notesOf({ ...one, reach: reach([]) }, null)
-    expect(page.rows).toEqual([])
-    expect(page).toMatchObject({ total: 1, omitted: 1 })
-  })
-
   it('gives a note the same id here as in a snapshot', () => {
     const page = notesOf(one, 'sentry')
     const snapshot = snapshotOf(one, NOW)
@@ -98,7 +92,7 @@ describe('notes in one scope', () => {
 
   it('tells two notes written in the same millisecond apart', () => {
     const twice = input({
-      reach: reach(EVERY),
+      reach: reach(),
       notes: [
         note({ at: '2026-10-05T00:00:00.000Z', text: 'first' }),
         note({ at: '2026-10-05T00:00:00.000Z', text: 'second' }),
@@ -113,7 +107,7 @@ describe('the older notes, a page at a time', () => {
   // Five notes a minute apart and a budget of two: the snapshot carries the
   // newest two and a cursor past them, and the notes route walks on from it.
   const five = input({
-    reach: reach(EVERY),
+    reach: reach(),
     notes: Array.from({ length: 5 }, (_, n) =>
       note({ at: new Date(Date.parse('2026-10-08T12:00:00.000Z') - n * 60_000).toISOString() }),
     ),
@@ -149,12 +143,6 @@ describe('the older notes, a page at a time', () => {
     expect(page.restarted).toBe(true)
     expect(page.rows).toHaveLength(2)
   })
-
-  it('pages nothing for a device not granted notes, and still counts them', () => {
-    const page = projector({ ...five, reach: reach([]) }, NOW).notes(undefined, null)
-    expect(page.rows).toEqual([])
-    expect(page.total).toBe(5)
-  })
 })
 
 describe('the scope rule is `appliesTo`’s', () => {
@@ -169,18 +157,5 @@ describe('the scope rule is `appliesTo`’s', () => {
           appliesTo(entry as Note, asked),
         )
       }
-  })
-})
-
-describe('a projector over a reach that may read one project', () => {
-  it('never holds a row from another one', () => {
-    const held = projector(
-      input({
-        reach: reach(EVERY, ['tade']),
-        tasks: [task(), task({ id: 'tade/window', project: 'tade' })],
-      }),
-      NOW,
-    )
-    expect(held.snapshot().tasks.map((row) => row.id)).toEqual(['tade/window'])
   })
 })

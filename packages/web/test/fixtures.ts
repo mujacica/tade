@@ -21,7 +21,7 @@ import type {
   TalkIn,
   TaskIn,
 } from '../src/input.ts'
-import { GRANTS, type Grant, type Reach } from '../src/reach.ts'
+import { type Reach, reachFor } from '../src/reach.ts'
 
 // One input, built to be caught.
 //
@@ -58,10 +58,9 @@ export const PRIVATE = {
  *
  * Apart from `PRIVATE` because the question is a different one. `PRIVATE` is
  * about things the projection must never carry at all; these are things it
- * carries **only where a person at this machine granted them**, so the test
- * that matters is the one that asks whether they are absent with no grant —
- * and then whether they are *present*, verbatim, with one. A request that was
- * quietly reworded is as wrong as one that leaked.
+ * carries **verbatim**, so the test that matters is whether they are present
+ * exactly as they arrived. A request that was quietly reworded is as wrong as
+ * one that leaked.
  *
  * `said` has a machine path in it on purpose: a stranger may type whatever
  * they like into a ticket, and the rule for a request is the rule for a note —
@@ -74,14 +73,9 @@ export const OUTSIDE = {
   said: `It breaks every time. Trace at /srv/logs/zt9/export-Qp3vNn1bXg7.log, see attached`,
 } as const
 
-export const EVERY: readonly Grant[] = GRANTS
-
-export function reach(granted: readonly Grant[] = [], projects?: readonly string[]): Reach {
-  return {
-    device: 'dev_7f3a9c21',
-    projects: projects === undefined ? { kind: 'every' } : { kind: 'listed', names: projects },
-    granted,
-  }
+/** The device every fixture reads as: every paired device reads everything. */
+export function reach(): Reach {
+  return reachFor('dev_7f3a9c21')
 }
 
 export function spend(usd = 1.25): Spend {
@@ -304,9 +298,8 @@ export function plan(over: Partial<PlanStanding> = {}): PlanStanding {
  *
  * **The outside text is under its own private strings**, for the reason the
  * rest of this file is written that way: the question a leakage test has to
- * answer about a request is not *was it scrubbed* — it is *did it cross at
- * all, with no grant* — and that is a question about a string nothing else
- * says. `OUTSIDE.said` is a path somebody typed into a ticket, which is the
+ * answer about a request is not *was it scrubbed* — it is *did it cross
+ * whole* — and that is a question about a string nothing else says. `OUTSIDE.said` is a path somebody typed into a ticket, which is the
  * case the authored-text rule and the no-path rule disagree about.
  */
 export function intake(over: Partial<IntakeIn> = {}): IntakeIn {

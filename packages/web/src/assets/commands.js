@@ -3,13 +3,13 @@
 // **The command bar and the conversation are one input** (Raycast's rule):
 // whatever is typed is first a message to Tade, where this device may send
 // one, and then a filter over what could be done and where to go — the acts
-// this device was granted on the work that matches, every screen, every open
+// this device may ask for on the work that matches, every screen, every open
 // project, every piece of work that wants somebody and every agent running.
 // Enter takes the row that is lit, and the first row is the message.
 //
 // **Nothing here is permission.** The message row is offered off `talk.mine`
-// and an act row off the task's own `can` list and this session's scopes —
-// both drawing hints. The machine re-asks the scope, the setting, the origin,
+// and an act row off the task's own `can` list and this session (`actsOf`) —
+// both drawing hints. The machine re-asks the setting, the origin, the passkey,
 // the project and the state when the act arrives, and every other row is a
 // link to a screen the page would draw anyway.
 

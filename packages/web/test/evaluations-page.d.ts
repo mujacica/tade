@@ -22,7 +22,7 @@ declare module '*/assets/pages/evaluations-shape.js' {
   export function findingsSaid(found: unknown): string | null
   export function leadOf(answer: unknown): Tile[]
   export function cardsOf(answer: unknown, by: string): Bar[]
-  export function underOf(row: unknown, granted: unknown): string
+  export function underOf(row: unknown): string
   export function judgeOf(answer: unknown): {
     state: string
     said?: string

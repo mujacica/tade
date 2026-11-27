@@ -28,7 +28,6 @@ const LAN: Surface = {
 
 const SESSION = {
   device: '00112233445566aa',
-  scopes: ['read'] as const,
   host: '192.168.1.10:7654',
   csrf: 'x'.repeat(43),
   proved: null,
@@ -104,7 +103,7 @@ describe('a passkey before acting from the public listener', () => {
               { ...READ, needs },
               guarding({
                 surface: { ...PUBLIC, passkeyMs: hours * HOUR },
-                session: { ...SESSION, host: at.host, scopes: ['read', 'steer'], proved },
+                session: { ...SESSION, host: at.host, proved },
               }),
             )
             expect(verdict.ok).toBe(ok)
@@ -118,22 +117,22 @@ describe('a passkey before acting from the public listener', () => {
     }
   }
 
-  it('is asked after the scope and the origin, so it never says more than they would', () => {
-    // A device not granted the act, or on a plaintext origin, hears that —
+  it('is asked after the origin, so it never says more than that would', () => {
+    // A device on a plaintext origin, or paired in the clear, hears that —
     // not that a passkey would help.
     const unproven = { ...SESSION, host: NAME, proved: null }
     const surface = { ...PUBLIC, passkeyMs: 12 * HOUR }
     const at = { host: NAME, origin: `https://${NAME}`, listener: 'public' as const }
-    const scope = allowed(
+    const clear = allowed(
       asking(at),
       { ...READ, needs: 'steer' },
-      guarding({ surface, session: { ...unproven, scopes: ['read'] } }),
+      guarding({ surface, session: { ...unproven, clear: true } }),
     )
-    expect(!scope.ok && scope.refusal.error).toBe('out_of_scope')
+    expect(!clear.ok && clear.refusal.error).toBe('locked')
     const plain = allowed(
       asking({ ...at, origin: `http://${NAME}` }),
       { ...READ, needs: 'steer' },
-      guarding({ surface, session: { ...unproven, scopes: ['read', 'steer'] } }),
+      guarding({ surface, session: unproven }),
     )
     expect(!plain.ok && plain.refusal.error).toBe('locked')
   })

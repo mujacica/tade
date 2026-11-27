@@ -3,7 +3,6 @@ import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
-import { ownsOrTheirs } from './surface.ts'
 
 // One orchestrator on every machine of the person's, acting on any of them
 // (`tade_remote_act`): what it does on this machine it does through this
@@ -19,7 +18,7 @@ import { ownsOrTheirs } from './surface.ts'
 //   which this machine can never call to ask.
 //
 // **An owner's, and only at this machine's own door** (`here`), **and the
-// person's own device too** (`theirs`): what it reaches is what this
+// paired phone too**, every one being the person's own: what it reaches is what this
 // machine's own orchestrator reaches, which the SSH key to this box reaches
 // already. Bodies are read as text first: a key, a method name, its
 // parameters as an object, and the person's lines as strings.
@@ -74,7 +73,6 @@ export async function actHere(
   acts: WebActs | undefined,
 ): Promise<{ body: ActDone } | { refusal: Refusal }> {
   if (acts === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const parsed = ActText.safeParse(got.body)
@@ -89,7 +87,6 @@ export async function outboxHere(
   acts: WebActs | undefined,
 ): Promise<{ body: { acts: ActBody[] } } | { refusal: Refusal }> {
   if (acts === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const parsed = OutboxText.safeParse(got.body)

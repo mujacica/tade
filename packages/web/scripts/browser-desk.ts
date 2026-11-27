@@ -9,10 +9,8 @@ import { until } from './browser-until.ts'
 // **On the devices `browser.ts` already pairs**, never a new one: the server
 // lets one address pair five times in ten minutes and the harness spends all
 // five, so a sixth would be the rate limit working and every check here
-// `fail`ing for a reason that is not the page's. The three widths' devices are
-// granted nothing — which is the half `lanes` has to be honest about — and the
-// one granted everything is at the widest width, which is the half that has
-// to draw a screen.
+// `fail`ing for a reason that is not the page's. Every paired device reads
+// agents' screens, and the pass at the widest width is the one that draws one.
 //
 // What only a browser can answer, and nothing offline can:
 //
@@ -22,9 +20,8 @@ import { until } from './browser-until.ts'
 //   up and a sheet on a phone — each opened, and closed again by Escape — and
 //   that folding a dock at a desk is kept across a reload. The stylesheet
 //   decides all of it, so only a laid-out page can say it.
-// - `lanes` — that a device not granted agents' screens is told so and is sent
-//   no row of one; that one granted them is drawn the rows with the machine's
-//   paths and keys gone from them; that axe has nothing to say about the pane
+// - `lanes` — that an agent's screen is drawn with the machine's paths and
+//   keys gone from its rows; that axe has nothing to say about the pane
 //   once it is drawn; and that **leaving the page stops the asking**, which is
 //   what stops the reading at the machine. Counted off the browser's own
 //   resource timeline, never a sleep that hopes.
@@ -73,7 +70,7 @@ const ASKED = `performance.getEntriesByType('resource')
   .filter((one) => one.name.includes('/api/agent/')).length`
 
 /**
- * The frame's parts at one width, for the device granted nothing.
+ * The frame's parts at one width.
  *
  * What each width is meant to draw is written here once, against the
  * breakpoints in `dock.css`: 768 for Tade at the foot, 1280 for the side.
@@ -115,20 +112,6 @@ export async function deskAt(
     return
   }
   await docksAt(page, origin, width, found)
-  // **Not granted is said, and nothing of the screen is sent.** The pane asks
-  // once on opening; its answer for this device is the sentence, and the
-  // fixture's rows must be nowhere on the page — nor in what came back.
-  const at = `lanes not granted @ ${width.name}`
-  try {
-    // The pane’s own sentence: the dock at the foot says the conversation is
-    // not granted either, and that is a different fact.
-    await until(page, `document.querySelector('main').innerText.includes('Screen not granted')`)
-    const words = String(await page.evaluate('document.body.innerText'))
-    if (words.includes(ROW)) found('lanes', at, 'fail', 'a row of its screen is on the page')
-    else found('lanes', at, 'pass', 'told it is not granted, and shown no row of it')
-  } catch (problem) {
-    found('lanes', at, 'fail', said(problem))
-  }
 }
 
 /**
@@ -197,7 +180,7 @@ async function docksAt(
 }
 
 /**
- * An agent looked into, for the device granted everything, at a desk.
+ * An agent looked into, at a desk.
  *
  * Drawn, scrubbed, checked by axe once it is there, photographed, and then
  * left — after which the page must stop asking.
@@ -335,9 +318,7 @@ const BAR = `(() => {
 /**
  * The command bar, in a real browser: `⌘K` opens it with the field focused,
  * what is typed filters where to go, Enter goes there and closes it, and
- * Escape closes it without going back a page. For the device granted nothing,
- * which may go anywhere it can read and may say nothing to Tade — so the bar
- * must offer no message row at all.
+ * Escape closes it without going back a page.
  */
 export async function paletteAt(
   page: Page,

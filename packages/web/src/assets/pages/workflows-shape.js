@@ -197,9 +197,9 @@ export function runsFrom(row, runs) {
  * The runs from one workflow, counted by where they stand.
  *
  * **`row.runs` is the machine's count and the one to believe**; the runs this
- * device can see are the ones in projects it may read. What the two differ by
- * is said as *not readable here* rather than dropped, so a phone granted one
- * project never says a workflow that ran ten times ran twice.
+ * device was sent may be fewer. What the two differ by is said as *not
+ * readable here* rather than dropped, so a page never says a workflow that
+ * ran ten times ran twice.
  */
 export function runsLineOf(row, runs) {
   const seen = runsFrom(row, runs)
@@ -425,9 +425,8 @@ export function trackSaid(row) {
  * on — the shape the rail on one workflow's screen draws, and the order a
  * card's track is read out in.
  *
- * `steps` carries each step's own row where this device was sent it (the
- * content rides on the `workflows` grant; the places do not), so a stage can
- * always be named even where a step cannot be described.
+ * `steps` carries each step's own row where this device was sent it, so a
+ * stage can always be named even where a step cannot be described.
  */
 export function stagesOf(row) {
   const byName = new Map(row.steps.map((step) => [step.name, step]))

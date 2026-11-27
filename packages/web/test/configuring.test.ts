@@ -3,21 +3,10 @@ import {
   SETTINGS_FROM_AWAY,
   SETTINGS_FROM_AWAY_SHORT,
   type SettingGroup,
-  settingReach,
   settingsOf,
 } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import {
-  AT_THE_MACHINE,
-  awayReach,
-  clearOnly,
-  isCredential,
-  NOT_GRANTED,
-  type SettingOut,
-  settingsFor,
-} from '../src/configuring.ts'
-import { GRANTS, type Reach } from '../src/reach.ts'
-import { reachOf, SCOPES, theirsOf } from '../src/surface.ts'
+import { AT_THE_MACHINE, isCredential, type SettingOut, settingsFor } from '../src/configuring.ts'
 
 // What a device is shown of the config, and what it is never shown.
 //
@@ -26,8 +15,6 @@ import { reachOf, SCOPES, theirsOf } from '../src/surface.ts'
 // a setting added tomorrow is in these tests the day it is added, and the leak
 // checks run over every value Settings would draw rather than over the ones
 // somebody remembered.
-
-const DEVICE = '00112233445566aa'
 
 /** Three keys, each long enough and shaped unlike anything else here. */
 const JEV_KEY = 'jev_live_7fd1c0a9e2b84f6d93a51c2e8b7d4f00'
@@ -63,10 +50,6 @@ function rows(over: { instructions?: string } = {}): SettingGroup[] {
   ])
 }
 
-function reach(over: Partial<Reach> = {}): Reach {
-  return { device: DEVICE, projects: { kind: 'every' }, granted: ['settings'], ...over }
-}
-
 function every(out: ReturnType<typeof settingsFor>): SettingOut[] {
   return out.groups.flatMap((group) => group.settings)
 }
@@ -77,48 +60,22 @@ function one(out: ReturnType<typeof settingsFor>, path: string): SettingOut {
   return found
 }
 
-describe('reading the settings is a grant, per device', () => {
-  it('answers nothing at all to a device that was not granted it', () => {
-    // `granted: false` is the whole answer — not an empty config, which would
-    // be a different fact — and not one value rides along.
-    for (const granted of [[], ['titles', 'notes', 'lanes'] as const]) {
-      const out = settingsFor(rows(), reach({ granted: [...granted] }), [])
-      expect(out).toEqual(NOT_GRANTED)
-    }
-  })
-
-  it('lists every setting Settings would draw for a device granted it', () => {
+describe('reading the settings', () => {
+  it('lists every setting Settings would draw, to every paired device', () => {
     const groups = rows()
-    const out = settingsFor(groups, reach(), [])
+    const out = settingsFor(groups, [])
     expect(every(out).map((row) => row.path)).toEqual(
       groups.flatMap((group) => group.settings.map((setting) => setting.path)),
     )
-    expect(out.withheld).toBe(0)
-  })
-
-  it('leaves out every setting of a project this device does not read, and counts them', () => {
-    const groups = rows()
-    const out = settingsFor(groups, reach({ projects: { kind: 'listed', names: ['app'] } }), [])
-    const paths = every(out).map((row) => row.path)
-    expect(paths.some((path) => path.startsWith('projects.ledger.'))).toBe(false)
-    expect(paths).toContain('projects.app.push')
-    const ledger = groups
-      .flatMap((group) => group.settings)
-      .filter((setting) => setting.path.startsWith('projects.ledger.'))
-    expect(ledger.length).toBeGreaterThan(0)
-    expect(out.withheld).toBe(ledger.length)
-    // And nothing of it is anywhere in the answer, not even its name.
-    expect(JSON.stringify(out)).not.toContain('ledger')
   })
 })
 
 describe('a key is never readable', () => {
-  it('carries no key anywhere in the answer, whatever this device was granted', () => {
+  it('carries no key anywhere in the answer', () => {
     // **By value, over the whole answer**, rather than by looking in the field
     // a key is expected to be in: a key that turned up in a `means`, a
     // fallback or a revision is the leak this exists to catch.
-    const out = settingsFor(rows(), reach({ granted: ['settings', 'titles', 'lanes'] }), [])
-    const text = JSON.stringify(out)
+    const text = JSON.stringify(settingsFor(rows(), []))
     for (const key of [JEV_KEY, ACCOUNT_KEY, PUSH_KEY]) {
       expect(text, key).not.toContain(key)
       // Nor a recognisable piece of one.
@@ -126,15 +83,16 @@ describe('a key is never readable', () => {
     }
   })
 
-  it('says whether a key is held and nothing else, and never offers a revision of one', () => {
-    const out = settingsFor(rows(), reach(), [])
+  it('says whether a key is held and nothing else, and a new one may be typed in', () => {
+    const out = settingsFor(rows(), [])
     for (const path of ['extensions.jev.key', 'accounts.work.key', 'surfaces.web.push_key']) {
       const row = one(out, path)
       expect(row.held, path).toBe('set')
       expect(row.shown, path).toBe('')
-      expect(row.was, path).toBeNull()
-      expect(row.may, path).toBe('machine')
-      expect(row.why, path).toBe(AT_THE_MACHINE.key)
+      // Whether one is held is all a change echoes, never the key.
+      expect(row.was, path).toBe('set')
+      expect(row.may, path).toBe('change')
+      expect(row.sets, path).toBe(true)
     }
     expect(one(out, 'extensions.sentry.token').held).toBe('not set')
   })
@@ -144,39 +102,36 @@ describe('a key is never readable', () => {
     // setting is ordinary and its value is shown — without the key, because
     // every value is cleaned of every key Tade holds, the credential rows'
     // own included.
-    const out = settingsFor(rows({ instructions: `use ${JEV_KEY} for the judge` }), reach(), [])
+    const out = settingsFor(rows({ instructions: `use ${JEV_KEY} for the judge` }), [])
     const row = one(out, 'agents.instructions')
     expect(row.shown).not.toContain(JEV_KEY)
     expect(row.shown).toContain('use')
     // And a value that could not be shown whole is not one a device may change.
     expect(row.may).toBe('machine')
+    expect(row.why).toBe(AT_THE_MACHINE.partial)
+    expect(row.was).toBeNull()
   })
 
   it('takes out a key the window knows of that no setting holds', () => {
     // An environment variable named like a credential: the window hands it
     // over as known, and a value that quoted it loses it.
     const env = 'ENVKEY_0123456789abcdefABCDEF'
-    const out = settingsFor(rows({ instructions: `token ${env}` }), reach(), [env])
+    const out = settingsFor(rows({ instructions: `token ${env}` }), [env])
     expect(JSON.stringify(out)).not.toContain(env)
   })
 
   it('takes machine paths out of what is shown', () => {
-    const out = settingsFor(rows(), reach(), [])
-    expect(JSON.stringify(out)).not.toContain('/Users/kim')
+    expect(JSON.stringify(settingsFor(rows(), []))).not.toContain('/Users/kim')
   })
 
   it('tells a key from a key on a keyboard', () => {
     const groups = rows()
-    const find = (path: string) => {
+    const credential = (path: string) => {
       for (const group of groups) {
         const setting = group.settings.find((row) => row.path === path)
-        if (setting) return { group, setting }
+        if (setting) return isCredential(group, setting)
       }
       throw new Error(path)
-    }
-    const credential = (path: string) => {
-      const { group, setting } = find(path)
-      return isCredential(group, setting)
     }
     expect(credential('extensions.jev.key')).toBe(true)
     expect(credential('surfaces.web.push_key')).toBe(true)
@@ -185,185 +140,51 @@ describe('a key is never readable', () => {
     expect(credential('surfaces.voice.talk.key')).toBe(false)
     // The *name* of the variable a token is read from is not a token.
     expect(credential('extensions.sentry.token_env')).toBe(false)
-    const { group, setting } = find('surfaces.web.push_key')
-    expect(clearOnly(group, setting)).toBe(true)
   })
 })
 
 describe('how far a device reaches into each setting', () => {
-  it('reaches the open tier, and nothing in asked or never', () => {
-    // Every setting Settings draws, sorted by what a device may do with it —
-    // and the set it may change written out, so a setting that moves into the
-    // open tier is a diff somebody reads beside `SETTINGS_FROM_AWAY`.
-    const out = settingsFor(rows(), reach(), [])
-    const changeable = every(out)
-      .filter((row) => row.may === 'change')
-      .map((row) => row.path)
-    expect(changeable).toEqual([
-      'surfaces.window.sidebar_width',
-      'surfaces.window.strip_height',
-      'surfaces.window.editor',
-      'projects.app.push',
-      'projects.ledger.push',
-    ])
+  it('changes every setting it is shown whole, every tier', () => {
+    // Every paired device is the person's own, so `asked` and `never` are
+    // reached as the keyboard reaches them.
+    const out = settingsFor(rows(), [])
+    let changed = 0
     for (const row of every(out)) {
-      const tier = settingReach(row.path).reach
-      if (tier === 'open') continue
-      expect(row.may, row.path).toBe('machine')
-      expect(row.was, row.path).toBeNull()
-      if (row.held === null) {
-        expect(row.why, row.path).toBe(
-          tier === 'asked' ? AT_THE_MACHINE.asked : AT_THE_MACHINE.never,
-        )
-      }
+      // A value cleaned for the screen — a project's root, with the machine's
+      // path taken out — has nothing exact to echo.
+      if (row.why === AT_THE_MACHINE.partial) continue
+      changed += 1
+      expect(row.may, row.path).toBe('change')
+      expect(row.why, row.path).toBe('')
+      if (row.held === null) expect(row.sets, row.path).toBe(false)
     }
+    // Every tier, so the loop above was not over the open one alone.
+    expect(changed).toBeGreaterThan(30)
+    expect(one(out, 'approvals.mode').may).toBe('change')
+    expect(one(out, 'agents.commit').may).toBe('change')
+    expect(one(out, 'surfaces.web.acting').may).toBe('change')
   })
 
   it('echoes the value itself, exactly, for what may be changed', () => {
-    const out = settingsFor(rows(), reach(), [])
+    const out = settingsFor(rows(), [])
     expect(one(out, 'surfaces.window.editor').was).toBe('code')
     expect(one(out, 'projects.app.push').was).toBe('branch')
     // Nothing set is a value too, and echoed as one.
     expect(one(out, 'projects.ledger.push').was).toBe('')
   })
-
-  it('answers by path alone, so a crafted path is decided before anything is looked up', () => {
-    expect(awayReach('surfaces.window.editor')).toEqual({ may: 'change' })
-    expect(awayReach('projects.anything.push')).toEqual({ may: 'change' })
-    for (const path of [
-      'approvals.mode',
-      'surfaces.web.acting',
-      'surfaces.web.settings',
-      'accounts.work.key',
-      'extensions.jev.enabled',
-      'mcp.servers.github.enabled',
-      'projects.app.root',
-      'telemetry.dsn',
-    ]) {
-      expect(awayReach(path), path).toEqual({ may: 'machine', why: AT_THE_MACHINE.never })
-    }
-    for (const path of ['checks.before', 'agents.commit', 'projects.app.title']) {
-      expect(awayReach(path), path).toEqual({ may: 'machine', why: AT_THE_MACHINE.asked })
-    }
-  })
 })
 
 describe('the sentence a person reads where they turn this on', () => {
-  it('say what changing a setting from away reaches, as a list and not a promise', () => {
-    // **The list is the load-bearing half.** Each open-tier setting is named,
-    // so one that joins the tier and is not named here is a sentence that fell
-    // behind — `configuring.test.ts` holds the tier to the same four.
-    for (const reaches of [
-      'width of the sidebar',
-      'height of the strip',
-      'editor',
-      'what a project it can read pushes',
-    ]) {
-      expect(SETTINGS_FROM_AWAY, reaches).toContain(reaches)
-    }
-    // And why the rest is at the machine, in the same breath: the asked tier's
-    // reason and the never tier's absence.
-    expect(SETTINGS_FROM_AWAY).toContain('needs your own words')
-    expect(SETTINGS_FROM_AWAY).toContain('never your own words')
+  it('says what changing a setting from away reaches, and what a key is', () => {
     expect(SETTINGS_FROM_AWAY).toContain('could pair itself')
-    expect(SETTINGS_FROM_AWAY).toContain('no route at all')
     expect(SETTINGS_FROM_AWAY).toContain('set or not set')
     expect(SETTINGS_FROM_AWAY).toContain('never read back')
     expect(SETTINGS_FROM_AWAY).toContain('journal under that device')
     for (const word of ['secure', 'encrypted', 'private', 'safe', 'harmless']) {
       expect(SETTINGS_FROM_AWAY.toLowerCase(), word).not.toContain(word)
     }
-    // And the one exception, in the same breath as the rule: the person's own
-    // device, and what makes it an ordinary one again.
-    expect(SETTINGS_FROM_AWAY).toContain('Your own device, with full access, changes any setting')
-    expect(SETTINGS_FROM_AWAY).toContain('untick anything')
     expect(SETTINGS_FROM_AWAY_SHORT.length).toBeLessThan(80)
-    expect(SETTINGS_FROM_AWAY_SHORT).toContain('full access changes any setting')
-    expect(SETTINGS_FROM_AWAY_SHORT).toContain('no key')
-  })
-})
-
-describe('the person’s own device', () => {
-  const full = {
-    id: DEVICE,
-    projects: null,
-    scopes: [...SCOPES],
-    granted: [...GRANTS],
-  }
-
-  it('is a device with full access, a phone or a machine paired as owner, read off the record', () => {
-    expect(theirsOf(full)).toBe(true)
-    expect(reachOf(full).theirs).toBe(true)
-    // **A machine the person paired as owner reaches what their phone does**:
-    // they decided there is no difference between the two.
-    expect(theirsOf({ ...full, owner: true })).toBe(true)
-    expect(reachOf({ ...full, owner: true }).theirs).toBe(true)
-    // One box unticked, either kind, on either, and it is an ordinary device.
-    for (const scope of SCOPES) {
-      const less = { ...full, scopes: SCOPES.filter((one) => one !== scope) }
-      expect(theirsOf(less), scope).toBe(false)
-      expect(theirsOf({ ...less, owner: true }), scope).toBe(false)
-    }
-    for (const grant of GRANTS) {
-      const less = { ...full, granted: GRANTS.filter((one) => one !== grant) }
-      expect(reachOf(less).theirs, grant).toBeUndefined()
-    }
-    // A reach made from a record with no scopes is never theirs.
-    expect(theirsOf({ granted: [...GRANTS] })).toBe(false)
-  })
-
-  it('may change every setting it is shown whole, and set a key it is never shown', () => {
-    const out = settingsFor(rows(), reach({ theirs: true }), [])
-    let changed = 0
-    for (const row of every(out)) {
-      // A value cleaned for the screen — a project's root, with the machine's
-      // path taken out — has nothing exact to echo, for any device.
-      if (row.why === AT_THE_MACHINE.partial) continue
-      changed += 1
-      expect(row.may, row.path).toBe('change')
-      expect(row.why, row.path).toBe('')
-      if (row.held !== null) {
-        // Whether one is held, never the key — and it may type a new one.
-        expect(row.was, row.path).toBe(row.held)
-        expect(row.sets, row.path).toBe(true)
-      } else {
-        expect(row.sets, row.path).toBe(false)
-      }
-    }
-    // Every tier, so the loop above was not over the open one alone.
-    expect(changed).toBeGreaterThan(30)
-    expect(one(out, 'approvals.mode').may).toBe('change')
-    expect(one(out, 'agents.commit').may).toBe('change')
-    expect(awayReach('approvals.mode', true)).toEqual({ may: 'change' })
-    // And still no key in the answer, by value, over the whole of it.
-    const text = JSON.stringify(out)
-    for (const key of [JEV_KEY, ACCOUNT_KEY, PUSH_KEY]) expect(text, key).not.toContain(key)
-  })
-
-  it('still cannot change a value it could not be shown whole', () => {
-    const out = settingsFor(
-      rows({ instructions: `use ${JEV_KEY} for the judge` }),
-      reach({ theirs: true }),
-      [],
-    )
-    const row = one(out, 'agents.instructions')
-    expect(row.may).toBe('machine')
-    expect(row.was).toBeNull()
-  })
-
-  it('leaves every other device exactly where it was', () => {
-    const out = settingsFor(rows(), reach(), [])
-    for (const row of every(out)) expect(row.sets, row.path).toBe(false)
-    expect(
-      every(out)
-        .filter((row) => row.may === 'change')
-        .map((row) => row.path),
-    ).toEqual([
-      'surfaces.window.sidebar_width',
-      'surfaces.window.strip_height',
-      'surfaces.window.editor',
-      'projects.app.push',
-      'projects.ledger.push',
-    ])
+    expect(SETTINGS_FROM_AWAY_SHORT).toContain('any setting')
+    expect(SETTINGS_FROM_AWAY_SHORT).toContain('never shown')
   })
 })

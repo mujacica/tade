@@ -12,8 +12,8 @@
 //   typed or spoke, kept verbatim: a title, `intent_spoken`, a note, the
 //   sentence accounting for a finding. It is **never scrubbed**, because
 //   scrubbing is rewording and the house rule about a note is that it is never
-//   reworded. It travels as `Said`, cut to a budget, only where the device was
-//   granted it, and is drawn as text and never as markup.
+//   reworded. It travels as `Said`, cut to a budget, and is drawn as text and
+//   never as markup.
 //
 // The claim the projection makes, exactly: *the away view adds no path and no
 // credential of its own, and it shows what you wrote as you wrote it.*
@@ -100,14 +100,9 @@ export function authored(at: string): boolean {
  * more entries in `AUTHORED`: the two differ in who may read them and in what
  * a reader is told about them, not in whether they are scrubbed.
  *
- * - `AUTHORED` is the owner's. It rides on the grant for the thing it is part
- *   of — a title with `titles`, a note with `notes` — and the page draws it as
- *   theirs.
- * - **This is a stranger's.** It rides on `requests` or `material`, which are
- *   grants of their own and are off with everything else off; the body is
- *   drawn under `MATERIAL_LABEL` so a reader is told whose words they are; and
- *   `test/leak.test.ts` asserts that **with neither grant, not one of these
- *   paths is in the projection at all** — not shortened, not empty, absent.
+ * - `AUTHORED` is the owner's, and the page draws it as theirs.
+ * - **This is a stranger's.** The body is drawn under `MATERIAL_LABEL` so a
+ *   reader is told whose words they are.
  *
  * Neither kind is scrubbed. A note is never reworded because the house rule
  * says so; a request is never reworded because what an agent was handed and
@@ -152,8 +147,7 @@ export function outside(at: string): boolean {
  * The same applies to things that are not an intake and never were: a diff
  * body, a lane's bytes, a tool call's arguments, a transcript. None of them is
  * a field on this projection. One of them is read at all — what an agent's
- * screen shows, under a device's own `lanes` grant, on its own answer and
- * never on a snapshot, as `lines` after `screen.ts` has taken the machine's
+ * screen shows, on its own answer and never on a snapshot, as `lines` after `screen.ts` has taken the machine's
  * paths and keys out — and it is still never a field called `output`: that
  * name is a lane's raw bytes arriving by the name a driver reaches for. The
  * others are each behind their own `never`-tier setting in a later phase.
@@ -181,9 +175,8 @@ export const NEVER_A_FIELD: Readonly<Record<string, string>> = {
   // fails this test (`args`, `payload`, `output`, `root`, `worktree`, `cwd`).
   // `ChatRow` is the hand-written allow-list over one: a few fields, a tool's
   // **name**, an outcome in one word, every line path-elided on the way out,
-  // and the whole collection behind its own grant — and a call's arguments and
-  // answer only as `call` (`CallSchema`), cleaned by the screen's rule and only
-  // under `lanes`, an agent's own bytes, never under one of these names.
+  // and a call's arguments and answer only as `call` (`CallSchema`), cleaned by
+  // the screen's rule, never under one of these names.
   // A field called `transcript` would be the raw thing arriving by the name a
   // harness reaches for, which is the mistake this entry is about.
   transcript: 'the largest, least structured, most injection-prone surface Tade has',

@@ -228,7 +228,7 @@ describe("the window's plans are the away page's", () => {
   })
 
   it('rolls a plan up as `runRow` does for a device that reads everything', () => {
-    const every = reachOf({ id: 'dev', projects: null, granted: ['spend', 'intent'] })
+    const every = reachOf({ id: 'dev' })
     for (const [i, one] of [CHECKOUT, RELEASE, SLOW, REVIEWING].entries()) {
       const theirs = runRow(one, every, BUDGET)
       const mine = ROWS[i]

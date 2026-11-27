@@ -14,7 +14,7 @@ import {
   PUSH_SAYS_NOTHING,
   passkeyHoursOf,
 } from '@tade/core'
-import { GRANTS, type Grant, type Reach } from './reach.ts'
+import type { Reach } from './reach.ts'
 
 // The sentences about the away view are **declared in `@tade/core`'s `away.ts`**
 // and
@@ -102,9 +102,8 @@ export interface Surface {
    * (`routesFor`), so with it off a crafted call is the same `404` as a path
    * nobody built — read-only by absence rather than by a flag. At every act it
    * is read again, so turning it off takes authority away now rather than at
-   * the next restart. On its own it grants nothing: a device still needs the
-   * scope a person granted it at the machine, and the request still needs a
-   * trusted origin.
+   * the next restart. On its own it is not enough: the request still needs a
+   * trusted origin, and from the public name a passkey.
    */
   acting: boolean
   /**
@@ -154,7 +153,7 @@ export interface Surface {
    * this machine.
    *
    * It grants nothing. The shell carries no data at all — it is the same bytes
-   * for a device with every grant and for one that has never paired — and
+   * for a paired device and for one that has never paired — and
    * every value on the page still comes from a route that needs a session.
    */
   installing: boolean
@@ -188,9 +187,7 @@ export interface Surface {
    *
    * Narrowed under `pushing` for the reason `keepsView` is narrowed under
    * `installing`: a key that could be on while nothing could be sent is a
-   * setting Tade accepts and ignores. It is narrowed **again** per device at
-   * the moment a notification is built — a phone that may not read titles
-   * never gets one — so this is a ceiling and never a grant.
+   * setting Tade accepts and ignores.
    */
   pushDetails: boolean
 }
@@ -347,73 +344,20 @@ export function trusted(origin: Origin, surface: Surface = OFF): boolean {
 }
 
 /**
- * The most a session minted on this origin may ever have.
+ * What a route does, by kind: `read`, or one of the acts.
  *
- * Off a trusted origin it is `read` and there is no later act — not a flag
- * that could be raised, not a scope a grant could widen. The verbs land under
- * this ceiling: `allowed` re-asks `trusted` at every act, so a device granted
- * `steer` at the machine and then carried onto somebody's wifi reads and does
- * nothing else until it is back.
+ * **Not a list a device holds.** Every paired device is the person's own
+ * (decided 26 Nov) and may do every one of them. What a kind still decides is
+ * whether a request is an act — and an act is asked a trusted origin
+ * (`trusted`), a session that was not paired in the clear (`Device.clear`)
+ * and, from the public listener, a passkey proved lately (`proven`) — and
+ * which table a setting builds it in: `steer`, `agents` and `projects` are
+ * `ACTS` (`surfaces.web.acting`), `ask` is `ASKS` (`orchestrator`), `draft` is
+ * `DRAFTS` (`drafts`) and `configure` is `SETTINGS` (`settings`). A route's
+ * kind is declared in the route table (`routes.ts`), and `test/routes.test.ts`
+ * asserts no route in `ROUTES` is more than `read`.
  */
-export function scopesOn(origin: Origin, surface: Surface, granted: readonly Scope[]): Scope[] {
-  if (trusted(origin, surface)) return SCOPES.filter((one) => granted.includes(one))
-  return granted.includes('read') ? ['read'] : []
-}
-
-/**
- * What a device may do, in widening order.
- *
- * Pairing mints every scope unless somebody unticks some at the machine
- * (`EVERYTHING` in the window, `SCOPES` for a terminal code unless
- * `--read-only`), under the origin's ceiling (`scopesOn`); changing one later
- * is a grant made at the machine, per device, through the one door that
- * changes one (`allowDevice`). A route's required scope is declared in the route table
- * (`routes.ts`), and `test/routes.test.ts` asserts no route in `ROUTES` needs
- * more than `read` — which is the half of the guarantee a type cannot give.
- *
- * `ask` is the fourth and is the odd one: `answer` and `steer` are what a
- * *verb* needs, and `ask` is what sending a message to the orchestrator needs.
- * It is deliberately not implied by either — a device that may answer what is
- * waiting has not been granted free text to a model that holds tools, and the
- * two are granted by two controls. What a turn sent under it may then reach is
- * `answer` and `steer` again, read as an `Arm` (`@tade/core`'s `origin.ts`),
- * so there is no third list of the same decision.
- *
- * `draft` is the fifth, and it is not implied by anything either — nor does it
- * imply anything. The four above it are all about work that already exists or
- * a conversation that is already going; this writes a file that decides what
- * every future run of a workflow does, once somebody at the machine publishes
- * it. It is also the one scope with a reading requirement of its own: a
- * workflow can name any repository, so `admitDraft` refuses a device whose
- * reading is a list rather than every project.
- *
- * `agents` and `projects` are the sixth and seventh, and they are the
- * lifecycle: stopping an agent or opening a stopped one again where it left
- * off, and closing a project or opening a closed one again. **Implied by
- * nothing and implying nothing**, each its own chip at the machine and off for
- * every device until somebody presses it. They sit beside the acting tiers
- * rather than inside one because a device that may answer and steer has been
- * granted things that change what an agent *does*, and stopping one changes
- * whether it does anything at all — a person who said yes to the first has not
- * answered the second. Neither reaches a remote turn's arm (`REMOTE_GRANTS`),
- * so a device that may close a project cannot ask Tade to close one either.
- *
- * `configure` is the eighth, and it is the one that writes the config: the
- * settings `settingReach` puts in its `open` tier, and nothing else. Implied by
- * nothing and implying nothing, its own chip at the machine, and it needs the
- * `settings` *reading* grant beside it — a device may not change what it was
- * not allowed to see. It does not reach a remote turn's arm either.
- */
-export const SCOPES = [
-  'read',
-  'answer',
-  'steer',
-  'ask',
-  'draft',
-  'agents',
-  'projects',
-  'configure',
-] as const
+export const SCOPES = ['read', 'steer', 'ask', 'draft', 'agents', 'projects', 'configure'] as const
 export type Scope = (typeof SCOPES)[number]
 
 /** Whether a host is this machine, in any of its three spellings. */
@@ -429,115 +373,7 @@ export function sameHost(a: string, b: string): boolean {
   return a.toLowerCase().replace(/^\[|]$/g, '') === b.toLowerCase().replace(/^\[|]$/g, '')
 }
 
-/**
- * What a device was granted, as a reading reach.
- *
- * The seam between a device record and the projection: `reach.ts` is the
- * vocabulary and says it reads no config, and this is where what the person
- * granted at the machine becomes the two questions the projection asks.
- *
- * A word the grant list does not recognise is **dropped**, not carried and not
- * refused. The record is a line in an append-only file that an agent on this
- * machine can write (`DEVICES_AND_AGENTS`), so a grant nobody here understands
- * is exactly the shape of a line somebody invented — and the projection asks
- * `has(reach, grant)` with a known word, so an unknown one that rode along
- * would be silently equivalent to nothing anyway. Dropping it makes that true
- * by construction instead of by luck.
- *
- * `answers` is the device's own `answer` scope, as granted — not narrowed by
- * where the request came from, as no reading is (`scopesOn` narrows acts).
- */
-export function reachOf(device: {
-  id: string
-  projects: readonly string[] | null
-  granted: readonly string[]
-  scopes?: readonly string[]
-  owner?: boolean
-}): Reach {
-  return {
-    device: device.id,
-    projects:
-      device.projects === null
-        ? { kind: 'every' }
-        : { kind: 'listed', names: [...device.projects] },
-    granted: GRANTS.filter((grant) => device.granted.includes(grant)) as Grant[],
-    answers: device.scopes?.includes('answer') === true,
-    // Only where it is true, so every reach that is not the person's own reads
-    // exactly as it did.
-    ...(theirsOf(device) ? { theirs: true } : {}),
-  }
-}
-
-/**
- * Whether a device has full access: every scope and every reading grant —
- * what pairing gives unless somebody unticks something (the panel's `full
- * access` box draws exactly this). **Such a device is the person's own**: its
- * turns reach what the keyboard reaches and what is typed on it is theirs
- * (`Arm`'s owner variant, `theirs`). A device with anything taken away keeps
- * exactly the grant it has. Revoking it is a line, read at every request.
- */
-export function fullAccess(device: {
-  scopes: readonly string[]
-  granted: readonly string[]
-}): boolean {
-  return (
-    SCOPES.every((scope) => device.scopes.includes(scope)) &&
-    GRANTS.every((grant) => device.granted.includes(grant))
-  )
-}
-
-/**
- * What a device lacks of full access, by name: the scopes, then the reading
- * grants. Empty for a device that has it. What a refusal of a route that is
- * the person's own device's names (`Refusal.needs`), so the page can say which
- * boxes to tick rather than only that something is missing.
- */
-export function fullAccessLacks(device: {
-  scopes?: readonly string[]
-  granted: readonly string[]
-}): string[] {
-  const scopes = device.scopes ?? []
-  return [
-    ...SCOPES.filter((scope) => !scopes.includes(scope)),
-    ...GRANTS.filter((grant) => !device.granted.includes(grant)),
-  ]
-}
-
-/**
- * Whether a device reaches what the person's own does: full access — a phone
- * of theirs, **or the link of a machine they paired as owner** (`tade web
- * pair --owner`, which every way of adding a machine runs). The person
- * decided there is no difference between driving this machine's agents from
- * another of their machines and from their phone: remove, run as account,
- * every setting and the rest (`Verb.theirs`, `Reach.theirs`, `Route.theirs`).
- * Read off the record at every request, so revoking it or unticking one box
- * ends it at the next one, and a link somebody narrowed keeps what is left.
- *
- * What it does **not** decide is whose a link's **words** are: those may be
- * another machine's model's, so they are a `said` line only where that
- * machine says the person typed them (`armOf`, `AskCall.typed`), and the
- * owner arm is still given only on this machine's own door.
- */
-export function theirsOf(device: {
-  scopes?: readonly string[]
-  granted: readonly string[]
-  owner?: boolean
-}): boolean {
-  return (
-    device.scopes !== undefined && fullAccess({ scopes: device.scopes, granted: device.granted })
-  )
-}
-
-/**
- * Whether a device may ask what only the SSH key's session could
- * (`Route.theirs` in `routes.ts`): a machine link (`owner.ts`), or the
- * person's own device (`theirsOf`). Where each may ask it is the door's to
- * say (`allowed`): an owner on this machine's own alone, theirs on any.
- */
-export function ownsOrTheirs(device: {
-  scopes?: readonly string[]
-  granted: readonly string[]
-  owner?: boolean
-}): boolean {
-  return device.owner === true || theirsOf(device)
+/** A device's reading: every paired device reads everything (`reach.ts`). */
+export function reachOf(device: { id: string }): Reach {
+  return { device: device.id }
 }

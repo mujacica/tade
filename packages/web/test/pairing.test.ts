@@ -2,22 +2,11 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { readDevices, writeDevices } from '../src/devices.ts'
-import type { Reach } from '../src/reach.ts'
 import { CSRF_HEADER, labelOf } from '../src/request.ts'
 import { type Confirmed, webServer } from '../src/server.ts'
 import { COOKIE, HOST_COOKIE, SESSION_MS } from '../src/sessions.ts'
 import { Tickets } from '../src/tickets.ts'
-import {
-  ask,
-  BASE,
-  closeAll,
-  homeFor,
-  pair,
-  type Running,
-  reading,
-  said,
-  start,
-} from './harness.ts'
+import { ask, BASE, closeAll, pair, type Running, reading, said, start } from './harness.ts'
 
 // **The credential**: minting one, what is written down about it, using it,
 // renewing it, and losing it. The door it goes through is `server.test.ts`.
@@ -49,6 +38,14 @@ describe('pairing', () => {
     // The label is a person's own words about their own phone, and is
     // deliberately not in the line that telemetry may read.
     expect(JSON.stringify(line?.detail)).not.toContain('iPhone')
+  })
+
+  it('lets a device in with nothing to choose, and on this machine’s door not in the clear', async () => {
+    const one = await start()
+    const paired = await pair(one)
+    expect(said(paired.answer)).toEqual({ device: paired.device, csrf: paired.csrf, clear: false })
+    const device = (await readDevices(one.home)).devices.find((d) => d.id === paired.device)
+    expect(device).toMatchObject({ clear: false, owner: false })
   })
 
   it('sets the session under __Host- over https, and signing out clears both names', async () => {
@@ -120,8 +117,7 @@ describe('pairing', () => {
 
   it('refuses two concurrent pairings with one ticket, and asks once', async () => {
     const one = await start()
-    one.answer = async () =>
-      new Promise((done) => setTimeout(() => done({ let: true, projects: null, granted: [] }), 20))
+    one.answer = async () => new Promise((done) => setTimeout(() => done({ let: true }), 20))
     const ticket = one.tickets.mint(`${one.origin}/pair`, Date.now())
     const body = JSON.stringify({ ticket: ticket.value, label: 'iPhone' })
     const headers = { origin: one.origin, 'content-type': 'application/json' }
@@ -142,7 +138,7 @@ describe('pairing', () => {
     const headers = { origin: one.origin, 'content-type': 'application/json' }
     expect((await ask(one, '/api/pair', { method: 'POST', headers, body })).status).toBe(401)
     expect(one.told.find((told) => told.type === 'web_denied')?.detail.why).toBe('refused')
-    one.answer = async () => ({ let: true, projects: null, granted: [] })
+    one.answer = async () => ({ let: true })
     // The same ticket, now that somebody would say yes. Still nothing.
     expect((await ask(one, '/api/pair', { method: 'POST', headers, body })).status).toBe(401)
     expect((await readDevices(one.home)).devices).toHaveLength(0)
@@ -274,9 +270,6 @@ describe('a session over time', () => {
         host: device.host,
         csrf: device.csrf,
         until: new Date(Date.now() - 1000).toISOString(),
-        scopes: ['read'],
-        projects: null,
-        granted: [],
         from: device.from,
       },
     ])
@@ -386,9 +379,6 @@ describe('a session over time', () => {
         host: device.host,
         csrf: device.csrf,
         until: new Date(device.until - 2 * 24 * 60 * 60_000).toISOString(),
-        scopes: ['read'],
-        projects: null,
-        granted: [],
         from: device.from,
       },
     ])
@@ -440,56 +430,5 @@ describe('a session over time', () => {
     ])
       expect(set, flag).toContain(flag)
     expect(set).not.toContain('Domain')
-  })
-})
-describe('read scopes, enforced', () => {
-  it('hands the projection the reach the device was granted, and not another', async () => {
-    const reaches: Reach[] = []
-    const home = await homeFor('reach')
-    const tickets = new Tickets()
-    let granted: readonly string[] = ['notes']
-    let projects: readonly string[] | null = ['tade']
-    const server = webServer({
-      home,
-      surface: BASE,
-      readingFor: (reach) => {
-        reaches.push(reach)
-        return reading(reach)
-      },
-      tickets,
-      confirm: async () => ({ let: true, projects, granted: granted as never }),
-    })
-    const bound = await server.listen()
-    const at = bound.find((address) => address.startsWith('127.0.0.1')) ?? ''
-    const one: Running = {
-      server,
-      home,
-      tickets,
-      told: [],
-      asked: [],
-      epoch: server.epoch,
-      host: at,
-      origin: `http://${at}`,
-      answer: async () => ({ let: true, projects: null, granted: [] }),
-    }
-    // Its own server, because what is under test is the *grant* decided at
-    // pairing time, and the harness's `start` answers every pairing the same
-    // way. Closed by hand: `closeAll` only knows the ones `start` made.
-    try {
-      const narrow = await pair(one, { label: 'iPhone' })
-      granted = ['notes', 'spend']
-      projects = null
-      const wide = await pair(one, { label: 'iPad' })
-
-      await ask(one, '/api/snapshot', { headers: { cookie: narrow.cookie } })
-      await ask(one, '/api/snapshot', { headers: { cookie: wide.cookie } })
-      const [first, second] = reaches.slice(-2)
-      expect(first?.granted).toEqual(['notes'])
-      expect(first?.projects).toEqual({ kind: 'listed', names: ['tade'] })
-      expect(second?.granted).toEqual(['notes', 'spend'])
-      expect(second?.projects).toEqual({ kind: 'every' })
-    } finally {
-      await server.close()
-    }
   })
 })

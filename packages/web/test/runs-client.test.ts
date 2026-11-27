@@ -29,7 +29,7 @@ import {
 import type { RunIn, RunStepIn } from '../src/factory.ts'
 import { runRow } from '../src/factory.ts'
 import { BUDGET } from '../src/page.ts'
-import { EVERY, reach, run } from './fixtures.ts'
+import { reach, run } from './fixtures.ts'
 
 // What the runs page draws, against **real projected rows** rather than shapes
 // a test assembled: every count, order, word and coordinate the two screens
@@ -38,10 +38,10 @@ import { EVERY, reach, run } from './fixtures.ts'
 
 const NOW = Date.parse('2026-10-09T14:30:00.000Z')
 
-/** The view a screen is handed, with the grants a person gave this device. */
-const view = (granted: readonly string[] = EVERY) => ({
+/** The view a screen is handed. */
+const view = () => ({
   store: {
-    you: { device: 'dev_7f3a9c21', reads: [...granted], talk: null },
+    you: { device: 'dev_7f3a9c21', talk: null },
     rows: {},
     pages: {},
     fresh: null,
@@ -72,9 +72,8 @@ const step = (over: Partial<RunStepIn> = {}): RunStepIn => ({
   ...over,
 })
 
-/** A run as the page is handed it: projected for a device granted everything. */
-const row = (over: Partial<RunIn> = {}, granted: readonly string[] = EVERY) =>
-  runRow(run(over), reach(granted as never), BUDGET)
+/** A run as the page is handed it: projected for a paired device. */
+const row = (over: Partial<RunIn> = {}) => runRow(run(over), reach(), BUDGET)
 
 /**
  * The run the redesign was drawn against: six steps across three projects,
@@ -185,16 +184,6 @@ describe('which way a run stands', () => {
     expect(standingOf(row({ steps: all }))).toBe('finished')
   })
 
-  it('says a run with no step this device may read is out of reach, never finished', () => {
-    // Nought of nought is not done, and the one sentence a run nobody here
-    // can see into must not say is *every step finished*.
-    const narrow = row(SHIP(), EVERY)
-    const none = runRow(SHIP(), reach(EVERY, ['elsewhere']), BUDGET)
-    expect(none.total).toBe(0)
-    expect(standingOf(none)).toBe('unseen')
-    expect(standingOf(narrow)).not.toBe('unseen')
-  })
-
   it('is in review where review is all that is left', () => {
     const steps = [
       step({ task: 'sentry/a', finished: true }),
@@ -272,30 +261,16 @@ describe('what a step waits on', () => {
     expect(whySaid(waits[1] as never, view())).toBe('types come from it')
   })
 
-  it('tells a reason nobody gave from one this device was not granted', () => {
+  it('says a reason nobody gave as that', () => {
     const shipped = row(SHIP())
     const client = shipped.steps.find((one) => one.name === 'ship-client')
     expect(whySaid(waitsOf(client, shipped)[0] as never, view())).toBe('no reason given')
-    const bare = row(SHIP(), [])
-    const withheld = bare.steps.find((one) => one.name === 'ship-client')
-    expect(whySaid(waitsOf(withheld, bare)[1] as never, view([]))).toBe('reason not granted')
   })
 
   it('says a reason as it was given, never with three dots after it', () => {
     const long = 'the review on the client has to land first, '.repeat(40)
     expect(whySaid({ why: { words: long, more: false } }, view())).toBe(long)
     expect(whySaid({ why: { words: long, more: true } }, view())).toBe(long)
-  })
-
-  it('still names a wait on a step this device cannot see, and never as finished', () => {
-    // Leaving it out would draw the step as free to go when it is not.
-    const narrow = runRow(SHIP(), reach(EVERY, ['tade']), BUDGET)
-    const e2e = narrow.steps.find((one) => one.name === 'ship-e2e')
-    const waits = waitsOf(e2e, narrow)
-    expect(waits.map((one) => [one.name, one.seen, one.finished, one.part])).toEqual([
-      ['sentry/ship-api', false, false, 'unseen'],
-      ['web/ship-client', false, false, 'unseen'],
-    ])
   })
 })
 
@@ -325,28 +300,10 @@ describe('the stages', () => {
     ])
     expect(stages.map((one) => one.part)).toEqual(['finished', 'wants', 'waiting', 'waiting'])
   })
-
-  it('leaves a gap in the numbers where a stage is out of sight', () => {
-    // Two stages quietly becoming one would tell somebody nothing stood
-    // between them.
-    const narrow = runRow(SHIP(), reach(EVERY, ['sentry', 'tade']), BUDGET)
-    expect(stagesOf(narrow).map((one) => one.name)).toEqual([
-      'Stage 1',
-      'Stage 2',
-      'Stage 3',
-      'Stage 4',
-    ])
-    const gappy = runRow(SHIP(), reach(EVERY, ['tade']), BUDGET)
-    expect(stagesOf(gappy).map((one) => [one.name, one.said])).toEqual([
-      // What it waits on out of sight is named, never said to be elsewhere.
-      ['Stage 3', 'after sentry/ship-api and web/ship-client'],
-      ['Stage 4', 'after stage 3'],
-    ])
-  })
 })
 
 describe('the map', () => {
-  it('puts a dot per step in its stage’s column, packed where a stage is out of sight', () => {
+  it('puts a dot per step in its stage’s column', () => {
     const drawn = mapOf(row(SHIP()))
     const at = new Map(drawn.dots.map((one) => [one.task, one]))
     const x = (layer: number) => MAP.pad + MAP.r + layer * MAP.dx
@@ -354,8 +311,6 @@ describe('the map', () => {
     expect(at.get('tade/ship-notes')?.x).toBe(x(3))
     expect(drawn.width).toBe(2 * (MAP.pad + MAP.r) + 3 * MAP.dx)
     expect(drawn.height).toBe(2 * (MAP.pad + MAP.r) + MAP.dy)
-    const gappy = mapOf(runRow(SHIP(), reach(EVERY, ['tade']), BUDGET))
-    expect(gappy.dots.map((one) => one.x)).toEqual([x(0), x(1)])
   })
 
   it('spreads its columns over the room it has, within a least and a most', () => {
@@ -433,7 +388,7 @@ describe('the map', () => {
   })
 
   it('is nothing for a run with no step to draw', () => {
-    expect(mapOf(runRow(SHIP(), reach(EVERY, ['elsewhere']), BUDGET))).toMatchObject({
+    expect(mapOf(runRow(run({ ...SHIP(), steps: [] }), reach(), BUDGET))).toMatchObject({
       dots: [],
       width: 0,
       height: 0,
@@ -459,8 +414,6 @@ describe('the graph, as boxes and curves', () => {
     })
     expect(graph.edges).toHaveLength(6)
     expect(graph.edges.filter((one) => one.tone === 'done')).toHaveLength(3)
-    const narrow = graphOf(runRow(SHIP(), reach(EVERY, ['tade']), BUDGET))
-    expect(narrow.edges).toEqual([{ from: 'tade/ship-e2e', to: 'tade/ship-notes', tone: 'queued' }])
   })
 
   it('goes across where it fits, down where only that fits, and across when it cannot tell', () => {
@@ -476,7 +429,6 @@ describe('the graph, as boxes and curves', () => {
 
 describe('money, said once and never as nought', () => {
   it('says the run’s figure, which nothing, or the figure', () => {
-    expect(costSaid(null, view([]))).toBe('— not granted')
     expect(costSaid(null, view())).toBe('— not recorded')
     expect(costSaid(4.9, view())).toBe('$4.90')
   })

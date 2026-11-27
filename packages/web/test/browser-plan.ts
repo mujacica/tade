@@ -110,14 +110,12 @@ export const CHECKS = [
   'sideways',
   'targets',
   'titles',
-  'honesty',
   'granted',
   'quiet',
   'delta',
   // The desk and an agent looked into (`browser-desk.ts`): which of the
-  // frame's parts each width draws, and that an agent's screen is withheld
-  // from a device not granted it, drawn scrubbed for one that is, and no
-  // longer asked for once its page is left.
+  // frame's parts each width draws, and that an agent's screen is drawn
+  // scrubbed and no longer asked for once its page is left.
   'desk',
   // The frame pinned to the screen's edges (`browser-frame.ts`): the document
   // never scrolls, and the screen, the menu and the side each scroll alone.
@@ -229,33 +227,11 @@ export const CUT_ALLOWED: readonly Cut[] = [
 ]
 
 /**
- * Sentences a page may not say to a device that was granted nothing.
- *
- * The bug this catches has turned up three times already in one slice, in
- * three different regions: a field is null because this device may not read
- * it, and the page draws the sentence it keeps for *nobody wrote it down*. The
- * two are different facts, and the second blames the work for the reader's own
- * read scope. The harness pairs a device granted nothing, so **any of these on
- * any screen is that bug**.
+ * Sentences a page may not say to a paired device: every one is the person's
+ * own and nothing is withheld from it, so a page that said one was drawing a
+ * state no device is in.
  */
 export const NOT_FOR_A_GRANTED_DEVICE = ['not granted']
-
-/**
- * Sentences a page may not say to a device that **was** granted the content.
- *
- * The same bug from the other side, and the reason the harness pairs twice: a
- * device granted nothing renders every figure as a dash, so the page with
- * actual money, notes and sign-ins on it — the one the owner will look at —
- * would otherwise never have been laid out in a browser at all, and neither
- * axe nor the tap targets nor the 360px overflow would have been asked about
- * it.
- */
-export const NOT_FOR_A_DEVICE_GRANTED_NOTHING = [
-  'not recorded',
-  'reported no money',
-  'nobody wrote down',
-  'no harness was written down',
-]
 
 /**
  * The steps nothing in this repository can take, written down so that a green
@@ -288,7 +264,7 @@ export const MANUAL: readonly string[] = [
   // is this.
   'Turn Get notifications on at the machine. On the installed app, Devices → NOTIFICATIONS → Tell this device. iOS should raise its own permission prompt — in Safari’s tab rather than the installed app it should not, and the page should say so instead of looking broken.',
   'Lock the phone and make something want you: start an agent on a task whose tools need approving. One notification should arrive, saying how many pieces of work want you and naming nothing — no project, no task, no title.',
-  'Turn Get work names in them on at the machine, grant that device what work is called, and do it again. The name should appear; with either half off, it should not.',
+  'Turn Get work names in them on at the machine and do it again. The name should appear; with it off, it should not.',
   'Tap the notification. It should open the app where it was, not a new window and not the root of a browser.',
   'Close Tade and make something else happen: on a Mac, quit the window; on a box where `tade serve` runs under the unit `tade host service` wrote, `systemctl --user stop tade.service` first, and `systemctl --user start tade.service` once you have looked. Nothing should arrive while it is closed — nothing of Tade’s runs to send it — and nothing is caught up when it comes back.',
   'Sign the device out at the machine and make something happen. Nothing should arrive, with the phone never asked anything.',

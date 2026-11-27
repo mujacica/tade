@@ -31,8 +31,8 @@ import type {
 // type there — and it is *still* mapped field by field, because the next field
 // somebody adds to it would otherwise arrive on a phone with nobody having
 // decided it. That is the rule `away.ts` keeps for `Task` and the reason is
-// not weaker here: an intake row carries a stranger's words, which is the one
-// kind of value the projection has two grants for.
+// not weaker here: an intake row carries a stranger's words, which the
+// projection frames as material wherever it carries them.
 
 /**
  * The acts an inbox row offers that stay at this machine.

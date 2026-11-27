@@ -606,7 +606,7 @@ function machinesShown(): MachinesShown {
 function awayOn() {
   const url = 'http://localhost:7654/pair#t=Qp3vNn1bXg7kQ2mPvR4tLz8'
   const code = codeFor(url)
-  const fixture = awayFixture({ acting: true, talking: true, configuring: true })
+  const fixture = awayFixture()
   return {
     ...fixture,
     ticket: { url, secondsLeft: 84 },

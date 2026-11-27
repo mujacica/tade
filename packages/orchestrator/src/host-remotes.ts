@@ -11,11 +11,10 @@
 // the check that a line of the person's names that machine
 // (`REMOTE_TELL_REACH`) is made there against the journal — never here, where
 // the model's call lands. What is made here, before the window is asked at
-// all, is the gate every method has: under a paired device's turn each of these
-// is `local` (`origin.ts`), because the session it uses is an owner's and the
-// arm of the turn that calls it is not — passing a phone's words on through it
-// would launder them into the keyboard's reach on that machine, and reading
-// through it would be reading wider than the phone was granted there.
+// all, is the gate every method has: under a narrowed turn each of these is
+// `local` (`origin.ts`), because the session it uses is an owner's and the arm
+// of that turn is not — passing its words on through it would launder them
+// into the keyboard's reach on that machine.
 
 type Handler = (params: Record<string, unknown>) => Promise<string>
 

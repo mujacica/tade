@@ -138,7 +138,7 @@ describe('an agent’s menu, asked while its lists are slow', () => {
     vi.useFakeTimers()
     let answered: Awaited<ReturnType<ReturnType<typeof slowAccounts>['menu']>> | undefined
     void slowAccounts()
-      .menu(TASK, true)
+      .menu(TASK)
       .then((menu) => {
         answered = menu
       })

@@ -32,9 +32,7 @@ function device(over: Partial<Device> = {}): Device {
     csrf: minted.csrf,
     until: NOW + SESSION_MS,
     pairedAt: NOW,
-    scopes: ['read'],
-    projects: null,
-    granted: [],
+    clear: false,
     from: '192.168.1.42',
     revoked: null,
     owner: false,
@@ -79,7 +77,7 @@ describe('verifying one', () => {
     const { device: one, cookie } = paired()
     const session = sessionOf(cookie, [one], one.host, NOW)
     expect(session?.device).toBe(one.id)
-    expect(session?.scopes).toEqual(['read'])
+    expect(session?.clear).toBe(false)
   })
 
   it('refuses a missing cookie, and a cookie header with other things in it', () => {

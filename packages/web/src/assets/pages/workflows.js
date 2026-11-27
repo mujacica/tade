@@ -21,7 +21,6 @@
 //
 // Nothing here decides a state, a count or a reason (`workflows-shape.js`).
 
-import { mayFor } from '../access.js'
 import { stack, stackIn } from '../charts.js'
 import { el, glyphOf, into, keyed, markIn, skeleton, textIn } from '../dom.js'
 import { count } from '../figures.js'
@@ -70,10 +69,7 @@ export function workflowsScreen() {
       const total = rows.length + omitted(view.store, 'workflows')
       figureSaid(made.figure, had ? count(total) : '', total, 'workflows')
       coming.hidden = had
-      // **Two nothings, two sentences**: none written, and none this device
-      // was granted — which carries its count, because *there are three and
-      // you may not read them from here* is not *there are none*.
-      stateBoxIn(nothing, had && rows.length === 0 ? nothingOf(view, total) : null)
+      stateBoxIn(nothing, had && rows.length === 0 ? nothingOf(total) : null)
       const runs = had ? runsOf(view.store) : []
       lead.node.hidden = rows.length === 0
       if (rows.length > 0) lead.fill(overallOf(rows, runs))
@@ -85,18 +81,7 @@ export function workflowsScreen() {
   }
 }
 
-function nothingOf(view, total) {
-  if (!mayFor(view.store, 'workflows')) {
-    return stateOf(
-      'empty',
-      'Not granted to this device',
-      total === 0
-        ? 'The workflows are a grant of their own, given at the machine when a device is paired.'
-        : total === 1
-          ? 'There is one workflow at the machine, and this device was not granted it.'
-          : `There are ${total} workflows at the machine, and this device was not granted them.`,
-    )
-  }
+function nothingOf(total) {
   if (total > 0) return null
   return stateOf(
     'empty',

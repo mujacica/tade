@@ -36,9 +36,7 @@ import { SaidSchema } from './said.ts'
 // It is not the owner's and it is not Tade's, so neither existing rule fits —
 // it is not scrubbed (rewording somebody's request is the same lie as
 // rewording a note) and it is not held to carrying no path (a stranger may
-// write whatever they like). What stands instead is that **it travels only
-// where the person at this machine granted it**, under two grants rather than
-// one, is cut to a budget, is drawn as text and never as markup, and is drawn
+// write whatever they like). What stands instead is that it is cut to a budget, is drawn as text and never as markup, and is drawn
 // under `MATERIAL_LABEL` so a reader is told whose words they are.
 //
 // `fields.ts`'s `OUTSIDE` is the mechanical half: the paths that hold it, held
@@ -230,26 +228,21 @@ export const IntakeRowSchema = z.strictObject({
   approve: z.string().nullable(),
   /** The acts that stay at this machine, each with its one clause. */
   locally: z.array(LocallySchema),
-  // --- outside text, each field behind its own grant
-  /**
-   * What the source itself calls it. **Outside text** (`requests`).
-   *
-   * Null where the device was not granted it, which is the same shape every
-   * other withheld field has: a count and a state without it, the words with.
-   */
+  // --- outside text
+  /** What the source itself calls it. **Outside text**, null where it gave none. */
   title: SaidSchema.nullable(),
-  /** The handle the source gave, never read as authority. **Outside text** (`requests`). */
+  /** The handle the source gave, never read as authority. **Outside text**. */
   who: SaidSchema.nullable(),
   /** The source's own page for it, where it has one and it is `https`. */
   url: z.string().nullable(),
   /**
    * The request itself, as Tade wrote it into the task's context file.
-   * **Outside text** (`material`), and the only field on this projection that
-   * carries a stranger's sentences.
+   * **Outside text**, and the only field on this projection that carries a
+   * stranger's sentences.
    *
-   * Null for three different reasons and the page says which: the device was
-   * not granted it, Tade never wrote one down, or there is a body and it is
-   * not on this frame. `materialSays` carries that answer.
+   * Null for two different reasons and the page says which: Tade never wrote
+   * one down, or there is a body and it is not on this frame. `materialSays`
+   * carries that answer.
    */
   material: SaidSchema.nullable(),
   /** Why there is no body here, in words. Null when there is one. */
@@ -288,16 +281,9 @@ export const SourceRowSchema = z.strictObject({
   mode: z.enum(INTAKE_MODES).nullable(),
   /** The published workflow its work is stamped from, or null for one task. */
   template: z.string().nullable(),
-  /**
-   * The projects it may make work in, **narrowed to the ones this device may
-   * read**, with the rest counted.
-   *
-   * A grant lists project names, and a device granted one project of five must
-   * not learn the other four's names from a door's row — which is the same
-   * rule the rest of the projection follows, applied to a list that is not a
-   * collection.
-   */
+  /** The projects it may make work in. */
   projects: z.array(z.string()),
+  /** Always nought: every paired device reads every project. Kept so an older page still parses. */
   projectsElsewhere: z.int().nonnegative(),
   /** How many handles its grant lists. A count: a handle is a request's to show. */
   allowed: z.int().nonnegative(),
@@ -357,7 +343,7 @@ export const RunStepSchema = z.strictObject({
   checks: z.enum(['pass', 'fail', 'unknown']),
   /** The review its branch is out for, where there is one. */
   review: z.enum(['draft', 'open', 'merged', 'closed']).nullable(),
-  /** What it has cost, where the device was granted money. */
+  /** What it has cost, where it was recorded. */
   usd: z.number().nullable(),
 })
 export type RunStep = z.infer<typeof RunStepSchema>
@@ -390,7 +376,7 @@ export const RunRowSchema = z.strictObject({
   retries: z.int().nonnegative(),
   /** The rollup of every step's checks: `fail` if any failed, `unknown` if any cannot say. */
   checks: z.enum(['pass', 'fail', 'unknown']),
-  /** What the whole run has cost, where the device was granted money. */
+  /** What the whole run has cost, where it was recorded. */
   usd: z.number().nullable(),
 })
 export type RunRow = z.infer<typeof RunRowSchema>

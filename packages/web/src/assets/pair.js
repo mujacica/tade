@@ -178,8 +178,8 @@ export function pairScreen(ctx) {
   // **Said where somebody is deciding**: what letting it in grants, as two
   // words beside the press and the whole of it one `?` away.
   const why = note(
-    'read only',
-    'Tade asks at the machine first. This device will read every project, task, note, check and figure — what you typed into Tade included — and change nothing.',
+    'full access',
+    'Tade asks at the machine first. This device will be yours: it reads every project, task, note, check and figure — what you typed into Tade included — and may do what you can at the machine.',
     'checks',
   )
   into(controls, label, field, press, why)

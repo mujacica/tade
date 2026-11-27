@@ -813,7 +813,7 @@ describe('the heart, with no screen', () => {
   it('listens for a paired phone and tells it when work finishes, with nobody at a screen', async () => {
     repo.addTask('refunds', { project: 'app', intent: 'refunds double-charge on retries' })
     const port = await freePort()
-    await paired(home, port, [])
+    await paired(home, port)
     // Written before the listener comes up, which is when a window reads them.
     await appendPush(home, {
       kind: 'subscribed',

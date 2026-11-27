@@ -1,10 +1,9 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Grant } from '../src/reach.ts'
 import { projector } from '../src/reading.ts'
 import { webServer } from '../src/server.ts'
-import { OFF, type Scope } from '../src/surface.ts'
+import { OFF } from '../src/surface.ts'
 import { Tickets } from '../src/tickets.ts'
 import { until } from './browser-until.ts'
 import { type Still, stillsOf, type Visit, type WorldAt, worldAt } from './still.ts'
@@ -137,17 +136,9 @@ export async function stillsInBrowser(
     readingFor: (reach) =>
       projector(world.input(reach), world.now, { agent: world.agent, settings: world.settings }),
     tickets,
-    // The keypress at the machine, answered as the world's devices were let in:
-    // what each may read, and what it may do.
-    confirm: async (ask) => {
-      const device = world.devices.find((one) => one.label === ask.label)
-      return {
-        let: true,
-        projects: device?.projects ?? null,
-        granted: [...(device?.granted ?? [])] as Grant[],
-        scopes: [...(device?.scopes ?? [])] as Scope[],
-      }
-    },
+    // The keypress at the machine, answered yes: every paired device is the
+    // person's own, so there is nothing else to answer.
+    confirm: async () => ({ let: true }),
   })
   const bound = await server.listen()
   const origin = `http://${bound.find((one) => one.startsWith('127.0.0.1')) ?? bound[0]}`

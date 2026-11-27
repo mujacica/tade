@@ -5,11 +5,9 @@
 // **Nothing here decides a state.** The mark is the window's (`rowMark`), the
 // sentence is `deriveState`'s clause verbatim, a check's answer is the
 // projection's streak and the rollup at its head is `task.checks`. This only
-// places, counts and says — and keeps the two dashes apart: what nobody wrote
-// down and what this device was not granted (`mayFor`). Held by
-// `test/task-client.test.ts`.
+// places, counts and says — and a dash is what nobody wrote down, never a
+// nought. Held by `test/task-client.test.ts`.
 
-import { mayFor } from '../access.js'
 import { ageSaid, duration, money, shortClockOf, tokensSaid } from '../figures.js'
 import { checkMark, originSaid, reviewMark, rowMark, stepMark } from '../glyphs.js'
 import { pathOf } from '../routes.js'
@@ -229,9 +227,8 @@ export function branchOf(task) {
  * expensive one. A dash says which dash it is.
  */
 export function spendOf(task, store) {
-  const granted = mayFor(store, 'tasks.spend')
   const folded = task.spend === null || task.spend === undefined ? null : spendFold([task])
-  const paid = money(folded, granted)
+  const paid = money(folded)
   const toks = tokensSaid(folded)
   const since = spendSince(store)
   const whole = spendFold(tasksIn(store, task.project))
@@ -309,10 +306,10 @@ const LANE_SAID = { running: 'running', stopped: 'stopped, can reopen', none: 'n
 /**
  * What is true of it that is not the work: what it runs on and as whom, who
  * asked, when it counts as done, where it works. A cell for each, a dash where
- * unknown, and *not granted* where that is why.
+ * unknown.
  */
-export function aboutOf(task, store, asOf, frozen = false) {
-  const account = mayFor(store, 'tasks.account') ? (task.account?.words ?? null) : 'not granted'
+export function aboutOf(task, _store, asOf, frozen = false) {
+  const account = task.account?.words ?? null
   const made = ageSaid(task.createdAt, asOf, frozen)
   const produces = task.produces ?? null
   return [
@@ -337,9 +334,8 @@ export function aboutOf(task, store, asOf, frozen = false) {
 
 /** The judge's findings about it, counted. */
 export function findingsOf(task, store) {
-  if (!mayFor(store, 'findings')) return { may: false, n: 0, said: null }
   const n = [...store.rows.findings.values()].filter((one) => one.tasks.includes(task.id)).length
-  return { may: true, n, said: n === 0 ? null : plural(n, 'finding') }
+  return { n, said: n === 0 ? null : plural(n, 'finding') }
 }
 
 /* ── the timeline ─────────────────────────────────────────────────────────── */

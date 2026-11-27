@@ -77,7 +77,7 @@ describe('the records this machine’s public name needs, for an owner', () => {
     expect(looked).toBe(1)
   })
 
-  it('refuses a phone however much it was granted, takes an empty body only, and is the 404 of a path nobody wired', async () => {
+  it('answers a paired phone, takes an empty body only, and is the 404 of a path nobody wired', async () => {
     let looked = 0
     const one = await records(async () => {
       looked++
@@ -94,13 +94,14 @@ describe('the records this machine’s public name needs, for an owner', () => {
       },
       body: '{}',
     })
-    expect(asPhone.status).toBe(403)
+    expect(asPhone.status, asPhone.text).toBe(200)
+    expect(looked).toBe(1)
     const made = await owner(one)
     for (const body of [{ name: 'evil.example' }, null, []]) {
       expect((await asOwner(one, made, body)).status).toBe(400)
     }
     // Nothing that was refused asked the world.
-    expect(looked).toBe(0)
+    expect(looked).toBe(1)
     const none = await start()
     expect((await asOwner(none, await owner(none), {})).status).toBe(404)
   })

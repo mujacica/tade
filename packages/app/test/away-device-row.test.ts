@@ -25,9 +25,7 @@ function device(over: Record<string, unknown> = {}) {
     csrf: 'x'.repeat(43),
     pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
     until: Date.parse('2026-12-11T09:12:00.000Z'),
-    scopes: ['read', 'act'],
-    projects: null,
-    granted: [],
+    clear: false,
     from: '203.0.113.9',
     revoked: null,
     owner: false,
@@ -89,7 +87,7 @@ describe('a device that may act and, from where it paired, cannot', () => {
   })
 
   it('says it reads only for want of a passkey', () => {
-    expect(awayView(facts([device()])).devices[0]?.readsOnly).toBe(true)
+    expect(awayView(facts([device()])).devices[0]?.readsOnly).toBe('no passkey')
     expect(drawn(facts([device()]))).toContain('reads only: no passkey')
   })
 
@@ -98,7 +96,7 @@ describe('a device that may act and, from where it paired, cannot', () => {
     const nought = {
       surfaces: { web: { enabled: true, public: 'tade.example.com', passkey_hours: 0 } },
     }
-    expect(awayView(facts([device()], nought)).devices[0]?.readsOnly).toBe(true)
+    expect(awayView(facts([device()], nought)).devices[0]?.readsOnly).toBe('no passkey')
   })
 
   it('says nothing of the kind where a passkey would add nothing or was never asked', () => {
@@ -115,11 +113,16 @@ describe('a device that may act and, from where it paired, cannot', () => {
     for (const [why, one] of [
       ['a tailnet name, never asked', facts([device({ host: 'studio.yak-bebop.ts.net' })])],
       ['this machine, never asked', facts([device({ host: 'localhost:7654' })])],
-      ['one that may only read', facts([device({ scopes: ['read'] })])],
       ['one with a passkey', facts([device({ passkey: proved })])],
     ] as const) {
       expect(awayView(one).devices[0]?.readsOnly, why).toBeUndefined()
       expect(drawn(one), why).not.toContain('reads only')
     }
+  })
+
+  it('says it reads only where it paired in the clear, whatever its passkey', () => {
+    const one = facts([device({ clear: true, host: '192.168.1.10:7654' })])
+    expect(awayView(one).devices[0]?.readsOnly).toBe('in the clear')
+    expect(drawn(one)).toContain('reads only: paired in the clear')
   })
 })

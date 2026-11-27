@@ -21,7 +21,7 @@
 // was told on `/api/devices` (`you.passkey`): whether acting from here asks,
 // whether this device made one, whether its last proof counts now — by the
 // machine's clock, never this page's — and until when it may still make one.
-// A drawing hint, like `scopes` beside it; the gate is `proven` at every act.
+// A drawing hint, like `clear` beside it; the gate is `proven` at every act.
 //
 // **The Signal API is never called** (`PublicKeyCredential.signal*`): on iOS 26
 // it deletes the passkeys of other accounts on the same name (WebKit bug
@@ -40,9 +40,12 @@ export const GIVE_UP_MS = 150_000
  */
 export const RETRY_MS = 30_000
 
-/** Whether a scope list holds anything a passkey would be asked for: more than reading. */
-export function actsAtAll(scopes) {
-  return Array.isArray(scopes) && scopes.some((one) => one !== 'read')
+/**
+ * Whether this device acts at all, which is what a passkey would be asked for:
+ * every paired device does, but one paired in the clear (`you.clear`).
+ */
+export function actsAtAll(you) {
+  return you !== null && you !== undefined && you.clear !== true
 }
 
 /**
@@ -50,8 +53,8 @@ export function actsAtAll(scopes) {
  * every row of it.
  *
  * - `make`: no passkey yet and the minutes after pairing are still running.
- *   Drawn whatever the device may do, because what it may do is granted at the
- *   machine afterwards and this is the one chance to make one.
+ *   Drawn whatever the device may do, because this is the one chance to make
+ *   one.
  * - `use`: a passkey whose last proof has run out, on a device that may act.
  * - `missed`: no passkey and the chance gone, on a device that may act — it
  *   reads, and acting needs pairing again. Said, because a press that is
@@ -67,10 +70,10 @@ export function passkeyNeed(you) {
   // it refuses, which asks `/api/devices` again (`boot.js`).
   if (passkey.made !== true) {
     if (typeof passkey.makeBy === 'string') return 'make'
-    return actsAtAll(you.scopes) ? 'missed' : null
+    return actsAtAll(you) ? 'missed' : null
   }
   if (passkey.proven === true) return null
-  return actsAtAll(you.scopes) ? 'use' : null
+  return actsAtAll(you) ? 'use' : null
 }
 
 /** The bar for a need, in the page's own words. `said` is the last thing that went wrong. */

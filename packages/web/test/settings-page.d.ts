@@ -68,11 +68,11 @@ declare module '*/assets/pages/settings-shape.js' {
   export function changeableIn(group: Group, acts: Acts): number
   export function groupSaid(group: Group, acts: Acts, words?: readonly string[]): string
   export function totalOf(answer: Answer | null): number | null
-  export function leftSaid(answer: Answer | null): string | null
+  export function readable(answer: unknown): answer is Answer
   export function pageState(
     answer: Answer | null,
     trouble: { title: string; fix: string } | null,
-  ): { kind: 'coming' | 'wrong' | 'ungranted' | 'nothing' | 'ready'; box: Box | null }
+  ): { kind: 'coming' | 'wrong' | 'nothing' | 'ready'; box: Box | null }
   export function missedBox(typed: string): Box
   export function firstChosen(answer: Answer | null, acts: Acts): string
 }

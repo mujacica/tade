@@ -20,12 +20,10 @@ import {
   PAGE_CSP,
 } from './connect-page.ts'
 import { mintConnectTicket } from './connect-tickets.ts'
-import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { headersFor } from './headers.ts'
 import { queryOf, readBody } from './request.ts'
 import type { Route } from './routes.ts'
-import { ownsOrTheirs } from './surface.ts'
 
 // The guided pages that connect a source: who may use
 // them, the one-time word each press mints, and what a source sending the
@@ -36,15 +34,15 @@ import { ownsOrTheirs } from './surface.ts'
 // answer **on this machine alone** (`Route.here`: the loopback listener and a
 // loopback `Host`), which from anywhere else is a person over SSH — the reach
 // that can already edit `config.yaml` — and to an owner device asking the same
-// over its own door (`/api/connect`, the Mac's window for a remote), or the
-// person's own phone (`Route.theirs`), which already turns a `never`-tier
+// over its own door (`/api/connect`, the Mac's window for a remote), or a
+// paired phone, every one the person's own, which already turns a `never`-tier
 // setting on from Settings — `/api/connect`, and the pages and presses
 // themselves, from any door, under its session: its cookie and token, an exact
 // `Origin`, a trusted origin and the passkey (`allowed`), and the page it is
 // drawn carries that token for its presses. Nothing else a phone holds gets to
 // the pages or presses: the public listener refuses this machine's names at
-// the door, a `lan` bind is public, and a session that is not theirs is the
-// `404` of a path nobody built.
+// the door, a `lan` bind is public, and no session at all is the `404` of a
+// path nobody built.
 //
 // **On this door no session is asked, and a ticket is** (`connect-tickets.ts`).
 // The page is opened in whatever browser is here, or through another machine's
@@ -240,8 +238,8 @@ export interface Connecting {
   /** Whether that `Host` is one the config trusts, so a browser there is on `https`. */
   secure: boolean
   /**
-   * The session's token where the person's own device asked off this
-   * machine's door (`Route.theirs`), for the page to send with its presses;
+   * The session's token where a paired device asked off this machine's
+   * door, for the page to send with its presses;
    * null on this machine's door, which asks no session.
    */
   csrf?: string | null
@@ -556,14 +554,12 @@ function html(res: ServerResponse, status: number, page: string): void {
  */
 export async function connectHere(
   req: IncomingMessage,
-  device: Device,
   at: Pick<Connecting, 'connecting' | 'states' | 'publicName' | 'host' | 'secure' | 'now'> & {
     home: string
   },
 ): Promise<{ body: ConnectAnswer } | { refusal: Refusal }> {
   const connecting = at.connecting
   if (connecting === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const asked = OwnerAskSchema.safeParse(got.body)

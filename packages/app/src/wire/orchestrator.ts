@@ -545,13 +545,14 @@ export class Orchestrator implements Subject {
   /**
    * Something a paired device said, into the same conversation.
    *
-   * **The person's own device is the exception** (an owner arm that is
-   * `theirs`: full access): what they type there is theirs, so it is a `said`
-   * line like what they type here (`theirSaid`) — and it is answered on any
-   * harness, because nothing about its turn is narrowed.
+   * **A paired phone is the person's own** (an owner arm that is `theirs`):
+   * what they type there is theirs, so it is a `said` line like what they
+   * type here (`theirSaid`) — and it is answered on any harness, because
+   * nothing about its turn is narrowed.
    *
-   * **For every other device, three things this is not**, each of which would
-   * be the hole Phase 3 was written around:
+   * **For any other turn from away** — a machine link's words it did not say
+   * were typed, or a narrowed arm — three things this is not, each of which
+   * would be the hole Phase 3 was written around:
    *
    * - it is **not** `say`, so `deps.remember` is never called and no `said`
    *   line is written. That is necessary and nowhere near sufficient — an old

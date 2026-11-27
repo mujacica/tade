@@ -705,7 +705,6 @@ describe('everything else another machine says, drawn here', () => {
         answer: {
           read: true,
           mergedFrom: 'journal',
-          granted: { spend: true, findings: true },
           judge: 'none here',
           total: null,
           by: {

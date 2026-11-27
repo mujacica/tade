@@ -1,10 +1,9 @@
-import { type Arm, type Arming, armFor, byOf } from '@tade/core'
+import type { Arm, Arming } from '@tade/core'
 import {
   type AskCall,
   chatRev,
   type Device,
   type From,
-  fullAccess,
   Moved,
   NotOffered,
   NotThere,
@@ -35,13 +34,13 @@ import { parseCommand } from '../commands.ts'
 //    failure here that is not recoverable by refusing afterwards, and it is
 //    why `busy` is in the revision rather than only in a guard.
 // 2. **Build the arm**, out of the device record read at the act and never out
-//    of the session the request arrived on. A device revoked a second ago, or
-//    one whose grant was narrowed, must not be answered on what it had when it
-//    connected — so `armFor` is called here, against the list as it is now.
+//    of the session the request arrived on. A device revoked a second ago
+//    must not be answered as though it were still paired — so the arm is
+//    built here, against the list as it is now.
 // 3. **Carry the provenance into the record.** The transcript line is marked
 //    as the device's (`deviceSaid`) and the journal line is a `web_asked`.
-//    Only the person's own device (full access) also writes a `said` line,
-//    and that is the window's (`askRemote`), never this file's.
+//    A paired phone — every one is the person's own — also writes a `said`
+//    line, and that is the window's (`askRemote`), never this file's.
 //
 // What this file deliberately does **not** do is decide what the turn may
 // reach. That is two closed tables in `@tade/orchestrator` and a gate in front
@@ -87,7 +86,7 @@ export function seenFrom(
  */
 export function armingFor(deps: {
   arm: () => Arm
-  /** What that device is granted **now**, or null where it is no longer paired. */
+  /** That device as the list has it **now**, or null where it is no longer paired. */
   paired: (device: string) => Paired | null
   seen: (arm: Arm) => Promise<unknown>
   log: (event: { type: 'web_did'; detail: Record<string, string> }) => Promise<unknown>
@@ -133,8 +132,8 @@ export interface Talking {
   /** A device's words, in the conversation, marked as theirs. */
   remoteSaid(text: string, device: string): void
   /**
-   * The person's own words from their own device (full access): a `said` line,
-   * as what they type here is. Never called for any other device.
+   * The person's own words from their own phone: a `said` line, as what they
+   * type here is. Never called for a machine link's words it did not say were typed.
    */
   theirSaid(text: string): void
 }
@@ -161,89 +160,57 @@ export function talkingThrough(held: () => Talking): Talking {
   }
 }
 
-/** What one device was granted, as the record has it now. */
+/** One device as the record has it now. */
 export interface Paired {
-  projects: readonly string[] | null
-  scopes: readonly string[]
-  /** Its reading grants: with every scope, all of them is full access (`fullAccess`). */
-  granted?: readonly string[]
   /** Whether it is a machine link (`@tade/web`'s `owner.ts`). Absent is not. */
   owner?: boolean
 }
 
 /**
- * The lease's arm, narrowed to what that device is granted **now**.
+ * The lease's arm, re-checked against the device list **now**.
  *
  * **The revocation case, and the reason the lease alone is not enough.** The
  * arm is taken when the words are handed over and held until the turn ends —
- * so a device disconnected, or a grant narrowed, while a turn of its is in
- * flight would otherwise keep whatever it had when it started. One turn is
- * seconds, which is exactly long enough for somebody who has just realised
- * they lost a phone to press Disconnect and have it mean nothing.
+ * so a device disconnected while a turn of its is in flight would otherwise
+ * keep whatever it had when it started. One turn is seconds, which is exactly
+ * long enough for somebody who has just realised they lost a phone to press
+ * Disconnect and have it mean nothing.
  *
  * So: it can only ever **take away**. A device that is gone keeps its id — the
- * audit needs it — and loses every grant and every project, which leaves a
+ * audit needs it — and loses every project and every grant, which leaves a
  * remote arm that reaches nothing but a read its own projection refuses
- * (`seen` throws for it). A grant that was narrowed is narrowed here too,
- * because `armFor` is a fold of the record and the record is the authority.
+ * (`seen` throws for it). An owner turn keeps the keyboard's reach only while
+ * the record is still the kind of device it was minted for: a machine link
+ * while it says owner, a phone while it does not.
  */
 export function narrowed(arm: Arm, paired: (device: string) => Paired | null): Arm {
   if (arm.how === 'local') return arm
   const held = paired(arm.device)
-  if (held === null) return { how: 'remote', device: arm.device, projects: [], may: [] }
-  // An owner turn keeps the keyboard's reach only while the record still makes
-  // it one: a machine link while it says owner, the person's own device while
-  // it has full access. Revoked is above; a box unticked mid-turn takes it
-  // back to what the device was granted, which is still only ever narrower.
-  if (arm.how === 'owner') return stillOwner(arm, held) ? arm : remoteNow(arm.device, held, null)
-  return remoteNow(arm.device, held, arm)
+  const nothing: Arm = { how: 'remote', device: arm.device, projects: [], may: [] }
+  if (held === null) return nothing
+  if (arm.how === 'remote') return arm
+  return stillOwner(arm, held) ? arm : nothing
 }
 
 /** Whether the record still gives an owner turn the keyboard's reach. */
 function stillOwner(arm: Extract<Arm, { how: 'owner' }>, held: Paired): boolean {
   // A machine link, typed there or not, while the record says owner.
   if (arm.theirs !== true || arm.typed === true) return held.owner === true
-  return held.owner !== true && fullAccess({ scopes: held.scopes, granted: held.granted ?? [] })
-}
-
-/** The remote arm a record grants now, never wider than the lease it narrows. */
-function remoteNow(device: string, held: Paired, was: Remote | null): Arm {
-  const now = armFor({ id: device, projects: held.projects, scopes: held.scopes })
-  if (now.how !== 'remote' || was === null) return now
-  return {
-    how: 'remote',
-    device,
-    // The narrower of the two lists, so nothing here can widen a lease either:
-    // a grant made *during* a turn is not a grant that turn was given.
-    projects: narrower(was.projects, now.projects),
-    may: now.may.filter((grant) => was.may.includes(grant)),
-  }
-}
-
-type Remote = Extract<Arm, { how: 'remote' }>
-
-/** The narrower of two project lists, where `null` is every one. */
-function narrower(
-  was: readonly string[] | null,
-  now: readonly string[] | null,
-): readonly string[] | null {
-  if (was === null) return now
-  if (now === null) return was
-  return was.filter((name) => now.includes(name))
+  return held.owner !== true
 }
 
 /**
  * What `/login` typed on the away view's line is answered with, where the
  * page did not carry it out itself.
  *
- * On the person's own phone the page opens the orchestrator's sign-in there
+ * On a paired phone the page opens the orchestrator's sign-in there
  * (`POST /api/orchestrator/sign-in`, `@tade/web`'s `signing-in.ts`, run by
- * `web-sign-in.ts`) and never sends the line. Any other device reaches this:
- * typing into a sign-in on this machine is the SSH key's, so it is told who
- * may and where else it is done, rather than a turn of the model's.
+ * `web-sign-in.ts`) and never sends the line. A page that sent it anyway — one
+ * older than that, or another machine's link — reaches this, and is told
+ * where it is done rather than starting a turn of the model's.
  */
 export const LOG_IN_IS_HERE =
-  "Signing the orchestrator in from away is the person's own phone's, with full access: /login there opens its sign-in. At the machine, type /login on Tade's own line, or run `tade accounts sign-in --orchestrator` in a shell on it."
+  "Signing the orchestrator in from away is done on your phone's own page: /login there opens its sign-in. At the machine, type /login on Tade's own line, or run `tade accounts sign-in --orchestrator` in a shell on it."
 
 /**
  * What each of the window's slash commands (`actions`) is answered with when
@@ -293,7 +260,7 @@ export function answeredHere(said: string): string | null {
 export interface AskingDeps {
   /** Whether the setting is on, read **at the turn** and never cached. */
   talking: () => boolean
-  /** The devices as they are now, so a grant narrowed a second ago means something. */
+  /** The devices as they are now, so a device revoked a second ago means something. */
   devices: () => readonly Device[]
   /**
    * The conversation as it stands: the fact its revision is made of, and who
@@ -370,7 +337,7 @@ export function webAsking(deps: AskingDeps): WebAsking {
       deps.said(call.said, from.how === 'remote' ? from.device : '')
       // **The person's own device is them**, so what they typed is a `said`
       // line, written before the turn so a setting it names is named by the
-      // time a tool asks. No other device's words ever are.
+      // time a tool asks. A machine link's words are only where it said so.
       if (arm.how === 'owner' && arm.theirs === true) deps.theirs(call.said)
       await deps.ask(call.said, arm)
       const after = deps.seen()
@@ -378,11 +345,9 @@ export function webAsking(deps: AskingDeps): WebAsking {
     },
 
     async stop(call: StopCall, from: From): Promise<Outcome> {
-      // The arm is built for the same reason it is on `ask`: a device that has
-      // been revoked stops anything, which would be a small thing to allow and
-      // is still the thing that grants authority being reachable from inside
-      // what it granted.
-      armOf(deps, from, false)
+      // The device is asked of the list for the same reason it is on `ask`: a
+      // device that has been revoked stops nothing.
+      pairedNow(deps, from)
       const seen = deps.seen()
       const was = chatRev({ busy: seen.busy })
       if (call.was !== was) throw new Moved('the conversation moved on', was)
@@ -404,42 +369,44 @@ export function webAsking(deps: AskingDeps): WebAsking {
  * The arm this turn runs under, built from the device record **now**.
  *
  * Not from the session the request arrived on, and that is the whole point: a
- * session carries the scopes it was minted with, and a person who narrowed a
- * grant or disconnected a phone thirty seconds ago meant it. A device that is
- * no longer in the list is `OutOfScope` — it is a device that can see the
- * conversation screen and was not granted this, which is the honest answer and
- * not a `404`.
+ * person who disconnected a phone thirty seconds ago meant it. A device that
+ * is no longer in the list is `OutOfScope`, which is the honest answer and not
+ * a `404`.
  *
  * A **local** `from` cannot reach here: the local path is `say`, which never
  * goes through a `WebAsking` at all. It is refused rather than quietly turned
  * into `LOCAL`, because the one thing that must never happen is a remote
- * request running unnarrowed.
+ * request running as the keyboard without a device behind it.
  */
 function armOf(deps: AskingDeps, from: From, here: boolean, typed = false): Arm {
-  if (from.how !== 'remote') {
-    throw new OutOfScope('a message from away is never the person at the machine')
-  }
-  const device = deps.devices().find((one) => one.id === from.device && one.revoked === null)
-  if (device === undefined) throw new OutOfScope('that device is not paired')
-  if (!device.scopes.includes('ask')) {
-    throw new OutOfScope(`${byOf(from)} was not granted talking to Tade`)
-  }
+  const device = pairedNow(deps, from)
   // **A machine link needs both halves, and neither is the request's word.**
   // The record says owner (minted only by `tade web pair --owner`, bound to a
   // loopback host), and the door says this message came in on this machine.
   // Its words may be another machine's model's, so they are `theirs` only
   // where that machine says the person typed them (`AskCall.typed`).
   if (device.owner) {
-    if (!here) return armFor(device)
+    // Bound to a loopback host, an owner session is never answered off this
+    // machine's door; refused rather than given a reach of its own if it were.
+    if (!here) throw new OutOfScope('a machine link is answered on this machine alone')
     return {
       how: 'owner',
       device: device.id,
       ...(typed ? { theirs: true as const, typed: true as const } : {}),
     }
   }
-  // **A device with full access is the person's own**, from any door the
-  // guard let it through — a public name only with a passkey proved: its
-  // reach is the keyboard's and its words are theirs (`Arm`'s owner variant).
-  if (fullAccess(device)) return { how: 'owner', device: device.id, theirs: true }
-  return armFor(device)
+  // **Every paired phone is the person's own**, from any door the guard let it
+  // through — a public name only with a passkey proved: its reach is the
+  // keyboard's and its words are theirs (`Arm`'s owner variant).
+  return { how: 'owner', device: device.id, theirs: true }
+}
+
+/** The device a message came from, as the list has it now, or `OutOfScope`. */
+function pairedNow(deps: AskingDeps, from: From): Device {
+  if (from.how !== 'remote') {
+    throw new OutOfScope('a message from away is never the person at the machine')
+  }
+  const device = deps.devices().find((one) => one.id === from.device && one.revoked === null)
+  if (device === undefined) throw new OutOfScope('that device is not paired')
+  return device
 }

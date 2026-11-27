@@ -1,8 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { appendDevice, type PendingCode, readDevices } from './devices.ts'
-import type { Grant } from './reach.ts'
 import { digestMatches, digestOf } from './sessions.ts'
-import type { Scope } from './surface.ts'
 import { type NotClaimed, type Tickets, ticketValue } from './tickets.ts'
 
 // A pairing code the terminal wrote down: `tade web pair`, the one ticket that
@@ -17,7 +15,8 @@ import { type NotClaimed, type Tickets, ticketValue } from './tickets.ts'
 // machine was the point, and a shell on the machine is at the machine**: over
 // SSH it is the SSH key, which can already do anything here. So the person who
 // runs `tade web pair` is the person letting a device in, the command is the
-// keypress, and what it lets the device have is written down at that moment.
+// keypress. What it lets the device have is everything, as every pairing is:
+// every paired device is the person's own.
 //
 // What keeps it the same size of thing as the window's ticket:
 //
@@ -56,15 +55,12 @@ import { type NotClaimed, type Tickets, ticketValue } from './tickets.ts'
  */
 export const PENDING_MS = 5 * 60_000
 
-/** What the person at the terminal let a written code's device have. */
+/** What the person at the terminal said about a written code. */
 export interface Letting {
   /** The exact `Host` the link names, which is the only one it may be claimed on. */
   host: string
   /** What to call it. Empty is the phone's own word, as a code from the window has. */
   label: string
-  scopes: readonly Scope[]
-  projects: readonly string[] | null
-  granted: readonly Grant[]
 }
 
 /** A code written down, as the terminal prints it. The secret is never written. */
@@ -103,9 +99,6 @@ export async function writeCode(home: string, letting: Letting, now: number): Pr
     digest: digestOf(secret),
     host: letting.host,
     label: letting.label,
-    scopes: [...letting.scopes],
-    projects: letting.projects === null ? null : [...letting.projects],
-    granted: [...letting.granted],
   })
   return { device, secret, until }
 }

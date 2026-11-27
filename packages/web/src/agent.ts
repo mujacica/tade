@@ -13,7 +13,7 @@ import type {
   TurnsPage,
 } from './protocol.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
-import { has, type Reach, sees } from './reach.ts'
+import type { Reach } from './reach.ts'
 import { cleanScreen, SCREEN, type ScreenBudget } from './screen.ts'
 
 // One agent, as a device that is looking at it may read it.
@@ -23,7 +23,7 @@ import { cleanScreen, SCREEN, type ScreenBudget } from './screen.ts'
 // second for each of them; this is one task, asked for while somebody has its
 // page open, and the window reads the lane behind it only while that is so
 // (`packages/app/src/wire/web-lanes.ts`). So the projection here is a function
-// of one task's row, what the window held of it, and the device's reach — and
+// of one task's row and what the window held of it — and
 // nothing is built for a device that is not asking.
 //
 // Three parts with two different rules:
@@ -33,14 +33,12 @@ import { cleanScreen, SCREEN, type ScreenBudget } from './screen.ts'
 //   check — each held to looking like a name (`NAME`) before it is put in a
 //   sentence. Never a tool's arguments, a command or a summary: `input.ts`'s
 //   `ReasonIn` has the argument for why the one-line summary of a call never
-//   reaches this package, and it holds here too. It needs no grant, for the
-//   reason a task's state does not.
-// - **What its screen shows** is the fourth kind of value (`screen.ts`) and
-//   rides on `lanes`, which is off with every other grant off. Without it the
-//   answer says `not granted` — and never *no agent*, which would be the page
-//   blaming the work for the reader's own reach.
+//   reaches this package, and it holds here too.
+// - **What its screen shows** is the fourth kind of value (`screen.ts`):
+//   whatever an agent printed, cleaned at the boundary of every machine path,
+//   every key Tade knows and anything shaped like a credential.
 // - **What it was told and said, and every call it made** (`conversation`) is
-//   the same kind of value on the same grant, out of its harness's own record
+//   the same kind of value, out of its harness's own record
 //   and cleaned by the screen's rule (`turnsOf`). Sent only when it moved
 //   since the revision the page says it holds (`seen`).
 //
@@ -72,7 +70,7 @@ export interface ActivityIn {
 export type LaneIn =
   /** The rendered screen exactly as the driver handed it over. Untrusted. */
   | { kind: 'read'; text: string; at: number }
-  | { kind: 'none'; why: Exclude<(typeof SCREEN_WHY)[number], 'not granted' | 'not here'> }
+  | { kind: 'none'; why: Exclude<(typeof SCREEN_WHY)[number], 'not here'> }
 
 /**
  * What the window holds of one agent's conversation, out of its harness's own
@@ -92,7 +90,7 @@ export type ConversationIn =
       /** Moves exactly when the turns did, so a page that has these is sent nothing. */
       rev: string
     }
-  | { kind: 'none'; why: Exclude<(typeof CONVERSATION_WHY)[number], 'not granted'> }
+  | { kind: 'none'; why: (typeof CONVERSATION_WHY)[number] }
 
 /** Everything the window hands over about one agent. */
 export interface AgentIn {
@@ -196,7 +194,7 @@ export function activitySaid(one: Omit<ActivityIn, 'id'>): string | null {
  * answered as *not read yet* rather than as an empty screen.
  */
 export function agentOf(
-  reach: Reach,
+  _reach: Reach,
   tasks: readonly TaskIn[],
   task: string,
   held: AgentIn | null,
@@ -204,10 +202,7 @@ export function agentOf(
   seen: string | null = null,
 ): AgentOut {
   const row = tasks.find((one) => one.id === task)
-  if (row === undefined || !sees(reach, row.project)) {
-    // **One answer for a task that is not there and one this device may not
-    // read**, for the reason a deep link to either is the same bytes: telling
-    // them apart would be a way of finding out which projects exist.
+  if (row === undefined) {
     return {
       v: PROTOCOL_VERSION,
       task,
@@ -222,9 +217,6 @@ export function agentOf(
   }
   const { activity, earlier } = rowsOf(held?.activity ?? [], held?.earlier ?? null, budget.activity)
   const base = { v: PROTOCOL_VERSION, task, here: true, activity, earlier } as const
-  if (!has(reach, 'lanes')) {
-    return { ...base, screen: null, why: 'not granted', conversation: null, unread: 'not granted' }
-  }
   const talked = conversationOut(held?.conversation, held?.known ?? [], seen, held?.places)
   // Nothing held and nothing running is *no agent*; nothing held and something
   // running is a window that has not read it yet, which the next beat answers.
@@ -277,9 +269,9 @@ export type MomentsIn = { activity: readonly ActivityIn[]; earlier: string | nul
 
 /**
  * One agent's moments before a cursor its page holds, as
- * `GET /api/agent/:project/:task/moments?before=` answers them: within this
- * device's reach and on no grant, as its newest moments are — Tade's own
- * sentences about metadata — newest first, to its first moment.
+ * `GET /api/agent/:project/:task/moments?before=` answers them, as its newest
+ * moments are — Tade's own sentences about metadata — newest first, to its
+ * first moment.
  */
 export function momentsBefore(task: string, here: boolean, read: MomentsIn | null): MomentsPage {
   const none = (why: MomentsPage['why']): MomentsPage => ({
@@ -336,13 +328,11 @@ export type EarlierIn = { turns: readonly TurnIn[]; before: string | null } | 'u
 
 /**
  * The turns before a cursor, as `GET /api/agent/:project/:task/earlier`
- * answers them: within this device's reach and under `lanes`, as its
- * conversation is, each whole and cleaned by the same rule.
+ * answers them, each whole and cleaned by the conversation's own rule.
  */
 export function turnsBefore(
   task: string,
   here: boolean,
-  reach: Reach,
   read: EarlierIn | null,
   known: readonly string[],
   places: Places = NOWHERE,
@@ -356,7 +346,6 @@ export function turnsBefore(
     why,
   })
   if (!here) return none('not here')
-  if (!has(reach, 'lanes')) return none('not granted')
   if (read === null || read === 'unread') return none('unread')
   const clean = turnsOf(read.turns, known, places)
   return {

@@ -3,13 +3,12 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Outcome, WebActing } from '../src/acting.ts'
 import type { ChangedIn } from '../src/changes.ts'
-import { allowDevice } from '../src/devices.ts'
 import type { MachineIn, TaskIn } from '../src/input.ts'
 import type { Host } from '../src/protocol.ts'
-import { GRANTS, type Reach } from '../src/reach.ts'
+import type { Reach } from '../src/reach.ts'
 import { projector } from '../src/reading.ts'
 import { webServer } from '../src/server.ts'
-import { OFF, SCOPES } from '../src/surface.ts'
+import { OFF } from '../src/surface.ts'
 import { Tickets } from '../src/tickets.ts'
 import {
   DUO,
@@ -54,12 +53,9 @@ import { DUO_SHAPE } from './browser-snippets.ts'
 // the page draws: the stylesheets laid out are the shipped ones with nothing
 // else changed, and a rule that forgot its inset is drawn under the band.
 //
-// Every page is looked at for a device granted everything, because the person's
-// phone is: a dash fits anywhere and a figure is what runs off an edge. Every
-// read *and every scope*: pairing grants `read` alone, and a device with
-// nothing more draws no press on any page, so a row's presses squeezing its
-// name were never on the glass to be measured. The scopes are `allowDevice`,
-// the keypress at the machine, as `browser.ts` grants them.
+// Every page is looked at for a paired device, which reads and does
+// everything: a dash fits anywhere and a figure is what runs off an edge, and a
+// row's presses squeezing its name are on the glass to be measured.
 //
 // **Its home is not in the temp folder.** A `tade-` name there is one the
 // suite's own guard answers for (`test/own-tmp.ts`), so a run of this beside a
@@ -328,7 +324,7 @@ async function serve(home: string) {
     changes: { read: () => Promise.resolve({ files: CHANGED, base: 'main' }), known: () => [] },
     tickets,
     tell: () => {},
-    confirm: async () => ({ let: true, projects: null, granted: [...GRANTS] }),
+    confirm: async () => ({ let: true }),
   })
   const bound = await server.listen()
   const at = bound.find((one) => one.startsWith('127.0.0.1'))
@@ -395,20 +391,13 @@ const KEYBOARD = `(() => {
   window.__duoKeyboard = (px) => { covered = px; view.dispatchEvent(new Event('resize')) }
 })()`
 
-async function pairIn(page: Page, origin: string, ticket: string, home: string): Promise<void> {
+async function pairIn(page: Page, origin: string, ticket: string): Promise<void> {
   await page.goto(`${origin}/pair#t=${ticket}`, { waitUntil: 'load' })
   await page.waitForSelector('#label', { timeout: 10_000 })
   await page.fill('#label', 'the duo')
   await page.click('button.pair-press')
   await page.waitForURL(`${origin}/`, { timeout: 15_000 })
   await page.waitForSelector('header .brand', { timeout: 10_000 })
-  const you = (await page.evaluate(`fetch('/api/devices').then((r) => r.json())`)) as {
-    you?: { device?: string }
-  } | null
-  const device = you?.you?.device
-  if (typeof device !== 'string' || device === '')
-    throw new Error('the page never said which device it is')
-  await allowDevice(home, device, [...SCOPES], new Date())
 }
 
 /**
@@ -616,7 +605,7 @@ async function looked(engine: Engine, home: string, found: Finding[]): Promise<v
     if (first === undefined) return
     const context = await phoneAt(engine, first)
     const ticket = tickets.mint(`${origin}/pair`, Date.now()).value
-    await pairIn(await context.newPage(), origin, ticket, home)
+    await pairIn(await context.newPage(), origin, ticket)
     const state = await context.storageState()
     await context.close()
     for (const screen of DUO) await lookAll(engine, origin, screen, state, found)

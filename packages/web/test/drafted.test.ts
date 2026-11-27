@@ -5,9 +5,8 @@ import { describe, expect, it } from 'vitest'
 import { type From, Moved, NotOffered, NotThere, type Outcome, TooMuch } from '../src/acting.ts'
 import { admitDraft, boundToSaving, carrySave, readDraftSave, type Saved } from '../src/drafted.ts'
 import { DRAFT_BOUND, type DraftCall, draftRev, type WebDrafting } from '../src/drafting.ts'
-import { namesOnly, type Reach } from '../src/reach.ts'
 import { RECEIPTS_FILE, Receipts } from '../src/receipts.ts'
-import type { Scope, Surface } from '../src/surface.ts'
+import type { Surface } from '../src/surface.ts'
 import { homeFor } from './harness.ts'
 
 // One field of one draft, end to end, with a real receipt store on disk and a
@@ -92,8 +91,6 @@ async function context(
     surface: SURFACE,
     unlocked: true,
     rev: 4,
-    reach: namesOnly(DEVICE),
-    scopes: ['read', 'draft'] as readonly Scope[],
     origin: { scheme: 'http', host: '127.0.0.1', listener: 'loopback' },
     device: DEVICE,
     now: Date.parse('2026-10-09T14:30:00.000Z'),
@@ -101,12 +98,6 @@ async function context(
     ...over,
   }
 }
-
-const listed = (names: readonly string[]): Reach => ({
-  device: DEVICE,
-  projects: { kind: 'listed', names: [...names] },
-  granted: [],
-})
 
 describe('reading a save out of a body', () => {
   it('takes the four fields and nothing else', () => {
@@ -232,32 +223,6 @@ describe('whether a save may go through', () => {
     expect(admitDraft(saving(), table).ok).toBe(false)
   })
 
-  it('is refused for a device granted both acting tiers and not this', async () => {
-    // The whole reason `draft` is its own scope: eight bounded things about
-    // work that exists is not a file every future run would be stamped from.
-    const now = await context(window_().drafting, {
-      scopes: ['read', 'answer', 'steer', 'ask'] as readonly Scope[],
-    })
-    const admitted = admitDraft(saving(), now)
-    expect(admitted.ok).toBe(false)
-    if (admitted.ok) return
-    expect(admitted.why).toContain('needs draft')
-  })
-
-  it('is refused for a device whose reading is a list rather than every project', async () => {
-    // **This door's own check**, and it takes the place of the per-project
-    // boundary a verb has: a workflow names the repository it works in through
-    // an input and can name any of them, so a phone granted one repository of
-    // five may not edit a file that could name the other four. There is no
-    // later moment to ask it at — a draft saved now is read by a run next week.
-    const now = await context(window_().drafting, { reach: listed(['sentry', 'tade']) })
-    const admitted = admitDraft(saving(), now)
-    expect(admitted.ok).toBe(false)
-    if (admitted.ok) return
-    expect(admitted.why).toContain('needs every project')
-    expect(admitted.why).toContain('reads 2')
-  })
-
   it('is refused off a trusted origin, however much was granted', async () => {
     const now = await context(window_().drafting, {
       origin: { scheme: 'http', host: '192.168.1.5:7654', listener: 'public' },
@@ -303,9 +268,9 @@ describe('carrying one save out', () => {
     const wrote = await carrySave(
       'save',
       BODY,
-      await context(made.drafting, { reach: listed(['sentry']) }, 'drafted-refused'),
+      await context(made.drafting, { unlocked: false }, 'drafted-refused'),
     )
-    expect(wrote.refusal?.error).toBe('out_of_scope')
+    expect(wrote.refusal?.error).toBe('locked')
     expect(wrote.did.state).toBe('refused')
     expect(wrote.did.task).toBe('reproduce-and-fix')
     // And nothing reached the window.

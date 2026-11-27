@@ -5,7 +5,6 @@ import { BOUNDS } from './acting.ts'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
-import { ownsOrTheirs } from './surface.ts'
 import { KEY } from './verbs.ts'
 
 // A press on another machine's row, from this door's page (ONE-AWAY-VIEW
@@ -22,9 +21,10 @@ import { KEY } from './verbs.ts'
 // page — or anything that took one over — can ask for nothing else of the
 // door either, whatever the far gate would say.
 //
-// **The person's own device, and an owner** (`ownsOrTheirs`): the one that is
-// sent the other machines' rows at all (`copiesFor`). An owner link is a
-// machine whose SSH key reaches everything here already.
+// **Any paired device**: every one is the person's own, and is sent the other
+// machines' rows (`copiesFor`). An owner link is a machine whose SSH key
+// reaches everything here already. The tiers are that machine's (`outboxArm`)
+// and are about another *machine*, not a device.
 //
 // **Done once.** The page's key, bound to the device that sent it, travels
 // with the act: this machine's outbox holds one act a key, and the far side
@@ -121,7 +121,6 @@ export async function pressThereHere(
   there: WebPressThere | undefined,
 ): Promise<{ body: PressedThere } | { refusal: Refusal }> {
   if (there === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const parsed = PressText.safeParse(got.body)

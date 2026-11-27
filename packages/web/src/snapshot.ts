@@ -2,7 +2,7 @@ import type { PlanStanding, Spend } from '@tade/core'
 import { projectRev, taskRev } from './acting.ts'
 import { commandShown } from './command.ts'
 import { callFor } from './conversation.ts'
-import { intakeRow, runRow, sourceRow, type WorkflowIn, workflowRow } from './factory.ts'
+import { intakeRow, runRow, sourceRow, workflowRow } from './factory.ts'
 import { withoutPaths } from './fields.ts'
 import type { MachineIn } from './input.ts'
 import {
@@ -20,7 +20,7 @@ import {
   type TalkIn,
   type TaskIn,
 } from './input.ts'
-import { BUDGET, type Budget, type Page, pageOf, textOf, withheld } from './page.ts'
+import { BUDGET, type Budget, type Page, pageOf, textOf } from './page.ts'
 import type {
   ChatPage,
   ChatRow,
@@ -41,7 +41,7 @@ import type {
   TaskRow,
 } from './protocol.ts'
 import { hostFigures, PROTOCOL_VERSION } from './protocol.ts'
-import { has, type Reach, readsOf, sees } from './reach.ts'
+import type { Reach } from './reach.ts'
 
 // The projection. One pure function of what it is handed and the moment.
 //
@@ -70,13 +70,6 @@ const ISO_OR = (at: number | null): string | null => (at === null ? null : ISO(a
  * in a projection is ever `''`.
  */
 const SOME = (text: string): string | null => (text === '' ? null : text)
-
-/** Whether this device may read a note at all, from the scope it was taken in. */
-export function noteSeen(reach: Reach, scope: string | null): boolean {
-  if (scope === null) return true
-  const project = scope.includes('/') ? (scope.split('/')[0] ?? scope) : scope
-  return sees(reach, project)
-}
 
 /**
  * `deriveState`'s clause, written from the one field that is a name.
@@ -152,9 +145,8 @@ function queueStateOf(state: QueueStateIn): QueueStateOut {
   }
 }
 
-function taskRow(task: TaskIn, reach: Reach, budget: Budget): TaskRow {
-  const said = (text: string, granted: boolean): Said | null =>
-    granted ? textOf(text, budget.text) : null
+function taskRow(task: TaskIn, budget: Budget): TaskRow {
+  const said = (text: string): Said | null => textOf(text, budget.text)
   return {
     id: task.id,
     project: task.project,
@@ -178,10 +170,10 @@ function taskRow(task: TaskIn, reach: Reach, budget: Budget): TaskRow {
             id: task.approval.id,
             tool: task.approval.tool,
             since: ISO(task.approval.sinceAt),
-            // Only to a device that may answer it (`ANSWERING`): seeing what you
-            // say yes to goes with saying it, and with nothing else.
+            // Seeing what you say yes to goes with saying it, and every
+            // paired device may: only as `commandOut` made it, never the summary.
             command:
-              reach.answers === true && task.approval.command !== null
+              task.approval.command !== null
                 ? commandShown(task.approval.command, budget.material)
                 : null,
           },
@@ -193,8 +185,8 @@ function taskRow(task: TaskIn, reach: Reach, budget: Budget): TaskRow {
     lane: task.lane,
     createdAt: ISO(task.createdAt),
     movedAt: ISO_OR(task.movedAt),
-    title: said(task.title, has(reach, 'titles')),
-    intent: said(task.intent, has(reach, 'intent')),
+    title: said(task.title),
+    intent: said(task.intent),
     branch: SOME(task.branch),
     ahead: task.ahead,
     behind: task.behind,
@@ -206,9 +198,9 @@ function taskRow(task: TaskIn, reach: Reach, budget: Budget): TaskRow {
     produces: task.produces,
     harness: SOME(task.harness),
     model: SOME(task.model),
-    account: said(task.account, has(reach, 'accounts')),
+    account: said(task.account),
     origin: { kind: task.origin.kind, name: task.origin.name },
-    spend: has(reach, 'spend') ? spendOf(task.spend) : null,
+    spend: spendOf(task.spend),
     checks: {
       state: task.checks.state,
       failed: [...task.checks.failed],
@@ -218,15 +210,11 @@ function taskRow(task: TaskIn, reach: Reach, budget: Budget): TaskRow {
     agents: task.agents,
     lanes: task.lanes,
     servers: [...(task.servers ?? [])],
-    review:
-      task.review === null
-        ? null
-        : { state: task.review.state, url: has(reach, 'reviews') ? task.review.url : null },
+    review: task.review === null ? null : { state: task.review.state, url: task.review.url },
   }
 }
 
-function queueRow(item: QueueIn, reach: Reach, budget: Budget): QueueRow {
-  const why = has(reach, 'intent')
+function queueRow(item: QueueIn, budget: Budget): QueueRow {
   return {
     task: item.task,
     project: item.project,
@@ -234,7 +222,7 @@ function queueRow(item: QueueIn, reach: Reach, budget: Budget): QueueRow {
     order: item.order,
     waitsOn: item.waitsOn.map((one) => ({
       task: one.task,
-      why: why ? textOf(one.why, budget.text) : null,
+      why: textOf(one.why, budget.text),
     })),
   }
 }
@@ -272,13 +260,12 @@ function findingRow(found: FindingIn, budget: Budget): FindingRow {
  * append-only: nothing is ever inserted before a note that already has an
  * ordinal.
  */
-export function noteRows(notes: readonly NoteIn[], reach: Reach, budget: Budget): NoteRow[] {
+export function noteRows(notes: readonly NoteIn[], budget: Budget): NoteRow[] {
   const seen = new Map<string, number>()
   const rows: NoteRow[] = []
   for (const one of notes) {
     const n = seen.get(one.at) ?? 0
     seen.set(one.at, n + 1)
-    if (!noteSeen(reach, one.scope)) continue
     rows.push({
       id: `${one.at}#${n}`,
       at: one.at,
@@ -310,8 +297,7 @@ export function noteRows(notes: readonly NoteIn[], reach: Reach, budget: Budget)
  *
  *    What that costs, said rather than implied: a path somebody typed into a
  *    message reads as `…` on the phone. It is the one place the away view does
- *    not show what was said as it was said, and `GRANT_MEANS.talk` is where a
- *    person is told so before granting it.
+ *    not show what was said as it was said.
  * 2. **A tool line carries a name and an outcome**, and its call — what it
  *    was handed and what it answered — only where `withCalls` puts it: under
  *    `lanes`, cleaned. Never by the names `NEVER_A_FIELD` keeps for the raw
@@ -352,37 +338,30 @@ export function chatRows(lines: readonly ChatIn[]): ChatRow[] {
  */
 export function chatBefore(
   talk: TalkIn | null,
-  reach: Reach,
+  _reach: Reach,
   before: string,
   budget: Budget = BUDGET,
 ): ChatPage {
   if (talk === null) return { v: PROTOCOL_VERSION, rows: [], earlier: false, why: 'off' }
-  if (!has(reach, 'talk')) {
-    return { v: PROTOCOL_VERSION, rows: [], earlier: false, why: 'not granted' }
-  }
   const older = chatRows(talk.lines.filter((line) => line.id < before)).sort((a, b) =>
     byText(a.id, b.id),
   )
   const rows = older.slice(-budget.chat)
   return {
     v: PROTOCOL_VERSION,
-    rows: withCalls(rows, talk, has(reach, 'lanes')),
+    rows: withCalls(rows, talk),
     earlier: older.length > rows.length || talk.earlier === true,
     why: null,
   }
 }
 
 /**
- * The lines a device is sent, each tool line given its call where the device
- * was granted an agent's own bytes (`lanes`) — and only the lines on its page,
- * because cleaning is the work and a page is what crosses.
+ * The lines a device is sent, each tool line given its call, cleaned — and
+ * only the lines on its page, because cleaning is the work and a page is what
+ * crosses.
  */
-export function withCalls(
-  rows: readonly ChatRow[],
-  talk: TalkIn | null,
-  granted: boolean,
-): ChatRow[] {
-  if (!granted || talk === null) return [...rows]
+export function withCalls(rows: readonly ChatRow[], talk: TalkIn | null): ChatRow[] {
+  if (talk === null) return [...rows]
   const held = new Map(talk.lines.map((line) => [line.id, line]))
   return rows.map((row) => {
     const line = held.get(row.id)
@@ -438,15 +417,13 @@ function plansKeyed(plans: readonly PlanStanding[]): KeyedPlan[] {
     .sort((a, b) => byText(a.id, b.id))
 }
 
-function planRow({ plan, id }: KeyedPlan, reach: Reach, budget: Budget): PlanRow {
+function planRow({ plan, id }: KeyedPlan, budget: Budget): PlanRow {
   return {
     id,
     harness: plan.harness,
     // The own sign-in by the name somebody gave it, so its card says it: the
     // row's id is still its place, never the name (`plansKeyed`).
-    account: has(reach, 'accounts')
-      ? textOf(plan.account ?? plan.ownName ?? null, budget.text)
-      : null,
+    account: textOf(plan.account ?? plan.ownName ?? null, budget.text),
     pays: plan.pays,
     windows: plan.windows.map((window) => ({
       label: window.label,
@@ -455,24 +432,19 @@ function planRow({ plan, id }: KeyedPlan, reach: Reach, budget: Budget): PlanRow
     })),
     at: ISO_OR(plan.at),
     cannotTell: plan.cannotTell,
-    uses: has(reach, 'accounts') ? usesOf(plan.uses, reach, budget) : null,
-    ...(has(reach, 'accounts') && plan.identity ? { identity: plan.identity } : {}),
+    uses: usesOf(plan.uses, budget),
+    ...(plan.identity ? { identity: plan.identity } : {}),
   }
 }
 
-/**
- * Who runs as a sign-in, as one device may read it: a project it may not read
- * is not named, and is not counted either — a count is still a fact about
- * work it cannot see. What is left over the projects' own budget is counted.
- */
-function usesOf(uses: PlanStanding['uses'], reach: Reach, budget: Budget): PlanRow['uses'] {
+/** Who runs as a sign-in. What is left over the projects' own budget is counted. */
+function usesOf(uses: PlanStanding['uses'], budget: Budget): PlanRow['uses'] {
   if (uses === undefined) return null
-  const seen = uses.projects.filter((project) => sees(reach, project))
-  const projects = seen.slice(0, budget.projects)
+  const projects = uses.projects.slice(0, budget.projects)
   return {
     newAgents: uses.newAgents,
     projects,
-    notShown: seen.length - projects.length,
+    notShown: uses.projects.length - projects.length,
     ...(uses.orchestrator ? { orchestrator: true } : {}),
   }
 }
@@ -556,15 +528,10 @@ export function snapshotOf(
   budget: Budget = BUDGET,
 ): Snapshot {
   const reach = input.reach
-  const mine = <T extends { project: string }>(rows: readonly T[]): T[] =>
-    rows.filter((row) => sees(reach, row.project))
-
-  const projects = [...input.projects]
-    .filter((project) => sees(reach, project.name))
-    .sort((a, b) => byText(a.name, b.name))
-  const tasks = mine(input.tasks)
-  const queue = mine(input.queue)
-  const findings = mine(input.findings ?? [])
+  const projects = [...input.projects].sort((a, b) => byText(a.name, b.name))
+  const tasks = input.tasks
+  const queue = input.queue
+  const findings = input.findings ?? []
 
   const projectPage = pageOf(projects, budget.projects, (row) => row.name, cursors.projects ?? null)
   const taskPage = pageOf(
@@ -583,35 +550,23 @@ export function snapshotOf(
   // is — and then by key, so a cut list still holds every one the badge counts
   // before it holds any that is settled; then sorted by key like everything
   // else (below).
-  const findingPage = has(reach, 'findings')
-    ? pageOf(
-        [...findings].sort(
-          (a, b) => Number(a.verdict !== null) - Number(b.verdict !== null) || byText(a.key, b.key),
-        ),
-        budget.findings,
-        (row) => row.key,
-        cursors.findings ?? null,
-      )
-    : withheld<FindingIn>(findings.length)
+  const findingPage = pageOf(
+    [...findings].sort(
+      (a, b) => Number(a.verdict !== null) - Number(b.verdict !== null) || byText(a.key, b.key),
+    ),
+    budget.findings,
+    (row) => row.key,
+    cursors.findings ?? null,
+  )
 
-  const allNotes = noteRows(input.notes, reach, budget)
-  const notePage = has(reach, 'notes')
-    ? pageOf(
-        [...allNotes].sort((a, b) => byText(b.id, a.id)),
-        budget.notes,
-        (row) => row.id,
-        cursors.notes ?? null,
-      )
-    : withheld<NoteRow>(allNotes.length)
-  // **The factory floor.** Every one of the four is narrowed to the projects
-  // this device may read first, exactly as the tasks are — a request filed
-  // against a project a phone cannot see is not a request that phone is told
-  // about, counted or otherwise. The exceptions are the doors, which are not
-  // per project and whose own project lists are narrowed inside the row
-  // (`sourceRow`), and the workflows, which are stored in Tade's home and
-  // belong to no project: what narrows those is the `workflows` grant.
-  const intake = mine(input.intake)
-  const runs = input.runs.filter((run) => run.steps.some((step) => sees(reach, step.project)))
+  const notePage = pageOf(
+    [...noteRows(input.notes, budget)].sort((a, b) => byText(b.id, a.id)),
+    budget.notes,
+    (row) => row.id,
+    cursors.notes ?? null,
+  )
+  const intake = input.intake
+  const runs = input.runs
   const intakePage = pageOf(
     [...intake].sort((a, b) => b.at - a.at),
     budget.intake,
@@ -630,30 +585,30 @@ export function snapshotOf(
     (row) => row.run,
     cursors.runs ?? null,
   )
-  // **Withheld rather than empty where the grant is off**, which is the shape
-  // every other grant has: a phone is told *there are three workflows and you
-  // may not read them from here*, never *there are no workflows* — and the
-  // second of those is what a reader would conclude from an empty list.
-  const workflowPage = has(reach, 'workflows')
-    ? pageOf(
-        [...input.workflows].sort((a, b) => byText(a.name, b.name)),
-        budget.workflows,
-        (row) => row.name,
-        cursors.workflows ?? null,
-      )
-    : withheld<WorkflowIn>(input.workflows.length)
-  const planPage = has(reach, 'spend')
-    ? pageOf(plansKeyed(input.plans), budget.plans, (row) => row.id, cursors.plans ?? null)
-    : withheld<KeyedPlan>(input.plans.length)
+  const workflowPage = pageOf(
+    [...input.workflows].sort((a, b) => byText(a.name, b.name)),
+    budget.workflows,
+    (row) => row.name,
+    cursors.workflows ?? null,
+  )
+  const planPage = pageOf(
+    plansKeyed(input.plans),
+    budget.plans,
+    (row) => row.id,
+    cursors.plans ?? null,
+  )
 
   // **The last lines rather than the first**, because a conversation is read
   // from the bottom: what a phone opening the screen needs is the exchange
   // that just happened. The cursor pages *backwards* through what is left, so
   // `after` names the oldest line this page carried.
   const allChat = input.talk === null ? [] : chatRows(input.talk.lines)
-  const chatPage = has(reach, 'talk')
-    ? pageOf([...allChat].reverse(), budget.chat, (row) => row.id, cursors.chat ?? null)
-    : withheld<ChatRow>(allChat.length)
+  const chatPage = pageOf(
+    [...allChat].reverse(),
+    budget.chat,
+    (row) => row.id,
+    cursors.chat ?? null,
+  )
 
   const shownPerProject = new Map<string, number>()
   for (const task of taskPage.rows)
@@ -664,7 +619,6 @@ export function snapshotOf(
     fresh: freshnessOf(input, now, budget),
     you: {
       device: reach.device,
-      reads: readsOf(reach),
       talk:
         input.talk === null
           ? null
@@ -699,38 +653,29 @@ export function snapshotOf(
       workflows: info(workflowPage),
     },
     projects: projectPage.rows.map((project) =>
-      projectRow(
-        project,
-        reach,
-        budget,
-        tasks,
-        shownPerProject.get(project.name) ?? 0,
-        input.checks,
-      ),
+      projectRow(project, budget, tasks, shownPerProject.get(project.name) ?? 0, input.checks),
     ),
-    tasks: taskPage.rows.map((task) => taskRow(task, reach, budget)),
-    queue: queuePage.rows.map((item) => queueRow(item, reach, budget)),
+    tasks: taskPage.rows.map((task) => taskRow(task, budget)),
+    queue: queuePage.rows.map((item) => queueRow(item, budget)),
     findings: [...findingPage.rows]
       .sort((a, b) => byText(a.key, b.key))
       .map((found) => findingRow(found, budget)),
     notes: [...notePage.rows].sort((a, b) => byText(a.id, b.id)),
-    plans: planPage.rows.map((one) => planRow(one, reach, budget)),
+    plans: planPage.rows.map((one) => planRow(one, budget)),
     // Back into the order they were said in: the budget chose from the end,
     // and a page that drew them backwards would be a second ordering of the
     // one thing whose order is its meaning.
-    chat: withCalls(chatPage.rows, input.talk, has(reach, 'lanes')).sort((a, b) =>
-      byText(a.id, b.id),
-    ),
+    chat: withCalls(chatPage.rows, input.talk).sort((a, b) => byText(a.id, b.id)),
     // Back into id order for the wire, like every other collection: the
     // *choosing* order is newest-first, because cutting the newest request
     // would be absurd, and the order rows arrive in is what makes a delta a
     // shallow merge keyed by an id and nothing cleverer.
     intake: intakePage.rows
-      .map((one) => intakeRow(one, reach, budget))
+      .map((one) => intakeRow(one, budget))
       .sort((a, b) => byText(a.item, b.item)),
-    sources: sourcePage.rows.map((one) => sourceRow(one, reach)),
+    sources: sourcePage.rows.map((one) => sourceRow(one)),
     runs: runPage.rows.map((one) => runRow(one, reach, budget)),
-    workflows: workflowPage.rows.map((one) => workflowRow(one, reach, budget)),
+    workflows: workflowPage.rows.map((one) => workflowRow(one, budget)),
     machines: machineRows(input.machines ?? []),
     host: input.host ?? null,
   }
@@ -756,7 +701,6 @@ function info<T>(from: Page<T>): Snapshot['pages']['tasks'] {
 
 function projectRow(
   project: SnapshotInput['projects'][number],
-  reach: Reach,
   budget: Budget,
   tasks: readonly TaskIn[],
   shown: number,
@@ -765,7 +709,7 @@ function projectRow(
   const mine = tasks.filter((task) => task.project === project.name)
   return {
     name: project.name,
-    title: has(reach, 'titles') ? textOf(project.title, budget.text) : null,
+    title: textOf(project.title, budget.text),
     open: project.open,
     // The same rule the window builds it by at the act, out of the same row.
     rev: projectRev(projectFactsOf(project)),
@@ -779,7 +723,7 @@ function projectRow(
       working: mine.filter((task) => task.state === 'working' && !task.stalled).length,
       queued: mine.filter((task) => task.state === 'queued').length,
     },
-    checks: project.open ? checkTreesOf(trees, project.name, reach) : null,
+    checks: project.open ? checkTreesOf(trees, project.name) : null,
     watching: [...project.watching],
   }
 }
@@ -792,12 +736,11 @@ function projectRow(
 export function checkTreesOf(
   trees: readonly CheckTreeIn[] | null,
   project: string,
-  reach: Reach,
 ): CheckTreeOut[] | null {
   const mine = (trees ?? []).filter((tree) => tree.project === project)
   if (!mine.some((tree) => tree.task === null)) return null
   return mine
-    .map((tree) => ({ task: tree.task, checks: tracksOf(tree.runs, reach) }))
+    .map((tree) => ({ task: tree.task, checks: tracksOf(tree.runs) }))
     .filter((tree) => tree.task === null || tree.checks.length > 0)
     .sort((a, b) => (a.task === null ? -1 : b.task === null ? 1 : byText(a.task, b.task)))
 }
@@ -814,7 +757,7 @@ function answerOf(state: string): CheckRunOut['state'] {
  * and nothing is counted as left out. A run that wrote no time keeps its place
  * with `at: null`; the streak is over the runs that say when.
  */
-export function tracksOf(runs: readonly CheckRunIn[], reach: Reach): CheckTrackOut[] {
+export function tracksOf(runs: readonly CheckRunIn[]): CheckTrackOut[] {
   const byCheck = new Map<string, CheckRunIn[]>()
   for (const run of runs) {
     const list = byCheck.get(run.check)
@@ -829,15 +772,14 @@ export function tracksOf(runs: readonly CheckRunIn[], reach: Reach): CheckTrackO
       state: answerOf(run.state),
       ms: run.ms === null ? null : Math.max(0, Math.round(run.ms)),
     })),
-    by: byOf(all[all.length - 1]?.by ?? null, reach),
+    by: byOf(all[all.length - 1]?.by ?? null),
     streak: streakOf(all.filter((run) => run.at !== null)),
   }))
 }
 
-/** Who asked, unless it is a task in a project this device may not read: a task's id is `<project>/<name>`. */
-function byOf(by: string | null, reach: Reach): string | null {
-  if (by === null || by === '') return null
-  return !by.includes('/') || sees(reach, by.split('/')[0] ?? '') ? by : null
+/** Who asked: a task's id is `<project>/<name>`. */
+function byOf(by: string | null): string | null {
+  return by === null || by === '' ? null : by
 }
 
 /**

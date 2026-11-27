@@ -170,7 +170,7 @@ writes, or it is real text (a legend, a label, a value) with the marks `aria-hid
 - **Wrong**: `stateBoxIn(node, { kind: 'error', title, line, action })` for a region, `problem()`
   for a press; the words are `trouble.js`'s, never a body's own text.
 
-And two nulls are two sentences: *none* and *not granted to this device* (`nothingSaid`, `mayFor`).
+And a null is *not recorded* (`nothingSaid`), never *not granted*: every paired device reads everything.
 
 ## Before you say a page is done
 

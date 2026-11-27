@@ -10,12 +10,10 @@ import {
   appendPush,
   type Change,
   changesBetween,
-  changesFor,
   type Device,
   endpointAllowed,
   type Forgetting,
   generateVapid,
-  has,
   type Notice,
   NotThere,
   noticeable,
@@ -126,13 +124,8 @@ export interface Pushes {
   /** The paired devices as they are **now**, so a phone signed out counts. */
   devices: () => readonly { id: string; revoked: string | null }[]
   /**
-   * What this device was granted, or null for one that is no longer paired.
-   *
-   * One accessor and two questions, both out of the same grant: which
-   * projects it may be told about (`sees`) and whether a notification may name
-   * the work (`has(reach, 'titles')`). Two accessors would be two readings of
-   * one record, and the day they disagree is the day a phone is told about a
-   * project it cannot see.
+   * This device's reading, or null for one that is no longer paired. Every
+   * paired device is the person's own and is told about every project.
    */
   reach: (device: string) => Reach | null
   /**
@@ -313,15 +306,11 @@ export class WebPush {
     const standing = this.standingOf(device)
     if (standing.failures >= TRIES) return
     const reach = this.deps.reach(device)
-    // A device whose grant could not be read is a device that is no longer
-    // paired, and `sendable` will say so on the next beat. Nothing is sent to
-    // one in the meantime.
+    // A device that could not be read is a device that is no longer paired,
+    // and `sendable` will say so on the next beat. Nothing is sent to one in
+    // the meantime.
     if (reach === null) return
-    // **Narrowed to what this device reads, before the budget.** A count is
-    // still a fact about work, so a phone granted one project of five must not
-    // be told that something in the other four wants you — and doing it before
-    // the budget means one device's silence does not spend another's.
-    const mine = changesFor(changes, reach)
+    const mine = [...changes]
     if (mine.length === 0) return
     const now = this.deps.now()
     const decided = noticeFor(mine, {
@@ -332,11 +321,8 @@ export class WebPush {
       // own page in front of somebody quiets this one alone.
       lastInputAt: newest(this.deps.lastInputAt(), this.lookedAt.get(device) ?? null),
       localHour: this.deps.localHour?.() ?? new Date(now).getHours(),
-      // **Both halves, and the narrower one is the device's.** The setting is
-      // the ceiling and the grant is the floor: a phone that may not read what
-      // work is called never gets a name in a notification, whatever the
-      // setting says.
-      details: this.deps.config().surfaces.web.push_details && has(reach, 'titles'),
+      // The setting alone: every paired device reads what work is called.
+      details: this.deps.config().surfaces.web.push_details,
       already: new Set(standing.keys),
     })
     if (!decided.send) return
@@ -695,9 +681,8 @@ export function pushFor(
     attention: () => attentionFor('push', config().surfaces.voice.attention),
     tasks: () => away.tasks().map(noticeable),
     devices: away.devices,
-    // **Read off the device list at the moment of the send**, so a grant
-    // narrowed a second ago counts: what a notification may say and which
-    // projects it may be about are both this one answer.
+    // **Read off the device list at the moment of the send**, so a device
+    // revoked a second ago is sent nothing.
     reach: (device) => {
       const held = away.devices().find((one) => one.id === device && one.revoked === null)
       return held === undefined ? null : reachOf(held)

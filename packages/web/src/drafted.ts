@@ -5,7 +5,7 @@ import { type Admitted, REVISIONS_BEHIND, type Standing } from './acts.ts'
 import { DRAFT_BOUND, DRAFT_FIELD, DRAFT_NAME, DRAFT_SCOPE, type WebDrafting } from './drafting.ts'
 import { type Refusal, refuse } from './errors.ts'
 import type { Claimed, Receipts } from './receipts.ts'
-import { type Scope, trusted } from './surface.ts'
+import { trusted } from './surface.ts'
 import { KEY } from './verbs.ts'
 
 // One field of one draft, from a parsed body to what the device is told and
@@ -33,22 +33,12 @@ import { KEY } from './verbs.ts'
 // 5. **It is written down whatever happened**, a refusal included, as
 //    `web_did`. Never as a `said` line.
 //
-// ## The check this door has that the others do not
+// ## What this door does not ask
 //
-// `admit`'s third step is the project: a verb names a task, and the device's
-// read scope is the per-project boundary. A **draft names no project** — a
+// `admit` asks that a verb names a project. A **draft names no project** — a
 // workflow names the repository it works in through an input, and can name any
-// of them — so there is no project here to check, and inventing one would be
-// a boundary that was not a boundary.
-//
-// What takes its place is **every project**: a device whose reading is a list
-// may not save a draft at all. That is the honest narrowing rather than a
-// looser one, and it is in the direction that takes authority away: a phone
-// granted one repository of five cannot edit a file that could name the other
-// four. `admitAsk` solved the same problem by carrying the boundary into the
-// turn, which works for a message because what a message leads to always names
-// a project; a draft saved now is read by a run next week, and there is no
-// later moment at which to ask.
+// of them — and every paired device is the person's own and reaches every
+// project, so there is nothing here to ask.
 
 /** What one save's body carries. Strict: an undeclared field is a refusal. */
 const DraftBody = z.strictObject({
@@ -151,30 +141,9 @@ export function admitDraft(saving: Saving, standing: Standing): Admitted {
     return no('locked', `${saving.verb} while saving a draft is turned off`)
   }
 
-  // 2. The scope. `draft` and never `steer`: a device granted both acting
-  //    tiers has been granted eight bounded things about work that exists, and
-  //    not a file every future run would be stamped from.
-  if (!standing.scopes.includes('draft')) {
-    return no('out_of_scope', `${saving.verb} needs draft, device has ${said(standing.scopes)}`)
-  }
-
-  // 3. **Every project**, which is this door's own check and takes the place of
-  //    the per-project boundary a verb has. A workflow names the repository it
-  //    works in through an input and can name any of them, so a device whose
-  //    reading is a list of two may not edit a file that could name the other
-  //    three. The narrowing is in the direction that takes authority away, and
-  //    there is no later moment to ask it at: a draft saved now is read by a
-  //    run next week.
-  if (standing.reach.projects.kind !== 'every') {
-    return no(
-      'out_of_scope',
-      `${saving.verb} on ${saving.template} needs every project: a workflow can name any repository, and this device reads ${standing.reach.projects.names.length}`,
-    )
-  }
-
-  // 4. The origin, again — the one that is *only* ever a re-check, because the
+  // 2. The origin, again — the one that is *only* ever a re-check, because the
   //    network a device is on changes under it. A session that crossed a LAN in
-  //    the clear reads and saves nothing, whatever was granted at the machine.
+  //    the clear reads and saves nothing.
   if (!trusted(standing.origin, standing.surface)) {
     return no(
       'locked',
@@ -182,7 +151,7 @@ export function admitDraft(saving: Saving, standing: Standing): Admitted {
     )
   }
 
-  // 5. How old the screen was. A soft check, and the sentence says so: what
+  // 3. How old the screen was. A soft check, and the sentence says so: what
   //    decides whether a save is current is the draft's own hash.
   if (saving.rev > standing.rev || standing.rev - saving.rev > REVISIONS_BEHIND) {
     return no(
@@ -194,12 +163,8 @@ export function admitDraft(saving: Saving, standing: Standing): Admitted {
   return { ok: true }
 }
 
-function no(error: 'locked' | 'out_of_scope' | 'stale', why: string): Admitted {
+function no(error: 'locked' | 'stale', why: string): Admitted {
   return { ok: false, refusal: refuse(error), why }
-}
-
-function said(scopes: readonly Scope[]): string {
-  return scopes.join(', ') || 'nothing'
 }
 
 /** Everything one save is decided against. */

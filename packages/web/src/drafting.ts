@@ -10,11 +10,9 @@ import type { From, Outcome } from './acting.ts'
 // and that target belongs to no project, because a workflow names the
 // repository it works in through an input and can name any of them.
 //
-// So it is its own interface, its own route table, its own setting
-// (`surfaces.web.drafts`) and its own scope (`draft`) — and **acting does not
-// imply it**. A device granted both acting tiers has been granted eight
-// bounded things about work that already exists; it has not been granted a
-// file every future run of a workflow would be stamped from.
+// So it is its own interface, its own route table and its own setting
+// (`surfaces.web.drafts`): a file every future run of a workflow would be
+// stamped from is a different decision from acting on work that exists.
 //
 // ## What makes it safe, said here because this is where somebody looks
 //
@@ -66,8 +64,8 @@ export interface DraftCall {
  * device may ever do to a stored workflow.
  *
  * **There is no method here that reads one.** The workflows are read through
- * the projection like everything else — a collection with a budget, behind the
- * `workflows` grant — so there is no shape in this interface that could answer
+ * the projection like everything else — a collection with a budget — so there
+ * is no shape in this interface that could answer
  * with a template, and no handler that does any work.
  */
 export interface WebDrafting {

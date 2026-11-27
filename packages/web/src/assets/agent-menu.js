@@ -21,7 +21,6 @@ import { keyOf } from './controls.js'
 import { classOn, el, into, textIn } from './dom.js'
 import { icon, iconIn } from './icons.js'
 import { changesPath, taskPath } from './routes.js'
-import { fullAccessOf } from './trouble.js'
 import { answerIn } from './ui.js'
 
 /** How long a row must be held for it to be a long-press rather than a tap or a scroll. */
@@ -63,7 +62,7 @@ export async function sendAct(ctx, verb, row, typed, said) {
     `/api/act/${verb}`,
     bodyFor(verb, row, keyOf(), ctx.revOf(), typed),
   )
-  const came = afterAnswer(answer, ctx.sentence(answer), ctx.session?.() ?? null)
+  const came = afterAnswer(answer, ctx.sentence(answer))
   if (said !== null) answerIn(said, came.said, came.trouble)
   return came
 }
@@ -123,8 +122,8 @@ export function holdOpens(node, open) {
  * Start or stop, close, and ⋯ on one agent's row — the side's and the Agents
  * list's alike: the window's row's own presses, each through the
  * act door with what the row says it can be asked (`standingOf`). A verb this
- * device was not granted is not drawn at all; one it was, that cannot be done
- * now, is not drawn here and is in the menu with its reason. `acting` is the
+ * device cannot ask for is not drawn at all; one that cannot be done now is
+ * not drawn here and is in the menu with its reason. `acting` is the
  * page's context, the one menu, and how to read a row at the press; `saidOf`
  * is where what came of a press is said, under the row.
  */
@@ -209,16 +208,13 @@ export function agentPresses(acting, saidOf) {
     openMenu,
     update(row, acts) {
       task = row
-      // Whether this is the person's own device, off its own session: a drawing
-      // hint, asked again of the record at the act (`Verb.theirs`).
-      const theirs = acting !== null && fullAccessOf(acting.ctx.session?.() ?? null)
       const stop = standing('stop', row, acts)
       const start = standing('start', row, acts)
       toggleVerb = stop.kind === 'yes' ? 'stop' : start.kind === 'yes' ? 'start' : null
       toggle.hidden = toggleVerb === null
       if (toggleVerb !== null) iconIn(toggleIcon, toggleVerb === 'stop' ? 'stop' : 'play')
-      // Closing removes its worktree and branch: the person's own device's alone.
-      shut.hidden = !theirs || standing('remove', row, acts).kind !== 'yes'
+      // Closing removes its worktree and branch.
+      shut.hidden = standing('remove', row, acts).kind !== 'yes'
       relabel()
     },
   }
@@ -460,7 +456,7 @@ export function agentMenu(ctx) {
       }
     } else {
       items = []
-      const came = afterAnswer(answer, ctx.sentence(answer), ctx.session?.() ?? null)
+      const came = afterAnswer(answer, ctx.sentence(answer))
       answerIn(said, came.said, came.trouble)
     }
     draw()

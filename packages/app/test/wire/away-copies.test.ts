@@ -1,5 +1,5 @@
 import { request } from 'node:http'
-import { GRANTS, SCOPES, type Snapshot } from '@tade/web'
+import type { Snapshot } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   COOKIE,
@@ -14,8 +14,8 @@ import { until } from './harness.ts'
 
 // Every other machine's projection, handed to the person's own phone through
 // the real listener and the window's own beat: whole when its stream opens or
-// a machine is first heard, its change after, and nothing at all to a device
-// that is not the person's own (ONE-AWAY-VIEW step 1).
+// a machine is first heard, its change after (ONE-AWAY-VIEW step 1). A
+// machine's own link is never sent them: it is one of the machines.
 
 afterEach(closeAll)
 
@@ -23,7 +23,7 @@ const EPOCH = '0b1e0000-0000-4000-8000-000000000000'
 
 /** What another machine would have sent: a real projection, at its own epoch and revision. */
 function ipax(one: Machine, rev: number, title: string): Snapshot {
-  const made = projectionOf(one, [...GRANTS], OTHER)
+  const made = projectionOf(one, OTHER)
   return {
     ...made,
     fresh: { ...made.fresh, epoch: EPOCH, rev },
@@ -72,7 +72,7 @@ describe('another machine’s copy on the person’s own phone', () => {
   it('is whole at first, then only what changed, as the window’s beat moves', async () => {
     let held: Snapshot | null = null
     const one = await machine({ copies: () => [{ name: 'ipax', projection: held }] })
-    await paired(one.home, one.port, [...SCOPES], [...GRANTS])
+    await paired(one.home, one.port)
     await one.away.open()
     held = ipax(one, 4, 'Fix the parser')
     const stream = await listen(one.port)
@@ -102,22 +102,5 @@ describe('another machine’s copy on the person’s own phone', () => {
     await until('the change after it', () => machineFrames(resumed.text()).length === 1)
     expect(machineFrames(resumed.text())[0]).toMatchObject({ kind: 'change', from: 5 })
     resumed.close()
-  })
-
-  it('is never sent to a device that is not the person’s own', async () => {
-    let held: Snapshot | null = null
-    const one = await machine({ copies: () => [{ name: 'ipax', projection: held }] })
-    await paired(one.home, one.port, ['read'], [...GRANTS])
-    await one.away.open()
-    held = ipax(one, 4, 'x')
-    const stream = await listen(one.port)
-    await until('the stream to open', () => stream.text().includes('event: snapshot'))
-    // A change to this machine's own world, on the same beat a copy would
-    // have gone: waited for by what arrives after it, never by a sleep.
-    one.running(one.task)
-    await one.refresh()
-    await until('the beat’s own delta', () => stream.text().includes('event: delta'))
-    expect(machineFrames(stream.text())).toEqual([])
-    stream.close()
   })
 })

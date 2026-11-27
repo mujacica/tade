@@ -120,7 +120,7 @@ export async function carryOut(route: Route, body: unknown, ctx: Acted): Promise
   if (!reading.ok) return nothing(ctx, refuse('malformed'), route.verb ?? '')
   const asked = reading.asked
 
-  const allowed = admit(asked, verb.needs, ctx, verb.theirs === true)
+  const allowed = admit(asked, ctx)
   if (!allowed.ok) return no(ctx, asked, allowed.refusal)
 
   const bound = boundTo(ctx.device, asked)
@@ -171,8 +171,8 @@ export async function carryOut(route: Route, body: unknown, ctx: Acted): Promise
     )
   } catch (error) {
     // **Five failures, five answers, and none of them is a retry.** The
-    // state moved under the caller, the thing is not there, the device was not
-    // granted that, nothing here can do it, what was sent was too long — or
+    // state moved under the caller, the thing is not there, the device may
+    // not do that to it, nothing here can do it, what was sent was too long — or
     // the window itself broke — and in that last case the `asked` line stands with
     // nothing after it, so a repeat of this key is `unsure` rather than a
     // second attempt. That is the fail-closed half, and it is why the claim is

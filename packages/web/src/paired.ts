@@ -3,11 +3,10 @@ import { appendDevice, readDevices } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { type Asking, PAIR_TRIES, pairKeyOf, type Window } from './guard.ts'
 import { claimWritten } from './pending.ts'
-import type { Grant } from './reach.ts'
 import { inTime, labelOf, readBody } from './request.ts'
 import type { Confirmed, PairingAsk, Told } from './serving.ts'
 import { mint, SESSION_MS, setCookie } from './sessions.ts'
-import { type Origin, type Scope, type Surface, scopesOn } from './surface.ts'
+import { type Origin, type Surface, trusted } from './surface.ts'
 import { couldBeTicket, type Tickets } from './tickets.ts'
 
 // The pairing exchange: the one route that mints a credential, and the one
@@ -28,13 +27,13 @@ import { couldBeTicket, type Tickets } from './tickets.ts'
 //
 // A code `tade web pair` wrote is the same five with the fourth already done:
 // running the command was the yes (`pending.ts`), so step 3 burns it on the
-// disk too, and step 5 writes what the terminal let it have.
+// disk too.
 //
-// Nothing here decides who may read what: pairing mints what the person at
-// the machine let it have (`Confirmed`) — `read` alone when that is unsaid —
-// and the ceiling is the origin's (`scopesOn`), so a device on a plaintext
-// address reads and nothing more whatever was let. Widening or narrowing one
-// later is a separate act at the machine with no route at all.
+// Nothing here decides who may read what: every paired device is the person's
+// own. What pairing does write is whether it paired **in the clear** — over an
+// origin that is not trusted (`trusted`) — so that a device whose cookie
+// crossed a network anybody could read reads and never acts
+// (`Device.clear`), whatever is trusted later.
 
 /** What the pairing exchange needs, and nothing else reachable from it. */
 export interface Pairing {
@@ -135,7 +134,7 @@ export async function carryPairing(
     return ctx.answer(refuse('no_session'))
   }
 
-  return letIn(res, ctx, { ...confirmed, label: labelOf(label) }, null)
+  return letIn(res, ctx, labelOf(label), null)
 }
 
 /**
@@ -193,18 +192,8 @@ async function carryWritten(
     return ctx.answer(refuse('no_session'))
   }
   const code = claim.code
-  return letIn(
-    res,
-    ctx,
-    {
-      projects: code.projects,
-      granted: code.granted as readonly Grant[],
-      scopes: code.scopes as readonly Scope[],
-      // The terminal's name for it where it gave one, the phone's otherwise.
-      label: code.label === '' ? labelOf(label) : code.label,
-    },
-    code.id,
-  )
+  // The terminal's name for it where it gave one, the phone's otherwise.
+  return letIn(res, ctx, code.label === '' ? labelOf(label) : code.label, code.id)
 }
 
 /**
@@ -218,31 +207,26 @@ async function carryWritten(
 async function letIn(
   res: ServerResponse,
   ctx: Pairing,
-  given: {
-    projects: readonly string[] | null
-    granted: readonly Grant[]
-    scopes?: readonly Scope[]
-    label: string
-  },
+  label: string,
   id: string | null,
 ): Promise<void> {
   const { asking, origin, now, tell } = ctx
   const minted = mint(id ?? undefined)
   const device = minted.device
-  const scopes = scopesOn(origin, ctx.surface, given.scopes ?? ['read'])
+  // **In the clear** where the origin is not trusted: its cookie is set over a
+  // network anybody on it reads, so it reads and never acts (`Device.clear`).
+  const clear = !trusted(origin, ctx.surface)
   const until = new Date(now() + SESSION_MS)
   await appendDevice(ctx.home, {
     kind: 'paired',
     device,
     at: new Date(now()).toISOString(),
-    label: given.label,
+    label,
     digest: minted.digest,
     host: asking.host ?? '',
     csrf: minted.csrf,
     until: until.toISOString(),
-    scopes: [...scopes],
-    projects: given.projects === null ? null : [...given.projects],
-    granted: [...given.granted],
+    ...(clear ? { clear: true as const } : {}),
     from: asking.from,
   })
   tell({
@@ -252,13 +236,13 @@ async function letIn(
       from: asking.from,
       // Never the label: a label is a person's own words about their own
       // phone, and the telemetry allow-list keeps `device` and not this.
-      scopes: scopes.join(' '),
-      granted: [...given.granted].join(' '),
+      // Paired in the clear: it reads and never acts.
+      ...(clear ? { clear: 'yes' } : {}),
       // Which door let it in, as a word: the window's question, or a code the
       // terminal wrote — the strip says the second, since nobody here was asked.
       code: id === null ? 'window' : 'terminal',
     },
   })
   res.setHeader('set-cookie', setCookie(minted.cookie, origin.scheme === 'https'))
-  return ctx.json({ device, scopes, csrf: minted.csrf, reads: [...given.granted] }, 201)
+  return ctx.json({ device, csrf: minted.csrf, clear }, 201)
 }

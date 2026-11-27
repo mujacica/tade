@@ -18,7 +18,6 @@ import {
 } from '@tade/core'
 import type { HistoryAsk, HistoryPage } from '@tade/harnesses-core'
 import {
-  allowDevice,
   digestOf,
   type Reach,
   type Snapshot,
@@ -632,14 +631,14 @@ export function contextIn(home: string, task: string): string {
 export function rowOf(one: Machine, task: string): TaskRow {
   const made = (
     one.away as unknown as { readingFor: (reach: Reach) => WebReading }
-  ).readingFor.call(one.away, { device: DEVICE, projects: { kind: 'every' }, granted: [] })
+  ).readingFor.call(one.away, { device: DEVICE })
   const row = made.snapshot().tasks.find((each) => each.id === task)
   if (row === undefined) throw new Error(`no row for ${task}`)
   return row
 }
 
 /**
- * The whole projection, as a device with those grants would read it.
+ * The whole projection, as a device reads it.
  *
  * Through `readingFor` for `rowOf`'s reason: what a test reads is literally
  * what a phone would have been sent, built by the one function that decides
@@ -648,27 +647,15 @@ export function rowOf(one: Machine, task: string): TaskRow {
  */
 export function projectionOf(
   one: Machine,
-  granted: readonly string[] = [],
   /**
-   * The device this reading is for.
-   *
-   * **A different id per reach, and the default is only right once per test.**
-   * The window keeps one projector per device (`projectorFor`) — which is
-   * correct, because a read scope is per device and the projection is built
-   * per device — so two reads under one id get the projection built for
-   * whichever reach asked first. A test comparing a granted read with an
-   * ungranted one has to ask as two devices, which is what a person with two
-   * phones actually has.
+   * The device this reading is for. The window keeps one projector per device
+   * (`projectorFor`), so two reads under one id share what was built first.
    */
   device = DEVICE,
 ): Snapshot {
   const made = (
     one.away as unknown as { readingFor: (reach: Reach) => WebReading }
-  ).readingFor.call(one.away, {
-    device,
-    projects: { kind: 'every' },
-    granted: granted as Reach['granted'],
-  })
+  ).readingFor.call(one.away, { device })
   return made.snapshot()
 }
 
@@ -747,20 +734,8 @@ export function ask(
   return send(port, `/api/ask/${what}`, body)
 }
 
-/** A device in the file, already granted whatever the test needs. */
-export async function paired(
-  home: string,
-  port: number,
-  scopes: readonly string[],
-  /**
-   * What this device was granted at the machine.
-   *
-   * On the `paired` line and not through `allowDevice`, because that is where
-   * the record keeps them: widening what a device may *do* and widening what
-   * it may *read* are two acts, and only the first has a door of its own.
-   */
-  granted: readonly string[] = [],
-): Promise<void> {
+/** A device in the file: every paired device is the person's own. */
+export async function paired(home: string, port: number): Promise<void> {
   await writeDevices(home, [
     {
       kind: 'paired',
@@ -771,13 +746,9 @@ export async function paired(
       host: `127.0.0.1:${port}`,
       csrf: 'x'.repeat(43),
       until: new Date(Date.now() + 86_400_000).toISOString(),
-      scopes: ['read'],
-      projects: null,
-      granted: granted as never,
       from: '127.0.0.1',
     },
   ])
-  if (scopes.length > 0) await allowDevice(home, DEVICE, scopes, new Date())
 }
 
 /** One change to a setting, as a browser would send it. */

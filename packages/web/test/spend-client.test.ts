@@ -6,7 +6,6 @@ import {
   leadOf,
   machinesShape,
   moneySaid,
-  noMoneyWhy,
   onPlanSaid,
   periodOf,
   plansShape,
@@ -18,7 +17,7 @@ import {
 import { applyCopy, applySnapshot, emptyStore, spendFold } from '../src/assets/store.js'
 import { PROTOCOL_VERSION } from '../src/protocol.ts'
 import { snapshotOf } from '../src/snapshot.ts'
-import { EVERY, input, NOW, plan, project, reach, spend, task } from './fixtures.ts'
+import { input, NOW, plan, project, reach, spend, task } from './fixtures.ts'
 
 // What the spend page draws, against **real projected rows** rather than shapes
 // a test assembled: every figure goes through `snapshotOf`, so a field the
@@ -29,11 +28,11 @@ import { EVERY, input, NOW, plan, project, reach, spend, task } from './fixtures
 
 const spent = (over: Partial<Spend>): Spend => ({ ...noSpend(), ...over })
 
-/** The task rows a device is handed, granted everything unless a test says. */
-function rows(tasks: Parameters<typeof task>[0][], granted = EVERY) {
+/** The task rows a paired device is handed. */
+function rows(tasks: Parameters<typeof task>[0][]) {
   const made = snapshotOf(
     input({
-      reach: reach(granted),
+      reach: reach(),
       projects: [project(), project({ name: 'tade', title: '' }), project({ name: 'folio' })],
       tasks: tasks.map((one, at) => task({ id: `sentry/t${at}`, ...one })),
     }),
@@ -48,7 +47,7 @@ const onPlan = (usdOnPlan: number, tokens = 2_000_000) =>
 
 describe('the lead: what it cost', () => {
   it('draws a bill of one kind with its word, and names nothing it is made of', () => {
-    const lead = leadOf(rows([{ spend: bill(8.1) }]), { granted: true, partial: false })
+    const lead = leadOf(rows([{ spend: bill(8.1) }]), { partial: false })
     expect(lead.billed).toEqual({ value: '$8.10', word: 'billed', parts: [] })
   })
 
@@ -59,7 +58,7 @@ describe('the lead: what it cost', () => {
         { spend: spent({ usd: 4.2, usdEstimated: 4.2, hasCost: true }) },
         { spend: spent({ usd: 2.52, usdListed: 2.52, hasCost: true }) },
       ]),
-      { granted: true, partial: false },
+      { partial: false },
     )
     // A mix carries the guess's mark: some of it is not a bill.
     expect(lead.billed.value).toBe('~$14.82')
@@ -73,7 +72,6 @@ describe('the lead: what it cost', () => {
 
   it('never draws Tade’s own pricing as a bill', () => {
     const lead = leadOf(rows([{ spend: spent({ usd: 2.52, usdListed: 2.52, hasCost: true }) }]), {
-      granted: true,
       partial: false,
     })
     expect(lead.billed.value).toBe('≈$2.52')
@@ -82,7 +80,6 @@ describe('the lead: what it cost', () => {
 
   it('keeps what a plan would have cost out of the bill, beside it and marked', () => {
     const lead = leadOf(rows([{ spend: bill(8.1) }, { spend: onPlan(41.3) }]), {
-      granted: true,
       partial: false,
     })
     expect(lead.billed.value).toBe('$8.10')
@@ -91,9 +88,7 @@ describe('the lead: what it cost', () => {
 
   it('draws a plan’s worth as a floor where some of its turns had no rate', () => {
     const partly = spent({ ...onPlan(41.3), tokensOnPlanUnrated: 300_000 })
-    expect(leadOf(rows([{ spend: partly }]), { granted: true, partial: false }).onPlan.value).toBe(
-      '≥≈$41.30',
-    )
+    expect(leadOf(rows([{ spend: partly }]), { partial: false }).onPlan.value).toBe('≥≈$41.30')
   })
 
   it('says why there is no money, and never says nought', () => {
@@ -104,35 +99,23 @@ describe('the lead: what it cost', () => {
       tokensOnPlan: 5_000_000,
       tokensOnPlanUnrated: 5_000_000,
     })
-    const lead = leadOf(rows([{ spend: unrated }]), { granted: true, partial: false })
+    const lead = leadOf(rows([{ spend: unrated }]), { partial: false })
     expect(lead.billed).toEqual({ value: null, word: 'none reported', parts: [] })
     expect(lead.onPlan).toEqual({ value: null, word: 'no rate for its model' })
     expect(lead.tokens).toEqual({ value: '5.0M', word: 'none priced' })
   })
 
   it('tells a period with nothing in it from work nobody priced', () => {
-    const lead = leadOf(rows([{ spend: spent({}) }]), { granted: true, partial: false })
+    const lead = leadOf(rows([{ spend: spent({}) }]), { partial: false })
     expect(spentAny(lead.fold)).toBe(false)
     expect(lead.billed.word).toBe('nothing recorded')
     expect(lead.onPlan.word).toBe('no plan ran')
     expect(lead.tokens).toEqual({ value: null, word: 'nothing recorded' })
   })
 
-  it('draws a device that may not read money as not granted, not as nothing spent', () => {
-    const tasks = rows([{ spend: bill(8.1) }], [])
-    expect(tasks[0]?.spend).toBeNull()
-    const lead = leadOf(tasks, { granted: false, partial: false })
-    expect([lead.billed, lead.onPlan, lead.tokens].map((one) => [one.value, one.word])).toEqual([
-      [null, 'not granted'],
-      [null, 'not granted'],
-      [null, 'not granted'],
-    ])
-    expect(noMoneyWhy(lead.fold, false)).toBe('not granted')
-  })
-
   it('draws a sum over a snapshot that left tasks out as the floor it is', () => {
     const tasks = rows([{ spend: bill(8.1) }])
-    const lead = leadOf(tasks, { granted: true, partial: true })
+    const lead = leadOf(tasks, { partial: true })
     expect(lead.billed.value).toBe('≥$8.10')
     expect(lead.tokens.value).toBe('≥1k')
   })
@@ -251,7 +234,7 @@ describe('the plans', () => {
   function cards() {
     const plans = snapshotOf(
       input({
-        reach: reach(EVERY),
+        reach: reach(),
         plans: [
           plan({
             account: 'me@example.invalid',
@@ -310,21 +293,25 @@ describe('the plans', () => {
     expect(cards().map((one) => pressureSaid(one))).toEqual(['nearly out', '', '', ''])
   })
 
-  it('names an account this device may not read by its harness alone', () => {
-    const plans = snapshotOf(input({ reach: reach(['spend']) }), NOW).plans
+  it('names an account with no name by its harness alone', () => {
+    const plans = snapshotOf(input({ reach: reach(), plans: [plan({ account: null })] }), NOW).plans
     const [only] = plansShape(plans, NOW)
     expect(only?.account).toBeNull()
     expect(only?.name).toBe('claude-code')
   })
 
-  it('tells two sign-ins of one harness apart by their place where it is sent no names', () => {
+  it('tells two sign-ins of one harness apart by their place where neither has a name', () => {
     const plans = snapshotOf(
       input({
-        reach: reach(['spend']),
+        reach: reach(),
         plans: [
           plan({ account: null }),
-          plan({ account: 'personal' }),
-          plan({ account: 'vrolta' }),
+          plan({ account: null, pays: 'per-token' }),
+          plan({
+            account: null,
+            harness: 'claude-code',
+            at: Date.parse('2026-10-08T13:00:00.000Z'),
+          }),
         ],
       }),
       NOW,
@@ -362,9 +349,11 @@ describe('the plans', () => {
     expect(usesSaid({ newAgents: false, projects: [], notShown: 0 })).toBe('')
   })
 
-  it('says nothing of who runs as one to a device not granted the accounts', () => {
-    const plans = snapshotOf(input({ reach: reach(['spend']) }), NOW).plans
-    expect(plans[0]?.uses).toBeNull()
+  it('says nothing of who runs as one where nobody does', () => {
+    const plans = snapshotOf(
+      input({ reach: reach(), plans: [plan({ uses: { newAgents: false, projects: [] } })] }),
+      NOW,
+    ).plans
     expect(plansShape(plans, NOW)[0]?.uses).toBe('')
   })
 })
@@ -374,10 +363,10 @@ describe('every machine’s spend on the page', () => {
   function store(state: 'up' | 'closed') {
     const held = emptyStore()
     const machines = [{ name: 'mac', way: 'from' as const, state, since: NOW - 60_000 }]
-    applySnapshot(held, snapshotOf(input({ reach: reach(EVERY), machines, tasks: [task()] }), NOW))
+    applySnapshot(held, snapshotOf(input({ reach: reach(), machines, tasks: [task()] }), NOW))
     const theirs = snapshotOf(
       input({
-        reach: reach(EVERY),
+        reach: reach(),
         tasks: [
           task({ id: 'tade/one', project: 'tade', spend: spend(2) }),
           task({ id: 'tade/two', project: 'tade', spend: spend(2) }),
@@ -434,7 +423,7 @@ describe('every machine’s spend on the page', () => {
 
   it('is nothing where the page holds no other machine', () => {
     const held = emptyStore()
-    applySnapshot(held, snapshotOf(input({ reach: reach(EVERY), tasks: [task()] }), NOW))
+    applySnapshot(held, snapshotOf(input({ reach: reach(), tasks: [task()] }), NOW))
     expect(machinesShape(held)).toBeNull()
   })
 })

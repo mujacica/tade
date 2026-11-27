@@ -4,7 +4,6 @@ import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
 import { SIGN_IN_KEYS, SIGN_IN_TEXT_MAX, type SignInStanding } from './signing-in.ts'
-import { fullAccessLacks, ownsOrTheirs } from './surface.ts'
 
 // Settings › Accounts, for every machine of the person's, from one place: the
 // person's own phone, and another of their machines' windows, which is how
@@ -30,10 +29,10 @@ import { fullAccessLacks, ownsOrTheirs } from './surface.ts'
 // (`signing-in.ts`). The token goes where that harness keeps it there and
 // never through Tade.
 //
-// **The person's, and never the orchestrator's.** Theirs and an owner's, as
-// every route of the SSH key's is (`here` and `theirs` in `routes.ts`): adding
-// or signing in an account is what that key may do at the machine, and the
-// person decided their phone may do what they can. No orchestrator tool
+// **The person's, and never the orchestrator's.** A paired device's and an
+// owner's, as every route of the SSH key's is (`here` in `routes.ts`): adding
+// or signing in an account is what that key may do at the machine, and every
+// paired device is the person's own. No orchestrator tool
 // reaches these doors, and in `settingReach` the `accounts` subtree — what
 // makes a sign-in exist — is `never`, while which one new agents run as is
 // `asked`, so only the person's own words can move it.
@@ -175,7 +174,6 @@ export async function accountsHere(
   accounts: WebAccounts | undefined,
 ): Promise<{ body: AccountsAnswer } | { refusal: Refusal }> {
   if (accounts === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: notTheirs(device) }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const parsed = AccountsCall.safeParse(got.body)
@@ -190,17 +188,11 @@ export async function accountSignInHere(
   accounts: WebAccounts | undefined,
 ): Promise<{ body: AccountSignInStanding } | { refusal: Refusal }> {
   if (accounts === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: notTheirs(device) }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const parsed = AccountSignInCall.safeParse(got.body)
   if (!parsed.success) return { refusal: refuse('malformed') }
   return { body: await accounts.signIn(parsed.data, device.id) }
-}
-
-/** Every box a device lacks for full access, named: ticking it at the machine is the whole fix. */
-function notTheirs(device: Device): Refusal {
-  return refuse('out_of_scope', { needs: fullAccessLacks(device) })
 }
 
 /** A call as it is sent on to the machine it names: that machine's own, so it names none. */

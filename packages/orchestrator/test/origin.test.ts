@@ -3,7 +3,6 @@ import { fileURLToPath } from 'node:url'
 import {
   type Arm,
   AWAY_WORDS,
-  armFor,
   armMay,
   armSees,
   cameFromAway,
@@ -176,7 +175,7 @@ describe('what a remote turn may reach', () => {
     // And what a narrowed one is told says where the person can do it.
     const refused = allowTool('tade_project_sync', everything)
     expect(refused.ok).toBe(false)
-    if (!refused.ok) expect(refused.said).toContain('on their own device with full access')
+    if (!refused.ok) expect(refused.said).toContain('on a device they paired')
   })
 
   it('never passes a narrowed phone’s words on to another machine, where they would be its owner’s', () => {
@@ -356,13 +355,13 @@ describe('what a remote turn may reach', () => {
       const said = allowMethod('queue/change', { task: 'sentry/flake', change }, outbox)
       expect(said.ok, change).toBe(false)
     }
-    // A device is never granted tidy, whatever its record says: it stops nothing and pauses nothing.
-    const phone = armFor({
-      id: 'a1b2c3d4e5f60718',
+    // An arm without tidy stops nothing and pauses nothing.
+    const phone: Arm = {
+      how: 'remote',
+      device: 'a1b2c3d4e5f60718',
       projects: null,
-      scopes: ['read', 'answer', 'steer', 'tidy'],
-    })
-    expect(phone).toMatchObject({ may: ['answer', 'steer'] })
+      may: ['answer', 'steer'],
+    }
     expect(allowMethod('worker/stop', { task: 'sentry/flake' }, phone).ok).toBe(false)
     expect(allowMethod('worker/close', { task: 'sentry/flake' }, phone).ok).toBe(false)
     expect(allowMethod('queue/change', { task: 'sentry/flake', change: 'pause' }, phone)).toEqual({

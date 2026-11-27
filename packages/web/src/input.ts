@@ -51,8 +51,8 @@ import type { Reach } from './reach.ts'
 // /Users/amir/work/thing.ts*, or into which somebody pasted a credential, goes
 // out as they wrote it, because the house rule is *never lowercase or reword
 // one* and a scrubbed note is a reworded note. What stands instead is that it
-// is marked as authored (`Said`), cut to a budget, carried only where the
-// device was granted it, and drawn as text and never as markup.
+// is marked as authored (`Said`), cut to a budget, and drawn as text and
+// never as markup.
 //
 // So the projection's claim is exactly this and nothing stronger: **the away
 // view adds no path and no credential of its own, and it shows what you wrote
@@ -234,8 +234,7 @@ export interface TaskIn {
    *
    * Metadata by its job and a person's own words by its content — an account
    * name is whatever they called it at the harness, which is often an email
-   * address. Granted (`accounts`) rather than default, for that reason alone.
-   * Empty for the harness's own sign-in.
+   * address. Empty for the harness's own sign-in.
    */
   account: string
   /**
@@ -270,8 +269,7 @@ export interface TaskIn {
    * works as `.`, Tade's home as `~/.tade`, the home directory as `~`, any other
    * absolute path its last name behind `…/`, then read whole. **Never the raw
    * summary**: the window builds this with the places only it knows, so no root
-   * crosses into this package. The projection sends it only to a device that
-   * may answer (`ANSWERING`); null where nothing said what it runs.
+   * crosses into this package. Null where nothing said what it runs.
    */
   approval: { id: string; tool: string; sinceAt: number; command: string | null } | null
   /**
@@ -316,11 +314,11 @@ export interface TaskIn {
    * read is, and the page draws the reason beside the control it has turned
    * off rather than leaving a hole.
    *
-   * It is **not** permission. A device's scopes and the acting setting are the
+   * It is **not** permission. The acting setting and the origin are the
    * gate's (`acts.ts`), re-asked at the act; this is about whether the thing
    * is *possible* — a harness that cannot steer, an agent that is not
    * running, a task already finished. A row that says `can` is still refused
-   * where the grant does not allow it.
+   * where the gate does not allow it.
    */
   can: readonly Can[]
   cannot: readonly Cannot[]
@@ -498,11 +496,7 @@ export interface NoteIn {
  * bytes, a machine path — is still a name that fails a test. This is the
  * hand-written allow-list over it, which is the only shape that gets to go to
  * a phone: a few fields, a tool's **name**, an outcome in one word, and the
- * call itself only as `chatRows` cleans it and only for a device granted an
- * agent's own bytes (`lanes`).
- *
- * Behind its own grant (`talk`), because reading what somebody typed at their
- * own keyboard is a decision somebody makes per device, exactly as `notes` is.
+ * call itself only as `chatRows` cleans it.
  */
 export interface ChatIn {
   /**
@@ -599,8 +593,8 @@ export interface TalkIn {
   /** Whose turn is in flight, as `byOf` writes it. Empty for none. */
   whose: string
   /**
-   * Whether **this** device may send one: granted `ask`, on a trusted origin,
-   * with the setting on.
+   * Whether **this** device may send one: on a trusted origin, with the
+   * setting on.
    *
    * A drawing hint and **not permission** — the gate re-asks every layer at
    * the turn (`admitAsk`) — and it is here for the reason `TaskRow.can` is:

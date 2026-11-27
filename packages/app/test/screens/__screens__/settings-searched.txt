@@ -16,14 +16,14 @@
   A │  Voice                     █│                                                                               █│    
   M │                            █│ Push to talk                        ctrl   +   space       Change…            █│    
     │  Window                    █│                                                                               █│    
- ▾ F│                            █│ Notification signing key          generated when it is first needed           ▕│    
+ ▾ F│                            █│ Notification signing key          generated when it is first needed           █│    
    ▾│  Away view                 █│                                                                               ▕│    
     │                            █│ A PAIRED DEVICE MAY                                                           ▕│    
     │  Intake                    █│ Act                              ────████ on                                  ▕│    
    ▸│                            █│                                                                               ▕│    
-━   │  Projects              ● 1 █│ Talk to Tade                     ────████ on                                  ▕│   ━
+━   │  Projects              ● 1 █│ Get notifications                ────████ on                                  ▕│   ━
     │                            ▕│                                                                               ▕│    
-    │  Journal                   ▕│ Change settings                  ────████ on                                  ▕│   ▕
+    │  Journal                   ▕│ Get work names in them           ────████ on                                  ▕│   ▕
     │                            ▕│                                                                               ▕│   ▕
     │  Telemetry                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕

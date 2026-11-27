@@ -67,10 +67,10 @@ function held(commandOf?: Beatable['commandOf']): Beatable {
   }
 }
 
-/** The snapshot one device reads, by the scopes it was granted. */
-function snapshotFor(live: Beatable, scopes: readonly string[]) {
+/** The snapshot a paired device reads. */
+function snapshotFor(live: Beatable) {
   const made = awayCollections(beatParts(live, world(), () => ({ how: null, why: 'none' })))
-  const reach = reachOf({ id: 'dev_7f3a9c21', projects: null, granted: [], scopes })
+  const reach = reachOf({ id: 'dev_7f3a9c21' })
   const lifetime = { epoch: 'e', rev: 0, openedAt: NOW }
   return projector({ ...made, talk: null, reach, lifetime }, NOW).snapshot()
 }
@@ -84,8 +84,8 @@ const places = (summary: string, work: string) =>
   commandOut(summary, { work, tade: `${HOME}/.tade`, home: HOME }, [])
 
 describe('the command an approval asks about, from the window to a phone', () => {
-  it('reaches a device that may answer with every path shortened', () => {
-    const row = snapshotFor(held(places), ['read', 'answer']).tasks[0]
+  it('reaches a paired device with every path shortened', () => {
+    const row = snapshotFor(held(places)).tasks[0]
     expect(row?.approval?.command).toEqual({
       text:
         'Bash: cd . && cat ~/.ssh/id_rsa …/passwd ' +
@@ -96,26 +96,15 @@ describe('the command an approval asks about, from the window to a phone', () =>
     expect(row?.reason).toBe('wants approval: Bash')
   })
 
-  it('reaches a device without `answer` as nothing new', () => {
-    const snapshot = snapshotFor(held(places), ['read', 'steer', 'ask'])
-    expect(snapshot.tasks[0]?.approval).toEqual({
-      id: 'req_31',
-      tool: 'Bash',
-      since: new Date(NOW).toISOString(),
-      command: null,
-    })
-    expect(JSON.stringify(snapshot)).not.toContain('id_rsa')
-  })
-
-  it('carries nothing of the machine, whatever the device was granted', () => {
-    const snapshot = JSON.stringify(snapshotFor(held(places), ['read', 'answer']))
+  it('carries nothing of the machine', () => {
+    const snapshot = JSON.stringify(snapshotFor(held(places)))
     for (const one of [HOME, '/etc/', 'sk-fake-Xg7kQ2mPvR4tLz8w']) {
       expect(snapshot).not.toContain(one)
     }
   })
 
   it('is not sent at all by a window that did not say how to let it out', () => {
-    expect(snapshotFor(held(), ['read', 'answer']).tasks[0]?.approval?.command).toBeNull()
+    expect(snapshotFor(held()).tasks[0]?.approval?.command).toBeNull()
   })
 })
 

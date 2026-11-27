@@ -69,7 +69,7 @@ export const HTTPONLY_IS_NOT_XSS =
   'against that is that the page builds no markup at all.'
 
 /**
- * What is true of every paired device, said wherever one is granted or listed.
+ * What is true of every paired device, said wherever one is paired or listed.
  *
  * The same treatment `KEYS_AND_AGENTS` gets, for the same reason: the fact,
  * then the way out, in one breath. Nothing in the file can answer it, so it is
@@ -90,9 +90,7 @@ export const DEVICES_SEEN_BY_AGENTS = 'an agent on this machine could pair itsel
  *
  * The two facts a person needs before the switch and not after it: that it
  * dies with the window, so a bookmark tapped with Tade closed is a connection
- * error and not an empty control room. What a device may change is the other
- * fact, and it is not this sentence's: it is granted per device, at this
- * machine, in the pairing list.
+ * error and not an empty control room.
  */
 export const AWAY_IS_WHILE_OPEN =
   'The away view answers only while this window is open: close Tade and nothing is listening, ' +
@@ -101,59 +99,46 @@ export const AWAY_IS_WHILE_OPEN =
 /**
  * What a paired device may and may not do, said where acting is turned on.
  *
- * The same shape as the sentences above: the fact, then what stands against
- * it, in one breath. Three facts, and the middle one is the one a person
- * deciding has to be able to picture — a request from a phone runs in the same
- * conversation as the things they said at the keyboard, and the only thing
- * keeping last week's *turn the checks off* from authorising it is that the
- * refusal is in code rather than in a prompt.
+ * **Every paired device is the person's own** (decided 26 Nov): pairing is a
+ * code only this machine shows or a shell here writes, a passkey stands behind
+ * anything above reading from a public name, and a revoke ends one at its next
+ * request. So the sentence is what the buttons reach and what they never do,
+ * and where the rest is reached instead — talking to Tade, or Settings — so
+ * the two halves do not read as a contradiction.
  *
  * **The lifecycle half says what closing costs**, because it is the one act
  * here that writes the config: a project's line leaves it, its own settings
  * with it, and opening it again puts back the root the journal kept — never a
- * path a device named. "Can never change a setting" with that left out would
- * be the comfortable version of this sentence.
- *
- * **Both halves, as `TALKING_IS_NOT_YOU` has them**: the person's own device
- * (`theirsOf`: full access, a phone or an owner's link) acts as them — they decided it
- * may do everything they can here, a revoke away if it is stolen — and every
- * other device's act is a request. The list of what acting never reaches is
- * still true of the buttons on either; what the person's own reaches past
- * it, it reaches by talking to Tade or on Settings, which is said so the two
- * halves do not read as a contradiction.
+ * path a device named.
  */
 export const ACTING_IS_NOT_YOU =
-  'Your own device, with full access, acts as you; untick anything and it is an ordinary device ' +
-  'again. A request from any other paired device is never your own words. On work you already ' +
-  'set up a device can answer what an agent is waiting on, tell one something, hold or release ' +
-  'queued work, add a note or a line to what a task is told, mark work finished, and approve a ' +
-  'request a grant here already allowed. A device that may answer is shown the command it is ' +
-  'answering, with this machine’s paths shortened — where the task works as ./, your home as ~, ' +
-  'any other path cut to its last name — and every key Tade holds taken out; one that may not is ' +
-  'shown only the tool’s name. Where you granted that device each of them, it can also stop an ' +
+  'Every device you pair is yours and acts as you. On the work here it can answer what an agent ' +
+  'is waiting on, tell one something, hold or release queued work, add a note or a line to what ' +
+  'a task is told, mark work finished, approve a request a grant here already allowed, stop an ' +
   'agent or open a stopped one again where it left off, start one — saying nothing to it — ' +
-  'rename it, switch its model or how hard it thinks, and close a project or open a closed one ' +
-  'again: closing deletes nothing and stops nothing, but the project’s own settings go with it ' +
-  'and opening it puts back only where it lives. Only your own device can remove an agent with ' +
-  'its worktree and branch, run it as another account or in another harness, or hand it to ' +
-  'another of your machines. Beyond that, acting can never change a setting — that is a switch ' +
-  'of its own — read a credential, run a command, start an agent on words a device typed, push, ' +
-  'merge or overrule a check; what your own device reaches past that, it reaches by talking to ' +
-  'Tade or on Settings, as you would here. Acting needs this machine ' +
-  'itself or an https origin you named in Trusted hostnames, so a credential that crossed a network in ' +
-  'the clear never buys one — and every act is in the journal under the device that took it.'
+  'rename it, switch its model or how hard it thinks, run it as another account or in another ' +
+  'harness, remove an agent with its worktree and branch, hand it to another of your machines, ' +
+  'and close a project or open a closed one again: closing deletes nothing and stops nothing, but ' +
+  'the project’s own settings go with it and opening it puts back only where it lives. An ' +
+  'approval shows the command it is about, with this machine’s paths shortened — where the task ' +
+  'works as ./, your home as ~, any other path cut to its last name — and every key Tade holds ' +
+  'taken out. Acting can never change a setting — that is a switch of its own — read a ' +
+  'credential, run a command, start an agent on words a device typed, push, merge or overrule a ' +
+  'check; what your device reaches past that, it reaches by talking to Tade or on Settings, as ' +
+  'you would here. Acting needs this machine itself or an https origin you named in Trusted ' +
+  'hostnames, so a device paired over a network in the clear only ever reads — and every act is ' +
+  'in the journal under the device that took it.'
 
 /** The short clause, for the one line a control gets. */
-export const ACTING_IS_NOT_YOU_SHORT = 'full access acts as you; other devices, as a request'
+export const ACTING_IS_NOT_YOU_SHORT = 'every paired device acts as you'
 
 /**
- * What stays an act at this machine, however much a device is granted.
+ * What stays an act at this machine, from every device.
  *
  * The line the factory surface is read against, and it is a *list* rather
  * than a promise about care: publishing a workflow decides what every future
- * run of it does, granting a source decides whose words become work here,
- * granting an account or a tool decides what an agent runs as, and changing
- * what a device may do is the authority deciding about itself. None of them
+ * run of it does, and granting an account or a tool decides what an agent
+ * runs as. None of them
  * has a route, and `packages/web/test/separation.test.ts` reads this list
  * against the route table rather than trusting the sentence.
  *
@@ -161,10 +146,10 @@ export const ACTING_IS_NOT_YOU_SHORT = 'full access acts as you; other devices, 
  * that only listed refusals would read as a surface nobody finished.
  */
 export const LOCAL_ONLY_ACTS =
-  'Publishing a workflow or a persona, turning a source on, granting an account or a tool, and ' +
-  'changing what a device may do are acts at this machine and have no route at all. A granted ' +
-  'device can read what has been handed over, approve a request a grant here already allowed, ' +
-  'follow what the work does, and save a draft nobody has published.'
+  'Publishing a workflow or a persona and granting an account or a tool are acts at this ' +
+  'machine and have no route at all. A device can read what has been handed over, approve a ' +
+  'request a grant here already allowed, follow what the work does, and save a draft nobody has ' +
+  'published.'
 
 /** The short clause, for the one line a control gets. */
 export const LOCAL_ONLY_SHORT = 'publishing and granting stay acts at the machine'
@@ -199,38 +184,23 @@ export const DRAFTS_ARE_NOT_PUBLISHED_SHORT = 'a draft is a file no run reads un
  * because *only harmless settings* is the word a comfortable version would
  * keep while dropping which ones.
  *
- * **Why the `asked` tier is not in it for an ordinary device, said here
- * because somebody will want it to be.** `settingReach`'s `asked` tier is
- * passed by the person's own words naming the setting (`namedBy`, over the
- * journal's `said` lines), and there is no provenance an ordinary device can
- * bring that is those words: a request from a phone is a request
- * (`ACTING_IS_NOT_YOU`), and reading the person's *old* lines would let a
- * phone ride on a sentence they said last week about something else — the
- * same hole Phase 3 found in remote turns. So it is refused in code, and the
- * sentence says where those settings are changed instead.
- *
- * **The person's own device is the one exception** (`theirsOf` in
- * `@tade/web`): full access, a phone or an owner's link. They decided it may do
+ * **Every paired device is the person's own**, so it reaches every tier:
+ * they decided it may do
  * everything they can at the machine, a revoke away if it is stolen, so it
  * changes any setting, a key included — still with two presses, against the
  * value it was shown, under that device's name. An agent here that paired
- * itself with full access reaches nothing it could not already: it runs as
- * the person and can edit `config.yaml` itself (`KEYS_AND_AGENTS`).
+ * itself reaches nothing it could not already: it runs as the person and can
+ * edit `config.yaml` itself (`KEYS_AND_AGENTS`).
  */
 export const SETTINGS_FROM_AWAY =
-  'A device you granted it can change only the settings an ordinary request is enough for — the ' +
-  'width of the sidebar and the height of the strip, the editor a file opens in, and what a ' +
-  'project it can read pushes — each with two presses, against the value it was shown, and ' +
-  'written in the journal under that device. Your own device, with full access, changes any ' +
-  'setting as you would here, a key included; untick anything and it is an ordinary device ' +
-  'again. On any other, a setting that needs your own words is changed at this machine, ' +
-  'because a request from a device is never your own words and an agent here could pair ' +
-  'itself; one that widens what an agent may do, hands out a key or changes who can reach Tade ' +
-  'has no route at all. A key or a token is shown as set or not set and is never read back.'
+  'Every device you pair is yours and changes any setting as you would here, a key included — ' +
+  'each with two presses, against the value it was shown, and written in the journal under that ' +
+  'device. A key or a token is shown as set or not set and is never read back. An agent on this ' +
+  'machine could pair itself, and reaches nothing that way it could not already: it runs as you ' +
+  'and can edit the config itself.'
 
 /** The short clause, for the one line a control gets. */
-export const SETTINGS_FROM_AWAY_SHORT =
-  'full access changes any setting; other devices only the few, no key'
+export const SETTINGS_FROM_AWAY_SHORT = 'any setting, a key included, never shown'
 
 /**
  * What installing this needs of the origin, said where somebody turns it on.
@@ -344,14 +314,13 @@ export const PUSH_GOES_THROUGH_A_STRANGER_SHORT =
  * The second half is the trade details are, said where somebody turns them on:
  * a notification is **kept** by a push service until the phone takes it and
  * then drawn on a lock screen, which is a different place from a page behind a
- * session — and it is still narrowed by what that device was granted to read,
- * so a phone that may not read titles never gets one in a notification either.
+ * session.
  */
 export const PUSH_SAYS_NOTHING =
   'A notification says how many pieces of work want you and nothing else: no project, no task, ' +
   'no title, no words of yours, nothing an agent wrote and no code. Details add the name of the ' +
   'work — to something a push service keeps until the phone takes it and a lock screen draws ' +
-  'without being unlocked — and never more than that device was granted to read anyway.'
+  'without being unlocked.'
 
 /** The short clause, for the one line a control gets. */
 export const PUSH_SAYS_NOTHING_SHORT = 'a count and no text at all unless details are on'
@@ -442,8 +411,8 @@ export const PUSH_KEY_IS_GENERATED =
 export const PUBLIC_IS_THE_INTERNET =
   'A public name puts this page on the internet, through Caddy: anybody can load it and ask to ' +
   'pair, and pairing still needs the code this machine shows. Whatever arrives that way is ' +
-  'public — never this machine, never a session paired on it — and may do only what you grant ' +
-  'each device here. Clearing the name takes it off the internet.'
+  'public — never this machine, never a session paired on it — and acts only with its passkey. ' +
+  'Clearing the name takes it off the internet.'
 
 /** The short clause, for the line the away panel gives what it is listening as. */
 export const PUBLIC_IS_THE_INTERNET_SHORT = 'anybody on the internet can load it and ask to pair'
@@ -507,10 +476,9 @@ export function passkeyHoursOf(written: number): number {
  * `drafts`, `settings`, `install`, `offline`, `push`, `push_details` — default
  * to on, because the person asked for turning the away view on to be one click
  * to a working setup rather than a second page of switches. What that trades is
- * said where it is decided: each key still only *offers* a capability, and a
- * device has none of the ones that change anything until somebody at this
- * machine grants it, per device, in the pairing list (`allowDevice`) — the one
- * door a scope widens through. `bind` stays `loopback`: it is a choice of
+ * said where it is decided: each key offers a capability to every paired
+ * device, because every one is the person's own, and pairing is the one door
+ * in. `bind` stays `loopback`: it is a choice of
  * network rather than an on, and `lan` is the clear.
  *
  * Still separate decisions, never one switch, because conflating `enabled` and
@@ -531,7 +499,7 @@ export const WebSurface = z
      * every browser capability works. `lan` is every interface, in the
      * clear, and is a **read-only transport**: a session minted over
      * plain HTTP off this machine can never act, whatever is turned on
-     * later (`scopesOn`).
+     * later (`Device.clear`).
      */
     bind: z.enum(['loopback', 'lan']).default('loopback'),
     /**
@@ -591,14 +559,12 @@ export const WebSurface = z
      * Whether a paired device may change anything at all.
      *
      * **A third decision.** On by default since turning the away view on was
-     * made one click (see above), and still nothing on its own: a device acts
-     * only once granted at this machine. With this off there is no acting
+     * made one click (see above). With this off there is no acting
      * route in the table at all
      * (`routesFor`), so a crafted call is the same `404` as a path nobody
      * built — read-only is enforced by absence rather than by a flag a bug
-     * could get past. It is not enough on its own either: a device still
-     * needs the scope a person granted it at the machine, and the request
-     * still needs a trusted origin. `ACTING_IS_NOT_YOU` is the sentence that
+     * could get past. It is not enough on its own: the request still needs a
+     * trusted origin. `ACTING_IS_NOT_YOU` is the sentence that
      * goes with it, and what acting can never reach is in it rather than left
      * to be inferred.
      *
@@ -662,19 +628,10 @@ export const WebSurface = z
     /**
      * Whether a paired device may change a setting.
      *
-     * **A tenth decision, and the narrowest of the ones that write.** It
-     * reaches exactly the settings `settingReach` puts in its `open` tier —
-     * the ones an ordinary request is enough for — and nothing in `asked`,
-     * because that tier is passed by the person's own words and a device has
-     * none to bring (`SETTINGS_FROM_AWAY` has the argument). Nothing in a
-     * `never` subtree has a route at all: `surfaces.web`, `approvals`,
-     * `accounts`, `extensions`, `mcp` and every key are out of reach however
-     * this is set.
-     *
-     * Still not enough on its own: a device needs the `configure` scope a
-     * person grants it in the away panel, the `settings` reading grant (a
-     * device may not change what it was not allowed to see), a trusted
-     * origin, and each change names the value it was shown.
+     * **A tenth decision.** It reaches every setting from every paired
+     * device, a key included, because every one is the person's own
+     * (`SETTINGS_FROM_AWAY`). Still not enough on its own: a trusted origin,
+     * and each change names the value it was shown.
      *
      * Turning it **on** takes effect the next time Tade starts, for the reason
      * `acting` does: the route table is built with the listener. Turning it
@@ -756,10 +713,7 @@ export const WebSurface = z
      *
      * It is a setting and not a per-device grant because what it decides is
      * what may appear on a lock screen, which is one answer for every phone of
-     * yours. The per-device half is still there and still narrows it: a device
-     * that was not granted `titles` gets no name in a notification either, so
-     * this can only ever reach as far as that device's own reading already
-     * does.
+     * yours.
      */
     push_details: z.boolean().default(true),
     /**

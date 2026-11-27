@@ -2,15 +2,12 @@ import { READY, said } from '../test/browser-plan.ts'
 import { PHONES } from './browser-queue.ts'
 import { until } from './browser-until.ts'
 
-// `machines`: the Machines page drawn for the person's own device, at a small
-// phone's width and a large one's.
+// `machines`: the Machines page drawn for a paired device, at a small phone's
+// width and a large one's.
 //
-// The page is the person's own device's alone (`Route.theirs`: full access,
-// not a machine link), so every other pass of the harness sees only its
-// refusal. This one is asked of the acting device after `browser.ts` regrants
-// it every scope at the machine (`allowDevice`, the one door a scope widens
-// through) — a sixth pairing would pass the server's five per address — and
-// asks what a browser alone can: that the grid the window hands over is drawn,
+// Asked of the acting device `browser.ts` already paired — a sixth pairing
+// would pass the server's five per address — and asks what a browser alone
+// can: that the grid the window hands over is drawn,
 // a line per machine for every item and nothing refused, and that it fits a
 // phone with every control big enough for a thumb.
 

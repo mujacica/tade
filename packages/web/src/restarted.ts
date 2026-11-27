@@ -3,18 +3,16 @@ import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
-import { fullAccessLacks, ownsOrTheirs } from './surface.ts'
 
 // Restarting Tade from the person's own phone: the window started again on the
 // code that is on disk now, as its own reload does (ctrl+r's `reload`, the
 // orchestrator's `tade_reload`) — what the page's restart bar asks for when
 // Tade's code changed since it started.
 //
-// **Theirs, as the Machines page is** (`here` and `theirs` in `routes.ts`):
-// starting Tade again is what the SSH key that started it may do, and the
-// person decided their phone may do what they can. Off this machine's door it
-// is asked a trusted origin and the passkey, as acting is; every other session
-// is refused it however much it was granted.
+// **The SSH key's, as the Machines page is** (`here` in `routes.ts`):
+// starting Tade again is what the SSH key that started it may do, and every
+// paired device is the person's own. Off this machine's door it is asked a
+// trusted origin and the passkey, as acting is.
 //
 // **A target plus the state it expects**, like every verb: the body names how
 // many lanes the device was told would stop, and the window asks again at the
@@ -56,10 +54,6 @@ export async function restartHere(
   restarting: WebRestarting | undefined,
 ): Promise<{ body: RestartAnswer } | { refusal: Refusal }> {
   if (restarting === undefined) return { refusal: refuse('no_such') }
-  // Every box it lacks for full access, named: ticking it at the machine is the whole fix.
-  if (!ownsOrTheirs(device)) {
-    return { refusal: refuse('out_of_scope', { needs: fullAccessLacks(device) }) }
-  }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const parsed = RestartBody.safeParse(got.body)
@@ -78,8 +72,8 @@ export async function restartHere(
 // `/login` on this machine's tab on another of the person's machines ends in
 // (`Carries.signInOrchestrator` there). Its harness runs headless and keeps
 // the sign-in it started with, so a sign-in made over the link reaches it only
-// once it starts again — its conversation carried, as on any restart. Theirs
-// and an owner's, as `/api/restart` is: a smaller act than that one, which
+// once it starts again — its conversation carried, as on any restart. A
+// paired device's and an owner's, as `/api/restart` is: a smaller act than that one, which
 // the same SSH key may already do. Nothing it asks for stops a lane.
 
 /** What a press to start the orchestrator again is answered. */
@@ -106,9 +100,6 @@ export async function orchestratorRestartHere(
   restarting: WebOrchestratorRestart | undefined,
 ): Promise<{ body: OrchestratorRestartAnswer } | { refusal: Refusal }> {
   if (restarting === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) {
-    return { refusal: refuse('out_of_scope', { needs: fullAccessLacks(device) }) }
-  }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   if (!OrchestratorRestartBody.safeParse(got.body).success) return { refusal: refuse('malformed') }

@@ -1,7 +1,7 @@
 import { type Arm, LOCAL } from '@tade/core'
-import { chatRev, type Device, GRANTS, SCOPES } from '@tade/web'
+import { chatRev, type Device } from '@tade/web'
 import { describe, expect, it } from 'vitest'
-import { armingFor, narrowed, type Paired, webAsking } from '../../src/wire/web-asking.ts'
+import { armingFor, narrowed, webAsking } from '../../src/wire/web-asking.ts'
 
 // What the `ToolHost` is asked at every call, over the cases the lease cannot
 // answer on its own.
@@ -14,6 +14,9 @@ import { armingFor, narrowed, type Paired, webAsking } from '../../src/wire/web-
 // call, and it can only ever take away.
 
 const DEVICE = 'a1b2c3d4e5f60718'
+
+/** What a turn whose device has gone reaches: nothing, under its id. */
+const NOTHING: Arm = { how: 'remote', device: DEVICE, projects: [], may: [] }
 
 const away = (over: Partial<Extract<Arm, { how: 'remote' }>> = {}): Arm => ({
   how: 'remote',
@@ -28,100 +31,35 @@ describe('the arm, re-checked against the record', () => {
     expect(narrowed(LOCAL, () => null)).toBe(LOCAL)
   })
 
-  it('takes every grant off a device that is no longer paired', () => {
+  it('takes everything off a device that is no longer paired', () => {
     // The id stays — the audit needs it — and everything else goes. What is
     // left reaches nothing: every gated method refuses, and the one read it
     // could make is answered by `seen`, which throws for a device that is gone.
-    expect(narrowed(away(), () => null)).toEqual({
-      how: 'remote',
-      device: DEVICE,
-      projects: [],
-      may: [],
-    })
+    expect(narrowed(away(), () => null)).toEqual(NOTHING)
   })
 
-  it('narrows a grant that was narrowed while the turn was running', () => {
-    const paired = (): Paired => ({ projects: ['sentry'], scopes: ['read', 'ask', 'answer'] })
-    expect(narrowed(away(), paired)).toEqual({
-      how: 'remote',
-      device: DEVICE,
-      projects: ['sentry'],
-      may: ['answer'],
-    })
-  })
-
-  it('never widens one, because a grant made during a turn is not one it was given', () => {
-    const wide = (): Paired => ({
-      projects: null,
-      scopes: ['read', 'ask', 'answer', 'steer'],
-    })
-    expect(narrowed(away({ projects: ['sentry'], may: ['answer'] }), wide)).toEqual({
-      how: 'remote',
-      device: DEVICE,
-      projects: ['sentry'],
-      may: ['answer'],
-    })
+  it('leaves a remote arm as it was while the device is still paired', () => {
+    expect(narrowed(away(), () => ({}))).toEqual(away())
   })
 
   it('keeps an owner’s reach only while the record still says owner', () => {
-    // The lease can only ever take away: revoked is
-    // a remote arm that reaches nothing, and a record that stopped saying owner
-    // is the device's own grants — never wider than the keyboard it had.
+    // The lease can only ever take away: revoked is a remote arm that reaches
+    // nothing, and a record that is no longer a machine link reaches nothing
+    // either — never wider than the keyboard it had.
     const owner: Arm = { how: 'owner', device: DEVICE }
-    const still = (): Paired => ({ projects: null, scopes: ['read', 'ask'], owner: true })
-    expect(narrowed(owner, still)).toBe(owner)
-    expect(narrowed(owner, () => null)).toEqual({
-      how: 'remote',
-      device: DEVICE,
-      projects: [],
-      may: [],
-    })
-    const ordinary = (): Paired => ({ projects: ['sentry'], scopes: ['read', 'ask', 'answer'] })
-    expect(narrowed(owner, ordinary)).toEqual({
-      how: 'remote',
-      device: DEVICE,
-      projects: ['sentry'],
-      may: ['answer'],
-    })
+    expect(narrowed(owner, () => ({ owner: true }))).toBe(owner)
+    expect(narrowed(owner, () => null)).toEqual(NOTHING)
+    expect(narrowed(owner, () => ({}))).toEqual(NOTHING)
   })
 
-  it('keeps the person’s own device as them only while it has full access', () => {
+  it('keeps the person’s own phone as them while it is paired, and nothing once revoked', () => {
     // Revoking is the safety net and it is instant: a device disconnected
-    // mid-turn reaches nothing from the next call on. Unticking any one box
-    // makes it a device with exactly what is left, mid-turn included.
+    // mid-turn reaches nothing from the next call on.
     const yours: Arm = { how: 'owner', device: DEVICE, theirs: true }
-    const full = (): Paired => ({
-      projects: null,
-      scopes: [...SCOPES],
-      granted: [...GRANTS],
-    })
-    expect(narrowed(yours, full)).toBe(yours)
-    expect(narrowed(yours, () => null)).toEqual({
-      how: 'remote',
-      device: DEVICE,
-      projects: [],
-      may: [],
-    })
-    const lessOne = (): Paired => ({
-      projects: null,
-      scopes: SCOPES.filter((scope) => scope !== 'steer'),
-      granted: [...GRANTS],
-    })
-    expect(narrowed(yours, lessOne)).toEqual({
-      how: 'remote',
-      device: DEVICE,
-      projects: null,
-      may: ['answer'],
-    })
-    // A machine link with full access is still a link: its words are not theirs.
-    expect(narrowed(yours, () => ({ ...full(), owner: true }))).toMatchObject({ how: 'remote' })
-  })
-
-  it('keeps the projects both lists agree on', () => {
-    const some = (): Paired => ({ projects: ['sentry', 'docs'], scopes: ['read', 'ask'] })
-    expect(narrowed(away({ projects: ['sentry', 'payments'], may: [] }), some)).toMatchObject({
-      projects: ['sentry'],
-    })
+    expect(narrowed(yours, () => ({}))).toBe(yours)
+    expect(narrowed(yours, () => null)).toEqual(NOTHING)
+    // A machine link is still a link: its words are not theirs.
+    expect(narrowed(yours, () => ({ owner: true }))).toEqual(NOTHING)
   })
 })
 
@@ -151,7 +89,7 @@ describe('what is handed over, and what it writes down', () => {
     const lines: Record<string, unknown>[] = []
     const arming = armingFor({
       arm: () => away(),
-      paired: () => ({ projects: null, scopes: ['read', 'ask'] }),
+      paired: () => ({}),
       seen: async () => ({}),
       log: async (event) => {
         lines.push(event)
@@ -196,8 +134,7 @@ describe('what is handed over, and what it writes down', () => {
 
 describe('an owner device’s arm, built at the turn', () => {
   // Both halves, and neither is the request's word: the record says owner, and
-  // the door says the message came in on this machine. Either alone is an
-  // ordinary device's narrowed turn.
+  // the door says the message came in on this machine.
   const record = (owner: boolean): Device => ({
     id: DEVICE,
     label: 'mac',
@@ -206,9 +143,7 @@ describe('an owner device’s arm, built at the turn', () => {
     csrf: 'x'.repeat(43),
     until: Date.now() + 86_400_000,
     pairedAt: Date.now(),
-    scopes: ['read', 'ask', 'steer'],
-    projects: null,
-    granted: [],
+    clear: false,
     from: '',
     revoked: null,
     owner,
@@ -241,17 +176,20 @@ describe('an owner device’s arm, built at the turn', () => {
     expect(await armedFor(true, true)).toEqual([{ how: 'owner', device: DEVICE }])
   })
 
-  it('is a device’s ordinary arm anywhere else', async () => {
-    const remote = { how: 'remote', device: DEVICE, projects: null, may: ['steer'] }
-    expect(await armedFor(true, false)).toEqual([remote])
-    expect(await armedFor(false, true)).toEqual([remote])
+  it('is refused off this machine’s door, which an owner session is never answered on', async () => {
+    await expect(armedFor(true, false)).rejects.toThrow(/this machine alone/)
+  })
+
+  it('is the person’s own arm where the record is a phone, on any door', async () => {
+    const theirs = { how: 'owner', device: DEVICE, theirs: true }
+    expect(await armedFor(false, true)).toEqual([theirs])
+    expect(await armedFor(false, false)).toEqual([theirs])
   })
 })
 
 describe('the person’s own device, built at the turn', () => {
-  // Full access — every scope and every reading grant, what pairing gives —
-  // is the person: the keyboard's reach from any door the guard let it
-  // through, and what they typed kept as their own words.
+  // Every paired phone is the person: the keyboard's reach from any door the
+  // guard let it through, and what they typed kept as their own words.
   const device = (over: Partial<Device> = {}): Device => ({
     id: DEVICE,
     label: 'phone',
@@ -260,9 +198,7 @@ describe('the person’s own device, built at the turn', () => {
     csrf: 'x'.repeat(43),
     until: Date.now() + 86_400_000,
     pairedAt: Date.now(),
-    scopes: [...SCOPES],
-    projects: null,
-    granted: [...GRANTS],
+    clear: false,
     from: '203.0.113.9',
     revoked: null,
     owner: false,
@@ -297,15 +233,6 @@ describe('the person’s own device, built at the turn', () => {
     const { armed, theirs } = await asked(device(), false)
     expect(armed).toEqual([{ how: 'owner', device: DEVICE, theirs: true }])
     expect(theirs).toEqual(['turn the commit judge on'])
-  })
-
-  it('keeps exactly its grant once anything is taken away, and nothing is theirs', async () => {
-    const narrowedOne = device({ granted: GRANTS.filter((grant) => grant !== 'lanes') })
-    const { armed, theirs } = await asked(narrowedOne, false)
-    expect(armed).toEqual([
-      { how: 'remote', device: DEVICE, projects: null, may: ['answer', 'steer'] },
-    ])
-    expect(theirs).toEqual([])
   })
 
   it('is refused at once once revoked', async () => {

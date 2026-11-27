@@ -8,7 +8,7 @@ import { ENDPOINT_BOUND } from './endpoint.ts'
 //
 // `devices.ts`'s file, shape and reasons, for a different kind of row — which
 // is why it is a **second file and not a second line kind in the first**. A
-// device record is a credential's digest and what a person granted; this is a
+// device record is a credential's digest and who the device is; this is a
 // third party's URL and two of the browser's own public keys. They are revoked
 // by different acts, written at different moments, and the one rule this file
 // has that the other does not is that a row here is only ever as good as the

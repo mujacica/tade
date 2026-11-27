@@ -1,5 +1,5 @@
 import { LinkError } from '@tade/remotes-core'
-import { GRANTS, SCOPES, digestOf as secretDigest, writeDevices } from '@tade/web'
+import { digestOf as secretDigest, writeDevices } from '@tade/web'
 import { Memory } from '@tade/workbench/memory'
 import { answerNotes, type NotesAsk } from '@tade/workbench/notes-shared'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -29,9 +29,6 @@ async function owner(home: string, port: number): Promise<void> {
       host: `127.0.0.1:${port}`,
       csrf: 'x'.repeat(43),
       until: new Date(Date.now() + 86_400_000).toISOString(),
-      scopes: [...SCOPES],
-      projects: null,
-      granted: [...GRANTS],
       from: '',
       owner: true,
     },

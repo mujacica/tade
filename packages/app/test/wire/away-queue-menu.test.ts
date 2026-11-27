@@ -1,26 +1,20 @@
 import { existsSync } from 'node:fs'
 import { request } from 'node:http'
 import { taskDir } from '@tade/core'
-import { GRANTS, SCOPES } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import { act, COOKIE, closeAll, type Machine, machine, paired, revOf } from './away-harness.ts'
 
 // Queued work's menu from away — what the side's ⋯ and a long-press on a piece
 // of queued work open — each press all the way through a real listener to the
-// window's own door, and the menu itself the window's `queueMenuItems`, cut to
-// what a device may ask.
+// window's own door, and the menu itself the window's `queueMenuItems`.
 //
 // **Each press is sent as the menu says to send it**: its verb, and the change
 // its item carries (`with`), read out of the menu's own answer — so a menu that
 // mapped an item to the wrong choice fails here rather than on a phone. What
 // each leaves behind is read off the journal and the task's folder, never the
-// answer. A device narrower than an item needs is not shown it, and asking
-// anyway is refused at the gate with its cause and reaches no door.
+// answer.
 
 afterEach(closeAll)
-
-/** Every scope, and every reading grant: the person's own device. */
-const EVERYTHING = { scopes: [...SCOPES], granted: [...GRANTS] }
 
 interface Item {
   id: string
@@ -29,13 +23,10 @@ interface Item {
   act: { kind: string; verb?: string; with?: Record<string, string> }
 }
 
-/** A machine with one piece of queued work, ready to start, and a device paired with `scopes`. */
-async function queuedOn(
-  scopes: readonly string[],
-  granted: readonly string[] = [],
-): Promise<Machine> {
+/** A machine with one piece of queued work, ready to start, and a device paired. */
+async function queuedOn(): Promise<Machine> {
   const one = await machine()
-  await paired(one.home, one.port, scopes, granted)
+  await paired(one.home, one.port)
   await one.away.open()
   one.queued(one.task)
   one.queuedPane(one.task, { kind: 'ready' })
@@ -103,7 +94,7 @@ function itemOf(items: readonly Item[], id: string): Item {
 
 describe('queued work’s menu, from away', () => {
   it('is the window’s own queued-work menu, each choice carrying the queue’s verb', async () => {
-    const one = await queuedOn(EVERYTHING.scopes, EVERYTHING.granted)
+    const one = await queuedOn()
     const menu = await menuOf(one)
     expect(menu.status).toBe(200)
     expect(menu.items.map((item) => item.id)).toEqual([
@@ -140,7 +131,7 @@ describe('queued work’s menu, from away', () => {
   })
 
   it('reaches the queue’s own door with each press, written as the device', async () => {
-    const one = await queuedOn(['read', 'steer'])
+    const one = await queuedOn()
     const items = (await menuOf(one)).items
 
     const started = await press(one, itemOf(items, 'queue-start'))
@@ -177,48 +168,10 @@ describe('queued work’s menu, from away', () => {
   })
 
   it('removes queued work from the person’s own device through its Remove', async () => {
-    const one = await queuedOn(EVERYTHING.scopes, EVERYTHING.granted)
+    const one = await queuedOn()
     const remove = itemOf((await menuOf(one)).items, 'queue-remove')
     const removed = await press(one, remove, { confirm: true })
     expect(removed.status).toBe(200)
     expect(existsSync(taskDir(one.home, one.task))).toBe(false)
-  })
-
-  it('shows a device granted no steer none of the queue’s choices, and refuses one asked anyway', async () => {
-    const one = await queuedOn(['read', 'answer'])
-    const ids = (await menuOf(one)).items.map((item) => item.id)
-    expect(ids).toContain('open')
-    for (const id of ['queue-start', 'queue-first', 'queue-pause', 'queue-wait', 'queue-remove']) {
-      expect(ids, id).not.toContain(id)
-    }
-    const asked = await act(one.port, 'queue', {
-      task: one.task,
-      was: revOf(one, one.task),
-      key: keyOf(),
-      rev: 0,
-      change: 'pause',
-    })
-    expect(asked.status).toBe(403)
-    expect(asked.body.error).toBe('out_of_scope')
-    expect(await one.client.events({ types: ['queue_changed'] })).toEqual([])
-  })
-
-  it('shows a device that is not the person’s own no Remove, and refuses one asked anyway', async () => {
-    const one = await queuedOn(['read', 'steer', 'agents'])
-    const ids = (await menuOf(one)).items.map((item) => item.id)
-    expect(ids).toContain('queue-pause')
-    expect(ids).toContain('rename')
-    expect(ids).not.toContain('queue-remove')
-    const asked = await act(one.port, 'remove', {
-      task: one.task,
-      was: revOf(one, one.task),
-      key: keyOf(),
-      rev: 0,
-      confirm: true,
-    })
-    expect(asked.status).toBe(403)
-    expect(asked.body.error).toBe('out_of_scope')
-    // Refused at the gate: the work is where it was.
-    expect(existsSync(taskDir(one.home, one.task))).toBe(true)
   })
 })

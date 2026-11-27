@@ -7,7 +7,7 @@ import { nowScreen } from '../src/assets/pages/overview.js'
 import { applyCopy, applySnapshot, emptyStore } from '../src/assets/store.js'
 import { CONVERSATION_WHY, PROTOCOL_VERSION, SCREEN_WHY } from '../src/protocol.ts'
 import { snapshotOf } from '../src/snapshot.ts'
-import { EVERY, input, NOW, reach, task } from './fixtures.ts'
+import { input, NOW, reach, task } from './fixtures.ts'
 
 // The page's half of an agent looked into, as far as anything offline can see
 // it: the sentences it says for each absence, held equal to the words the
@@ -25,10 +25,8 @@ describe('why there is no screen, said', () => {
     expect(Object.keys(WHY_SAID).sort()).toEqual([...SCREEN_WHY].sort())
   })
 
-  it('never says a device was refused what it was not granted', () => {
-    // A grant is the person at the machine's to make, so the sentence says
-    // where it is made rather than that this device did something wrong.
-    expect(WHY_SAID['not granted']).toContain('at the machine')
+  it('never says a device was not granted a screen: every paired device reads them', () => {
+    expect(Object.keys(WHY_SAID)).not.toContain('not granted')
     // And no agent is not "could not read": one is the work, the other is the
     // reading, and somebody does something different about each.
     expect(WHY_SAID['no agent']).not.toBe(WHY_SAID['could not read'])
@@ -38,7 +36,7 @@ describe('why there is no screen, said', () => {
 describe('its conversation, asked for again', () => {
   it('says why there is none for every word the machine can send, and none for a word it cannot', () => {
     expect(Object.keys(UNREAD_SAID).sort()).toEqual([...CONVERSATION_WHY].sort())
-    expect(UNREAD_SAID['not granted']?.[1]).toContain('at the machine')
+    expect(Object.keys(UNREAD_SAID)).not.toContain('not granted')
   })
 
   it('keeps the turns it holds where the machine says they have not moved', () => {
@@ -106,10 +104,10 @@ describe('another machine’s agents on the Agents page', () => {
     })
     const store = emptyStore()
     const machines = [{ name: 'mac', way: 'from' as const, state, since: NOW - 60_000 }]
-    applySnapshot(store, snapshotOf(input({ reach: reach(EVERY), machines }), NOW))
+    applySnapshot(store, snapshotOf(input({ reach: reach(), machines }), NOW))
     const theirs = snapshotOf(
       input({
-        reach: reach(EVERY),
+        reach: reach(),
         tasks: [
           task({ id: 'tade/one', project: 'tade' }),
           task({ id: 'tade/two', project: 'tade', state: 'review' }),
@@ -188,13 +186,13 @@ describe('what wants you on another machine, on the overview', () => {
     const machines = [
       { name: 'mac', way: 'from' as const, state: 'up' as const, since: NOW - 60_000 },
     ]
-    applySnapshot(store, snapshotOf(input({ reach: reach(EVERY), machines }), NOW))
+    applySnapshot(store, snapshotOf(input({ reach: reach(), machines }), NOW))
     const blocked = task({ id: 'tade/stuck', project: 'tade', state: 'blocked' })
     applyCopy(store, {
       v: PROTOCOL_VERSION,
       machine: 'mac',
       kind: 'whole',
-      snapshot: snapshotOf(input({ reach: reach(EVERY), tasks: [blocked] }), NOW),
+      snapshot: snapshotOf(input({ reach: reach(), tasks: [blocked] }), NOW),
     })
     const screen = nowScreen()
     doc.body.append(screen.node)

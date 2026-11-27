@@ -66,18 +66,12 @@ export interface Refusal {
    */
   rev?: string
   /**
-   * What was missing, by Tade's own names, where a refusal is about one: the
-   * scopes and grants a device lacks (`out_of_scope`) — every one it lacks for
-   * full access where a route is the person's own device's — or `https`, where
-   * a device that may act asked over a connection that is not trusted
-   * (`locked` from the guard).
-   *
-   * **So the page can say the exact box to tick rather than "not granted"**:
-   * the person's own phone was told to tick full access when what refused it
-   * was something else entirely, and there was nothing on the wire to tell the
-   * two apart. Only ever told to a device with a session (both refusals come
-   * after the session layer), and only names from Tade's own vocabulary — the
-   * page draws a name it knows and nothing else (`trouble.js`).
+   * What was missing, by Tade's own names, where a refusal is about one:
+   * `https`, where a device asked to act over a connection that is not trusted
+   * or one it paired over in the clear (`locked` from the guard) — a
+   * different fix from a setting turned off, which the page could not
+   * otherwise tell apart. Only ever told to a device with a session, and only
+   * names from Tade's own vocabulary (`trouble.js`).
    */
   needs?: readonly string[]
 }
@@ -88,7 +82,7 @@ const SAID: Readonly<Record<ErrorKind, { status: number; said: string }>> = {
   // One sentence for all five checks at the door, on purpose: which of them
   // refused is a map of the guard, and the page's move is the same either way.
   bad_origin: { status: 403, said: 'that request did not come from this address' },
-  out_of_scope: { status: 403, said: 'this device was not granted that' },
+  out_of_scope: { status: 403, said: 'this device may not do that' },
   locked: { status: 403, said: 'that needs turning on at the machine' },
   // A session that is good for reading and has not used its passkey lately:
   // the one refusal whose fix is in the person's hand rather than at the
@@ -119,7 +113,7 @@ const SAID: Readonly<Record<ErrorKind, { status: number; said: string }>> = {
   // `404` and not `403`, and this is the entry somebody will want to change: a
   // `403` saying "turn diffs on" tells whoever holds a stolen session that
   // there is a diff route and what the setting is called. The person who needs
-  // to know reads what they were granted in their own snapshot.
+  // to know reads what is on in their own snapshot.
   not_offered: { status: 404, said: 'there is nothing here by that name' },
   too_big: { status: 413, said: 'that was too long to send' },
   slow_down: { status: 429, said: 'too many tries — wait a moment' },

@@ -10,8 +10,7 @@
 // information**: the side is the same rows the screens draw, and the dock is
 // the last lines of the conversation and the same box the conversation screen
 // has (`composerOf`). The one way anything here says something to the work is
-// through Tade, which is narrowed to what this device was granted at the
-// machine.
+// through Tade.
 //
 // Each of the three folds (`docks.js`), and below a desk's width the side is a
 // drawer and on a phone Tade is a sheet: one press away, never gone.
@@ -19,7 +18,6 @@
 // **Built once and patched**, like every screen: a part is filled on every
 // paint and rebuilt never, so focus and a half-typed message survive a delta.
 
-import { mayFor } from './access.js'
 import { classOn, el, into, keyed, textIn, toneOn } from './dom.js'
 import { followOf } from './follow.js'
 import { CHAT_KINDS, toolNamed } from './glyphs.js'
@@ -102,9 +100,8 @@ function dockIn(made, view) {
   const there = navFor(view.where) === 'talk'
   made.node.hidden = there
   if (there) return
-  const may = mayFor(view.store, 'chat')
   const talk = talkOf(view.store)
-  const shown = may ? chatOf(view.store).slice(-STRIP_LINES) : []
+  const shown = chatOf(view.store).slice(-STRIP_LINES)
   keyed(
     made.lines,
     shown,
@@ -114,16 +111,9 @@ function dockIn(made, view) {
   )
   // **The absences, each in its own words**, as the conversation screen has
   // them. A surface that is off is the composer's to say (`reasonFor`), once,
-  // under where the box would be; what is left here is this device not being
-  // granted the lines, or nothing having been said.
-  const said =
-    (talk ?? null) === null
-      ? ''
-      : !may
-        ? 'Not granted'
-        : shown.length === 0
-          ? 'Nothing said yet'
-          : ''
+  // under where the box would be; what is left here is nothing having been
+  // said.
+  const said = (talk ?? null) === null ? '' : shown.length === 0 ? 'Nothing said yet' : ''
   textIn(made.quiet, said)
   made.quiet.hidden = said === ''
   const end = shown.at(-1)

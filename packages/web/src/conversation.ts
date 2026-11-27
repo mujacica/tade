@@ -3,8 +3,7 @@ import { commandOut, type Places } from './command.ts'
 import type { Call, Said, TurnRow } from './protocol.ts'
 import { cleanText } from './screen.ts'
 
-// A conversation's words, as a device granted an agent's own bytes may read
-// them: the orchestrator's tool calls (`chatRows`) and an agent's turns out of
+// A conversation's words, as a paired device reads them: the orchestrator's tool calls (`chatRows`) and an agent's turns out of
 // its harness's record (`agentOf`).
 //
 // **Nobody's words, cleaned at this boundary.** What a model said and what a

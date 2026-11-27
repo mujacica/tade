@@ -1,7 +1,7 @@
 // What the page offers on one task, and what it sends — the decisions, pure.
 //
 // **Its own file, and the split is the point.** Everything here is a function
-// of a row and this device's scopes: which controls to draw, what each one
+// of a row and what this device may ask for: which controls to draw, what each one
 // sends, and what to do with the answer. `controls.js` turns these into nodes
 // and listeners. That is what makes the page's own rules testable at all —
 // there is no DOM in this repository's `lib` and no jsdom in its lockfile, so
@@ -19,9 +19,9 @@
 //   not a reason to throw somebody's paragraph away: only a `200` clears a
 //   box. That is one line (`afterAnswer`) and it is the line somebody would
 //   write the other way round.
-// - **The scope is a drawing hint and never an authority.** It is the scopes
-//   on this device's own session; the machine re-asks the setting, the origin,
-//   the project and the state at the act. A page that lied here would get a
+// - **What this device may ask for is a drawing hint and never an authority.**
+//   It is read off this device's own session (`actsOf`); the machine re-asks
+//   the setting, the origin, the passkey and the state at the act. A page that lied here would get a
 //   `403`, which is the right way round.
 
 import { troubleOf } from './trouble.js'
@@ -75,29 +75,29 @@ export const PROJECT_SHOWN = ['close', 'open']
 export const PAIRS = { reopen: 'stop', open: 'close' }
 
 /**
- * The scope each verb needs, as the page's copy of `VERBS`.
+ * What kind of act each verb is (`SCOPES`), as the page's copy of `VERBS`.
  *
  * Two copies of one rule, for the reason `live.js` and `glyphs.js` have two:
  * a browser cannot import a `.ts` file and there is no build step.
  * `test/acts-client.test.ts` runs the verb table through both and asserts they
- * agree, so a verb filed at another tier makes the test fail rather than
+ * agree, so a verb filed under another kind makes the test fail rather than
  * making the page draw a button that is refused.
  */
 export const NEEDS = {
   park: 'steer',
-  answer: 'answer',
+  answer: 'steer',
   steer: 'steer',
   queue: 'steer',
   done: 'steer',
   note: 'steer',
   context: 'steer',
-  intake: 'answer',
-  // The lifecycle: two scopes of their own, implied by neither tier above.
+  intake: 'steer',
+  // The lifecycle.
   stop: 'agents',
   reopen: 'agents',
   close: 'projects',
   open: 'projects',
-  // The rest of an agent's own menu, at the agents scope.
+  // The rest of an agent's own menu.
   start: 'agents',
   remove: 'agents',
   rename: 'agents',
@@ -107,13 +107,6 @@ export const NEEDS = {
   harness: 'agents',
   move: 'agents',
 }
-
-/**
- * The verbs only the person's own device may ask for, whatever another was
- * granted — the page's copy of `Verb.theirs`, held equal by the same test as
- * `NEEDS`. A drawing hint: the machine asks the device's record at the act.
- */
-export const THEIRS = ['remove', 'account', 'harness', 'move']
 
 /**
  * What the queue control offers, and the word on each.
@@ -148,30 +141,23 @@ export function asksFor(row) {
 }
 
 /**
- * Which scopes this device's own session carries.
+ * Which kinds of act this device's own session may ask for.
  *
- * Out of `/api/devices`, which is the same record the machine re-checks. A
- * device that was granted nothing has every control **absent** rather than
- * present and refused.
+ * Every paired device is the person's own and may ask for every one — except
+ * one paired in the clear (`you.clear`), which reads and never acts, and the
+ * page before it knows who it is. Out of `/api/devices`, which is the same
+ * record the machine re-checks; a control nothing could carry out is
+ * **absent** rather than present and refused.
  */
 export function actsOf(session) {
-  const scopes = session === null || session === undefined ? [] : (session.scopes ?? [])
-  const has = (scope) => Array.isArray(scopes) && scopes.includes(scope)
-  // `ask` and `draft` are third and fourth scopes and neither is implied by a
-  // tier: a device granted both acting tiers has been granted eight bounded
-  // verbs about work that exists — not free text to a model that holds tools,
-  // and not a file every future run of a workflow would be stamped from.
+  const acts = session !== null && session !== undefined && session.clear !== true
   return {
-    answer: has('answer'),
-    steer: has('steer'),
-    ask: has('ask'),
-    draft: has('draft'),
-    // Stopping an agent and closing a project are granted one device at a
-    // time at the machine, and neither tier implies either.
-    agents: has('agents'),
-    projects: has('projects'),
-    // Changing a setting: its own chip at the machine, implied by nothing.
-    configure: has('configure'),
+    steer: acts,
+    ask: acts,
+    draft: acts,
+    agents: acts,
+    projects: acts,
+    configure: acts,
   }
 }
 
@@ -222,13 +208,12 @@ export function draftBody(row, part, field, value, key, rev) {
  * Four answers in one place, because a form that asked them separately is a
  * form where one of them gets forgotten:
  *
- * - the device was not granted `draft` — **nothing is drawn**, not even a
- *   reason: a sentence naming a scope somebody does not have is a map of what
- *   else there is to ask for;
+ * - the device cannot act (paired in the clear) — **nothing is drawn**, not
+ *   even a reason;
  * - the workflow itself cannot be saved from away (`editable`): it is one Tade
  *   ships, there is no draft, or the setting is off;
  * - the field says it cannot be changed here (`off`), which is the template's
- *   own rule and beats anything this device was granted;
+ *   own rule and beats anything this device may do;
  * - it can.
  */
 export function savingOf(row, field, acts) {
@@ -257,10 +242,9 @@ function whyNotSave(row) {
  *
  * Three answers and not two, because the third is the one a person acts on:
  *
- * - `off` — this device was not granted the scope. **Nothing is drawn**, not
- *   even a reason: a sentence naming a scope somebody does not have is a map
- *   of what else there is to ask for.
- * - `no` — it was granted, and the thing is not possible. The control is
+ * - `off` — this device cannot act at all (paired in the clear, or not known
+ *   yet). **Nothing is drawn**, not even a reason.
+ * - `no` — it may, and the thing is not possible. The control is
  *   absent and the row's own `why` is drawn, because *this harness has no way
  *   to take a message mid-turn* is a sentence somebody wrote and an absence is
  *   not.
@@ -356,7 +340,7 @@ export function bodyFor(verb, row, key, rev, typed) {
  * one failure they cannot undo. `said` is Tade's own sentence either way: the
  * server's for a success, the refusal's for everything else.
  */
-export function afterAnswer(answer, sentence, you = null) {
+export function afterAnswer(answer, sentence) {
   const ok = answer?.status === 200
   return {
     ok,
@@ -369,9 +353,7 @@ export function afterAnswer(answer, sentence, you = null) {
     // What went wrong and what to do, for a refusal that is trouble (`trouble.js`);
     // null for a success and for the world having moved, which is news, not trouble.
     trouble:
-      ok || ['gone', 'stale', 'there'].includes(answer?.body?.error)
-        ? null
-        : troubleOf(answer, '', you),
+      ok || ['gone', 'stale', 'there'].includes(answer?.body?.error) ? null : troubleOf(answer),
   }
 }
 
@@ -493,10 +475,10 @@ export const CHANGE_PATH = '/api/settings/change'
  * One row's standing for this device: whether to draw a control, and what to
  * say where not.
  *
- * - `off` — this device was not granted `configure`. No control and no
- *   reason: the value is still drawn, because reading it is what was granted.
- * - `no` — granted, and this setting is changed at the machine; the row's own
- *   `why` is drawn.
+ * - `off` — this device cannot act (paired in the clear). No control and no
+ *   reason: the value is still drawn.
+ * - `no` — this setting is changed at the machine; the row's own `why` is
+ *   drawn.
  * - `yes` — a control.
  */
 export function settingStanding(row, acts) {
@@ -514,8 +496,8 @@ export function settingStanding(row, acts) {
  * **A row that holds a key sends nothing but a clear**, whatever was typed:
  * the page was never shown the key, so it can never have meant to set one, and
  * the machine refuses anything else for it too. The one exception is a key row
- * the machine says may be set (`sets`, the person's own device alone), which
- * sends what was typed into its box — never anything it was shown.
+ * the machine says may be set (`sets`), which sends what was typed into its
+ * box — never anything it was shown.
  */
 export function changeBody(row, value, key, rev) {
   const credential = row?.held !== null && row?.held !== undefined
@@ -537,10 +519,9 @@ export function shownOf(row) {
   return row.fallback === '' ? 'nothing set' : `nothing set — ${row.fallback}`
 }
 
-/** What a page that was not granted the settings, or could not ask, says instead. */
+/** What a page that has not been answered yet, or was answered with none, says instead. */
 export function settingsSaid(answer) {
   if (answer === null) return 'asking…'
-  if (answer.granted !== true) return 'not granted to this device'
-  if (answer.groups.length === 0) return 'nothing here this device may read'
+  if (!Array.isArray(answer.groups) || answer.groups.length === 0) return 'no settings here'
   return ''
 }

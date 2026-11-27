@@ -19,7 +19,6 @@
 // Nothing here decides whose move a finding is or what a question's precision
 // is (`findings-shape.js`).
 
-import { mayFor } from '../access.js'
 import { donut, donutIn, stack, stackIn } from '../charts.js'
 import {
   el,
@@ -36,7 +35,7 @@ import {
 import { count, shortClockOf } from '../figures.js'
 import { icon } from '../icons.js'
 import { section } from '../rows.js'
-import { findingsOf, omitted, taskAt } from '../store.js'
+import { findingsOf, taskAt } from '../store.js'
 import { TROUBLES } from '../trouble.js'
 import { meter, meterIn, panel, stateBox, stateBoxIn } from '../ui.js'
 import {
@@ -84,17 +83,16 @@ export function findingsScreen() {
     update(view) {
       const store = view.store
       const had = store.had === true
-      const may = had && mayFor(store, 'findings')
-      const rows = may ? findingsOf(store) : []
+      const rows = had ? findingsOf(store) : []
       const known = (id) => {
         const cut = id.indexOf('/')
         return cut > 0 && taskAt(store, id.slice(0, cut), id.slice(cut + 1)) !== null
       }
-      const page = may ? findingsPage(rows, view.asOf, known) : null
+      const page = had ? findingsPage(rows, view.asOf, known) : null
       const shut = view.standing === 'unreachable' || view.standing === 'closed'
       coming.hidden = had || shut
       figureIn(made.figure, page)
-      stateBoxIn(whole, wholeOf(had, shut, may, page, omitted(store, 'findings')))
+      stateBoxIn(whole, wholeOf(had, shut, page))
       const shown = page !== null && page.total > 0
       lead.node.hidden = !shown
       main.hidden = !shown
@@ -113,20 +111,11 @@ export function findingsScreen() {
 
 /**
  * The page's own state, when there is nothing to draw: coming, could not
- * reach, not granted, or none — four sentences and never a blank.
+ * reach, or none — three sentences and never a blank.
  */
-function wholeOf(had, shut, may, page, gone) {
+function wholeOf(had, shut, page) {
   if (!had) {
     return shut ? stateOf('error', TROUBLES.offline.title, TROUBLES.offline.fix, 'alert') : null
-  }
-  if (!may) {
-    return stateOf(
-      'empty',
-      'Findings aren’t granted to this device',
-      gone > 0
-        ? `${gone} here. Grant this device findings at the machine to read them.`
-        : 'Grant this device findings at the machine to read them.',
-    )
   }
   if (page.total > 0) return null
   // True whether there are none or the window sent none: it says what reached

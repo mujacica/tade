@@ -1,7 +1,7 @@
 import { type AttentionSettings, inQuietHours, type TaskState } from '@tade/core'
 import { hostOf } from './guard.ts'
 import type { TaskIn } from './input.ts'
-import { type Reach, sees } from './reach.ts'
+import type { Reach } from './reach.ts'
 import { loopbackHost } from './surface.ts'
 
 // What is worth waking a phone for, what it is allowed to say, and everything
@@ -42,9 +42,7 @@ import { loopbackHost } from './surface.ts'
 // payload carries a count and a word Tade wrote — never a project, a task id,
 // a title, a branch, an approval's summary, a note, a line of a conversation
 // or a character of anybody's code. With details turned on it carries the
-// **name of the work** and nothing else, and even that is narrowed by what the
-// device was granted to read, so the detailed payload of a phone that may not
-// read titles is the generic one.
+// **name of the work** and nothing else.
 //
 // One notification per beat per device, coalesced, which is both the honest
 // shape and the anti-spam rule: four things happening at once is one buzz
@@ -104,10 +102,8 @@ export interface TaskWas {
  *
  * The seam, in one function, so nothing downstream reaches a `TaskIn` field it
  * was not meant to: five values out of a row that has forty. `title` is read
- * here and is only ever *used* under a grant and a setting — the narrowing is
- * at the payload (`bodyOf`) rather than here, because a row withheld at this
- * end would make a transition on a task whose name is not granted invisible
- * rather than generic.
+ * here and is only ever *used* under the setting (`push_details`), at the
+ * payload (`bodyOf`).
  */
 export function noticeable(task: TaskIn): TaskNow {
   return {
@@ -136,18 +132,10 @@ export function wasOf(task: TaskNow): TaskWas {
 /** One thing that happened to one task. */
 export interface Change {
   task: string
-  /**
-   * The project it is in.
-   *
-   * Here because a notification is **per device** and a read scope is too: a
-   * phone granted one of five projects must not be told that something in the
-   * other four wants you, and a count is still a fact about work it cannot
-   * see. `changesFor` is the narrowing, and it is applied before the budget so
-   * that one device's silence is not another's spent allowance.
-   */
+  /** The project it is in. */
   project: string
   what: Happening
-  /** What the work is called, or empty. Only ever used under a details grant. */
+  /** What the work is called, or empty. Only ever used with `push_details` on. */
   title: string
 }
 
@@ -218,20 +206,11 @@ function done(task: TaskWas): boolean {
 }
 
 /**
- * The changes one device may be told about: the ones in projects it reads.
- *
- * **Per device, and before everything else.** The collections are built once
- * for every phone — they are the window's own, not a projection — so the
- * transitions have to be narrowed here or a device scoped to one project would
- * be told, as a count, that something somewhere else wants you. A count is
- * still a fact about work a device cannot see.
- *
- * `every` is the ordinary case and short-circuits, so the phone that can read
- * everything pays one comparison.
+ * The changes one device may be told about: every one, since every paired
+ * device is the person's own and reads every project.
  */
-export function changesFor(changes: readonly Change[], reach: Reach): Change[] {
-  if (reach.projects.kind === 'every') return [...changes]
-  return changes.filter((change) => sees(reach, change.project))
+export function changesFor(changes: readonly Change[], _reach: Reach): Change[] {
+  return [...changes]
 }
 
 /** Everything that decides whether a notice is sent, and what it may say. */
@@ -245,7 +224,7 @@ export interface Noticing {
   lastInputAt: number | null
   /** The local hour, passed in so the same inputs give the same answer. */
   localHour: number
-  /** Whether a notification may name the work: the setting and the grant. */
+  /** Whether a notification may name the work: `push_details`. */
   details: boolean
   /** Keys already notified, so one thing is one notification. */
   already: ReadonlySet<string>
@@ -269,7 +248,7 @@ export type Noticed =
 export interface Notice {
   /** The heading. Always Tade's own name: never a project, never a task. */
   title: string
-  /** The line under it. A count and a word Tade wrote, or a name under a grant. */
+  /** The line under it. A count and a word Tade wrote, or a name under `push_details`. */
   body: string
   /**
    * The tag the phone replaces by.
@@ -358,7 +337,7 @@ function bodyOf(changes: readonly Change[], details: boolean): string {
   if (mine.length === 1) {
     const one = mine[0]
     const named = details && one !== undefined && one.title !== '' ? `${one.title} ` : ''
-    // `Work wants your answer` with nothing granted; `api-v2 wants your
+    // `Work wants your answer` with the setting off; `api-v2 wants your
     // answer` with a title and the setting on.
     return `${named === '' ? 'Work ' : named}${says.one}${also}`
   }

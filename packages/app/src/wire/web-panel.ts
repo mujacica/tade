@@ -1,32 +1,22 @@
 import { networkInterfaces } from 'node:os'
 import {
-  ACTING_IS_NOT_YOU_SHORT,
   DEVICES_SEEN_BY_AGENTS,
   type Health,
   LAN_IS_PLAINTEXT_SHORT,
   PUBLIC_IS_THE_INTERNET_SHORT,
   routesOf,
-  SETTINGS_FROM_AWAY_SHORT,
-  TALKING_IS_NOT_YOU_SHORT,
 } from '@tade/core'
 import {
   blocksFor,
   codeFor,
   type Device,
-  GRANTS,
   type PairingAsk,
   pairingUrl,
-  reachOf,
-  readsOf,
-  SCOPES,
   type Surface,
   type Tickets,
 } from '@tade/web'
-import { AWAY_CONTROLS, AWAY_LABELS } from '../panels/away/state.ts'
 import type { AwayDevice, AwayView } from '../panels/away/view.ts'
 import type { Panel } from '../panels.ts'
-import { BOXES, ticked } from './web-boxes.ts'
-import { RUNS, SEES } from './web-grants.ts'
 
 // What the pairing panel draws, and where a phone should go to reach this
 // machine.
@@ -106,10 +96,6 @@ export function awayView(facts: PanelFacts): AwayView {
           },
     devices: deviceViews(facts),
     streams: facts.streams,
-    acting: facts.surface.acting,
-    talking: facts.surface.talking,
-    configuring: facts.surface.configuring,
-    help: grantsHelp(facts.surface),
     lan: LAN_IS_PLAINTEXT_SHORT,
     internet: PUBLIC_IS_THE_INTERNET_SHORT,
     agents: DEVICES_SEEN_BY_AGENTS,
@@ -135,53 +121,6 @@ export function publicOf(facts: PanelFacts): AwayView['public'] {
     }
   }
   return { name, up: true, lines: facts.health }
-}
-
-/**
- * What each of a device's controls grants, in one clause, for the foot to say
- * while the pointer is on it — the moment somebody is deciding whether to
- * press it.
- *
- * **The domain's own clauses where it has one** (`_SHORT`, said once so no
- * control can say the comfortable half), and the strip's own words where it
- * does not: what a press says it did is what pointing at it says it does. The
- * whole sentences are each setting's `means` — search, `tade config` and
- * `tade_settings` read them — and the README's.
- */
-export function grantsHelp(
-  surface: Pick<Surface, 'acting' | 'talking' | 'configuring'>,
-): Readonly<Record<string, string>> {
-  return {
-    // Only the controls that are drawn, so the foot keeps the rows of the
-    // longest clause somebody could actually point at and no more.
-    ...(surface.acting
-      ? {
-          [AWAY_CONTROLS.act]: said(AWAY_CONTROLS.act, ACTING_IS_NOT_YOU_SHORT),
-          [AWAY_CONTROLS.agents]: said(AWAY_CONTROLS.agents, RUNS.agents),
-          [AWAY_CONTROLS.projects]: said(AWAY_CONTROLS.projects, RUNS.projects),
-        }
-      : {}),
-    ...(surface.talking
-      ? { [AWAY_CONTROLS.talk]: said(AWAY_CONTROLS.talk, TALKING_IS_NOT_YOU_SHORT) }
-      : {}),
-    ...(surface.configuring
-      ? { [AWAY_CONTROLS.configure]: said(AWAY_CONTROLS.configure, SETTINGS_FROM_AWAY_SHORT) }
-      : {}),
-    [AWAY_CONTROLS.see]: said(
-      AWAY_CONTROLS.see,
-      `${SEES.lanes}; only paths and keys are taken out`,
-    ),
-    [AWAY_CONTROLS.settings]: said(
-      AWAY_CONTROLS.settings,
-      `${SEES.settings}; a key is said as set or not set`,
-    ),
-    [AWAY_CONTROLS.revoke]: said(AWAY_CONTROLS.revoke, 'disconnect this device now'),
-  }
-}
-
-/** A control's clause, after the word it is drawn with. */
-function said(control: keyof typeof AWAY_LABELS, clause: string): string {
-  return `${AWAY_LABELS[control]}: ${clause}`
 }
 
 /**
@@ -247,13 +186,10 @@ function left(until: number, now: number): number {
 }
 
 /**
- * The devices, as the list draws them.
- *
- * **A word per capability**, each folded from the scopes rather than read off
- * a flag: the row has width for a word and not a list, and what somebody
- * scanning it is asking is *can any of these change my work*, *stop an agent*,
- * *close a project*, and *ask Tade for anything*. Those are different
- * questions with different answers, which is why they are separate.
+ * The devices, as the list draws them: who, from where, when, its passkey,
+ * and whether it is connected now. Every one is the person's own, so there is
+ * nothing about what it may do — only why one reads and does nothing, where
+ * that is so.
  */
 function deviceViews(facts: PanelFacts): AwayDevice[] {
   return facts.devices
@@ -266,35 +202,25 @@ function deviceViews(facts: PanelFacts): AwayDevice[] {
       from: one.owner ? 'over SSH' : whereFrom(one.from, one.host, MACHINE),
       owner: one.owner,
       ...(one.passkey === null ? {} : { passkey: one.passkey.proved, passkeyMade: one.passkey.at }),
-      ...(readsOnly(one, facts.surface) ? { readsOnly: true as const } : {}),
+      ...readsOnlyOf(one, facts.surface),
       pairedAt: one.pairedAt,
-      reads: readsOf(reachOf(one)),
-      // Each box ticked by the table that says what pressing it writes (`BOXES`).
-      mayAct: ticked(one, BOXES.act),
-      mayTalk: ticked(one, BOXES.talk),
-      maySee: ticked(one, BOXES.see),
-      mayStop: ticked(one, BOXES.agents),
-      mayClose: ticked(one, BOXES.projects),
-      mayReadSettings: ticked(one, BOXES.settings),
-      mayConfigure: ticked(one, BOXES.configure),
-      full:
-        GRANTS.every((grant) => one.granted.includes(grant)) &&
-        SCOPES.every((scope) => one.scopes.includes(scope)),
       live: facts.live.has(one.id),
     }))
 }
 
 /**
- * A device that may act and cannot, from where it paired: bound to the public
- * name, which asks for a passkey before anything above `read` (`proven`), and
- * with none — it missed the minutes after pairing in which one is made. The
- * host it is bound to is the listener it paired on: the public listener refuses
- * this machine's own names, and the loopback one is never asked.
+ * Why a device reads and acts on nothing, where it does: paired in the clear
+ * (`Device.clear`), whatever is trusted later — or bound to the public name,
+ * which asks for a passkey before anything above `read` (`proven`), and with
+ * none: it missed the minutes after pairing in which one is made. The host it
+ * is bound to is the listener it paired on: the public listener refuses this
+ * machine's own names, and the loopback one is never asked.
  */
-function readsOnly(one: Device, surface: Surface): boolean {
-  if (one.passkey !== null || surface.passkeyMs <= 0 || surface.publicName === null) return false
+function readsOnlyOf(one: Device, surface: Surface): Pick<AwayDevice, 'readsOnly'> {
+  if (one.clear) return { readsOnly: 'in the clear' }
+  if (one.passkey !== null || surface.passkeyMs <= 0 || surface.publicName === null) return {}
   const host = one.host.toLowerCase().replace(/:443$/, '')
-  return host === surface.publicName && one.scopes.some((scope) => scope !== 'read')
+  return host === surface.publicName ? { readsOnly: 'no passkey' } : {}
 }
 
 /**

@@ -194,7 +194,7 @@ function moved(was: Stands, now: Stands): string[] {
 }
 
 /**
- * The frame at one width, for the device granted nothing.
+ * The frame at one width.
  *
  * Every step ends with the same two questions — did any part of the frame
  * move, and did the document scroll — and each region's own step asks a third:

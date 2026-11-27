@@ -127,9 +127,8 @@ describe('the shape of the table', () => {
   it('reads the settings with one GET, and writes none of them', () => {
     // **The one read of the machine's own setup, and it used to be on the
     // list above.** It came off it deliberately: a `GET` like every other
-    // read, the same for every device, with what it may see decided by that
-    // device's own `settings` grant in the answer (`settingsFor`) and a key
-    // never in it under any grant. Nothing in this table writes one — that is
+    // read, the same for every device, with a key never in it
+    // (`settingsFor`). Nothing in this table writes one — that is
     // `SETTINGS`, below, behind a setting of its own.
     const reading = ROUTES.filter((route) => route.path.startsWith('/api/settings'))
     expect(reading.map((route) => `${route.method} ${route.path}`)).toEqual(['GET /api/settings'])
@@ -177,14 +176,13 @@ describe('the five tables a setting turns on', () => {
     expect(on({ acting: true })).not.toContain('/api/draft/save')
     expect(on({ talking: true })).toContain('/api/ask/ask')
     expect(on({ talking: true })).not.toContain('/api/draft/save')
-    // The one this slice adds, and the asymmetry worth asserting: a device
-    // granted both acting tiers still has no path to save a draft.
+    // The one this slice adds, and the asymmetry worth asserting: acting on
+    // still builds no path to save a draft.
     expect(on({ drafting: true })).toContain('/api/draft/save')
     expect(on({ drafting: true })).not.toContain('/api/act/park')
     expect(on({ acting: true, talking: true })).not.toContain('/api/draft/save')
-    // The fourth, and the asymmetry worth asserting the other way round: a
-    // device granted every acting tier has no path to subscribe either, and a
-    // device that may subscribe has none to act.
+    // The fourth, and the asymmetry worth asserting the other way round:
+    // acting on builds no path to subscribe, and subscribing on none to act.
     expect(on({ pushing: true })).toContain('/api/notify/subscribe')
     expect(on({ pushing: true })).toContain('/api/notify/forget')
     expect(on({ pushing: true })).not.toContain('/api/act/park')
@@ -204,10 +202,9 @@ describe('the five tables a setting turns on', () => {
     ).not.toContain('/api/settings/change')
   })
 
-  it('gives the changing route the configure scope, which nothing else needs', () => {
-    // `configure` is implied by nothing: a device granted every acting tier, a
-    // conversation and a draft has been granted things about work and not the
-    // config — and nothing in the other four tables can be reached with it.
+  it('gives the changing route the configure kind, which nothing else is', () => {
+    // A table of its own behind a setting of its own, so nothing in the other
+    // four tables is it.
     expect(SETTINGS.map((route) => `${route.method} ${route.path}`)).toEqual([
       'POST /api/settings/change',
     ])
@@ -304,12 +301,11 @@ describe('the five tables a setting turns on', () => {
       expect(paths, forbidden).not.toContain(forbidden)
     }
     // Accounts are added, signed in and chosen only by the person: at this
-    // machine's door as the SSH key's, or from their own full-access device —
-    // never from a route a granted phone's session reaches.
+    // machine's door as the SSH key's, or from a device they paired.
     for (const path of ['/api/accounts', '/api/accounts/sign-in']) {
       const route = every.find((one) => one.path === path)
       expect(OWNED, path).toContain(route)
-      expect(route, path).toMatchObject({ here: true, theirs: true })
+      expect(route, path).toMatchObject({ here: true })
     }
     // **Everything under `/api/settings` with every capability on**: one read
     // and one change, and the change is the one that reaches `settingReach`'s
@@ -391,13 +387,9 @@ describe('the owner’s table', () => {
     // browser that cannot reach this machine's own door (`connected.ts`) — named
     // here, by path, so another cannot join them without this line changing.
     // What keeps them no wider than what already was is who may use them: an
-    // owner, which is the SSH key, on the one door that key reaches, or the
-    // person's own phone on the eight `theirs` marks (`test/theirs.test.ts`);
-    // each handler refuses every other session (`test/carried.test.ts`,
-    // `test/attached.test.ts`, `test/since.test.ts`, `test/shared-notes.test.ts`,
-    // `test/repositories.test.ts`, `test/machine.test.ts`, `test/machines.test.ts`,
-    // `test/records.test.ts`, `test/projection-told.test.ts`,
-    // `test/taken.test.ts`, `test/opened.test.ts`).
+    // owner, which is the SSH key, on the one door that key reaches, or a
+    // paired phone — every one the person's own — asked what acting asks off
+    // that door (`test/theirs.test.ts`).
     expect(OWNED.map((route) => `${route.method} ${route.path}`)).toEqual([
       'POST /api/carry',
       'POST /api/attach',
@@ -408,6 +400,7 @@ describe('the owner’s table', () => {
       'POST /api/conversation',
       'POST /api/acts',
       'POST /api/acts/outbox',
+      'POST /api/there/press',
       'POST /api/repositories',
       'POST /api/side',
       'POST /api/disk',

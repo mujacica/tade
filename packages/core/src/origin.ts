@@ -75,31 +75,17 @@ export function byOf(who: Who): Asker {
 }
 
 /**
- * What a remote turn may be granted, each one at the machine and per device.
+ * What a narrowed turn may do: a press the person's other machine carries out
+ * of a hub's outbox (`@tade/app`'s `outboxArm`, ONE-AWAY-VIEW Q3b), which is
+ * about a machine and never a device — every paired device is the person's
+ * own and runs as the owner arm. `tidy` is stopping an agent, pausing or
+ * resuming queued work and schedules: the presses that only ever make less
+ * happen.
  *
- * The same words a device's scopes already use, because they are the same
- * decision: a phone granted `answer` may answer what is waiting, through its
- * own control or by asking Tade for it, and a surface where those two differ
- * is a surface where somebody finds the looser one.
- *
- * `read` is not here. Reading is what pairing grants and what the projection
- * is for; what this list is about is the things a turn can *do*.
+ * `read` is not here: what this list is about is the things a turn can *do*.
  */
 export const REMOTE_GRANTS = ['answer', 'steer', 'tidy'] as const
 export type RemoteGrant = (typeof REMOTE_GRANTS)[number]
-
-/**
- * What a paired device's own arm may carry: the scopes it was granted at the
- * machine, which are `answer` and `steer`.
- *
- * **`tidy` is not a device's**: it is what the person's other machine is
- * granted when it takes a press out of a hub's outbox (`@tade/app`'s
- * `outboxArm`, ONE-AWAY-VIEW Q3b) — stopping an agent, pausing or resuming
- * queued work and schedules — the presses that only ever make less happen.
- * A device line that names it is a word nobody here gives a device, so it is
- * dropped like any other.
- */
-export const DEVICE_GRANTS: readonly RemoteGrant[] = ['answer', 'steer']
 
 /**
  * How far one turn's words reach.
@@ -129,9 +115,7 @@ export type Arm =
    * The person's own turn from a device: the local arm's reach, and a device's
    * provenance. Two kinds, and `theirs` tells them apart.
    *
-   * **A device with full access is the person's own** (`theirs`, `@tade/web`'s
-   * `fullAccess`): every scope and every reading grant, which is what a code
-   * pairs with unless somebody unticks something. The person decided that
+   * **Every paired device is the person's own** (`theirs`). The person decided that
    * their own phone is them — pairing is a code only this machine shows or a
    * shell here writes, a passkey stands behind anything above reading from a
    * public name, and revoking it is instant. So it reaches what the keyboard
@@ -182,30 +166,6 @@ export function armSees(arm: Arm, project: string): boolean {
 /** Whether this arm was granted that. Local and owner are never asked. */
 export function armMay(arm: Arm, grant: RemoteGrant): boolean {
   return !narrowedArm(arm) || arm.may.includes(grant)
-}
-
-/**
- * An arm out of what a device was granted, dropping anything unrecognised.
- *
- * Dropped rather than carried, for the reason `reachOf` drops an unknown read
- * grant: the device record is a line in an append-only file that an agent on
- * this machine can write (`DEVICES_AND_AGENTS`), so a word nobody here
- * understands is exactly the shape of a line somebody invented. Every gate
- * asks `armMay` with a known word, so an unknown one that rode along would be
- * silently equivalent to nothing — dropping it makes that true by
- * construction instead of by luck.
- */
-export function armFor(device: {
-  id: string
-  projects: readonly string[] | null
-  scopes: readonly string[]
-}): Arm {
-  return {
-    how: 'remote',
-    device: device.id,
-    projects: device.projects === null ? null : [...device.projects],
-    may: DEVICE_GRANTS.filter((grant) => device.scopes.includes(grant)),
-  }
 }
 
 /**
@@ -298,7 +258,7 @@ export function cameFromAway(arm: Arm): string {
  * to be careful with, and the transcript says why a phone could do that.
  */
 const YOURS_ASKED =
-  'This came from the person’s own device — one with full access, or another machine of theirs where they typed it: these are their own words, typed there rather than at the keyboard, and they reach everything the keyboard does.'
+  'This came from the person’s own device — one they paired, or another machine of theirs where they typed it: these are their own words, typed there rather than at the keyboard, and they reach everything the keyboard does.'
 
 /**
  * Tade's own line above a machine link's words: `cameFromAway`'s shape, for
@@ -339,12 +299,12 @@ export const OWNER_IS_YOUR_SSH_KEY =
  * or the tool: an off capability is not a thing to probe. It is deliberately
  * not "you are not allowed" — the honest shape is that the act exists and
  * needs the person, which is a thing somebody can act on. **Both places the
- * person is**, because a narrowed device is never their only screen: their own
- * device with full access is answered as the keyboard (`Arm`'s owner variant),
- * so "only at the machine" would send them home for something their phone does.
+ * person is**: every device they paired is answered as the keyboard (`Arm`'s
+ * owner variant), so "only at the machine" would send them home for something
+ * their phone does.
  */
 export function needsYouHere(what: string): string {
-  return `${what} needs the person at the machine, or on their own device with full access. Nothing this device asks for can do it, so say that rather than trying another way.`
+  return `${what} needs the person at the machine, or on a device they paired. Nothing this device asks for can do it, so say that rather than trying another way.`
 }
 
 /**
@@ -357,18 +317,12 @@ export function needsYouHere(what: string): string {
  * is safe is a closed list rather than a paragraph telling the model to behave.
  */
 export const TALKING_IS_NOT_YOU =
-  'A message from a device with full access is yours: every scope and every reading grant, which ' +
-  'is what pairing gives unless you untick something. It counts as your own words, so it can ' +
-  'name a setting as you would at this keyboard, and Tade answers it with everything it has here. ' +
-  'A message from any other paired device is never your own words: it cannot authorise a setting ' +
-  'change, however it is phrased, and nothing it says reaches a line you said. While Tade is ' +
-  'answering one, its own tools are narrowed to reading this device’s own view of your work plus ' +
-  'whatever that device was granted — answering what an agent is waiting on, telling one ' +
-  'something, setting work aside, writing a note — and every other tool it has is refused in ' +
-  'code: no setting, no credential, no command, no new agent, no push, no merge, no check ' +
-  'overruled. Every message is in the transcript here, marked as the device’s, and every turn is ' +
-  'in the journal under its id.'
+  'A message from a device you paired is yours: every device you pair is your own, so it counts ' +
+  'as your own words, can name a setting as you would at this keyboard, and Tade answers it with ' +
+  'everything it has here. A machine you linked as its owner talks as you only where you typed ' +
+  'the message at that machine; anything its own agents send is never your own words and cannot ' +
+  'authorise a setting change. Every message is in the transcript here, marked as the device’s, ' +
+  'and every turn is in the journal under its id.'
 
 /** The short clause, for the one line a control gets. */
-export const TALKING_IS_NOT_YOU_SHORT =
-  'a full-access device talks as you; others, never as your own words'
+export const TALKING_IS_NOT_YOU_SHORT = 'every paired device talks as you'

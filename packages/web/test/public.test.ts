@@ -13,11 +13,10 @@ import {
 } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { WebConnecting } from '../src/connected.ts'
-import { allowDevice, appendDevice, grantDevice } from '../src/devices.ts'
+import { appendDevice } from '../src/devices.ts'
 import { listenAll } from '../src/listeners.ts'
-import { GRANTS } from '../src/reach.ts'
 import { CSRF_HEADER } from '../src/request.ts'
-import { listenOn, SCOPES, surfaceOf } from '../src/surface.ts'
+import { listenOn, surfaceOf } from '../src/surface.ts'
 import { type Answer, ask, BASE, closeAll, pair, type Running, start } from './harness.ts'
 
 // The public listener over a real Unix socket, the way Caddy reaches it: a
@@ -197,11 +196,11 @@ describe('the socket Caddy connects to', () => {
   })
 })
 
-describe('the person’s own phone at the public name', () => {
-  // `Route.theirs`: what only the SSH key's session was answered, on this
-  // machine's door alone, the person's own phone is answered here too — read
-  // off the record at each request — and every other device still meets the
-  // `404` of a path nobody built. `theirs.test.ts` has the guard's cross-product.
+describe('a paired phone at the public name', () => {
+  // What only the SSH key's session was answered on this machine's door alone,
+  // a paired phone — every one the person's own — is answered here too, and
+  // nobody without a session meets anything but the `404` of a path nobody
+  // built. `theirs.test.ts` has the guard's cross-product.
   async function upWith(heard: string[]): Promise<{ one: Running; socket: string }> {
     const socket = join(await dirFor(), 'away.sock')
     const one = await start(
@@ -244,30 +243,23 @@ describe('the person’s own phone at the public name', () => {
       body: JSON.stringify(body),
     })
 
-  it('says the person is at a screen of theirs, where an ordinary phone is a 404', async () => {
+  it('says the person is at a screen of theirs, where nobody is a 404', async () => {
     const heard: string[] = []
     const { one, socket } = await upWith(heard)
     const mine = await phone(one, socket, '203.0.113.7')
-    const other = await phone(one, socket, '198.51.100.9')
-    await allowDevice(one.home, mine.device, SCOPES, new Date())
-    await grantDevice(one.home, mine.device, GRANTS, new Date())
+    const nobody = { cookie: '', csrf: '' }
     const said = await post(socket, mine, '/api/presence', { ago: 0 })
     expect(said.status, said.text).toBe(200)
     expect(heard).toEqual([mine.device])
-    expect((await post(socket, other, '/api/presence', { ago: 0 })).status).toBe(404)
-    // One box unticked, and it is an ordinary phone at the next request.
-    await grantDevice(one.home, mine.device, GRANTS.slice(1), new Date())
-    expect((await post(socket, mine, '/api/presence', { ago: 0 })).status).toBe(404)
+    expect((await post(socket, nobody, '/api/presence', { ago: 0 })).status).toBe(404)
     expect(heard).toEqual([mine.device])
   })
 
-  it('hands this machine work to start, where an ordinary phone is a 404', async () => {
+  it('hands this machine work to start, where nobody is a 404', async () => {
     const heard: string[] = []
     const { one, socket } = await upWith(heard)
     const mine = await phone(one, socket, '203.0.113.7')
-    const other = await phone(one, socket, '198.51.100.9')
-    await allowDevice(one.home, mine.device, SCOPES, new Date())
-    await grantDevice(one.home, mine.device, GRANTS, new Date())
+    const nobody = { cookie: '', csrf: '' }
     const take = {
       from: 'phone',
       was: 'app/fix-it',
@@ -278,7 +270,7 @@ describe('the person’s own phone at the public name', () => {
     const took = await post(socket, mine, '/api/take', take)
     expect(took.status, took.text).toBe(200)
     expect(heard).toEqual([`take fix-it ${mine.device}`])
-    expect((await post(socket, other, '/api/take', take)).status).toBe(404)
+    expect((await post(socket, nobody, '/api/take', take)).status).toBe(404)
     expect(heard).toHaveLength(1)
   })
 
@@ -286,9 +278,7 @@ describe('the person’s own phone at the public name', () => {
     const heard: string[] = []
     const { one, socket } = await upWith(heard)
     const mine = await phone(one, socket, '203.0.113.7')
-    const other = await phone(one, socket, '198.51.100.9')
-    await allowDevice(one.home, mine.device, SCOPES, new Date())
-    await grantDevice(one.home, mine.device, GRANTS, new Date())
+    const nobody = { cookie: '', csrf: '' }
     // A typed address: a navigation, no `Origin`, Caddy's socket in the clear.
     const open = (cookie: string | null) =>
       viaCaddy(socket, '203.0.113.7', '/connect', {
@@ -299,7 +289,7 @@ describe('the person’s own phone at the public name', () => {
     // Its presses carry the session's token, which is in the page and nowhere else.
     expect(page.text).toContain(`<meta name="tade-csrf" content="${mine.csrf}">`)
     expect(page.text).toContain('data-press="/connect/github/make"')
-    for (const cookie of [other.cookie, null]) expect((await open(cookie)).status).toBe(404)
+    expect((await open(null)).status).toBe(404)
 
     const made = await post(socket, mine, '/connect/github/make', {})
     expect(made.status, made.text).toBe(200)
@@ -316,7 +306,7 @@ describe('the person’s own phone at the public name', () => {
       body: '{}',
     })
     expect(bare.status).toBe(403)
-    expect((await post(socket, other, '/connect/github/make', {})).status).toBe(404)
+    expect((await post(socket, nobody, '/connect/github/make', {})).status).toBe(404)
     expect(heard).toHaveLength(1)
 
     // Revoked, and it is nothing at the next request.

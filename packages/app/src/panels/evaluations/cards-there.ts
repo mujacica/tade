@@ -85,10 +85,5 @@ function machineCards(
       cardLine(row, cellsThere(cards.total), `all on ${machine.name}`, { ...at, tone: skin.label }),
     )
   }
-  const withheld = [
-    cards.granted.spend ? null : 'money',
-    cards.granted.findings ? null : 'what its judge found',
-  ].filter(Boolean)
-  if (withheld.length > 0) lines.push(said(`${machine.name} did not send ${withheld.join(' or ')}`))
   return lines
 }

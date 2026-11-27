@@ -1,15 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { allowDevice, grantDevice } from '../src/devices.ts'
 import { mintOwner } from '../src/owner.ts'
-import { GRANTS } from '../src/reach.ts'
 import { CSRF_HEADER } from '../src/request.ts'
 import type { WebOrchestratorRestart, WebRestarting } from '../src/restarted.ts'
 import { OWNED } from '../src/routes.ts'
-import { SCOPES } from '../src/surface.ts'
 import { ask, closeAll, pair, type Running, start } from './harness.ts'
 
-// Restarting Tade from the person's own phone (`restarted.ts`): theirs and an
-// owner's, never an ordinary phone's however much it was granted; one press
+// Restarting Tade from the person's own phone (`restarted.ts`): any paired
+// device's and an owner's; one press
 // where nothing would stop, and where lanes would, the count first and the
 // restart only on a press that sends that count back.
 
@@ -43,11 +40,9 @@ function post(one: Running, device: Awaited<ReturnType<typeof pair>>, body: unkn
   })
 }
 
-async function theirs(one: Running) {
-  const phone = await pair(one, { label: 'mine' })
-  await allowDevice(one.home, phone.device, SCOPES, new Date())
-  await grantDevice(one.home, phone.device, GRANTS, new Date())
-  return phone
+/** A paired phone: every one is the person's own. */
+function theirs(one: Running) {
+  return pair(one, { label: 'mine' })
 }
 
 describe('restarting Tade from the person’s own phone', () => {
@@ -122,28 +117,17 @@ describe('restarting Tade from the person’s own phone', () => {
     expect(restarting.restarted).toEqual([])
   })
 
-  it('refuses an ordinary phone however much it was granted, and is the 404 of a path nobody wired', async () => {
-    const restarting = half(0)
-    const one = await start({}, { owned: { restarting } })
-    const phone = await pair(one)
-    await grantDevice(one.home, phone.device, GRANTS, new Date())
-    const refused = await post(one, phone, { stops: 0 })
-    expect(refused.status).toBe(403)
-    const body = JSON.parse(refused.text)
-    expect(body.error).toBe('out_of_scope')
-    expect(body.needs).toEqual(SCOPES.filter((one) => one !== 'read'))
-    expect(restarting.restarted).toEqual([])
+  it('is the 404 of a path nobody wired', async () => {
     const none = await start()
     const mine = await theirs(none)
     expect((await post(none, mine, { stops: 0 })).status).toBe(404)
   })
 
-  it('answers only on this machine’s own door, and the person’s own on any', () => {
+  it('answers only on this machine’s own door, and a paired phone on any', () => {
     expect(OWNED.find((route) => route.name === 'restart')).toMatchObject({
       method: 'POST',
       path: '/api/restart',
       here: true,
-      theirs: true,
     })
   })
 })
@@ -192,16 +176,11 @@ describe('starting the orchestrator alone again, from another of the person’s 
     })
   })
 
-  it('takes nothing, refuses an ordinary phone, and is the 404 of a path nobody wired', async () => {
+  it('takes nothing, and is the 404 of a path nobody wired', async () => {
     const orchestratorRestart = orchestrator()
     const one = await start({}, { owned: { orchestratorRestart } })
     const mine = await theirs(one)
     expect((await again(one, mine, { account: 'work' })).status).toBe(400)
-    const phone = await pair(one)
-    await grantDevice(one.home, phone.device, GRANTS, new Date())
-    const refused = await again(one, phone, {})
-    expect(refused.status).toBe(403)
-    expect(JSON.parse(refused.text).error).toBe('out_of_scope')
     expect(orchestratorRestart.pressed).toEqual([])
     const none = await start()
     expect((await again(none, await theirs(none), {})).status).toBe(404)
@@ -209,7 +188,6 @@ describe('starting the orchestrator alone again, from another of the person’s 
       method: 'POST',
       path: '/api/orchestrator/restart',
       here: true,
-      theirs: true,
     })
   })
 })

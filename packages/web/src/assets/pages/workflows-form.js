@@ -73,7 +73,7 @@ export function form(ctx, label) {
     press.disabled = true
     void ctx.ask('POST', '/api/draft/save', body).then((answer) => {
       press.disabled = false
-      const came = afterAnswer(answer, ctx.sentence(answer), ctx.session?.() ?? null)
+      const came = afterAnswer(answer, ctx.sentence(answer))
       said.hidden = false
       answerIn(said, came.ok ? 'Saved to the draft.' : came.said, came.trouble)
       // What was saved is what the field holds now, so the next fill sees an

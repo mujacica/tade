@@ -3,7 +3,6 @@ import { createServer } from 'node:http'
 import { join, relative } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { callKey } from '../src/answered.ts'
-import { allowDevice, grantDevice } from '../src/devices.ts'
 import type { WebEarlier } from '../src/earlier.ts'
 import { COMPANIONS, CSP } from '../src/headers.ts'
 import { ChatPageSchema, MomentsPageSchema, TurnsPageSchema } from '../src/protocol.ts'
@@ -294,7 +293,9 @@ describe('the notes, a page at a time', () => {
       headers: { cookie: paired.cookie },
     })
     expect(page.status).toBe(200)
-    expect(said(page).rows).toEqual([])
+    // Compared with the notes' own names, which no path is: nothing is read off a disk for it.
+    expect(Array.isArray(said(page).rows)).toBe(true)
+    expect(page.text).not.toContain('passwd')
   })
 })
 
@@ -308,12 +309,7 @@ describe('one agent, asked for again', () => {
     ]) {
       const answer = await ask(one, path, { headers: { cookie: paired.cookie } })
       expect(answer.status, path).toBe(200)
-      // A device granted nothing: the conversation is withheld, and says so.
-      expect(said(answer), path).toMatchObject({
-        here: true,
-        conversation: null,
-        unread: 'not granted',
-      })
+      expect(said(answer), path).toMatchObject({ here: true })
     }
   })
 })
@@ -333,15 +329,14 @@ describe("one call's whole answer, read when it is opened", () => {
     talk: async (call: string) => (call === 'call_sick' ? ('unread' as const) : null),
     known: () => [],
   }
-  const opened = async (path: string, grants: readonly string[]) => {
+  const opened = async (path: string) => {
     const one = await start({}, { owned: { answers } })
     const paired = await pair(one)
-    await grantDevice(one.home, paired.device, grants as never, new Date())
     return said(await ask(one, path, { headers: { cookie: paired.cookie } }))
   }
 
   it('is the whole of a five-thousand-line answer, cleaned, with no line saying there was more', async () => {
-    const got = await opened('/api/agent/sentry/away-projection/answer/toolu_long', ['lanes'])
+    const got = await opened('/api/agent/sentry/away-projection/answer/toolu_long')
     expect(got).toMatchObject({ v: 1, call: 'toolu_long', says: 'words' })
     const lines = String(got.text).split('\n')
     expect(lines).toHaveLength(5_000)
@@ -354,37 +349,33 @@ describe("one call's whole answer, read when it is opened", () => {
   it("is read by the id it was recorded under where that id is not spelt like one, as pi's on OpenAI is", async () => {
     const key = callKey(SPELT_ID) ?? ''
     expect(key.startsWith('~')).toBe(true)
-    const got = await opened(`/api/agent/sentry/away-projection/answer/${key}`, ['lanes'])
+    const got = await opened(`/api/agent/sentry/away-projection/answer/${key}`)
     expect(got).toMatchObject({ call: key, says: 'words' })
     expect(String(got.text).split('\n')).toHaveLength(5_000)
   })
 
   it('tells an answer of nothing, one nobody kept and one that could not be read apart', async () => {
     const at = (call: string) => `/api/agent/sentry/away-projection/answer/${call}`
-    expect(await opened(at('toolu_empty'), ['lanes'])).toMatchObject({
+    expect(await opened(at('toolu_empty'))).toMatchObject({
       says: 'nothing',
       text: null,
     })
-    expect(await opened(at('toolu_cut'), ['lanes'])).toMatchObject({ says: 'unrecorded' })
-    expect(await opened('/api/talk/answer/call_sick', ['talk', 'lanes'])).toMatchObject({
+    expect(await opened(at('toolu_cut'))).toMatchObject({ says: 'unrecorded' })
+    expect(await opened('/api/talk/answer/call_sick')).toMatchObject({
       says: 'unread',
     })
   })
 
-  it('is told only to a device granted the conversation, about a task it reads', async () => {
-    const path = '/api/agent/sentry/away-projection/answer/toolu_long'
-    expect(await opened(path, [])).toMatchObject({ says: 'not granted', text: null })
-    expect(await opened('/api/agent/nobody/nothing/answer/toolu_long', ['lanes'])).toMatchObject({
+  it('is told about a task the machine has, and nothing else', async () => {
+    expect(await opened('/api/agent/nobody/nothing/answer/toolu_long')).toMatchObject({
       says: 'not here',
       text: null,
     })
-    expect(await opened('/api/talk/answer/call_sick', ['lanes'])).toMatchObject({
-      says: 'not granted',
-    })
     // A name that is not a call's is not echoed back.
-    expect(
-      await opened('/api/agent/sentry/away-projection/answer/%3Cscript%3E', ['lanes']),
-    ).toMatchObject({ says: 'not here', call: '' })
+    expect(await opened('/api/agent/sentry/away-projection/answer/%3Cscript%3E')).toMatchObject({
+      says: 'not here',
+      call: '',
+    })
   })
 })
 
@@ -411,16 +402,15 @@ describe('a conversation read further back than a page holds', () => {
     }
     return { asked, earlier }
   }
-  const opened = async (path: string, grants: readonly string[], earlier: WebEarlier) => {
+  const opened = async (path: string, earlier: WebEarlier) => {
     const one = await start({}, { owned: { earlier } })
     const paired = await pair(one)
-    await grantDevice(one.home, paired.device, grants as never, new Date())
     return said(await ask(one, path, { headers: { cookie: paired.cookie } }))
   }
 
   it('answers Tade’s lines before one the page holds, after the window was asked to hold them', async () => {
     const { asked, earlier } = made()
-    const got = await opened(`/api/chat?before=${encodeURIComponent(FOURTH)}`, ['talk'], earlier)
+    const got = await opened(`/api/chat?before=${encodeURIComponent(FOURTH)}`, earlier)
     expect(ChatPageSchema.parse(got).rows.map((row) => row.id)).toEqual([
       '2026-10-08T14:00:00.000Z#0',
       '2026-10-08T14:00:01.000Z#0',
@@ -432,20 +422,14 @@ describe('a conversation read further back than a page holds', () => {
 
   it('says the record could not be read now, and answers what is held', async () => {
     const { earlier } = made()
-    const got = await opened('/api/chat?before=2026-10-08T14:00:01.000Z%230', ['talk'], earlier)
+    const got = await opened('/api/chat?before=2026-10-08T14:00:01.000Z%230', earlier)
     expect(got).toMatchObject({ why: 'unread', earlier: true })
     expect(got.rows).toHaveLength(1)
   })
 
-  it('reads nothing for a device not granted the conversation, and nothing for a cursor that is not a line’s', async () => {
+  it('reads nothing for a cursor that is not a line’s', async () => {
     const { asked, earlier } = made()
-    expect(
-      await opened(`/api/chat?before=${encodeURIComponent(FOURTH)}`, [], earlier),
-    ).toMatchObject({
-      rows: [],
-      why: 'not granted',
-    })
-    expect(await opened('/api/chat?before=../../etc/passwd', ['talk'], earlier)).toMatchObject({
+    expect(await opened('/api/chat?before=../../etc/passwd', earlier)).toMatchObject({
       rows: [],
       earlier: false,
     })
@@ -454,11 +438,7 @@ describe('a conversation read further back than a page holds', () => {
 
   it('answers an agent’s turns before a cursor, cleaned, with where the ones before end', async () => {
     const { asked, earlier } = made()
-    const got = await opened(
-      '/api/agent/sentry/away-projection/earlier?before=2048',
-      ['lanes'],
-      earlier,
-    )
+    const got = await opened('/api/agent/sentry/away-projection/earlier?before=2048', earlier)
     expect(() => TurnsPageSchema.parse(got)).not.toThrow()
     expect(got).toMatchObject({ task: 'sentry/away-projection', before: '512', why: null })
     expect(got.turns).toHaveLength(turns.length)
@@ -466,19 +446,18 @@ describe('a conversation read further back than a page holds', () => {
     expect(asked.agent).toEqual(['sentry/away-projection 2048'])
   })
 
-  it('reads no agent’s record without its screen, about a task out of reach, or by a cursor that is not one', async () => {
+  it('reads no agent’s record about a task out of reach, or by a cursor that is not one', async () => {
     const { asked, earlier } = made()
     const at = '/api/agent/sentry/away-projection/earlier'
-    expect(await opened(`${at}?before=2048`, [], earlier)).toMatchObject({ why: 'not granted' })
-    expect(
-      await opened('/api/agent/nobody/nothing/earlier?before=2048', ['lanes'], earlier),
-    ).toMatchObject({ why: 'not here' })
-    expect(await opened(`${at}?before=../2048`, ['lanes'], earlier)).toMatchObject({
+    expect(await opened('/api/agent/nobody/nothing/earlier?before=2048', earlier)).toMatchObject({
+      why: 'not here',
+    })
+    expect(await opened(`${at}?before=../2048`, earlier)).toMatchObject({
       turns: [],
       before: null,
       why: null,
     })
-    expect(await opened(`${at}?before=9`, ['lanes'], earlier)).toMatchObject({ why: 'unread' })
+    expect(await opened(`${at}?before=9`, earlier)).toMatchObject({ why: 'unread' })
     expect(asked.agent).toEqual(['sentry/away-projection 9'])
   })
 })
@@ -915,14 +894,8 @@ describe('a lan bind', () => {
       readingFor: reading,
       tickets,
       interfaces: machine,
-      // Everything a person at the machine could give, so that what the
-      // origin takes away is the only thing in the way.
-      confirm: async () => ({
-        let: true,
-        projects: null,
-        granted: [],
-        scopes: ['read', 'answer', 'steer'],
-      }),
+      // Let in, so that what the origin takes away is the only thing in the way.
+      confirm: async () => ({ let: true }),
       ...(over.acting === true ? { acting: actingStub() } : {}),
     })
     const outside = createServer((req, res) => {
@@ -987,15 +960,14 @@ describe('a lan bind', () => {
     const through = { host: lan, origin: `http://${lan}` }
     const paired = await pair(there, { headers: through })
     expect(paired.answer.status).toBe(201)
-    // Granted three at the machine, minted with one: plain HTTP on a network.
-    expect(said(paired.answer).scopes).toEqual(['read'])
+    // Paired in the clear: plain HTTP on a network.
+    expect(said(paired.answer).clear).toBe(true)
     const read = await ask(there, '/api/snapshot', {
       headers: { host: lan, cookie: paired.cookie },
     })
     expect(read.status).toBe(200)
 
-    // Widened at the machine afterwards, and still not an act from there.
-    await allowDevice(there.home, paired.device, ['read', 'steer'], new Date())
+    // And never an act from there.
     const mutation = {
       ...through,
       cookie: paired.cookie,
@@ -1005,9 +977,10 @@ describe('a lan bind', () => {
     const act = await ask(there, '/api/act/park', { method: 'POST', headers: mutation, body: '{}' })
     expect(act.status).toBe(403)
     expect(said(act).error).toBe('locked')
-    // And a route for this machine alone is a path nobody built there.
+    // Nor what is the SSH key's: asked what acting is, and paired in the clear.
     const since = await ask(there, '/api/since', { method: 'POST', headers: mutation, body: '{}' })
-    expect(since.status).toBe(404)
+    expect(since.status).toBe(403)
+    expect(said(since).error).toBe('locked')
   })
 
   it('reads the interfaces at the request, so an address that moved is followed', async () => {

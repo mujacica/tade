@@ -1,10 +1,7 @@
 import type { IncomingMessage } from 'node:http'
 import { z } from 'zod'
-import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
-import { type Reach, sees } from './reach.ts'
 import { readBody } from './request.ts'
-import { ownsOrTheirs, reachOf } from './surface.ts'
 
 // What one of this machine's watches has already found, for another machine of
 // the person's that left the watch to this one and will take it back
@@ -14,9 +11,8 @@ import { ownsOrTheirs, reachOf } from './surface.ts'
 // **An owner's, at this machine's own door** (`here`), like `machine.ts` and
 // for its reasons: whoever holds the SSH key can read this machine's journal,
 // and a key is a source's own id for an item — an issue number, a run's id —
-// which is what `watch_found` already writes here. The person's own phone
-// (`theirs`) may ask it too; it reads only what a projection already shows of
-// a project it reads.
+// which is what `watch_found` already writes here. A paired phone, the
+// person's own, may ask it too; it reads only what a projection already shows.
 //
 // **Bounded, newest kept**: a watch that has looked for a year has seen more
 // keys than one answer carries, and the ones that matter for not offering a
@@ -65,25 +61,19 @@ export type WebWatchSeen = (ask: WatchSeenAsk) => Promise<WatchSeenAnswer>
 /** The route. `watchSeen` absent is a window that did not wire it: the `404` of a path nobody built. */
 export async function watchSeenHere(
   req: IncomingMessage,
-  device: Device,
   watchSeen: WebWatchSeen | undefined,
 ): Promise<{ body: WatchSeenAnswer } | { refusal: Refusal }> {
   if (watchSeen === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const ask = WatchSeenBody.safeParse(got.body)
   if (!ask.success) return { refusal: refuse('malformed') }
-  return { body: watchSeenFor(await watchSeen(ask.data), ask.data, reachOf(device)) }
+  return { body: watchSeenFor(await watchSeen(ask.data)) }
 }
 
-/** What one device is answered: nothing of a project it does not read, and every list within its bound. */
-export function watchSeenFor(
-  all: WatchSeenAnswer,
-  ask: WatchSeenAsk,
-  reach: Reach,
-): WatchSeenAnswer {
-  if (!sees(reach, ask.project) || !all.found) {
+/** What a device is answered: every list within its bound. */
+export function watchSeenFor(all: WatchSeenAnswer): WatchSeenAnswer {
+  if (!all.found) {
     return { at: all.at, found: false, since: null, input: '', seen: [], more: 0 }
   }
   const keys = all.seen.filter((key) => key.length <= 200)

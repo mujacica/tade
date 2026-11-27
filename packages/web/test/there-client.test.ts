@@ -6,7 +6,7 @@ import { applyCopy, applySnapshot, emptyStore } from '../src/assets/store.js'
 import { linksThere, THERE_VERBS, thereCtx, thereOn } from '../src/assets/there.js'
 import { PROTOCOL_VERSION } from '../src/protocol.ts'
 import { snapshotOf } from '../src/snapshot.ts'
-import { EVERY, input, NOW, queued, reach, task } from './fixtures.ts'
+import { input, NOW, queued, reach, task } from './fixtures.ts'
 
 // Another machine's project and task, drawn out of the copy of it this door
 // keeps (`/m/<machine>/…`, ONE-AWAY-VIEW §2.4): that machine's own rows under
@@ -38,7 +38,7 @@ function drawn(
     store,
     snapshotOf(
       input({
-        reach: reach(EVERY),
+        reach: reach(),
         machines,
         tasks: [task({ id: 'tade/one', project: 'tade', title: 'this machine’s own' })],
       }),
@@ -47,7 +47,7 @@ function drawn(
   )
   const theirs = snapshotOf(
     input({
-      reach: reach(EVERY),
+      reach: reach(),
       tasks: [
         task({ id: 'tade/one', project: 'tade', title: 'the mac’s one', state: 'blocked' }),
         task({ id: 'tade/two', project: 'tade' }),

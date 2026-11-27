@@ -17,7 +17,6 @@
 // Nothing here decides what holds a review or what its checks add up to
 // (`reviews-shape.js`).
 
-import { mayFor } from '../access.js'
 import { stack, stackIn, toneIn } from '../charts.js'
 import { el, glyphOf, into, keyed, markIn, skeleton, textIn, toneOn, unknown } from '../dom.js'
 import { count } from '../figures.js'
@@ -25,7 +24,7 @@ import { icon } from '../icons.js'
 import { quickActs } from '../quick.js'
 import { section } from '../rows.js'
 import { reviewsOf, taskAt } from '../store.js'
-import { note, panel, stateBox, stateBoxIn } from '../ui.js'
+import { panel, stateBox, stateBoxIn } from '../ui.js'
 import {
   figureSaid,
   heldSaid,
@@ -48,16 +47,6 @@ export function reviewsScreen(ctx = null) {
   const whole = stateBox()
   whole.classList.add('rv-whole')
   const lead = leadOf()
-  // Without the grant only the **link** to each review is withheld
-  // (`tasks.review.url`): whether a branch was offered, and how it stands, is
-  // sent to every device and drawn below. Said once, so a card with no press
-  // to its forge reads as withheld rather than as a forge with nothing to open.
-  const scope = note(
-    'review links not granted',
-    'This device was not granted the link to each review on its forge.',
-    'reviews',
-  )
-  scope.classList.add('rv-scope')
   const left = el('div', { class: 'rv-omitted' })
   const you = groupOf('WAITING ON YOU', 'you', 'Waiting on you', ctx, {
     hint: 'Its agent asked you something — an approval or a question — and the review waits with it.',
@@ -76,7 +65,6 @@ export function reviewsScreen(ctx = null) {
     coming,
     whole,
     lead.node,
-    scope,
     left,
     you.made.node,
     blocked.made.node,
@@ -100,7 +88,6 @@ export function reviewsScreen(ctx = null) {
       stateBoxIn(whole, wholeOf(had, shut, page))
       const shown = page !== null && page.total > 0
       lead.node.hidden = !shown
-      scope.hidden = !shown || mayFor(store, 'tasks.review.url')
       const said = shown ? leftSaid(view.frozen, view.asOf) : null
       left.hidden = said === null
       if (said !== null) sayLeft(left, said)

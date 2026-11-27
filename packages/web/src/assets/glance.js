@@ -3,7 +3,6 @@
 // all six (`pages/overview.js`) and a project's page leads with its own
 // (`pages/project.js`); the number a tile says is the same rule on both.
 
-import { mayFor } from './access.js'
 import { barIn, barOf, ringOf } from './charts.js'
 import { classOn, el, figureIn, into, textIn } from './dom.js'
 import { money, planPressure, tokensSaid } from './figures.js'
@@ -189,7 +188,7 @@ export function tilesIn(made, glance, view) {
     `${q.n} queued`,
   )
 
-  const paid = money(glance.spend, mayFor(view.store, 'tasks.spend'))
+  const paid = money(glance.spend)
   const figure = paid.said === '—' ? '—' : `${glance.spend.partial ? '≥' : ''}${paid.said}`
   const toks = tokensSaid(glance.spend)
   said(
@@ -199,18 +198,15 @@ export function tilesIn(made, glance, view) {
     paid.said === '—' ? `spend: ${paid.why}` : `spend ${figure}`,
   )
 
-  // The tightest window of any account. *Not granted* and *none reported*
-  // are two different dashes, and neither is a nought.
+  // The tightest window of any account. *None reported* is a dash, never a
+  // nought.
   if (made.quota !== undefined) {
-    const may = mayFor(view.store, 'plans')
-    const plan = may ? glance.plan : null
+    const plan = glance.plan
     said(
       made.quota,
       plan === null ? '—' : `${Math.round(plan.used)}%`,
-      !may ? 'not granted' : plan === null ? 'none reported' : `${plan.harness} · ${plan.label}`,
-      plan === null
-        ? `quota: ${may ? 'none reported' : 'not granted'}`
-        : `quota ${Math.round(plan.used)}% used`,
+      plan === null ? 'none reported' : `${plan.harness} · ${plan.label}`,
+      plan === null ? 'quota: none reported' : `quota ${Math.round(plan.used)}% used`,
     )
     made.quota.chart.hidden = plan === null || !had
     if (plan !== null) meterIn(made.quota.chart, plan.used, planPressure(plan.used))

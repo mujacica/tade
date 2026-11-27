@@ -167,9 +167,9 @@ export function resumeFrom(
 /**
  * The deltas kept for a reconnection, bounded by construction.
  *
- * One ring per device, because the projection is per device: two phones
- * granted different projects are two projections, and a shared ring would
- * replay one device's rows into the other's page. Dropped on close, so nothing
+ * One ring per device, because each device has a projector of its own with
+ * its own revisions, and a shared ring would replay one device's deltas into
+ * a page whose cursor is another's. Dropped on close, so nothing
  * here outlives the window.
  *
  * Mutable, and pure in the sense this repository holds: it reads no clock,

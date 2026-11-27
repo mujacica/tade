@@ -124,8 +124,7 @@ export function checksRowOf(checks) {
 /**
  * Where a review is on its forge, as the press says it: its number where the
  * URL ends in one (`/pull/412`, `/merge_requests/12`), and the safe link — or
- * null where there is no `https:` link to give (`safeHref`), which is also
- * every device not granted the links.
+ * null where there is no `https:` link to give (`safeHref`).
  */
 export function forgeOf(review) {
   const href = safeHref(review?.url ?? null)

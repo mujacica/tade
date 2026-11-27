@@ -24,11 +24,11 @@ import { agentMenu, agentPresses, holdOpens } from './agent-menu.js'
 import { classOn, el, empty, glyphOf, into, keyed, markIn, stateIn, textIn } from './dom.js'
 import { ageSaid, count } from './figures.js'
 import { rowMark, taskMark } from './glyphs.js'
-import { agentsElsewhere } from './machines.js'
+import { agentsElsewhere, drawsOf, HERE } from './machines.js'
 import { taskPath, thereHref } from './routes.js'
 import { section } from './rows.js'
-import { agentsOf } from './store.js'
-import { THERE_VERBS, thereCtx } from './there.js'
+import { agentsOf, copiesOf } from './store.js'
+import { machineChips, machinePicked, THERE_VERBS, thereCtx } from './there.js'
 import { panel } from './ui.js'
 
 /* ── every agent running ───────────────────────────────────────────────────── */
@@ -47,23 +47,32 @@ export function agentsScreen(ctx = null) {
   const acting =
     ctx === null ? null : { ctx, menu: agentMenu(ctx), rowOf: (id) => rows.get(id) ?? null }
   const made = section('AGENTS', { top: true })
+  // The machine chips, as on every list page: whose agents are drawn is the pick's.
+  const chips = machineChips()
+  const mark = el('p', { class: 'there-line', text: 'This machine' })
   const groups = el('div')
   const none = empty('no agent is running')
   // Every other machine's, after this one's: a group a machine (`machines.js`).
   const elsewhere = el('div')
-  into(made.body, groups, none, elsewhere)
+  into(made.body, chips.node, mark, groups, none, elsewhere)
   const rest = el('p', { class: 'unknown' })
   into(node, made.node, rest)
   return {
     node,
     update(view) {
-      const agents = agentsOf(view.store)
-      const others = agentsElsewhere(view.store)
+      const pick = machinePicked(view.store)
+      chips.update(view.store)
+      const mine = drawsOf(pick, HERE)
+      const agents = mine ? agentsOf(view.store) : []
+      const others = agentsElsewhere(view.store).filter((group) => drawsOf(pick, group.machine))
       rows.clear()
       for (const task of agents) rows.set(task.id, task)
-      textIn(made.figure, count(agents.length))
-      made.figure.setAttribute('aria-label', `${agents.length} agents running`)
-      none.hidden = agents.length > 0 || others.length > 0
+      const shown = others.reduce((n, group) => n + group.agents.length, agents.length)
+      textIn(made.figure, count(shown))
+      made.figure.setAttribute('aria-label', `${shown} agents running`)
+      none.hidden = shown > 0
+      // Marked only where another machine's could be drawn beside it.
+      mark.hidden = !mine || copiesOf(view.store).length === 0
       keyed(
         groups,
         byProject(agents),
@@ -78,7 +87,8 @@ export function agentsScreen(ctx = null) {
         createElsewhere,
         (one, group) => fillElsewhere(one, group, view, ctx),
       )
-      const idle = view.store.rows.tasks.size - agents.length
+      // This machine's tasks with none, said only where this machine's are drawn.
+      const idle = mine ? view.store.rows.tasks.size - agents.length : 0
       // **Counted, never left out in silence**: a page of four agents that did
       // not say twelve tasks have none would read as the whole of the work.
       textIn(
@@ -232,8 +242,8 @@ export function fillAgentRow(node, task, view) {
  * Where an agent works and what it runs on, in the order you look for them:
  * its project, the harness with the account it signs in as, then the model.
  * A harness or model nobody wrote down is a dash — never left out, which
- * would read as the other being the whole answer; an account this device was
- * not granted is simply not said.
+ * would read as the other being the whole answer; an account nobody named is
+ * simply not said.
  */
 export function runsOn(task) {
   const account = task.account?.words ?? null

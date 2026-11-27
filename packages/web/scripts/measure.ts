@@ -2,13 +2,12 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { revise, tick } from '../src/delta.ts'
 import { measureDelta, measureOf, sayMeasurement } from '../src/measure.ts'
-import { GRANTS } from '../src/reach.ts'
+import { reachFor } from '../src/reach.ts'
 import { inputFrom } from './home-input.ts'
 
 // How big is a projection of this machine, and what does a beat of it cost?
 //
-//   node packages/web/scripts/measure.ts            # a device granted nothing
-//   node packages/web/scripts/measure.ts --all      # a device granted everything
+//   node packages/web/scripts/measure.ts
 //   TADE_HOME=/somewhere node packages/web/scripts/measure.ts
 //
 // It prints counts, lengths and byte totals and **no value out of the
@@ -18,14 +17,9 @@ import { inputFrom } from './home-input.ts'
 // person's own words on a terminal.
 
 const home = process.env.TADE_HOME ?? join(homedir(), '.tade')
-const all = process.argv.includes('--all')
 const now = Date.now()
 
-const input = inputFrom(
-  home,
-  { device: 'measuring', projects: { kind: 'every' }, granted: all ? GRANTS : [] },
-  now,
-)
+const input = inputFrom(home, reachFor('measuring'), now)
 const made = revise(null, input, now)
 const measured = measureOf(made.snapshot)
 

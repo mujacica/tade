@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { SnapshotSchema } from '../src/protocol.ts'
 import { checkTreesOf, snapshotOf, tracksOf } from '../src/snapshot.ts'
-import { checkRun, checkTree, EVERY, input, NOW, project, reach } from './fixtures.ts'
+import { checkRun, checkTree, input, NOW, project } from './fixtures.ts'
 
 // What ran in each tree, as a project row carries it: the history the checks
 // page draws, and how long a check has answered what it answers now. **History,
@@ -12,7 +12,7 @@ const at = (minute: number) => new Date(Date.parse('2026-10-08T09:00:00.000Z') +
 
 describe('a project’s run records', () => {
   it('carry its checkout first and each worktree with runs of its own, and no empty one', () => {
-    const snapshot = snapshotOf(input({ reach: reach(EVERY) }), NOW)
+    const snapshot = snapshotOf(input(), NOW)
     SnapshotSchema.parse(snapshot)
     const sentry = snapshot.projects.find((one) => one.name === 'sentry')
     expect(sentry?.checks?.map((tree) => tree.task)).toEqual([null, 'sentry/away-projection'])
@@ -35,14 +35,12 @@ describe('a project’s run records', () => {
   })
 
   it('is a checkout with no checks at all where its record holds no runs', () => {
-    expect(checkTreesOf([checkTree({ runs: [] })], 'sentry', reach(EVERY))).toEqual([
-      { task: null, checks: [] },
-    ])
+    expect(checkTreesOf([checkTree({ runs: [] })], 'sentry')).toEqual([{ task: null, checks: [] }])
   })
 })
 
 describe('a check’s track', () => {
-  const tracks = tracksOf(checkTree().runs, reach(EVERY))
+  const tracks = tracksOf(checkTree().runs)
   const of = (check: string) => tracks.find((one) => one.check === check)
 
   it('lists the checks in the order they first ran', () => {
@@ -87,10 +85,7 @@ describe('a check’s track', () => {
       by: 'sentry/away-projection',
       streak: null,
     })
-    const said = tracksOf(
-      [checkRun({ state: 'skipped' }), checkRun({ state: 'cancelled' })],
-      reach(EVERY),
-    )
+    const said = tracksOf([checkRun({ state: 'skipped' }), checkRun({ state: 'cancelled' })])
     expect(said[0]?.streak).toBeNull()
     expect(said[0]?.runs.map((one) => one.state)).toEqual(['other', 'other'])
   })
@@ -99,7 +94,7 @@ describe('a check’s track', () => {
     const many = Array.from({ length: 200 }, (_, n) =>
       checkRun({ minute: n, state: n < 2 ? 'passed' : 'failed' }),
     )
-    const [track] = tracksOf(many, reach(EVERY))
+    const [track] = tracksOf(many)
     expect(track?.runs).toHaveLength(200)
     expect(track?.runs[0]?.at).toBe(at(0).toISOString())
     expect(track?.runs.at(-1)?.at).toBe(at(199).toISOString())
@@ -108,10 +103,10 @@ describe('a check’s track', () => {
   })
 
   it('is required as its newest run says, and rounds a length to whole milliseconds', () => {
-    const [track] = tracksOf(
-      [checkRun({ required: true, ms: 10.4 }), checkRun({ minute: 1, required: false, ms: -3 })],
-      reach(EVERY),
-    )
+    const [track] = tracksOf([
+      checkRun({ required: true, ms: 10.4 }),
+      checkRun({ minute: 1, required: false, ms: -3 }),
+    ])
     expect(track?.required).toBe(false)
     expect(track?.runs.map((one) => one.ms)).toEqual([10, 0])
   })
@@ -119,21 +114,11 @@ describe('a check’s track', () => {
 
 describe('who asked for a check’s newest run', () => {
   it('is said as the record says it, a task’s id or Tade’s own word', () => {
-    const tracks = tracksOf(
-      [checkRun({ by: 'sentry/fix' }), checkRun({ check: 'format', by: 'you' })],
-      reach(EVERY),
-    )
+    const tracks = tracksOf([
+      checkRun({ by: 'sentry/fix' }),
+      checkRun({ check: 'format', by: 'you' }),
+    ])
     expect(tracks.map((one) => one.by)).toEqual(['sentry/fix', 'you'])
-    expect(tracksOf([checkRun({ by: null })], reach(EVERY))[0]?.by).toBeNull()
-  })
-
-  it('is left out where it names a task in a project this device may not read', () => {
-    const narrow = reach(EVERY, ['sentry'])
-    const [mine, theirs] = [
-      tracksOf([checkRun({ by: 'sentry/fix' })], narrow)[0]?.by,
-      tracksOf([checkRun({ by: 'secret/plan' })], narrow)[0]?.by,
-    ]
-    expect(mine).toBe('sentry/fix')
-    expect(theirs).toBeNull()
+    expect(tracksOf([checkRun({ by: null })])[0]?.by).toBeNull()
   })
 })

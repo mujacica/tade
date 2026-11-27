@@ -32,7 +32,7 @@ import {
 import { assetsDir } from '../src/assets.ts'
 import { projector } from '../src/reading.ts'
 import { scripts } from './asset-files.ts'
-import { blocked, EVERY, input, NOW, plan, reach, task } from './fixtures.ts'
+import { blocked, input, NOW, plan, reach, task } from './fixtures.ts'
 
 // The overview, the command bar and the presses on a card — the parts of them
 // that are rules rather than drawing, held here with no browser.
@@ -49,7 +49,7 @@ const DIR = assetsDir()
 /** A page's store, filled from the real projection. */
 function held(over = {}) {
   const store = emptyStore()
-  const made = projector(input({ reach: reach(EVERY), ...over }), NOW)
+  const made = projector(input({ reach: reach(), ...over }), NOW)
   expect(applySnapshot(store, made.snapshot())).toBeNull()
   return store
 }
@@ -215,7 +215,7 @@ describe('the command bar', () => {
     expect(rows.filter((one) => one.path === '/f')).toHaveLength(1)
   })
 
-  it('offers only the acts the session and the row both allow', () => {
+  it('offers only the acts the row allows, and none on a device that cannot act', () => {
     const row = {
       approval: { tool: 'Bash' },
       parked: false,
@@ -225,16 +225,13 @@ describe('the command bar', () => {
       ],
       cannot: [{ verb: 'park', why: 'no' }],
     }
-    expect(actsOn(row, { answer: true, steer: false }).map((one) => one.word)).toEqual([
-      'Allow Bash',
-      'Deny',
-    ])
-    expect(actsOn(row, { answer: true, steer: true }).map((one) => one.word)).toEqual([
+    expect(actsOn(row, { steer: true }).map((one) => one.word)).toEqual([
       'Allow Bash',
       'Deny',
       'Mark done',
     ])
     expect(actsOn(row, {})).toEqual([])
+    expect(actsOn(row, { steer: false })).toEqual([])
   })
 
   it('moves the lit row round the list, and nowhere in an empty one', () => {

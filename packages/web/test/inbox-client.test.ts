@@ -33,7 +33,7 @@ import {
 } from '../src/assets/pages/inbox-shape.js'
 import type { IntakeIn, SourceIn } from '../src/factory.ts'
 import { snapshotOf } from '../src/snapshot.ts'
-import { EVERY, input, intake, NOW, reach, source } from './fixtures.ts'
+import { input, intake, NOW, reach, source } from './fixtures.ts'
 
 // What the inbox page draws, against **real projected rows** rather than
 // shapes a test assembled: every group, wait, order and sentence goes through
@@ -71,9 +71,9 @@ const one = (id: string, state: IntakeIn['state'], ago: number, over: Partial<In
     ...over,
   })
 
-/** The rows a device granted these reads is handed. */
-function rows(intakes: IntakeIn[], sources: SourceIn[] = [source()], granted = EVERY) {
-  const made = snapshotOf(input({ reach: reach(granted), intake: intakes, sources }), NOW)
+/** The rows a paired device is handed. */
+function rows(intakes: IntakeIn[], sources: SourceIn[] = [source()]) {
+  const made = snapshotOf(input({ reach: reach(), intake: intakes, sources }), NOW)
   return { intake: made.intake, sources: made.sources }
 }
 
@@ -229,8 +229,8 @@ describe('where everything stands', () => {
 })
 
 describe('a request, in a card or a row', () => {
-  it('goes by the source’s id where this device may not read its title, never the id as a title', () => {
-    const made = rows([one('1', 'proposed', 5)], [source()], [])
+  it('goes by the source’s id where it has no title, never the id as a title', () => {
+    const made = rows([one('1', 'proposed', 5, { title: '', who: '' })])
     const card = inboxPage(made.intake, made.sources, NOW, NOW).groups[0]?.cards[0]
     expect(card?.name).toBe('github 1')
     expect(card?.named).toBe(false)
@@ -238,11 +238,11 @@ describe('a request, in a card or a row', () => {
     expect(card?.from).toBe('sentry')
   })
 
-  it('says where it came from, and leaves out a handle it was not granted rather than dashing it', () => {
-    const granted = rows([one('1', 'proposed', 5)]).intake[0]
-    const withheld = rows([one('1', 'proposed', 5)], [source()], []).intake[0]
-    expect(fromSaid(granted)).toBe('github 1 · @octocat-Vb2 · sentry')
-    expect(fromSaid(withheld)).toBe('github 1 · sentry')
+  it('says where it came from, and leaves out a handle nobody gave rather than dashing it', () => {
+    const given = rows([one('1', 'proposed', 5)]).intake[0]
+    const nameless = rows([one('1', 'proposed', 5, { who: '' })]).intake[0]
+    expect(fromSaid(given)).toBe('github 1 · @octocat-Vb2 · sentry')
+    expect(fromSaid(nameless)).toBe('github 1 · sentry')
   })
 
   it('says what approving would start, and nothing where nothing worked it out', () => {
@@ -396,8 +396,7 @@ describe('the bar and the lines around the lead', () => {
 })
 
 describe('one request', () => {
-  const row = (over: Partial<IntakeIn> = {}, granted = EVERY) =>
-    rows([intake(over)], [source()], granted).intake[0]
+  const row = (over: Partial<IntakeIn> = {}) => rows([intake(over)], [source()]).intake[0]
 
   it('washes violet while it waits for a yes and red while it stopped, and nothing otherwise', () => {
     expect(standingOfRequest(row(), NOW).wash).toBe('wants')
@@ -419,7 +418,7 @@ describe('one request', () => {
 
   it('puts who and what first and the record under a fold, until a failure makes tries matter', () => {
     const calm = row()
-    const split = factsSplit(provenanceOf(calm, true), calm)
+    const split = factsSplit(provenanceOf(calm), calm)
     expect(split.first.map(([label]) => label)).toEqual([
       'source',
       'their id',
@@ -430,17 +429,13 @@ describe('one request', () => {
     ])
     expect(split.more.map(([label]) => label)).toContain('its hash')
     const tried = row({ attempts: 2 })
-    expect(factsSplit(provenanceOf(tried, true), tried).first.map(([label]) => label)).toContain(
-      'tried',
-    )
+    expect(factsSplit(provenanceOf(tried), tried).first.map(([label]) => label)).toContain('tried')
   })
 
-  it('tells a handle nobody said from one this device may not read', () => {
-    const asked = (one: ReturnType<typeof row>, may: boolean) =>
-      new Map(provenanceOf(one, may)).get('asked by')
-    expect(asked(row(), true)).toBe('@octocat-Vb2')
-    expect(asked(row({}, []), false)).toBe('not granted')
-    expect(asked(row({ who: '' }), true)).toBe('—')
+  it('says a handle nobody said as a dash', () => {
+    const asked = (one: ReturnType<typeof row>) => new Map(provenanceOf(one)).get('asked by')
+    expect(asked(row())).toBe('@octocat-Vb2')
+    expect(asked(row({ who: '' }))).toBe('—')
   })
 
   it('draws what it made by the step’s mark, linked only where the task is here', () => {
@@ -499,19 +494,12 @@ describe('one request', () => {
     )
   })
 
-  it('says where it came from in chips, telling a handle nobody said from one not granted', () => {
-    const said = (one: ReturnType<typeof row>, may: boolean) =>
-      chipsOf(one, may).map((chip) => chip.said)
-    expect(said(row(), true)).toEqual([
-      'github 1402',
-      '@octocat-Vb2',
-      'sentry',
-      'reproduce-and-fix@3',
-    ])
-    expect(said(row({}, []), false)).toContain('asked by: not granted')
-    expect(said(row({ who: '' }), true)).toEqual(['github 1402', 'sentry', 'reproduce-and-fix@3'])
-    expect(said(row({ stamp: null }), true).at(-1)).toBe('one task')
-    expect(chipsOf(row({ stamp: null }), true).at(-1)?.mono).toBe(false)
+  it('says where it came from in chips, leaving out a handle nobody said', () => {
+    const said = (one: ReturnType<typeof row>) => chipsOf(one).map((chip) => chip.said)
+    expect(said(row())).toEqual(['github 1402', '@octocat-Vb2', 'sentry', 'reproduce-and-fix@3'])
+    expect(said(row({ who: '' }))).toEqual(['github 1402', 'sentry', 'reproduce-and-fix@3'])
+    expect(said(row({ stamp: null })).at(-1)).toBe('one task')
+    expect(chipsOf(row({ stamp: null })).at(-1)?.mono).toBe(false)
   })
 
   it('opens the task a held request is held on, only while that task is here', () => {
@@ -526,7 +514,7 @@ describe('one request', () => {
     expect(heldTaskOf(row(), () => true)).toBeNull()
   })
 
-  it('says why approving is not offered only where a yes is waited on, and never for a press not granted', () => {
+  it('says why approving is not offered only where a yes is waited on, and never for a press that is off', () => {
     const proposed = row()
     expect(approveWhy(proposed, true, { kind: 'yes' })).toBe('')
     expect(approveWhy(proposed, false, { kind: 'no', why: '' })).toBe(

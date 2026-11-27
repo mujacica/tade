@@ -12,7 +12,6 @@
 //
 // Nothing here touches the DOM.
 
-import { mayFor } from '../access.js'
 import { money, onPlan, shortClockOf, tokensSaid } from '../figures.js'
 import { findingMark, joined, queueMark, reviewMark, rowMark } from '../glyphs.js'
 import { pathOf, taskPath } from '../routes.js'
@@ -401,11 +400,8 @@ export function findingPart(finding) {
 /**
  * This project's findings, whose move first and the likeliest first inside
  * that; the ones nobody needs to read again (a false positive) fold away.
- * `may` is false where this device was not granted findings, which is not
- * *none*.
  */
 export function findingsIn(store, project) {
-  const may = mayFor(store, 'findings')
   const order = (one) => FINDING_PARTS.findIndex((part) => part.key === findingPart(one))
   const rows = findingsOf(store)
     .filter((one) => one.project === project)
@@ -422,20 +418,18 @@ export function findingsIn(store, project) {
   const read = parts[0].n
   const open = parts[1].n
   return {
-    may,
     live: rows.filter((one) => findingPart(one) !== 'cleared'),
     over: rows.filter((one) => findingPart(one) === 'cleared'),
     n: rows.length,
-    figure: !may
-      ? null
-      : read > 0
+    figure:
+      read > 0
         ? `${read} to read`
         : open > 0
           ? `${open} not answered`
           : rows.length === 0
             ? 'none'
             : 'all read',
-    tone: may && read > 0 ? 'wants' : null,
+    tone: read > 0 ? 'wants' : null,
     parts,
   }
 }
@@ -449,48 +443,44 @@ export const TOP = 5
  * What this project's work cost, since when, how it divides, and which agents
  * spent most of it.
  *
- * `value` is null where there is no figure — not granted, or nobody wrote it
- * down — and `why` says which (`money`'s two words). A sum over a snapshot that
+ * `value` is null where there is no figure — nobody wrote it down — and `why`
+ * says so (`money`'s two words). A sum over a snapshot that
  * left tasks out is a floor and says `≥`. What a plan's turns would have cost
  * at list is said apart and is in no total.
  */
 export function moneyOf(store, project) {
-  const granted = mayFor(store, 'tasks.spend')
   const row = projectAt(store, project)
   const tasks = tasksIn(store, project)
   const partial = row !== null && row.counts.shown < row.counts.tasks
   const fold = spendFold(tasks, partial)
-  const paid = money(fold, granted)
+  const paid = money(fold)
   const known = paid.said !== '—'
   const since = spendSince(store)
-  const toks = granted ? tokensSaid(fold) : null
-  const plan = granted ? onPlan(fold) : null
-  const top = granted
-    ? tasks
-        .filter((task) => task.spend?.hasCost === true && task.spend.usd > 0)
-        .sort((a, b) => b.spend.usd - a.spend.usd || byText(a.id, b.id))
-        .slice(0, TOP)
-        .map((task) => ({
-          key: task.id,
-          label: task.name,
-          value: task.spend.usd,
-          said: spentSaid(task.spend),
-          href: taskPath(task.id),
-          // Money is not a state: a quiet bar, never one in Tade's own amber.
-          tone: 'queued',
-        }))
-    : []
+  const toks = tokensSaid(fold)
+  const plan = onPlan(fold)
+  const top = tasks
+    .filter((task) => task.spend?.hasCost === true && task.spend.usd > 0)
+    .sort((a, b) => b.spend.usd - a.spend.usd || byText(a.id, b.id))
+    .slice(0, TOP)
+    .map((task) => ({
+      key: task.id,
+      label: task.name,
+      value: task.spend.usd,
+      said: spentSaid(task.spend),
+      href: taskPath(task.id),
+      // Money is not a state: a quiet bar, never one in Tade's own amber.
+      tone: 'queued',
+    }))
   return {
-    granted,
     value: known ? `${partial ? '≥' : ''}${paid.said}` : null,
     why: paid.why,
     since: since === null ? null : shortClockOf(since),
     tokens: toks === null ? null : toks.said,
     unpriced: toks === null || toks.unpriced === '' ? null : toks.unpriced,
-    exact: granted && fold.usdExact > 0 ? `$${fold.usdExact.toFixed(2)}` : null,
-    estimated: granted && fold.usdEstimated > 0 ? `~$${fold.usdEstimated.toFixed(2)}` : null,
+    exact: fold.usdExact > 0 ? `$${fold.usdExact.toFixed(2)}` : null,
+    estimated: fold.usdEstimated > 0 ? `~$${fold.usdEstimated.toFixed(2)}` : null,
     plan,
-    unreported: granted ? fold.unknown : 0,
+    unreported: fold.unknown,
     partial,
     top,
   }
@@ -498,8 +488,7 @@ export function moneyOf(store, project) {
 
 /**
  * One agent's money, for its row: `~` where any of it was estimated, and null
- * where nothing was recorded or this device was not granted it — **never a
- * nought**; the money's own section says which.
+ * where nothing was recorded — **never a nought**; the money's own section says which.
  */
 export function spentSaid(spend) {
   if (spend === null || spend === undefined || spend.hasCost !== true) return null

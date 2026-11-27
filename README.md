@@ -162,8 +162,8 @@ given the ones that concern their work.
 ## A remote control on your phone
 
 Pair a phone by scanning a code: an overview of every project, the work that wants you with its
-presses on the card, and Tade one tap away. Your own phone, paired with full access, can do whatever
-you can at the machine; **Sign out** or `tade web revoke` takes it back.
+presses on the card, and Tade one tap away. Every device you pair is yours and can do whatever you
+can at the machine; **Sign out** or `tade web revoke` takes it back.
 
 ![Tade's away view on a laptop and then a phone: the overview, an agent waiting with Allow and Deny, plans, spend and three phones](https://raw.githubusercontent.com/mujacica/tade/main/images/away-page.svg)
 

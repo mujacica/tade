@@ -26,7 +26,7 @@ import {
 import { applySnapshot, emptyStore, queueIn, tasksIn } from '../src/assets/store.js'
 import { queueTree } from '../src/assets/tree.js'
 import { projector } from '../src/reading.ts'
-import { blocked, EVERY, finding, input, NOW, queued, reach, spend, task } from './fixtures.ts'
+import { blocked, finding, input, NOW, queued, reach, spend, task } from './fixtures.ts'
 
 // The project page's figures — the lead, the agents, the queue as a graph, the
 // checks, the branches, the findings and the money — held here with no browser,
@@ -41,9 +41,9 @@ import { blocked, EVERY, finding, input, NOW, queued, reach, spend, task } from 
 // folds away rather than disappearing.
 
 /** A page's store, filled from the real projection. */
-function held(over = {}, granted = EVERY) {
+function held(over = {}) {
   const store = emptyStore()
-  const made = projector(input({ reach: reach(granted), ...over }), NOW)
+  const made = projector(input({ reach: reach(), ...over }), NOW)
   expect(applySnapshot(store, made.snapshot())).toBeNull()
   return store
 }
@@ -350,7 +350,6 @@ describe('the findings', () => {
       ],
     })
     const found = findingsIn(store, 'sentry')
-    expect(found.may).toBe(true)
     expect(found.live.map((one) => one.key)).toEqual(['k3', 'k1', 'k4'])
     expect(found.over.map((one) => one.key)).toEqual(['k2'])
     expect(found.figure).toBe('1 to read')
@@ -359,10 +358,9 @@ describe('the findings', () => {
     expect(found.live[0]?.href).toBe('/t/sentry/away-projection')
   })
 
-  it('says not granted where the device may not read them, which is not none', () => {
-    const found = findingsIn(held({}, []), 'sentry')
-    expect(found.may).toBe(false)
-    expect(found.figure).toBeNull()
+  it('says none where there are none', () => {
+    const found = findingsIn(held({ findings: [] }), 'sentry')
+    expect(found.figure).toBe('none')
     expect(found.n).toBe(0)
   })
 })
@@ -396,16 +394,11 @@ describe('the money', () => {
     expect(spentSaid(null)).toBeNull()
   })
 
-  it('is a dash with its word where nothing was granted or nothing was recorded', () => {
-    const ungranted = moneyOf(held({}, []), 'sentry')
-    expect(ungranted.value).toBeNull()
-    expect(ungranted.why).toBe('not granted')
-    expect(ungranted.top).toEqual([])
-    expect(ungranted.exact).toBeNull()
-
+  it('is a dash with its word where nothing was recorded', () => {
     const unrecorded = moneyOf(held({ tasks: [task({ spend: noMoney })] }), 'sentry')
     expect(unrecorded.value).toBeNull()
     expect(unrecorded.why).toBe('not recorded')
-    expect(unrecorded.granted).toBe(true)
+    expect(unrecorded.top).toEqual([])
+    expect(unrecorded.exact).toBeNull()
   })
 })

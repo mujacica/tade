@@ -10,7 +10,7 @@ import {
   type Spend,
   type TadeEvent,
 } from '@tade/core'
-import { EvaluationsAnswerSchema, evaluationsFor, GRANTS } from '@tade/web'
+import { EvaluationsAnswerSchema, evaluationsFor } from '@tade/web'
 import { type EvalsView, evalsView } from '../../../src/evaluations.ts'
 import { cardsOf } from '../../../src/machine-looks.ts'
 import type { FindingThere } from '../../../src/machine-there.ts'
@@ -320,19 +320,17 @@ const vpsCards = cardsOf({
   answer: EvaluationsAnswerSchema.parse(
     JSON.parse(
       JSON.stringify(
-        evaluationsFor(
-          { device: 'mac', projects: { kind: 'every' }, granted: [...GRANTS], answers: true },
-          (projects) =>
-            evaluationsFrom(vpsJournal, {
-              since: 0,
-              projects,
-              spent: {
-                'tade/remote-link': money(3.1, 4_200_000),
-                'tade/intake-door': money(1.4, 2_000_000),
-                'tade/mirror-branches': money(0.6, 900_000),
-              },
-              findings: null,
-            }),
+        evaluationsFor({ device: 'mac' }, (projects) =>
+          evaluationsFrom(vpsJournal, {
+            since: 0,
+            projects,
+            spent: {
+              'tade/remote-link': money(3.1, 4_200_000),
+              'tade/intake-door': money(1.4, 2_000_000),
+              'tade/mirror-branches': money(0.6, 900_000),
+            },
+            findings: null,
+          }),
         ),
       ),
     ),

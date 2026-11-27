@@ -1,11 +1,12 @@
 import { type Config, ConfigSchema, type SettingGroup, settingsOf } from '@tade/core'
-import { type Device, GRANTS, Moved, NotOffered, NotThere, OutOfScope, SCOPES } from '@tade/web'
+import { type Device, Moved, NotOffered, NotThere, OutOfScope } from '@tade/web'
 import { describe, expect, it } from 'vitest'
 import { type ConfiguringDeps, webConfiguring } from '../../src/wire/web-settings.ts'
 
 // The window's end of a change from away, with everything it re-checks at the
-// write: who is asking **now**, how far a device reaches, the value it echoed,
-// the schema, and who the record says did it.
+// write: who is asking **now**, the value it echoed, the schema, and who the
+// record says did it. Every paired device is the person's own and reaches
+// every setting, as the keyboard does.
 //
 // **The rows are `settingsOf`'s own**, and the write is recorded rather than
 // performed: `away-settings.test.ts` drives the real `Settings.write` through a
@@ -24,9 +25,7 @@ function device(over: Partial<Device> = {}): Device {
     digest: '',
     host: '127.0.0.1:7654',
     csrf: '',
-    scopes: ['read', 'configure'],
-    projects: null,
-    granted: ['settings'],
+    clear: false,
     revoked: null,
     from: '127.0.0.1',
     ...over,
@@ -96,12 +95,10 @@ describe('who is asking, read at the write', () => {
     expect(one.wrote).toEqual([])
   })
 
-  it('refuses a device revoked, narrowed or never granted since the request came in', async () => {
+  it('refuses a device gone or revoked since the request came in', async () => {
     const cases: [string, Device[]][] = [
       ['gone', []],
       ['revoked', [device({ revoked: new Date().toISOString() } as Partial<Device>)]],
-      ['no configure', [device({ scopes: ['read', 'answer', 'steer'] })]],
-      ['no settings grant', [device({ granted: ['titles', 'lanes'] })]],
     ]
     for (const [why, devices] of cases) {
       const one = setup({ devices })
@@ -109,36 +106,9 @@ describe('who is asking, read at the write', () => {
       expect(one.wrote, why).toEqual([])
     }
   })
-
-  it('holds the per-project boundary against the record now', async () => {
-    const one = setup({ devices: [device({ projects: ['app'] })] })
-    const ledger = { path: 'projects.ledger.push', was: '', value: 'branch' }
-    await expect(one.half.change(ledger, REMOTE)).rejects.toBeInstanceOf(OutOfScope)
-    const app = { path: 'projects.app.push', was: '', value: 'branch' }
-    await expect(one.half.change(app, REMOTE)).resolves.toMatchObject({ did: true })
-    expect(one.wrote.map((wrote) => wrote.path)).toEqual(['projects.app.push'])
-  })
 })
 
-describe('how far a device reaches, asked of core again', () => {
-  it('refuses the asked and never tiers even if a call got this far', async () => {
-    // The parse already refuses these; this is the window not taking that on
-    // trust, because the tier is core's decision and asking again costs a call.
-    for (const path of [
-      'checks.before',
-      'agents.commit',
-      'approvals.mode',
-      'surfaces.web.acting',
-    ]) {
-      const one = setup()
-      await expect(
-        one.half.change({ path, was: '', value: 'x' }, REMOTE),
-        path,
-      ).rejects.toBeInstanceOf(NotOffered)
-      expect(one.wrote, path).toEqual([])
-    }
-  })
-
+describe('what the window lists', () => {
   it('refuses a setting the window does not list', async () => {
     const one = setup()
     const ghost = { path: 'projects.ghost.push', was: '', value: 'branch' }
@@ -198,24 +168,9 @@ describe('the value, against the row the window lists now', () => {
   })
 })
 
-describe('a key, which is never read and never set from here', () => {
-  it('refuses the key, whatever it is sent, because it is changed at the machine', async () => {
-    const one = setup()
-    for (const value of ['', 'sk-something-else']) {
-      await expect(
-        one.half.change({ path: 'extensions.jev.key', was: 'set', value }, REMOTE),
-        value,
-      ).rejects.toBeInstanceOf(NotOffered)
-    }
-    expect(one.wrote).toEqual([])
-  })
-})
-
-describe('the person’s own device, which changes any setting as the keyboard does', () => {
-  // Full access — every scope and every reading grant: what pairing gives
-  // unless something is unticked (`theirsOf`), a phone or a machine link.
-  const theirs = (over: Partial<Device> = {}) =>
-    device({ scopes: [...SCOPES], granted: [...GRANTS], owner: false, ...over })
+describe('a paired device, which changes any setting as the keyboard does', () => {
+  // Every paired device is the person's own: a phone or a machine link.
+  const theirs = (over: Partial<Device> = {}) => device({ owner: false, ...over })
   const value = (one: ReturnType<typeof setup>, path: string) =>
     one
       .rows()
@@ -272,7 +227,7 @@ describe('the person’s own device, which changes any setting as the keyboard d
     ).rejects.toBeInstanceOf(Moved)
   })
 
-  it('is an ordinary device again the moment it is revoked or anything is unticked', async () => {
+  it('changes nothing the moment it is revoked', async () => {
     // **Read at the write**, against the record now: the same request that
     // went through a second ago is refused once the panel changed the record.
     const commit = (one: ReturnType<typeof setup>) => ({
@@ -282,23 +237,6 @@ describe('the person’s own device, which changes any setting as the keyboard d
     })
     const revoked = setup({ devices: [theirs({ revoked: new Date().toISOString() })] })
     await expect(revoked.half.change(commit(revoked), REMOTE)).rejects.toBeInstanceOf(OutOfScope)
-    const cases: [string, Device][] = [
-      ['one scope unticked', theirs({ scopes: SCOPES.filter((scope) => scope !== 'agents') })],
-      ['one grant unticked', theirs({ granted: GRANTS.filter((grant) => grant !== 'spend') })],
-      [
-        'a machine link somebody narrowed',
-        theirs({ owner: true, granted: GRANTS.filter((grant) => grant !== 'spend') }),
-      ],
-    ]
-    for (const [why, held] of cases) {
-      const one = setup({ devices: [held] })
-      await expect(one.half.change(commit(one), REMOTE), why).rejects.toBeInstanceOf(NotOffered)
-      await expect(
-        one.half.change({ path: 'extensions.jev.key', was: 'set', value: 'x' }, REMOTE),
-        why,
-      ).rejects.toBeInstanceOf(NotOffered)
-      expect(one.wrote, why).toEqual([])
-    }
     // Revoked between two presses of the same phone: the first lands, the
     // second does not.
     let devices: Device[] = [theirs()]

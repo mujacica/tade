@@ -1,5 +1,5 @@
 import type { Arm } from '@tade/core'
-import { chatRev, digestOf, GRANTS, SCOPES, writeDevices } from '@tade/web'
+import { chatRev, digestOf, writeDevices } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import { actions } from '../../src/commands.ts'
 import { initialState } from '../../src/model.ts'
@@ -31,20 +31,18 @@ import {
 
 afterEach(closeAll)
 
-/** A machine with talking on and a device granted `ask`, listening. */
+/** A machine with talking on and a device paired, listening. */
 async function ready(
   over: {
-    scopes?: readonly string[]
     busy?: boolean
     whose?: string
     ask?: (said: string, arm: Arm) => Promise<void>
     stop?: () => Promise<boolean>
     talking?: boolean
-    granted?: readonly string[]
   } = {},
 ): Promise<Machine> {
   const one = await machine({ talking: over.talking ?? true, ...over })
-  await paired(one.home, one.port, over.scopes ?? ['read', 'ask'], over.granted ?? [])
+  await paired(one.home, one.port)
   await one.away.open()
   return one
 }
@@ -71,27 +69,19 @@ describe('one message, all the way through', () => {
     expect(answer.status).toBe(200)
     expect(answer.body.did).toBe(true)
 
-    // **The arm**, built from the device record at the act: this device was
-    // granted `ask` and nothing else, so the turn may read its own projection
-    // and nothing it does can change anything.
-    expect(one.armed).toEqual([{ how: 'remote', device: DEVICE, projects: null, may: [] }])
-    // **The words**, in the conversation, marked as the device's.
+    // **The arm**, built from the device record at the act: every paired
+    // phone is the person's own, so its turn reaches what the keyboard does.
+    expect(one.armed).toEqual([{ how: 'owner', device: DEVICE, theirs: true }])
+    // **The words**, in the conversation, marked as the device's — and kept
+    // as theirs, so a setting they name is named.
     expect(one.said).toEqual([{ text: 'is anything waiting for me?', device: DEVICE }])
+    expect(one.theirs).toEqual(['is anything waiting for me?'])
 
-    // **The journal**, as a `web_asked` and never a `said` line: `namedBy`
-    // reads those to authorise a setting change, and a request from a phone is
-    // not somebody's own words.
+    // **The journal**, as a `web_asked` naming the device, and never its words.
     const lines = await waitFor(one.client, 'web_asked')
     expect(lines).toHaveLength(1)
     expect(lines[0]?.detail).toMatchObject({ device: DEVICE, tool: 'ask', why: 'done' })
     expect(JSON.stringify(lines[0])).not.toContain('waiting for me')
-    expect(await one.client.events({ types: ['said'] })).toEqual([])
-  })
-
-  it('carries the tiers the device was granted, and only those', async () => {
-    const one = await ready({ scopes: ['read', 'ask', 'steer'] })
-    await ask(one.port, 'ask', { was: revOf(), key: KEY, rev: 0, said: 'park the flaky one' })
-    expect(one.armed).toEqual([{ how: 'remote', device: DEVICE, projects: null, may: ['steer'] }])
   })
 
   it('gives an owner device the keyboard’s reach on this machine, and still writes it down as the device’s', async () => {
@@ -135,30 +125,13 @@ describe('one message, all the way through', () => {
     expect(one.armed).toEqual([{ how: 'owner', device: DEVICE, theirs: true, typed: true }])
     expect(one.theirs).toEqual(['watch the rehearsal requests on app'])
   })
-
-  it('answers the person’s own device as them: the keyboard’s reach, and their own words', async () => {
-    // A device with full access — what pairing gives unless somebody unticks
-    // something — is the person's own phone. Its turn is not narrowed, and
-    // what they typed is kept as theirs, so a setting it names is named.
-    const one = await ready({ scopes: [...SCOPES], granted: [...GRANTS] })
-    const answer = await ask(one.port, 'ask', {
-      was: revOf(),
-      key: KEY,
-      rev: 0,
-      said: 'turn the commit judge on',
-    })
-    expect(answer.status).toBe(200)
-    expect(one.armed).toEqual([{ how: 'owner', device: DEVICE, theirs: true }])
-    expect(one.said).toEqual([{ text: 'turn the commit judge on', device: DEVICE }])
-    expect(one.theirs).toEqual(['turn the commit judge on'])
-  })
 })
 
 describe('the window’s slash commands typed on the away view’s line', () => {
   it('/login is answered by the window with where the sign-in is, and never reaches the model', async () => {
     // The person's own phone, which reaches everything the keyboard does — and
     // still the words are never a turn: a model asked to sign itself in.
-    const one = await ready({ scopes: [...SCOPES], granted: [...GRANTS] })
+    const one = await ready()
     const answer = await ask(one.port, 'ask', { was: revOf(), key: KEY, rev: 0, said: ' /LOGIN ' })
     expect(answer.status).toBe(200)
     expect(answer.body).toMatchObject({ did: false, rev: revOf(), said: LOG_IN_IS_HERE })
@@ -170,7 +143,7 @@ describe('the window’s slash commands typed on the away view’s line', () => 
   })
 
   it('every other one is answered by the window too, what it is for included, and no turn starts', async () => {
-    const one = await ready({ scopes: [...SCOPES], granted: [...GRANTS] })
+    const one = await ready()
     const typed = ['/new fix the double charge', '/settings', '/away', '/workflows', '/Stop sentry']
     for (const [n, said] of typed.entries()) {
       // A key each: one key is one message, and these are five.
@@ -220,9 +193,6 @@ async function owned(home: string, port: number): Promise<void> {
       host: `127.0.0.1:${port}`,
       csrf: 'x'.repeat(43),
       until: new Date(Date.now() + 86_400_000).toISOString(),
-      scopes: [...SCOPES],
-      projects: null,
-      granted: [...GRANTS],
       from: '',
       owner: true,
     },
@@ -238,14 +208,6 @@ describe('a message that is refused', () => {
     const one = await ready({ talking: false })
     const answer = await ask(one.port, 'ask', { was: revOf(), key: KEY, rev: 0, said: 'hello' })
     expect(answer.status).toBe(404)
-    expect(one.said).toEqual([])
-  })
-
-  it('needs `ask`, which being granted both acting tiers does not imply', async () => {
-    const one = await ready({ scopes: ['read', 'answer', 'steer'] })
-    const answer = await ask(one.port, 'ask', { was: revOf(), key: KEY, rev: 0, said: 'hello' })
-    expect(answer.status).toBe(403)
-    expect(answer.body.error).toBe('out_of_scope')
     expect(one.said).toEqual([])
   })
 
@@ -265,9 +227,8 @@ describe('a message that is refused', () => {
 
   it('refuses a device that was disconnected while it was typing', async () => {
     // **The arm is built from the device record at the act**, not from the
-    // session the request arrived on: a session carries the scopes it was
-    // minted with, and a person who disconnected a phone thirty seconds ago
-    // meant it.
+    // session the request arrived on: a person who disconnected a phone
+    // thirty seconds ago meant it.
     const one = await ready()
     one.show()
     await one.away.panel()
@@ -278,7 +239,7 @@ describe('a message that is refused', () => {
   })
 
   it('writes a refusal down too, which is the case the audit matters most in', async () => {
-    const one = await ready({ scopes: ['read'] })
+    const one = await ready({ busy: true, whose: 'you' })
     await ask(one.port, 'ask', { was: revOf(), key: KEY, rev: 0, said: 'hello' })
     const lines = await waitFor(one.client, 'web_asked')
     expect(lines[0]?.detail).toMatchObject({ device: DEVICE, state: 'refused' })
@@ -301,36 +262,6 @@ describe('stopping the turn from away', () => {
     const answer = await ask(one.port, 'stop', { was: revOf(true), key: KEY, rev: 0 })
     expect(answer.status).toBe(404)
     expect(answer.body.error).toBe('not_offered')
-  })
-})
-
-describe('the grant, which is a keypress at this machine', () => {
-  it('is its own control, and leaves acting exactly as it was', async () => {
-    const one = await ready({ scopes: ['read', 'answer', 'steer'] })
-    one.show()
-    await one.away.submits().away?.(awayPanel(), `${AWAY_CONTROLS.talk}${DEVICE}`)
-    await one.away.reread()
-    const answer = await ask(one.port, 'ask', { was: revOf(), key: KEY, rev: 0, said: 'hello' })
-    expect(answer.status).toBe(200)
-    // **Both, and the second control did not take the first away.** Two
-    // controls over one list of scopes is how one of them silently revokes the
-    // other.
-    expect(one.armed[0]).toEqual({
-      how: 'remote',
-      device: DEVICE,
-      projects: null,
-      may: ['answer', 'steer'],
-    })
-  })
-
-  it('takes it back, and the next message is refused', async () => {
-    // Ticked is `ask` with the conversation it is about (`BOXES.talk`).
-    const one = await ready({ granted: ['talk'] })
-    one.show()
-    await one.away.submits().away?.(awayPanel(), `${AWAY_CONTROLS.talk}${DEVICE}`)
-    await one.away.reread()
-    const answer = await ask(one.port, 'ask', { was: revOf(), key: KEY, rev: 0, said: 'hello' })
-    expect(answer.status).toBe(403)
   })
 })
 

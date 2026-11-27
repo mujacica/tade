@@ -7,7 +7,6 @@ import {
 } from '../src/repositories.ts'
 import { CSRF_HEADER } from '../src/request.ts'
 import { OWNED } from '../src/routes.ts'
-import { reachOf } from '../src/surface.ts'
 import { ask, closeAll, pair, type Running, start } from './harness.ts'
 
 // Where this machine's projects are checked out, for another machine of the
@@ -72,7 +71,7 @@ describe('where this machine’s projects are', () => {
     expect(body.projects).toEqual(PROJECTS)
   })
 
-  it('refuses a phone, however much it was granted, and never asks the window', async () => {
+  it('answers a paired phone too, every one being the person’s own', async () => {
     const { one, asked } = await machine()
     const phone = await pair(one)
     const said = await ask(one, '/api/repositories', {
@@ -85,8 +84,8 @@ describe('where this machine’s projects are', () => {
       },
       body: JSON.stringify({}),
     })
-    expect(said.status).toBe(403)
-    expect(asked()).toBe(0)
+    expect(said.status).toBe(200)
+    expect(asked()).toBe(1)
   })
 
   it('takes an empty body and nothing else', async () => {
@@ -111,8 +110,7 @@ describe('where this machine’s projects are', () => {
     })
   })
 
-  it('leaves out a project the device does not read, and a branch no fetch could name', () => {
-    const reach = reachOf({ id: 'd', projects: ['tade'], granted: [] })
+  it('leaves out a branch no fetch could name', () => {
     const odd = {
       ...PROJECTS[0],
       branches: [
@@ -120,8 +118,8 @@ describe('where this machine’s projects are', () => {
         { task: 'tade/odd', branch: '--upload-pack=touch x', base: null, head: null, live: true },
       ],
     } as RepositoryHere
-    const answer = repositoriesFor([odd, ...PROJECTS.slice(1)], reach)
-    expect(answer.projects.map((one) => one.project)).toEqual(['tade'])
+    const answer = repositoriesFor([odd, ...PROJECTS.slice(1)])
+    expect(answer.projects.map((one) => one.project)).toEqual(PROJECTS.map((one) => one.project))
     expect(answer.projects[0]?.branches.map((one) => one.task)).toEqual(['tade/fix'])
   })
 

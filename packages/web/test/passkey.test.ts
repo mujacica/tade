@@ -7,8 +7,6 @@ import { PASSKEY_BEFORE_ACTING, PASSKEY_BEFORE_ACTING_SHORT } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { appendDevice, readDevices } from '../src/devices.ts'
 import { ENROL_MS, PROVE_TRIES } from '../src/passkeys.ts'
-import { GRANTS } from '../src/reach.ts'
-import { SCOPES } from '../src/surface.ts'
 import { userIdOf } from '../src/webauthn.ts'
 import { type Ceremony, SoftAuthenticator } from './authenticator.ts'
 import { type Answer, actingStub, ask, closeAll, pair, type Running, start } from './harness.ts'
@@ -53,10 +51,7 @@ async function phone(hours = 12, full = false): Promise<Phone> {
     },
     { publicSocket: socket, acting: actingStub(), now: () => clock.at },
   )
-  one.answer = async () =>
-    full
-      ? { let: true, projects: null, granted: [...GRANTS], scopes: [...SCOPES] }
-      : { let: true, projects: null, granted: [], scopes: ['read', 'steer'] }
+  one.answer = async () => ({ let: true })
   const paired = await viaCaddy(socket, '/api/pair', {
     method: 'POST',
     body: { ticket: one.tickets.mint(`${ORIGIN}/pair`, clock.at).value, label: 'iPhone' },
@@ -343,9 +338,6 @@ describe('a request no page of Tade’s sends', () => {
       host: was.host,
       csrf: was.csrf,
       until: new Date(was.until).toISOString(),
-      scopes: [...was.scopes] as ('read' | 'steer')[],
-      projects: null,
-      granted: [],
       from: was.from,
     })
     const got = await as(p, '/api/passkey/answer', box.prove(ceremonyOf(set.body.options)))
@@ -443,7 +435,7 @@ describe('where nothing is asked', () => {
 
   it('asks nothing on this machine, nor offers a passkey there', async () => {
     const one = await start({ acting: true, passkeyMs: 12 * HOUR }, { acting: actingStub() })
-    one.answer = async () => ({ let: true, projects: null, granted: [], scopes: ['read', 'steer'] })
+    one.answer = async () => ({ let: true })
     const mine = await pair(one)
     const headers = {
       cookie: mine.cookie,

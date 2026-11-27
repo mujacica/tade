@@ -1,6 +1,6 @@
 ---
 name: add-away-surface
-description: Add or change what the away view serves — a route, a verb a device may ask for, the live stream, a read scope, a device grant, the pairing flow, the session credential, the window's pairing panel, `tade web`, or what the guard asks of a request. Use when a phone should be able to read or do something it cannot, when a security claim about the away view needs changing, or when something about pairing, sessions, devices, acting, idempotency, reconnection or the listener's lifetime does the wrong thing.
+description: Add or change what the away view serves — a route, a verb a device may ask for, the live stream, what a device reads, the pairing flow, the session credential, the window's pairing panel, `tade web`, or what the guard asks of a request. Use when a phone should be able to read or do something it cannot, when a security claim about the away view needs changing, or when something about pairing, sessions, devices, acting, idempotency, reconnection or the listener's lifetime does the wrong thing.
 ---
 
 # Changing what the away view serves
@@ -9,14 +9,18 @@ The away view is `packages/web` plus the window's own end of it: a contract, a p
 `node:http` server behind pairing, a session and a guard, and a listener the window owns and dies
 with. **It is off by default and listens on this machine alone**, and turning either of those round
 is a person's act with its own setting in `reach.ts`'s `never` subtree. **Every capability under the
-switch is on by default** (the person asked for turning it on to be one click), which grants nothing:
-a device still has none of the scopes that change anything until somebody at this machine grants it.
+switch is on by default** (the person asked for turning it on to be one click). **Every paired device
+is the person's own** (decided 26 Nov, §10 T1 of `away-view-on-iphone-duo`): it reads everything and
+does everything the person can, so there are no grants, no scopes a device holds and no per-project
+reach. What stands is pairing, the session, the passkey, revocation and the guard's origin, CSRF and
+`Host` checks; and **the hub's outbox tiers between machines** (`pressed-there.ts`, steer and tidy),
+which are about another *machine*, never a device.
 
 | Changing | File |
 |---|---|
 | a route | `src/routes.ts`, then the `switch` in `src/server.ts` |
 | a **verb** a device may ask for | `src/verbs.ts` (the closed table), a method on `WebActing` in `src/acting.ts`, the window's own half in `packages/app/src/wire/web-acting.ts`, and the page's control in `src/assets/acts.js` |
-| what a device may **read of the config, or change in it** | `src/configuring.ts` (the interface, `awayReach`, `settingsFor` and `settingOut` — what a device is shown and so may echo), `src/configured.ts` (the strict body, the gate and the sequence), `SETTINGS` and `GET /api/settings` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-settings.ts`, the chips in `wire/web-grants.ts` (`letOneRead`, `letOneConfigure`), and the screen in `src/assets/pages/settings.js` |
+| what a device may **read of the config, or change in it** | `src/configuring.ts` (the interface, `awayReach`, `settingsFor` and `settingOut` — what a device is shown and so may echo), `src/configured.ts` (the strict body, the gate and the sequence), `SETTINGS` and `GET /api/settings` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-settings.ts`, and the screen in `src/assets/pages/settings.js` |
 | what a device may **save** | `src/drafting.ts` (the interface and the draft's revision), `src/drafted.ts` (the closed table, the gate and the sequence), `DRAFTS` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-drafting.ts`, and the form in `src/assets/pages/workflows.js` |
 | what a device may ask about **being told** | `src/pushing.ts` (the interface and what the page is told), `src/pushed.ts` (the closed table, the gate and the sequence), `PUSHES` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-push.ts`, and the control in `src/assets/push.js` |
 | what is worth a notification, and what it may say | `src/noticed.ts` — pure: the five transitions, the payload, the budget, the quiet hours, the presence rule and the dedupe |
@@ -29,10 +33,10 @@ a device still has none of the scopes that change anything until somebody at thi
 | a code the terminal writes (`tade web pair`), and its claim | `src/pending.ts` — the one ticket on a disk, with the argument; the `pending` and `claimed` lines in `src/devices.ts` |
 | an owner device (`tade web pair --owner`) | `src/owner.ts` (the mint, and the five facts that keep it on this machine), `ownerOf` in `src/devices.ts`, the `here` an ask carries (`asked.ts`), and `armOf` in `packages/app/src/wire/web-asking.ts` |
 | what a device may **say to Tade** | `src/asking.ts` (the interface and the revision), `src/asked.ts` (the gate and the sequence), `ASKS` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-asking.ts`, and the screen in `src/assets/talk.js` |
-| what a turn from away may **reach** | `packages/core/src/origin.ts` (the arm, the provenance, the sentences) and `packages/orchestrator/src/origin.ts` (the two tables); an owner's turn is `Arm`'s third variant, answered as local by every gate (`narrowedArm`); a full-access device's is `theirs`, its words a `said` line (`fullAccess`, `theirSaid`) |
+| what a turn from away may **reach** | `packages/core/src/origin.ts` (the arm, the provenance, the sentences) and `packages/orchestrator/src/origin.ts` (the two tables); an owner's turn is `Arm`'s third variant, answered as local by every gate (`narrowedArm`); a paired device's is `theirs`, its words a `said` line (`theirSaid`) |
 | the conversation, as a device reads it | `ChatIn`/`TalkIn` in `src/input.ts`, `chatRows` in `src/snapshot.ts`, `talkIn`/`chatLines` in `packages/app/src/away.ts` — a line's kind is the strip's (`CHAT_LINE_KINDS`: `own` is Tade answering, `tade` its news, `routed`, `suggestion` with its `ask`) |
 | **a conversation read back to its first line** — Tade's and an agent's, nothing only in the window and no line saying it is elsewhere | `src/earlier.ts` (`chatHere`, `turnsHere`, the `WebEarlier` half), `chatBefore` in `src/snapshot.ts` (a line's id is compared, never looked up), `turnsBefore` and `CURSOR` in `src/agent.ts`, `GET /api/chat?before=` and `/api/agent/:project/:task/earlier?before=` in `src/routes.ts`; the window's half `earlierHalf` in `packages/app/src/wire/web.ts` reads Tade's through its own scrollback (`Earlier`, the heart's, which reads the record from its end once lines fell off — `READ_FROM_END`); the page's `src/assets/earlier.js` (`linesKept` keeps every line it was sent, `readBack` asks as the reader goes up near the top and keeps the view still); `back` in `scripts/browser-chat.ts` |
-| **an agent's timeline read on to its first moment** — every moment, nothing saying older ones were not sent | `activityIn`/`momentsOf`/`ACTIVITY_TYPES` in `packages/app/src/away-activity.ts` (the newest stretch out of what the window holds, and the cursor: a journal line's number, which a compaction keeps); `momentsBefore`, `MOMENTS` and `AgentOut.earlier` in `src/agent.ts`, `momentsHere` in `src/earlier.ts`, `GET /api/agent/:project/:task/moments?before=` in `src/routes.ts` (no grant past reading the task's project, as its newest moments); the window's half `moments` in `earlierHalf` (`packages/app/src/wire/web.ts`) over `Workbench.eventsBefore`, which reads the journal's index — or the file, where there is none — **on a thread of its own** (`@tade/workbench`'s `journal-away.ts`), never on a beat; the page's `momentsKept` (`pages/agent-shape.js`: every moment sent, and a hole let go) and `pages/agent-time.js`, whose list scrolls in its own region and reads on as the reader nears its end |
+| **an agent's timeline read on to its first moment** — every moment, nothing saying older ones were not sent | `activityIn`/`momentsOf`/`ACTIVITY_TYPES` in `packages/app/src/away-activity.ts` (the newest stretch out of what the window holds, and the cursor: a journal line's number, which a compaction keeps); `momentsBefore`, `MOMENTS` and `AgentOut.earlier` in `src/agent.ts`, `momentsHere` in `src/earlier.ts`, `GET /api/agent/:project/:task/moments?before=` in `src/routes.ts`; the window's half `moments` in `earlierHalf` (`packages/app/src/wire/web.ts`) over `Workbench.eventsBefore`, which reads the journal's index — or the file, where there is none — **on a thread of its own** (`@tade/workbench`'s `journal-away.ts`), never on a beat; the page's `momentsKept` (`pages/agent-shape.js`: every moment sent, and a hole let go) and `pages/agent-time.js`, whose list scrolls in its own region and reads on as the reader nears its end |
 | **how a conversation is drawn** — a reply as markdown, a tool call as a row that opens onto what it was handed and answered — in Tade's and an agent's alike | `src/assets/markdown.js` (the reader: a closed list of tags, `hrefOf`, parts redrawn only where the words changed, so streaming costs the part being written), `src/assets/conversation.js` (`wordsIn`, `callRow`/`callIn`), `talk.js`'s `fillChatLine`, `pages/agent-said.js`; `test/markdown-client.test.ts` throws markup at it. **A line takes the window strip's own mark and colour** (`CHAT_KINDS`, `CALL_STATES`, `lineMark`: `●` news, `◆` an answer, `✓`/`✗` a call, `❯` asked), and the dock's last lines are the same `createChatLine` (`test/talk-client.test.ts`); a call's brief lets paths out by an approval's rule (`briefOut`) |
 | **a conversation read as a chat**: open at the newest line, follow it, let go when the reader scrolls up, one press back down; and the field's answering state | `src/assets/follow.js` (`atFoot`, `followOf` — only going up lets go, never the lines growing), `talk.js`'s `composerOf`/`doingOf` (the call in flight in words, `you.talk.since` for how long), `spin` in `motion.css`; `chat` in `scripts/browser-chat.ts` drives it with a real wheel |
 | **a call's arguments and answer, and an agent's conversation, leaving the machine** — both an agent's own bytes, on `lanes` | `src/conversation.ts` (`callOf`, `turnsOf`, cleaned whole by `cleanText` in `src/screen.ts`; each turn kept as it was made, by the turn, and an agent's turns of `OFF_THREAD_FROM` or more made on a thread of their own before they are held — `turnsAway` in `src/cleaning.ts`, from `Lanes`' `ready` and `turnsHere` — so an ask, on the window's thread, finds them made), `withCalls` in `src/snapshot.ts`, `conversation` on `AgentOut` (sent only when it moved since `?seen=`), `Lanes.readTalk` in `packages/app/src/wire/web-lanes.ts` over `Workbench.agentHistory`; `test/conversation.test.ts` |
@@ -43,15 +47,14 @@ a device still has none of the scopes that change anything until somebody at thi
 | what kind of trouble a look ran into | `watch-looks.ts` in `@tade/core`, `troubleOf` in `@tade/extensions-core`, written down by `wire/schedules.ts` |
 | a request's own words, as a device reads them | `IntakeIn.material` in `src/factory.ts`, `Bodies` in `wire/web-factory.ts`, `MATERIAL_LABEL` in `@tade/core` |
 | what may be asked of one task | `ableOn`/`steeringOf` in `packages/app/src/away.ts` |
-| stopping or reopening an agent, closing or reopening a project | `STOP`/`REOPEN`/`CLOSE`/`OPEN` in `src/verbs.ts`, the window's door in `packages/app/src/wire/web-lifecycle.ts`, the pure reading (`agentLaneOf`, `projectLines`, `projectAble`) in `packages/app/src/away-lifecycle.ts`, the chips in `wire/web-grants.ts` (`letOneRun`) |
-| **the rest of an agent's own menu** — start, remove, rename, model, thinking, account, harness, move — and **the menu itself**, on a side row's ⋯, a long-press or a right-click, and in an agent page's bar | `START`…`MOVE` in `src/verbs.ts` (`Verb.theirs` for the four that are the person's own device's alone, asked by `admit`), the window's verbs in `packages/app/src/wire/web-agent.ts` over its doors in `wire/agent-doors.ts` (the same calls the row's presses make, every name asked again of what the machine offers); the menu is the window's own `menuItems` mapped by `packages/app/src/away-menu.ts` (an item it cannot carry out is `here`, off with why), read at `GET /api/agent/:project/:task/menu` (`src/agent-menu.ts`, cut per device by `menuFor`), drawn by `src/assets/agent-menu.js` (the sheet, `holdOpens`, `sendAct`) from `side.js` and `pages/agent.js`; `MENU_SHOWN` and `THEIRS` in `acts.js` are the page's copies |
+| stopping or reopening an agent, closing or reopening a project | `STOP`/`REOPEN`/`CLOSE`/`OPEN` in `src/verbs.ts`, the window's door in `packages/app/src/wire/web-lifecycle.ts`, the pure reading (`agentLaneOf`, `projectLines`, `projectAble`) in `packages/app/src/away-lifecycle.ts` |
+| **the rest of an agent's own menu** — start, remove, rename, model, thinking, account, harness, move — and **the menu itself**, on a side row's ⋯, a long-press or a right-click, and in an agent page's bar | `START`…`MOVE` in `src/verbs.ts`, the window's verbs in `packages/app/src/wire/web-agent.ts` over its doors in `wire/agent-doors.ts` (the same calls the row's presses make, every name asked again of what the machine offers); the menu is the window's own `menuItems` mapped by `packages/app/src/away-menu.ts` (an item it cannot carry out is `here`, off with why), read at `GET /api/agent/:project/:task/menu` (`src/agent-menu.ts`, cut by `menuFor`), drawn by `src/assets/agent-menu.js` (the sheet, `holdOpens`, `sendAct`) from `side.js` and `pages/agent.js`; `MENU_SHOWN` and `THEIRS` in `acts.js` are the page's copies |
 | **what one agent has changed, every file and its whole diff** — the window's Show changes, from away | `src/changes.ts` (the answer, `hunksOf`, on `lanes` for a task the device reads, cleaned by `cleanAway`), `GET /api/agent/:project/:task/changes` in `src/routes.ts`; the window's half `changesFrom` in `packages/app/src/wire/web-changes.ts` over `Live.changesAt`/`diffAt` (the same list and git question as the CHANGES section, a few files at once, each with a deadline); the menu item is `away-menu.ts`'s `page` act `changes`, a link to `/t/:project/:task/changes`, drawn by `pages/agent-changes.js` (pure half `agent-changes-shape.js`, `test/changes-client.test.ts`). Asked when opened and on a press, never on a beat or a snapshot; `diff` and `patch` stay names `NEVER_A_FIELD` refuses |
 | one agent looked into: the answer, its activity's words | `src/agent.ts` (`agentOf`, `activitySaid`), `AgentOutSchema` in `src/protocol.ts`, `GET /api/agent/:project/:task` in `src/routes.ts` |
 | what of an agent's screen may leave the machine | `src/screen.ts` — pure: the bounds, the wrap, the keys, the shapes, the paths |
 | what of an approval's **command** may leave the machine | `src/command.ts` — pure: `shortenPaths` is the one rule for paths (where the task works `.`, Tade's home `~/.tade`, the home `~`, any other absolute path its last name behind `…/`), `commandOut` takes credentials out first (`withoutCredentials`, the screen's own rule) and reads the rest `'whole'`, `commandShown` cuts it to `budget.material` with a count; the window builds it in `wire/web-beat.ts` (`commandsFrom`, the only reader of `PendingApproval.summary` here) and the page draws it with `command`/`commandIn` (`ui.js`) above a card's presses (`quick.js`) and in an agent's lead |
 | when the window reads an agent's screen, and which keys it knows | `packages/app/src/wire/web-lanes.ts` (`Lanes`, `knownKeys`) |
 | what a task has been doing, out of the journal | `packages/app/src/away-activity.ts` — pure, an allow-list over types and fields |
-| the controls that widen one device (act, talk, lanes) | `packages/app/src/wire/web-grants.ts`, and `grantDevice` in `src/devices.ts` for a reading grant |
 | the frame: the menu down the left, the work down the right, Tade at the foot of the middle — the window's own arrangement | `src/assets/desk.js` (the dock), placed by `shell.js`, laid out in `dock.css`; the menu is `GROUPS` in `routes.js`, and what is a frame's part rather than a menu entry is `DOCKED` |
 | the side: a project at a time, its agents (grouped by run once there are two) and its queue hung as a tree of what waits on what, and the run and checks of the agent you have open | `src/assets/side.js` draws it; `tree.js` is the pure half (`queueTree`, `sideAgents`, `agentGroups`), held by `test/side-client.test.ts` |
 | folding a dock, the drawers and sheet below a desk, `[` `]` `\` | `src/assets/docks.js` — the folds are classes on the frame; the three words are the **one** thing in `localStorage` (`assets.test.ts` holds it to one key), and which projects are folded is memory only, because a name is text |
@@ -62,7 +65,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | the reviews page: which open reviews are held and on what — waiting on you, a red check, a draft, a check nobody ran — then what is free to merge, what has commits and no review, and what settled | `src/assets/pages/reviews.js`, `-shape.js` (pure, `test/reviews-client.test.ts`) and `.css`. **A green is the rollup's green**: `task.checks` names what failed and what never ran and never what passed, so a card's checks are a cell per failing or unrun check by name, or one green cell where the rollup says pass — never passes guessed from a tree's run history. **Unanswered threads are not on the wire** (status asks a forge one question, the review's state), so the lead says they were not read rather than drawing none. A card waiting on you carries `quickActs`, which is why `boot.js` hands this screen `ctx` |
 | the inbox: how many wait on you and the oldest, every request by where it stands, the doors as a strip; what waits grouped by what it needs (to approve, held, gave up), oldest first, one press each; one request's state and its one act beside what approving starts | `src/assets/pages/inbox.js`, `inbox-request.js` (one request), `-shape.js` (pure, `test/inbox-client.test.ts`) and `.css`. **What waits is `WAITING` and nothing else**, its kinds held equal to `WAITING_STATES`; **approving is never blind from a list** — a card's press goes to the request, where the press sits beside `would`; a held card's goes to the held task while it is on this device; **a door is broken exactly when the domain says somebody must fix it** (`SOURCE_NEEDS_YOU`, by the glyph's tone), and the empty inbox's sentence is the first door in the doors' own order |
 | the notes: how many and how new, how they divide between everywhere, a project and a task, and every note as a mark on a lane per place at the moment it was said; then the notes by **where** they apply (everywhere, then a project at a time, its own before its tasks') or, one press away, by **when** | `src/assets/pages/notes.js`, `-shape.js` (pure, `test/notes-client.test.ts`) and `.css`. **A note is never reworded**: a card is scanned by the `summary` written beside it and the note itself is one press away, whole (*Exactly as said*), or is the card's line where there is no summary; a rule down the side marks the words as said, and the test holds that nothing the page writes is made out of a note's words. The picture's window is the smallest that holds every note, and what is older than twelve weeks is counted rather than piled at its edge |
-| the devices: this device as the lead (its kind, whether it is connected, its session as a gauge, how it reaches the machine, how much it may read and do), every device that can get in with this one marked, its notifications, what it said to Tade, and every grant as a matrix of cells on and off | `src/assets/pages/devices.js`, `-shape.js` (pure, `test/devices-client.test.ts`) and `.css`. **Another device is a name and a date**, because that is all `listing` sends about one, and the page says nothing it did not send — where one connects from, what it may do and what it did are the machine's. *Not granted* is the page's word for withheld content (`NOT_FOR_A_GRANTED_DEVICE`), so a scope the machine did not give is a cell that is *off* |
+| the devices: this device as the lead (its kind, whether it is connected, its session as a gauge, how it reaches the machine), every device that can get in with this one marked, its notifications and what it said to Tade | `src/assets/pages/devices.js`, `-shape.js` (pure, `test/devices-client.test.ts`) and `.css`. **Another device is a name and a date**, because that is all `listing` sends about one, and the page says nothing it did not send — where one connects from and what it did are the machine's |
 | **the page template every screen in the middle is drawn in**: the bar (name, crumb, count, the tools at its end) level with the side's own heading, groups headed as the menu heads its categories, the page-wide bars as strips on the same line | `pageBar` and `section(…, { top: true })` in `src/assets/rows.js`; `src/assets/page.css`, loaded after the docks so it is the rule a screen is drawn by. A screen never builds a `.back` and an `h1` of its own; what may be done on a page goes in `tools` |
 | a row of figures (an agent's facts, the money) | `facts`/`factsIn` in `ui.js`, `.ui-facts` in `ui.css` — a dash where unknown, never a cell left out |
 | one agent's page: the lead (what it is doing now, washed in its tone when it wants you or failed, and four cells — checks, branch, spend, run), its screen with the box to tell it something, its timeline, its checks beside its branch and run, what was asked for, the facts, the controls | `src/assets/pages/agent.js` and `.css`; the screen card and the asking are `agentPane` in `pages/agent-pane.js`, the timeline (a lane each for the agent, turns, tools, checks and commits, then the moments) `pages/agent-time.js`, every figure and word `pages/agent-shape.js` (pure, `test/task-client.test.ts`), the controls `actsIn` in `controls.js`. **A check on its timeline is its own record's run** (toned pass or fail) only when the record is its worktree's; in a shared checkout it is its own `checked` moment, quiet. **Opening it is never a blank**: a skeleton before the first snapshot, and the card's and the timeline's own before the first answer; *not on this device* only once a read snapshot lacks it |
@@ -85,16 +88,16 @@ a device still has none of the scopes that change anything until somebody at thi
 | what a request *is* | `src/request.ts` — reading an `IncomingMessage`, and every bound on one |
 | what a request must satisfy | `src/guard.ts` — pure, and `test/guard.test.ts` runs the cross-product |
 | a route only this machine may reach (`presence`, and the pages that connect a source) | `Route.here` — `allowed` answers it the `404` of a path nobody built anywhere but `thisMachine` |
-| **the person's own phone asking what the SSH key may** — presence, every route of `OWNED`, and the connect page with its presses | `Route.theirs` on **every** `here` route (`theirs.test.ts` fails on one without it): `allowed` lets one through off this machine's door only for a session `sessionOf` marks `theirs` (`theirsOf`, read off the record at the request) and asks it a trusted origin and the passkey; each owner's handler gates on `ownsOrTheirs` (`src/surface.ts`), and a connect page or press off the door is asked the whole session path instead of `connecting` — the page carries the session's token (`TOKEN_META`) for its presses. `test/theirs.test.ts` is the cross-product, `test/public.test.ts` the same over Caddy's socket |
-| **the pages that connect a source** (`/connect`, a press per step, where the source sends the browser back), an owner asking the same (`/api/connect`), and the person's own phone opening them off this machine's door (`theirs`) | `CONNECTS` in `src/routes.ts` (`Route.connects`, `source`), the guard's `connecting` layer, `src/connected.ts` (`ConnectStates`, `carryConnect`, `pressed`, `connectHere`, `ConnectAnswerSchema`), `src/connect-page.ts` (the HTML and `PAGE_CSP`), the fold in `@tade/core`'s `connect.ts`, the window's half in `packages/app/src/wire/web-connect.ts`; the asking side is `RemoteMachines.connectPress` (`wire/remote-machine.ts`), drawn on Settings › Remotes |
+| **a paired phone asking what the SSH key may** — presence, every route of `OWNED`, and the connect page with its presses | every `here` route: `allowed` lets one through off this machine's door for any session and asks it a trusted origin and the passkey, whatever it needs, and nobody without a session meets the `404`; a connect page or press off the door is asked the whole session path instead of `connecting` — the page carries the session's token (`TOKEN_META`) for its presses. `test/theirs.test.ts` is the cross-product, `test/public.test.ts` the same over Caddy's socket |
+| **the pages that connect a source** (`/connect`, a press per step, where the source sends the browser back), an owner asking the same (`/api/connect`), and a paired phone opening them off this machine's door | `CONNECTS` in `src/routes.ts` (`Route.connects`, `source`), the guard's `connecting` layer, `src/connected.ts` (`ConnectStates`, `carryConnect`, `pressed`, `connectHere`, `ConnectAnswerSchema`), `src/connect-page.ts` (the HTML and `PAGE_CSP`), the fold in `@tade/core`'s `connect.ts`, the window's half in `packages/app/src/wire/web-connect.ts`; the asking side is `RemoteMachines.connectPress` (`wire/remote-machine.ts`), drawn on Settings › Remotes |
 | another machine's Tade linked to this one as an owner (`tade remote`) | `@tade/remotes-core` (the `RemoteLink` port, the stream follower, the far end its suite links to) — the client half of everything in this table, over SSH; `add-workspace-driver` has its shape. What it posts here is `presence` (`src/presence.ts`): an owner's age of a keypress at another screen, held by the window (`Presences` in `wire/web-presence.ts`) and read as one by push, and written down once a stretch as `person_present` — the cursor of `since` below. A phone's `looking` (`src/looking.ts`) is its sibling and quiets only that phone (below). And `seen` (`src/seen.ts`, `POST /api/seen`, lifecycle): its machine is up — a beat while its window is open — or closing, or woke from a sleep it says the age of, and what it is called now (`machineLabel` there: a `named` line on its device in `devices.ts`, and its record moved with `was`, so one paired under its host name is not called by it), held by the heart's `MachinesSeen` (`wire/machines-seen.ts`, for a `tade serve` too) as `machine_seen` lines and projected whole as `Snapshot.machines` (not a collection; on a delta only where it moved), drawn on the page's overview (`assets/machines.js`) |
 | **every other machine's projection on the person's own page** — the page is a door, and draws every machine from a copy it keeps of each | `src/copies.ts` (`Copies`: whole on first sight or a restart there, a change against what the page was last sent, `gone`; `copiesFor` — the person's own device and never a link; the conversation and notes left out, being one already), the `machine` stream event (`STREAM_EVENTS`, written by `Streams.pushCopies`, never in a ring; on opening only the copies the page does not already hold — it says which revision of each in the stream's address, `held=<epoch>:<rev>:<machine>`, made by `streamPath` in `store.js` and read by `copiesHeldOf` — and after an owed `resync`'s snapshot every one whole), `WebReading.copies`; the window's half `beatCopies` in `packages/app/src/wire/web.ts` over `AwayDeps.copies` (the heart's `Remotes.held` and what `ProjectionsHeld` was told — the links are the heart's, so a `tade serve` machine follows them and tells each its projection, its own page on or off); the page's `applyCopy`/`copiesOf` in `src/assets/store.js`, a store per machine and never one merged tree, drawn by `machines.js` (`lastWordSaid` on the overview's cards, `wantsElsewhere` for the overview's needs-you rows of every up machine, `agentsElsewhere` for the Agents page's group a machine — read only, dimmed and frozen at its last word while it is not up). **Another machine's project and task have addresses of their own**, `/m/:machine/p/:project` and `/m/:machine/t/:project/:task` (`… there` shells in `src/routes.ts`, `THERE` in `routes.js`, one machine deep): the router builds the same screen with no `ctx` and `there.js`'s `thereOn` hands it that machine's copy and clock (`thereOf` in `machines.js`), puts the line over it ("mac · closed 14:02 · as of 14:02") and makes every link on it that machine's (`thereHref`) or words where this door's screen is not that machine's. Rows of another machine link there; a press on one is §2.5's step, not a `ctx` handed to these screens. The protocol's version does not move for it: an older page or link ignores the event |
 | what one of this machine's watches has already found, for another machine taking it back | `OWNED`'s `watch seen` (`POST /api/watch/seen`, `here`), `src/watch-seen.ts` (the body, the bound, `WatchSeenAnswerSchema`), the window's half `watchSeenFrom` in `packages/app/src/wire/watch-seen.ts`; the asking side is `Remotes.watchThere`, written down by `notLooking` as `handed` |
 | **what this machine is**, for another machine of the person's: its version, its public name's health, its problems, its schedules' looks, its documents — and one of those documents as text, and one of its extension tools that only reads | `OWNED` in `src/routes.ts` (`/api/machine`, `/api/document`, `/api/tool`, all `here`), `src/machine.ts`, `src/document.ts`, `src/tool-read.ts` (each the body, the bounds and the answer's schema), the window's half in `packages/app/src/wire/web-machine.ts` (out of what the window holds; a document only where the journal says the task wrote one by that name; a tool only where it declares `reads`); the asking side is `packages/app/src/wire/remote-machine.ts` |
-| **the Machines page**: what each of the person's machines has (Settings › Machines, a line per machine under each item), and moving the keys the shell's files set into one file, from their own phone | `OWNED` in `src/routes.ts` (`POST /api/machines`, `POST /api/machines/press`, both `here` and `theirs`, never an ordinary phone however much it was granted), `src/machines.ts` (the answer, the presses, `ownsOrTheirs`), the window's half in `packages/app/src/wire/web-machines.ts` (`machinesFrom`, out of the same `Inventories` subject and doors as the window's own page: a press starts and never waits, a move is the device's and only of the plan it was shown); the screen is `src/assets/pages/machines.js`, `machines-shape.js` (pure, `test/machines-page-client.test.ts`) and `machines.css`, under System in More |
-| **Tade started again from the person's own phone**: the restart bar's press, and `tade_reload` asked from it | `OWNED`'s `restart` (`POST /api/restart`, `here` and `theirs`, refused any narrower device however much it was granted), `src/restarted.ts` (the body names the lanes the device was told would stop; a different count is answered with the count and nothing done, so ending work is a second press on a number somebody saw); the window's half in `packages/app/src/wire/web-restart.ts` (`reloadWindow` a moment after a `web_did`; the count is `reloadStopsOf`, the window's reload panel's own fold, with a face or without). **`tade serve` restarts as its service**: under the unit `tade host service` wrote — read off its own cgroup, never `INVOCATION_ID` — its reload is `systemctl --user restart --no-block tade.service` (`cli/src/commands/serve-restart.ts`); started by hand, `NO_WINDOW` says nothing would start it again. **`tade_reload` from that phone is the same press** (`Updates.reload`, `UpdatesDeps.arm`): where lanes would stop, an owner arm that is `theirs` gets the count said in the conversation (`stopsAndComeBack`) and the reload, never the panel at a screen it cannot reach; a machine link and the keyboard get the panel |
-| **The orchestrator signed in from the person's own phone**: `/login` on the away line, carried out rather than pointed at the machine | `OWNED`'s `orchestrator sign-in` (`POST /api/orchestrator/sign-in`, `here` and `theirs`), `src/signing-in.ts` (five things a body may ask — look, start, type a line, press one of `SIGN_IN_KEYS`, cancel — each answered at once with what is held; `signInLink` reads the link across wrapped rows); the window's half in `packages/app/src/wire/web-sign-in.ts` over `sign-in-lane.ts` (the harness's own sign-in with `{ browser: false }` in a lane nobody's task owns, its screen read on the beat only while somebody looks and cleaned by `cleanScreen`, whether it ended read every beat so a finished sign-in restarts the orchestrator with the phone put away; nothing typed is journaled); the page's sheet in `src/assets/sign-in.js`, opened by `talk.js` for a full-access session. Any other device's `/login` is `LOG_IN_IS_HERE` |
-| **Every machine's accounts, from the phone and from another machine's Settings › Accounts** | `OWNED`'s `accounts` and `accounts sign-in` (`POST /api/accounts`, `/api/accounts/sign-in`, `here` and `theirs`), `src/accounts.ts` (a look or one press, strict bodies; a call naming `machine` is that machine's, sent on over this one's link as its owner by `forwardedCall`, and what comes back is bounded by `accountsAnswerOf`/`signInStandingOf`); the window's half in `packages/app/src/wire/accounts-here.ts`, held by the heart so `tade serve` answers it too — the workbench's own acts, a `web_did` per press and never a key, an account's sign-in in its own lane (`sign-in-lane.ts`, shared with the orchestrator's); the page is `assets/pages/accounts.js` |
+| **the Machines page**: what each of the person's machines has (Settings › Machines, a line per machine under each item), and moving the keys the shell's files set into one file, from their own phone | `OWNED` in `src/routes.ts` (`POST /api/machines`, `POST /api/machines/press`, both `here`), `src/machines.ts` (the answer, the presses), the window's half in `packages/app/src/wire/web-machines.ts` (`machinesFrom`, out of the same `Inventories` subject and doors as the window's own page: a press starts and never waits, a move is the device's and only of the plan it was shown); the screen is `src/assets/pages/machines.js`, `machines-shape.js` (pure, `test/machines-page-client.test.ts`) and `machines.css`, under System in More |
+| **Tade started again from the person's own phone**: the restart bar's press, and `tade_reload` asked from it | `OWNED`'s `restart` (`POST /api/restart`, `here`), `src/restarted.ts` (the body names the lanes the device was told would stop; a different count is answered with the count and nothing done, so ending work is a second press on a number somebody saw); the window's half in `packages/app/src/wire/web-restart.ts` (`reloadWindow` a moment after a `web_did`; the count is `reloadStopsOf`, the window's reload panel's own fold, with a face or without). **`tade serve` restarts as its service**: under the unit `tade host service` wrote — read off its own cgroup, never `INVOCATION_ID` — its reload is `systemctl --user restart --no-block tade.service` (`cli/src/commands/serve-restart.ts`); started by hand, `NO_WINDOW` says nothing would start it again. **`tade_reload` from that phone is the same press** (`Updates.reload`, `UpdatesDeps.arm`): where lanes would stop, an owner arm that is `theirs` gets the count said in the conversation (`stopsAndComeBack`) and the reload, never the panel at a screen it cannot reach; a machine link and the keyboard get the panel |
+| **The orchestrator signed in from the person's own phone**: `/login` on the away line, carried out rather than pointed at the machine | `OWNED`'s `orchestrator sign-in` (`POST /api/orchestrator/sign-in`, `here`), `src/signing-in.ts` (five things a body may ask — look, start, type a line, press one of `SIGN_IN_KEYS`, cancel — each answered at once with what is held; `signInLink` reads the link across wrapped rows); the window's half in `packages/app/src/wire/web-sign-in.ts` over `sign-in-lane.ts` (the harness's own sign-in with `{ browser: false }` in a lane nobody's task owns, its screen read on the beat only while somebody looks and cleaned by `cleanScreen`, whether it ended read every beat so a finished sign-in restarts the orchestrator with the phone put away; nothing typed is journaled); the page's sheet in `src/assets/sign-in.js`, opened by `talk.js` for a full-access session. Any other device's `/login` is `LOG_IN_IS_HERE` |
+| **Every machine's accounts, from the phone and from another machine's Settings › Accounts** | `OWNED`'s `accounts` and `accounts sign-in` (`POST /api/accounts`, `/api/accounts/sign-in`, `here`), `src/accounts.ts` (a look or one press, strict bodies; a call naming `machine` is that machine's, sent on over this one's link as its owner by `forwardedCall`, and what comes back is bounded by `accountsAnswerOf`/`signInStandingOf`); the window's half in `packages/app/src/wire/accounts-here.ts`, held by the heart so `tade serve` answers it too — the workbench's own acts, a `web_did` per press and never a key, an account's sign-in in its own lane (`sign-in-lane.ts`, shared with the orchestrator's); the page is `assets/pages/accounts.js` |
 | **its public name's records, looked at now**, for another machine whose Settings › Remotes is open on it — and its scorecards, read there while /evals is | `OWNED`'s `records` (`POST /api/records`, `here`), `src/records.ts` (the body, the bounds, `RecordsAnswerSchema`), the window's half in `packages/app/src/wire/web-records.ts` (the `tade host domain` look, one in flight, held to `RECORDS_MS`, only where `AppOptions.domain` dials); the scorecards are `GET /api/evaluations` as it is, read there by `EvaluationsAnswerSchema` (`src/evaluations.ts`); the asking side is `RemoteMachines.lookAgain`/`scorecards`, asked only while `looking` says so |
 | **where each project's work is**, for another machine's mirror of it | `OWNED` in `src/routes.ts` (`POST /api/repositories`, `here`), `src/repositories.ts` (the answer, read for its shape there), the window's half in `packages/app/src/wire/web-repositories.ts`; the asking side is `packages/app/src/wire/mirrors.ts` |
 | the person's **notes shared** with another machine of theirs | `OWNED` in `src/routes.ts` (`POST /api/notes/share`, `here`), `src/shared-notes.ts` (the body), the window's half in `packages/app/src/wire/notes-shared.ts` (`notesFor` answers, `SharedNotes` asks from the window that holds the link); the exchange is `@tade/workbench`'s `notes-shared.ts`, and `add-workbench-operation` has the rules |
@@ -102,9 +105,9 @@ a device still has none of the scopes that change anything until somebody at thi
 | the public listener: Caddy's socket, its directory, the PROXY header | `src/listeners.ts` (every socket one server listens on, `dirSeen`, `answering`), `src/proxied.ts` (the header read before HTTP, `peerOf`), `src/proxy-protocol.ts` (pure: what the bytes are), and `public-listener.ts` in `@tade/core` (the directory, the socket, `caddySite`, what a health look says); `test/public.test.ts` is all of it over a real socket |
 | a **webhook delivery** (`POST /hooks/<source>`): what is checked, in what order, and what is written down | `HOOKS` in `src/routes.ts` (built only where a public name is), the guard's `rings` layer, `src/hooks.ts` (pure: each source's signature and window, the address), `src/hooked.ts` (`HookDoor`, `WebHooks`), the window's half in `packages/app/src/wire/doorbell.ts`; `test/hooked.test.ts` over Caddy's socket. What a delivery may do is `add-intake-source`'s doorbell |
 | the public listener's health: the certificate, Tade behind | `packages/app/src/wire/web-public.ts` (`PublicHealth`, on clocks of its own), `@tade/workbench/certificate` (one handshake), `tade host caddy --check` (`packages/cli/src/commands/host-caddy.ts`) |
-| what a device may read | `src/reach.ts` (the grants), `src/surface.ts`'s `reachOf` (the seam) |
-| **where** a grant withholds, and what a page says *not granted* about | `WITHHOLDS` in `src/reach.ts` — one line per place on the wire; `test/withholds.test.ts` takes each grant away and asserts the snapshot changes there and nowhere else. The page asks by path (`mayFor(store, 'plans')`, `src/assets/access.js`, a copy held equal), never by a grant's name, so a new gate is a line here or the test fails. **`ANSWERING` beside it** is the one place a scope decides instead (`Reach.answers`, the device's `answer`): the command an approval asks about, held by the same test |
-| what a box in the panel grants | `BOXES` in `packages/app/src/wire/web-boxes.ts`: each box's scopes, the reading grants that go with them and the places its page draws — ticked only when it has all of them (`ticked`), so `talk to Tade` carries the conversation and `change settings` the settings |
+| whose a reading is | `src/reach.ts` (`Reach` is the device and nothing else: every device reads everything), `src/surface.ts`'s `reachOf` |
+| what kind of act a route is | `SCOPES` in `src/surface.ts` — never a list a device holds; which table a setting builds it in, and whether the guard asks it what an act is |
+| a device paired in the clear | `clear` on the `paired` line and on `Device` (`src/devices.ts`, `wasClear` for a line an older Tade wrote): its credential crossed a network anybody could read, so the guard answers its acts `locked` for ever |
 | the credential | `src/sessions.ts` |
 | **a device's passkey**: the gate, the two routes, checking an answer, the page's bar | `proven` in `src/guard.ts` (the eighth layer); `src/passkeys.ts` (the challenges, `ENROL_MS`, what a device is offered and told — `passkeyStanding`); `src/passkeyed.ts` (the two routes, in order); `src/webauthn.ts` and `src/cbor.ts` (an answer, checked); the `passkey` and `proved` lines in `src/devices.ts`; `src/assets/passkey.js` (the bar and its press); `passkey_hours` in `@tade/core`'s `away.ts` |
 | the device list | `src/devices.ts` — `<home>/web-devices.jsonl` |
@@ -132,7 +135,7 @@ a device still has none of the scopes that change anything until somebody at thi
 | **the README's pictures of the page**: a desk's overview, an agent, the plans, the spend, and three phones | `PAGE_REEL` in `packages/app/scripts/pictures.ts` over `packages/app/test/screens/scenarios/away-page.ts`; the page booted with no browser in `scripts/still*.ts`; held to Chromium by `scripts/browser-stills.ts` (`pnpm screens --page`). **A change that shows on one of those screens redraws them in the same commit** (`pnpm screens --assets`, or `pictures.test.ts` fails) — the `redraw-the-pictures` skill has the rest |
 | the listener's lifetime, the beat, the pairing panel | `packages/app/src/wire/web.ts` — `follow` brings it up, down, or up again as a setting it was built from changes (`web-follow.ts`, `builtFrom`). It is the heart's (`heart.ts`): opened by `Heart.begin` and beaten on its beat, so `tade serve` listens and sends notifications with no screen, and only its pairing panel and `Copy` are a face's |
 | what the window hands it | `packages/app/src/away.ts` — pure: `Workspace` in, the collections out |
-| what the panel draws | `packages/app/src/panels/away/{state,view,cards}.ts`, with six goldens in `test/screens/scenarios/away.ts` — and the Away page of Settings draws the same lines under its switch (`awayLines`, `codeShownOn`), never a second copy. A status line in words, a device at the door as a card **above** the code (under it, twenty rows of code scrolled it out of sight), the code and link, the devices and the controls. A grant is a ticked box named in `AWAY_LABELS`, never a chip whose colour says which way it goes (green was read as *granted*); where a device came from is `whereFrom`'s words, never only an address; what a box grants is one clause in the foot while the pointer is on it (`grantsHelp` in `wire/web-panel.ts`), never a paragraph above the list |
+| what the panel draws | `packages/app/src/panels/away/{state,view,cards}.ts`, with six goldens in `test/screens/scenarios/away.ts` — and the Away page of Settings draws the same lines under its switch (`awayLines`, `codeShownOn`), never a second copy. A status line in words, a device at the door as a card **above** the code (under it, twenty rows of code scrolled it out of sight), the code and link, the devices and the controls. A device is its name, where it came from (`whereFrom`'s words, never only an address), its passkey and a revoke — nothing to tick, because every device is the person's own |
 | the strip's `remote off` / `remote 2` chip | `Away.facts` (`Frame.remote`, off the listener and its streams, never the config), drawn in `view/foot.ts`. The beat draws when the streams open differ from what the last **frame** drew, not the last beat: a page that opens and closes between two beats is otherwise left on screen |
 | the terminal's end of it | `packages/cli/src/commands/web.ts` |
 
@@ -148,8 +151,8 @@ a device still has none of the scopes that change anything until somebody at thi
   `scripts/browser-frame.ts`'s.
 - **No route in `ROUTES` mutates a project or a task.** The non-`GET` routes there are session
   lifecycle — this browser's own credential, created, destroyed and proved with its passkey, an
-  owner or the person's own phone saying they are at another of their screens (`presence`, `here`,
-  `theirs`), and a device saying its
+  owner or a paired phone saying the person is at another of their screens (`presence`, `here`),
+  and a device saying its
   own page is being looked at (`looking`) — and `test/routes.test.ts` asserts that set is exactly
   `LIFECYCLE` **by name**. Another fails the test until somebody puts it there deliberately, which is
   the conversation the rule is for.
@@ -157,12 +160,11 @@ a device still has none of the scopes that change anything until somebody at thi
   carries the argument). Any device, any listener, a body of nothing: its page visible and touched in
   the last minute (`push.js`'s `looking`) quiets what *that device* is sent for the two minutes a
   keypress counts — held in the push sender per device (`WebPush.looking`), never written down, never
-  read for another device, never "somebody is here". Machine-wide presence is an owner's and the
-  person's own phone's (`presence.ts`, `Route.theirs`), never an ordinary phone's, because a copied
-  session saying it would silence every device. **Why their own phone may:** the person decided it —
-  it is the screen they can pull the plug on — and off this machine's door it is asked a trusted
-  origin and a passkey proved lately, so a copied cookie alone cannot say it from the public name;
-  unticking one box or revoking it ends it at the next request. `looking` is no more than a
+  read for another device, never "somebody is here". Machine-wide presence is an owner's and a
+  paired phone's (`presence.ts`, a `here` route). **Why a phone may:** every paired phone is the
+  person's own — the screen they can pull the plug on — and off this machine's door it is asked a
+  trusted origin and a passkey proved lately, so a copied cookie alone cannot say it from the public
+  name; revoking it ends it at the next request. `looking` is no more than a
   session's own `forget`, which is why it asks no passkey and no trusted origin.
 - **"Nobody is here" is said to the orchestrator, from the keyboards** (`nobodyHere`, `core/src/since.ts`;
   `Presences.nobodyHere`): above Tade's words on a turn Tade starts (`tell`), after fifteen minutes
@@ -174,12 +176,11 @@ a device still has none of the scopes that change anything until somebody at thi
   (`core/src/service.ts`) reads systemd's `INVOCATION_ID`, which the unit's tmux hands to the window,
   once, where the window is started (`AppOptions.keptBy`) — never out of the environment by what needs it.
 - **The one route that writes a key is the owner's carry, and it is in no setting's table**
-  (`OWNED`): an owner device — the SSH key's session — on this machine's own door (`here`), or the
-  person's own phone on any door (`theirs`), and refused to every other device however much it was
-  granted (`out_of_scope` here, the `404` elsewhere). That is what keeps it no wider than what
-  already was: whoever holds the key can edit `config.yaml` over the same SSH. **Why the owner's
-  phone may:** a full-access phone already changes every setting from the away Settings page, keys
-  included (`theirsOf`, `web-settings.ts`), so the carry asks nothing it could not; off the door it
+  (`OWNED`): an owner device — the SSH key's session — on this machine's own door (`here`), or a
+  paired phone on any door, and the `404` to anybody with no session. That is what keeps it no
+  wider than what already was: whoever holds the key can edit `config.yaml` over the same SSH.
+  **Why a paired phone may:** it already changes every setting from the away Settings page, keys
+  included (`web-settings.ts`), so the carry asks nothing it could not; off the door it
   is asked a trusted origin and the passkey, and it writes as `device <id>`. **This
   machine decides** — every path is asked of `carryOf` again, so its own are refused whatever
   arrives; a value somebody here changed is said back and left unless the person there pressed;
@@ -191,10 +192,9 @@ a device still has none of the scopes that change anything until somebody at thi
   `attachCommand` for one task's agent as a pane, from the window's `attachingFor`
   (`wire/web-attach.ts`), or why not — not running, or a driver whose lanes no other terminal can
   reach (`remoteAttach`). An owner whose `lanes` the window took back is answered as for a task that
-  is not there. It writes nothing: the terminal is an SSH session, which is `sshd`'s record. **Why
-  the owner's phone may** (`theirs`): the line is a command, not a way in — running it still needs
-  the SSH key the phone's terminal holds — and the person decided their own phone may do what they
-  can; one with `lanes` unticked is not theirs, so it is refused.
+  is not there. It writes nothing: the terminal is an SSH session, which is `sshd`'s record.
+  **Why a paired phone may**: the line is a command, not a way in — running it still needs the SSH
+  key the phone's terminal holds — and the person decided their own phone may do what they can.
 - **What the person missed while away is the owner's third** (`OWNED`'s `since`, `src/since.ts`):
   the card another machine of theirs draws once its link comes back, folded here over this
   machine's own journal (`@tade/core`'s `since.ts`) from the last `person_present` line written
@@ -202,10 +202,8 @@ a device still has none of the scopes that change anything until somebody at thi
   presence its link carried a breath before asking cannot empty it. Those lines are the window's,
   a line a stretch (`presenceLineDue`), never one per keystroke: an instant in this machine's own
   clock is a cursor a compaction, a restart and a restored journal cannot move, where `seq` and a
-  byte offset can. Each row is within what the device reads, money only with
-  `spend`, and each list a cap with a count. It writes nothing. **Why the owner's phone may**
-  (`theirs`): it is a fold of what that phone's full-access snapshot already reads, and the person
-  coming back to their phone is the same question as coming back to the Mac.
+  byte offset can. Each list is a cap with a count. It writes nothing. **Why a paired phone
+  may**: it is a fold of what that phone's snapshot already reads, and the person coming back to their phone is the same question as coming back to the Mac.
 - **The person's notes are the owner's fourth** (`OWNED`'s `share notes`, `POST
   /api/notes/share`, `src/shared-notes.ts`): another machine of theirs gives the lines this home
   lacks and asks, by digest, for the ones it lacks; the window's half (`notesFor`,
@@ -215,8 +213,7 @@ a device still has none of the scopes that change anything until somebody at thi
   line as a string of at most 32,000 characters, a machine's name against `MACHINE_NAMED` (it is
   drawn) and a digest as sixteen hex digits; the window's half refuses a line that is not one of
   the file's kinds. A body is the server's 64 KB, so the asking side gives in rounds. It writes
-  `notes_shared` where it took anything — counts and the device, never a note's words. **Why the
-  owner's phone may** (`theirs`): the notes are the person's, and a full-access phone already tells
+  `notes_shared` where it took anything — counts and the device, never a note's words. **Why a paired phone may**: the notes are the person's, and it already tells
   every agent one (`note`); off the door it is asked a trusted origin and the passkey.
 - **Where each project is checked out is the owner's fifth** (`OWNED`'s `repositories`, `POST
   /api/repositories`, `src/repositories.ts`): each open project's **root** — a path on this machine,
@@ -224,22 +221,22 @@ a device still has none of the scopes that change anything until somebody at thi
   remote URL, which may hold a credential), its base and each task's own branch with its head and
   whether it is live, out of status's last look (`wire/web-repositories.ts`). It is what another
   machine of the person's fetches this one's work into its mirror by, over the same SSH, which is
-  why it is no wider than that key. Within what the device reads; a value the other machine would
+  why it is no wider than that key. A value the other machine would
   refuse the whole answer over is sent as null rather than sent; the body is `{}` and nothing else.
-  It writes nothing. **Why the owner's phone may** (`theirs`): a path on the person's own machine is
+  It writes nothing. **Why a paired phone may**: a path on the person's own machine is
   theirs to be told, and it is the one place a phone's answer holds one — every row a phone
   *reads* still holds none.
 - **What this machine is, one of its documents and one of its tools that only reads are the owner's
   sixth, seventh and eighth** (`OWNED`'s `machine`, `document`, `tool`): what `ssh vps tade status`,
   `cat` on a document in its home and `tade extensions run` there already give the same key. Each
-  is within what the device reads (a project it was not given is a `404`), bounded and cut rather
+  is bounded and cut rather
   than refused (`machineFor`), and read by the asking machine for its shape. A document is asked by
   its task and its file's name, never a path, and read only where the journal says that task wrote
   it; the copy goes under `remotes/<machine>/documents/` in the asking home (`remoteDocumentPath`,
   which refuses a name that walks). A tool runs only where it declares `reads` (`ExtensionTool.reads`,
   never guessed from a name), with this machine's own settings and keys, after a `tool_call` line
-  naming the device. None of them writes anything else. **Why the owner's phone may** (`theirs`):
-  each is within what a full-access device already reads, a tool that only reads is no more than
+  naming the device. None of them writes anything else. **Why a paired phone may**:
+  each is within what it already reads, a tool that only reads is no more than
   what its snapshot shows, and the person decided their own phone may do what their SSH key may;
   off the door each is asked a trusted origin and the passkey, as acting is.
 - **What another machine of the person's has is told here and kept** (`OWNED`'s `inventory`, `POST
@@ -248,24 +245,22 @@ a device still has none of the scopes that change anything until somebody at thi
   `tade machine setup --from` run here can walk it. The same SSH key can write that file, which is
   why it is an owner's. The asking side sends it only to a Tade whose `/api/machine` answered with
   an `inventory` of its own, and only when it is newer than the last told (`toldBody` keeps it under
-  the body's bound). **Why the owner's phone may** (`theirs`): it is a file in the person's home.
+  the body's bound). **Why a paired phone may**: it is a file in the person's home.
 - **Its public name's records are the owner's ninth** (`OWNED`'s `records`), what `tade host
   domain` over the same SSH already gives the key — and the one owner's read that **asks the
   world**, so it keeps the look's own rule: asked when somebody is looking, never on a clock. The
   owner asks only while its Settings › Remotes is open on this machine, once an opening and again
   on Look again (`wire/remote-machine.ts`), and only of a machine that said it has a public name;
   this side adds no clock, answers every ask that lands while a look runs with that one look, and
-  holds it to `RECORDS_MS` under the link's own deadline. It writes nothing. **Why the owner's
-  phone may** (`theirs`): it is what `tade host domain` tells the same person, and the look's own
+  holds it to `RECORDS_MS` under the link's own deadline. It writes nothing. **Why a paired phone may**: it is what `tade host domain` tells the same person, and the look's own
   rule — one in flight, `RECORDS_MS` — holds whoever asks, so a phone pressing again asks the world
   no more often than a window does.
 - **Taking work and opening a project are the owner's eleventh and twelfth** (`OWNED`'s `take`,
   `src/taken.ts`, and `open`, `src/opened.ts`): queued work made in a project here, started by the
   window's own rule, and a repository cloned with this machine's own credentials and opened — what
-  `tade run start` and `git clone` over the same SSH already give the key. Each within what the
-  device reads, `open` only for a device that reads every project, and each line names the device.
-  **Why the owner's phone may** (`theirs`): a full-access phone already queues work and reopens a
-  project from the away view, and the person decided it may do what they can; off the door each
+  `tade run start` and `git clone` over the same SSH already give the key. Each line names the
+  device. **Why a paired phone may**: it already queues work and reopens a project from the away
+  view, and the person decided it may do what they can; off the door each
   is asked a trusted origin and the passkey, as acting is.
 - **Connecting a source is the owner's tenth, and its own table besides** (`/api/connect`,
   `CONNECTS`). Turning a source on is `never`-tier, so the page and its presses
@@ -293,16 +288,15 @@ a device still has none of the scopes that change anything until somebody at thi
   hosts (`CONNECT_FLOWS.goes`). **What a source's own page shows the person** — Slack's signing
   secret and client, Linear's client id and webhook secret — goes in through a `keep` press on this
   machine's own door alone, shape-checked per source (`KEEP_SCHEMAS`) and never answered back; the
-  owner's route takes no `keep`, so no secret crosses the link. **Why the owner's phone may**
-  (`theirs`: `/api/connect`, and the page and every press, `keep` included): a full-access phone
-  already turns a `never`-tier setting on from Settings and types a key into it, so a source's page,
+  owner's route takes no `keep`, so no secret crosses the link. **Why a paired phone may**
+  (`/api/connect`, and the page and every press, `keep` included): it already turns a `never`-tier setting on from Settings and types a key into it, so a source's page,
   a press that opens a browser and pasting what the source showed are no wider. **Off this
   machine's door the page and presses are not sessionless**: the guard asks them the whole path an
   act of that phone's is — its cookie bound to the host, its token (which only the page it was
   drawn carries, in `TOKEN_META`, and its one script sends), an exact `Origin`, JSON,
   `Sec-Fetch-Site`, a trusted origin and the passkey; the page, a navigation with no `Origin`, is
-  `https` only by a name the config trusts (`readScheme`). Any other session, and none, is the
-  `404` of a path nobody built, and the sessionless door stays this machine's alone. A browser off
+  `https` only by a name the config trusts (`readScheme`). No session is the `404` of a path
+  nobody built, and the sessionless door stays this machine's alone. A browser off
   the door is sent back to the public name, else to its own host on `https` where the config
   trusts it (`homeOf`). A press nothing comes back from
   (Slack's and Linear's making) mints no word, and a source that sends a browser back only over HTTPS
@@ -311,8 +305,8 @@ a device still has none of the scopes that change anything until somebody at thi
   and sends only its `S256` digest; `take` hands the verifier back with the word, and nothing else
   ever sees it — so a code read off a browser's history is worth nothing to anybody else.
 - **From the public listener, anything above `read` needs a passkey proved within
-  `passkey_hours`** (`proven`, after the scope and the origin, so it never says more than they
-  would) — and so does a `theirs` route asked off this machine's door, whatever it needs, because
+  `passkey_hours`** (`proven`, after the origin, so it never says more than it would) — and so
+  does a `here` route asked off this machine's door, whatever it needs, because
   what it reaches is the SSH key's. The **listener and never the host**, like `thisMachine`: this machine, an SSH forward and a
   tailnet name come in on the loopback listener, behind something of the person's own. Reading never
   asks, and nor do the two passkey routes — proving may not need the proof. `test/proven.test.ts` is
@@ -401,21 +395,12 @@ a device still has none of the scopes that change anything until somebody at thi
   rather than a setting.
 - **A notification is per device, and so is what it may be about.** The
   collections are the window's own and are built once for every phone, so
-  `changesFor` narrows the transitions to the projects that device reads before
-  anything else — a count is still a fact about work it cannot see, and doing
-  it before the budget means one device's silence does not spend another's.
+  the budget is per device, so one device's silence does not spend another's.
 - **A notification carries a count and no text**, and the detail is two halves:
-  `surfaces.web.push_details` is the ceiling and the device's own `titles`
-  grant is the floor. A `410` or `404` is the one answer that forgets a
+  `surfaces.web.push_details` decides it for every phone, because what may be on
+  a lock screen is one answer for all of them. A `410` or `404` is the one answer that forgets a
   subscription; everything else that goes wrong is a retry paced by the next
   transition, because a window has no scheduler to pace one with.
-- **A draft is a target with no project, which is why saving has its own
-  gate.** A verb names a task and the device's read scope is the per-project
-  boundary; a workflow names the repository it works in through an *input* and
-  can name any of them. So `admitDraft` refuses a device whose reading is a
-  **list** rather than every project — the narrowing is in the direction that
-  takes authority away, and there is no later moment to ask it at, because a
-  draft saved now is read by a run next week.
 - **A draft's revision is its content hash, and that is the opposite of
   `TaskFacts` on purpose.** A task changes constantly in ways no act depends
   on, so its revision is a handful of named facts; a draft changes only when
@@ -451,13 +436,13 @@ a device still has none of the scopes that change anything until somebody at thi
   turns it into the `by` on the journal line — `you` at the keyboard, `device <id>` from away. A
   remote act recorded as `you` would make `historyFrom` count it as the person's own doing, and
   a sentence to a model is not a mitigation, because a model can be talked out of one.
-- **A device's scope widens at the machine and nowhere else.** `allowDevice` appends an `allowed`
-  line; there is no route, no orchestrator tool and no config key for it, because the thing that
-  grants authority is never reachable from inside the authority it granted. `read` survives every
-  grant: widening what a device may do and signing it out are different acts.
-- **The per-project boundary for acting is the read scope.** A narrower acting list would be a
-  second list to keep in step, and the day they disagree is the day somebody acts on a project they
-  cannot see.
+- **A device is let in at the machine and nowhere else.** Pairing is a code only this machine shows
+  or a shell here writes; there is no route, no orchestrator tool and no config key that pairs one,
+  because the thing that grants authority is never reachable from inside the authority it granted.
+  **There is nothing to grant afterwards**: a device is the person's own from the pairing on, and
+  the one act on it is revoking it. Never bring back a per-device list of what one may read or do —
+  §10 T1 removed it, and its lines in an old `web-devices.jsonl` (`allowed`, `granted`, a `paired`
+  line's `scopes`) parse and say nothing.
 - **A `web_did` line goes in whatever happened**, a refusal at the door included: a device that
   asked to change something and was not allowed to is the case the audit matters most in.
 - **A path that is not in the table is a `404`, never a `405` and never a `403` with a hint.** An off
@@ -533,18 +518,19 @@ a device still has none of the scopes that change anything until somebody at thi
   gives the owner arm only where the record says owner **and** the door says `thisMachine`. Its
   words are never `said` (another machine's model may have written them) and its acts are
   `device <id>`.
-- **A device with full access is the person's own** (`fullAccess`, `armOf`): the owner arm with
-  `theirs`, from any door the guard let it through, on any harness; what they type is `said`. It is
-  answered every `Route.theirs` route — all of `OWNED`, presence, the connect page and presses —
-  from any door (`sessionOf` marks the session, `ownsOrTheirs` gates each owner's handler), and
-  every other device keeps exactly what it had. Its orchestrator turn reaches **every** tool and
+- **Every paired device is the person's own** (`armOf`): the owner arm with `theirs`, from any door
+  the guard let it through, on any harness; what they type is `said`. It is answered every `here`
+  route — all of `OWNED`, presence, the connect page and presses — from any door. Its orchestrator
+  turn reaches **every** tool and
   method `origin.ts` holds `local` — `tade_project_sync`, starting work, a terminal, a setting, a
   sentence to another machine — because neither table is asked of an owner arm; a `local` clause
   is a reason the words might not be the person's, so never add one that would hold their own phone
   (`origin.test.ts` asserts every `local` line is open to it, `tool-host-away.test.ts` over the
   socket). What it still cannot reach is what the keyboard cannot either, held in the window for
   every arm: a `never` setting, and an act needing a `said` line an agent's output never is.
-  Unticking any box makes it a device with exactly what is left, and revoking is read at every call.
+  Revoking it is read at every call. **The narrowed `remote` arm stays for the hub's outbox**
+  (`outboxArm`, steer and tidy): a press another machine carries, which is about a machine and not a
+  device.
 - **A body of `null` is a body.** `readBody` returns a discriminated answer, because `unknown | null`
   made a four-byte `null` indistinguishable from "already refused" and held the request open for ever.
 - **`(epoch, rev)` is the cursor, and nothing reads `seq` or a byte offset.** The epoch is minted by
@@ -570,10 +556,11 @@ a device still has none of the scopes that change anything until somebody at thi
 - **No handler does any work.** No `git`, no `ps`, no spawn, no file read but the device list: every
   read answers from what the window already holds, through `WebReading`. The window draws on this
   thread.
-- **A read scope is per device, so the projection is built per device** (`readingFor(reach)`).
-  Filtering one projection afterwards is how a field that should have been withheld rides along.
-- **`bind: lan` is a read-only transport** (`scopesOn`). A credential that crossed a network in the
-  clear never buys an act, whatever is turned on later — and it is **re-asked at the act**, because
+- **The projection is built per device** (`readingFor(reach)`): each device has its own projector,
+  revisions and ring, and what is about one device — its own row, what it said — is in its own.
+- **`bind: lan` is a read-only transport.** A device paired off a trusted origin is `clear` on its
+  line, and its acts are `locked` for ever: a credential that crossed a network in the clear never
+  buys an act, whatever is trusted later. A trusted origin is also **re-asked at every act**, because
   the network a device is on changes.
 - **The assets folder is reached with `fileURLToPath`, never `new URL(...).pathname`.** A URL
   percent-encodes, so under any install path with a space in it — `~/Library/Application Support/…`,
@@ -610,19 +597,16 @@ a device still has none of the scopes that change anything until somebody at thi
   queue's words are `describeQueueState`'s, copied into `glyphs.js` because a browser cannot import a
   `.ts` file and held equal by `test/glyphs.test.ts`. Four rules in `figures.js` are the domain's the
   same way.
-- **Outside text is a third kind of value, with two grants of its own.**
-  `AUTHORED` is the owner's and rides on the grant for the thing it is part of;
-  `OUTSIDE` (`fields.ts`) is a stranger's and rides on `requests` or
-  `material`. Neither is scrubbed — rewording somebody's request is the same
+- **Outside text is a third kind of value.** `AUTHORED` is the owner's;
+  `OUTSIDE` (`fields.ts`) is a stranger's. Neither is scrubbed — rewording somebody's request is the same
   lie as rewording a note, and what an agent was handed and what a person reads
-  have to be the same text. What stands instead is the grant, the budget, the
+  have to be the same text. What stands instead is the budget, the
   heading (`MATERIAL_LABEL`, which travels **with** the body rather than being
   the page's to choose), and the page never building markup.
 - **Every request's body crosses, framed as material** (`intakeIn`): a request
   somebody opens on a phone is read there, waiting on anybody or not. A body is
   bounded by `budget.material` and sent once, then only when it moved
-  (`delta.ts`). *Not granted* and *nothing was written down* are different
-  answers and `materialSays` says which.
+  (`delta.ts`), and `materialSays` says where nothing was written down.
 - **An empty inbox has five meanings and four of them are somebody's to fix**,
   which is why the doors are their own collection (`sources`): off, ungranted,
   unwatched, unreachable, rate-limited, refused and found-nothing are seven
@@ -655,19 +639,16 @@ a device still has none of the scopes that change anything until somebody at thi
   a hole and never explained in a paragraph: `locally` on a row is the act and
   a sentence, and the long form is said once where somebody is deciding
   (`LOCAL_ONLY_ACTS`, on the control in Settings).
-- **A device that may answer an approval sees what it is answering, and no other device does**
-  (`ANSWERING`). Saying yes to a command you cannot see is what an approval exists to prevent, and on
-  a box with no screen the phone is where the yes comes from; so the command goes with the `answer`
-  scope and is never a grant of its own. It crosses only as `commandOut` made it — **never the raw
+- **An approval shows the command it is answering.** Saying yes to a command you cannot see is what
+  an approval exists to prevent, and on a box with no screen the phone is where the yes comes from.
+  It crosses only as `commandOut` made it — **never the raw
   summary**, which is the command with this machine's paths in it — and the reason beside it is still
   the tool's name (`reasonOf`). The rule is lexical on purpose: a symlink is named and never followed,
   a `..` that climbs out of a place is outside it, another spelling of a place (`/private/var`) is cut,
   and erring that way is a shorter line where the other way is a leak. `test/command.test.ts` is the
   paths that try to get past it.
-- **Two nulls, two sentences.** A figure that is null because nobody recorded it and one that is null
-  because this device was not granted it are different facts, and a page that drew both as *not
-  recorded* tells somebody their work cost nothing. `you.reads` is the only way to tell them apart
-  from the page (`mayRead`), and every screen that can draw a dash asks.
+- **A null is *not recorded*, and only that.** No device is withheld anything, so a page draws a dash
+  for a figure nobody recorded and never says *not granted*.
 - **A screen is built once and then patched.** A delta writes text and classes into nodes that
   already exist (`keyed`, `textIn`), so focus, a half-made selection and the scroll position survive
   it — and **a delta never moves the current tab**, which only navigation does.
@@ -696,7 +677,7 @@ a device still has none of the scopes that change anything until somebody at thi
   two lists — `can`, and `cannot` with a `why` — and `ableOn` puts every verb in exactly one of them
   (`packages/app/test/away.test.ts` asserts it over the cross-product). A verb in neither is a hole
   somebody has to guess at; in both is two answers to one question. **It is not permission**: the
-  gate re-asks the scope, the setting, the project and the origin at the act, and the page's `actsOf`
+  gate re-asks the setting, the state and the origin at the act, and the page's `actsOf`
   is a drawing hint read off its own session.
 - **Only a `200` clears a box.** A `409` is the world having moved, and throwing away a paragraph
   somebody typed on a phone because of it is the one failure they cannot undo (`afterAnswer`).
@@ -767,30 +748,26 @@ a device still has none of the scopes that change anything until somebody at thi
 
 ## An agent's screen, which is nobody's words
 
-`lanes` is the one reading grant whose content Tade did not write and nobody chose to: whatever an
-agent printed. Everything about it is in the direction of reading less.
+An agent's screen is the one reading whose content Tade did not write and nobody chose to: whatever
+an agent printed. Every paired device reads it, and everything about it is in the direction of
+reading less: **the boundary is the scrubbing**, which holds for every device whoever paired it.
 
-- **It is a grant, per device, off for every device**, made at the machine (`away-see:<id>`, a
-  `granted` line in `web-devices.jsonl` — `allowed`'s twin for the reading half of a reach). No
-  setting: nothing it grants can change anything, and the boundary is the scrubbing, which holds
-  whatever any device was granted.
 - **It is never on a snapshot.** It is its own answer (`/api/agent/...`), about one task, asked while
   that task's page is open and visible. A screen on every row would be forty rows paid for twice a
   second for every task.
-- **Asking is looking, and only looking reads.** A device granted `lanes`, asking about a task it may
-  read, makes `Lanes` watch that lane for `WATCH_MS`; the read is on the window's beat with a
+- **Asking is looking, and only looking reads.** A device asking about a task makes `Lanes` watch that lane for `WATCH_MS`; the read is on the window's beat with a
   deadline, one in flight per lane, at most `MOST_PER_DEVICE` lanes per device. No watch, no read —
-  `test/wire/web-lanes.test.ts` counts them — and a crafted name out of reach watches nothing.
-- **The answer is built from the request's reach, not the projector's.** The device list is read at
-  every request and a projector catches up on a beat, so a grant taken back is gone at the next ask.
+  `test/wire/web-lanes.test.ts` counts them — and a crafted name for no task watches nothing.
+- **The device list is read at every request**, so a revoked device is gone at the next ask, not at
+  the next beat.
 - **What leaves is cleaned at the boundary** (`cleanScreen`): every machine path by `withoutPaths`'
   rule, every key Tade knows of by value (`knownKeys`: the config's, their variables, and every
   variable of the window's environment named like a credential — the environment agents inherit),
   anything shaped like a credential, a private key's whole block, and every character that reorders
   or hides text. **Rows that fill the screen's width are joined first**, because a terminal wraps a
   key onto two rows and neither row holds it. The last `SCREEN.lines` rows, each cut at
-  `SCREEN.width`, and the counts of what was left out. `GRANT_MEANS.lanes` says the other half:
-  anything else an agent printed is not taken out.
+  `SCREEN.width`, and the counts of what was left out. The other half has to be said too: anything
+  else an agent printed is not taken out.
 - **Nothing types into a lane from away.** What a person says to an agent goes through `steer` or
   through Tade (the strip's box is `talk.js`'s `composerOf`, the same ask flow).
 - **The page stops asking when it is left** (`screen.leave()` from the router), and the harness
@@ -864,49 +841,30 @@ the beat, so changing it cuts nobody off.
 (`redraw-the-pictures`): the Settings category list grew past the rows the panel has, which is
 correct (it scrolls) and moved every settings golden.
 
-## Changing a setting from away is a fifth table, and it reaches one tier — or, for theirs, all
+## Changing a setting from away is a fifth table, and it reaches every tier
 
-`SETTINGS` is one route, `POST /api/settings/change`, behind `surfaces.web.settings`, the `configure`
-scope (a chip, implied by nothing) **and** the `settings` reading grant (a chip, drawn always): a
-device may not change what it was not allowed to see, or its echoed value is a guess and every `409`
-an oracle for it.
+`SETTINGS` is one route, `POST /api/settings/change`, behind `surfaces.web.settings`. Every paired
+device is the person's own, so it reaches every tier `settingReach` has, a key included — the
+person decided driving this machine from their phone or another of their machines is the same as
+from the keyboard. A machine link's **words** are still `said` only where that machine says they
+were typed (`armOf`); a setting changed from its Settings page is that machine's press, `by: device
+<id>`. An agent that paired itself reaches nothing it could not already, since it can edit
+`config.yaml` itself. `SETTINGS_FROM_AWAY` says it.
 
-- **It reaches `settingReach`'s `open` tier and nothing else, and the tier is part of the parse.**
-  `readSettingChange` refuses any other path before a key is claimed, as the `404` of a path nobody
-  built — that is what *no route exists* means for a table with one route per kind of thing. The
-  window asks `settingReach` again at the write. `test/configured.test.ts` runs every path Settings
-  draws through the door.
-- **The `asked` tier is refused to an ordinary device, and that is a decision with its argument in
-  `configuring.ts`.** It is passed by the person's own words (`namedBy`, over `said` lines), and a
-  device has none: its request as the words makes `asked` into `open` for any device; the person's
-  old lines let a phone ride on last week's sentence (Phase 3's hole).
-- **The person's own device reaches every tier** (`theirsOf` in `src/surface.ts`, `Reach.theirs`):
-  full access, a phone of theirs **or the link of a machine they paired as owner** (an owner line
-  reads every scope and grant there is now, `devicesIn`) — the person decided driving this machine
-  from another of theirs is the same as from their phone. A link's **words** are still `said` only
-  where that machine says they were typed (`armOf`). It is read off the record
-  at the request (`reachOf`, so `readSettingChange(body, theirs)`) and again at the write
-  (`web-settings.ts`), so revoking or unticking one box is an ordinary device at the next press; the
-  body can never claim it (strict parse). Its key rows carry `sets` and may be typed into, never
-  shown; `by` is still `device <id>`. An agent that paired itself with full access reaches nothing it
-  could not already, since it can edit `config.yaml` itself. `SETTINGS_FROM_AWAY` says both halves.
 - **The write accepts exactly what the read offered.** `settingOut` decides a row's `may` and `was`
   for `GET /api/settings`, and `web-settings.ts` asks the same function at the write — so a value not
   shown whole (a key pasted into it) is not changeable, and the echo is compared against the row the
   window lists now. A choice is one of its options exactly and a flag is `true`/`false`:
   `parseSetting` is a keyboard's reading and too lenient for a device's exact value.
-- **A key is never readable, and only ever cleared — except by theirs, which may set one.**
-  `set`/`not set`, no value, no revision of one, every shown value cleaned of every key Tade holds
-  (`keysOf`). No key is in the `open` tier, so from an ordinary device nothing clears one;
-  `clearOnly` is the rule for the day one is.
+- **A key is never readable, only set or cleared.** `set`/`not set`, no value, no revision of one,
+  every shown value cleaned of every key Tade holds (`keysOf`); a key row carries `sets` and may be
+  typed into, never shown.
 - **Provenance is `byOf`'s**: `config_changed` says `by: device <id>`, and the `web_did` carries the
   path as `setting` in its detail, never as the event's `task`.
 
 ## What is not built, and must not arrive because a route was convenient
 
-No setting outside `settingReach`'s `open` tier is writable from any device but the person's own (a project's own line leaving and coming
-back with `close` and `open` is the other config write, a verb at its own scope), nothing grants
-anything, **nothing publishes a workflow or a persona,
+Nothing pairs a device or grants anything, **nothing publishes a workflow or a persona,
 nothing makes, renames or deletes a draft, and nothing touches a published version** — which never
 changes once it is out, so a run that points at `name@3` goes on pointing at it. Nothing turns a
 source on, nothing tells a new agent anything (`steer` is a message into a conversation that is
@@ -926,12 +884,13 @@ go/no-go, not a route somebody added.
 switch with `acting`. Every verb is a target plus the state it expects, each
 enumerable; this hands **free text to a model that holds tools**, which is the
 difference between answering a question and being able to ask for anything.
-So: its own setting, its own scope (`ask`, implied by neither acting tier), its
-own table (`ASKS`), its own interface (`WebAsking`), its own event type
-(`web_asked`) and its own grant control in the panel.
+So: its own setting, its own kind of route (`ask`), its own table (`ASKS`), its
+own interface (`WebAsking`) and its own event type (`web_asked`).
 
-- **The gates are a narrowed device's.** A device with full access is the owner arm (`theirs`),
-  answered as the keyboard at both, on any harness; everything below is about every other device.
+- **Every paired device is the owner arm (`theirs`)**, answered as the keyboard at both gates, on
+  any harness. The gates below are a **narrowed** arm's, which no device has any more: they stay for
+  the hub's outbox, a press another machine carries (`outboxArm`), and must not go with the device
+  tier.
 - **What makes it safe is two gates and a closed list, not the sentence Tade
   prepends.** `cameFromAway` is kept because a person reading the transcript
   needs it and because it tells the model why a refusal is correct — it is
@@ -969,40 +928,35 @@ own table (`ASKS`), its own interface (`WebAsking`), its own event type
   seconds — said out loud, with escape as the way out.
 - **`status/read` under a remote arm answers that device's own projection.**
   Not `tade status`, which carries project roots, worktrees and the harness's
-  summaries of waiting commands. That is what keeps `ask` from being a way
-  round every read grant, and it is why `worker/pending` is narrowed to a
+  summaries of waiting commands. That is why `worker/pending` is narrowed to a
   tool's **name** on the way out (`waiting`).
 - **`memory/remember`'s `by` is rewritten from the arm.** The tool sends
   `orchestrator`, which is true of a local turn and false of a remote one.
 - **The conversation is the one collection whose text is not shown as it was
   said**: every line is path-elided (`chatRows`), because a model quotes what
-  its tools answered. `GRANT_MEANS.talk` is where a person is told so, and
-  `transcript`, `args`, `payload` and `output` are all still names that fail
+  its tools answered, and `transcript`, `args`, `payload` and `output` are all still names that fail
   `NEVER_A_FIELD`.
 
 **There are twenty verbs and they are the whole of what a device may ever do**: `park`, `answer`,
 `steer`, `queue`, `done`, `note`, `context` and `intake` — the lifecycle, `stop`, `reopen`,
 `close` and `open` — and the rest of an agent's own menu, `start`, `remove`, `rename`, `model`,
 `thinking`, `account`, `harness` and `move`. Park went first because it is the smallest act that
-proves the whole path; the next seven are the scope matrix filled in, each a line in `VERBS`, a
-method on `WebActing`, and a control in `acts.js`.
+proves the whole path; each is a line in `VERBS`, a method on `WebActing`, and a control in
+`acts.js`.
 
-**The agent menu's eight are at `agents`, and four are the person's own device's alone.** What a
+**The agent menu's eight are `agents`.** What a
 phone may do to an agent is what a press on the window's row may (the person asked for it), and the
 list a phone draws is that row's own `menuItems`, so a new item in the window arrives on the phone
 off with *only at the machine* until somebody maps it in `away-menu.ts`. A model, an account, a
 harness or a machine is a **name**, asked again of what the machine offers at the act
-(`agent-doors.ts`), never a credential or a path. `remove` (it deletes a worktree and branch),
-`account` and `harness` (whose sign-in and which program runs the work) and `move` (the work
-leaves this machine) are `Verb.theirs`: a box ticked for *stop and reopen* was never read as those,
-so they ask full access at the gate, off the record at the request. `remove` and `move` take two
-presses and a literal.
+(`agent-doors.ts`), never a credential or a path. `remove` (it deletes a worktree and branch) and
+`move` (the work leaves this machine) take two presses and a literal.
 
-**The lifecycle is two pairs at two scopes nothing implies** — `agents` and `projects`, a chip each
-in the panel, off for every device, refused while acting is off. What each pair adds to the shape:
+**The lifecycle is two pairs** — `agents` and `projects`, refused while acting is off. What each pair
+adds to the shape:
 
 - **A verb's target may be a whole project** (`Verb.on`). Its `task` is empty, the project is the
-  target `boundTo` binds a key to, the gate's per-project boundary asks the name itself, and the
+  target `boundTo` binds a key to, and the
   journal line carries `project` in its detail — never on the event, where every fold keyed by task
   would read a task by that name. A row's `can`/`cannot` cover exactly its own kind's verbs.
 - **A toggle names its generation**, or a replay after the round trip is not refused: `taskRev`
@@ -1021,9 +975,9 @@ in the panel, off for every device, refused while acting is off. What each pair 
 **Two in the matrix are deliberately not verbs**, and `verbs.ts` carries the argument beside the
 table: a whole project's queue (it names no task and `projectRev` says nothing about a queue, so no
 replay could be told from a fresh ask), and a diff, a review's text or a lane's output (each ships
-source or an agent's bytes to a phone — a *reading* grant, and a name `NEVER_A_FIELD` refuses on a
-row; the diff and the output are now that grant, `lanes` — `changes.ts` and `screen.ts` — and still
-no verb). Stopping an agent used to be a third and is now half of a pair, for the reasons above.
+source or an agent's bytes to a phone — a *reading*, and a name `NEVER_A_FIELD` refuses on a row;
+the diff and the output are now readings of their own — `changes.ts` and `screen.ts` — and still no
+verb). Stopping an agent used to be a third and is now half of a pair, for the reasons above.
 
 **Every verb makes two checks and they answer different questions.** `onTask` compares the revision
 the device echoed (`was`) against the one the projection would put on that row now — that one is
@@ -1048,17 +1002,8 @@ task's folder is `realpath`'d and must come out inside the home, and the file is
 Only the last of those is atomic, Node has no `openat`, and that limit is written down rather than
 implied away.
 
-**The grant control gives both tiers**, `answer` and `steer`, because one that gave only the gentler
-would mean a phone that can allow a command and cannot set the work aside. A control per tier is the
-thing to build if somebody wants the narrower grant; until then `ACTING_IS_NOT_YOU` is held to naming
-all of it (`test/separation.test.ts`).
-
-**The lifecycle chips are two more beside it** (`agents`, `projects`), drawn only where acting is
-on, and composed the same way.
-
-**Talking is a second control beside it**, and the two **compose**: `allowDevice` writes the whole
-scope list, so every control over it builds from what the device already has (`kept`). Two controls
-that each enumerated would mean the second silently revoking the first, with nobody told.
+`ACTING_IS_NOT_YOU` is held to naming everything a device's buttons reach and what they never do
+(`test/separation.test.ts`).
 
 ## `tade web`, and what it cannot do
 
@@ -1084,8 +1029,7 @@ is open.
 `src/pending.ts`). It used to only point at the panel: a ticket lived in the window's memory and the
 person at its screen was the yes. A box with no screen has nobody to ask that way, and a shell on the
 machine *is* the machine — over SSH, the SSH key. So the command is the yes: it writes the digest of a
-one-time secret as a `pending` line, with what the device may have (everything, `--read-only` for
-reading alone) and the host its link names, and prints the link — as a QR only where a phone could
+one-time secret as a `pending` line with the host its link names, and prints the link — as a QR only where a phone could
 follow it. The listener claims it through the same route, with nobody asked; the window says it in
 the strip. Still **no channel from a shell into the window**: the file is the whole of what the two
 share, as it is for `revoke`. Every new code revokes the unclaimed ones, as the panel's do, and
@@ -1122,16 +1066,13 @@ Moving the pin is a deliberate act: change it there and here, and run the harnes
 It pairs a device through the real page, visits every route at 360/834/1440, runs axe, and checks the
 landmarks, the targets and that nothing scrolls sideways — at every width, not only the phone's.
 **It pairs exactly five times, which is the server's limit per address in ten minutes**, so a new
-check rides on a device already paired (`browser-desk.ts` does) rather than pairing a sixth. **It pairs three times**: a device granted
-nothing, which is what the honesty checks are for; one granted everything, at the widest width and then
-resized to 360px — the phone is what the person holds —
-because every figure draws differently with the grant, and the page with actual money, notes and
-sign-ins on it is the one the owner will look at; and one granted **both acting tiers** at 360px,
-where the three checks only a browser can answer live (`controls`, `touch`, `typing`): that what a
-row says may be asked of it is what is drawn and what it says cannot be is absent *with its reason*,
-that a real tap and a real `Enter` on a focused `<button>` each ask for exactly one act, and that a
-refusal leaves what somebody typed where it was. Its grant is `allowDevice` — the same append the
-pairing panel makes, because there is no route for one and there must never be. **Neither is in the lockfile**, because
+check rides on a device already paired (`browser-desk.ts` does) rather than pairing a sixth. Every device it pairs reads and does everything, as every paired device does: the first passes
+visit every route; one is resized from the widest width to 360px — the phone is what the person
+holds — because the page with actual money, notes and sign-ins on it is the one the owner will
+look at; and one at 360px answers the three checks only a browser can answer live (`controls`,
+`touch`, `typing`): that what a row says may be asked of it is what is drawn and what it says
+cannot be is absent *with its reason*, that a real tap and a real `Enter` on a focused `<button>`
+each ask for exactly one act, and that a refusal leaves what somebody typed where it was. **Neither is in the lockfile**, because
 Playwright's install pulls hundreds of megabytes of browser onto every machine, and this repository
 holds the line that `pnpm install` runs two scripts and installs nothing else. **With no browser it
 reports `unrun` with the reason and exits 2** — never a pass. That property is what

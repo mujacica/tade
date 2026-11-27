@@ -81,11 +81,11 @@ const NOT_ASKED = {
  * Tade's code changed since it started — said by a Tade running from its
  * repository (`reloading.ts`), so this page may be newer than what answers it.
  *
- * **The person's own phone restarts it from here** (`POST /api/restart`,
+ * **A paired device restarts it from here** (`POST /api/restart`,
  * `restart.js` holds the press): one press where nothing would stop, and where
  * lanes run inside the window and would, the machine answers how many and the
  * second press is on that number — the window's reload panel, asked from
- * away. Any other device is told who can. Each state is its own key, because
+ * away. A device paired in the clear, which never acts, is told who can. Each state is its own key, because
  * a bar keeps its press until its key changes (`barsIn`).
  */
 function restartBar(asked, restart) {
@@ -104,7 +104,7 @@ function restartBar(asked, restart) {
       ...base,
       key: 'restart',
       under:
-        'Parts of this page may not work until Tade is restarted — at the machine, or from a device with full access.',
+        'Parts of this page may not work until Tade is restarted — at the machine, or from a device paired over https.',
     }
   }
   if (asked.busy) {

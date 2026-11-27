@@ -11,11 +11,10 @@
 // clock). No period buttons: the projection carries one figure per task, not a
 // series, so *this week* is a question this data cannot answer.
 
-import { mayFor } from '../access.js'
 import { bars, barsIn, gauge, gaugeIn } from '../charts.js'
 import { classOn, el, into, keyed, skeleton, textIn, toneOn } from '../dom.js'
 import { count } from '../figures.js'
-import { nothingSaid, section } from '../rows.js'
+import { section } from '../rows.js'
 import { omitted, plansOf, rowsOf, spendSince } from '../store.js'
 import { stateBox, stateBoxIn } from '../ui.js'
 import {
@@ -64,33 +63,25 @@ export function spendScreen() {
       const store = view.store
       const had = store.had === true
       coming.hidden = had
-      const granted = mayFor(store, 'tasks.spend')
-      const period = had && granted ? periodOf(spendSince(store), view.asOf) : null
+      const period = had ? periodOf(spendSince(store), view.asOf) : null
       textIn(made.figure, period ?? '')
-      const tasks = had && granted ? rowsOf(store, 'tasks') : []
+      const tasks = had ? rowsOf(store, 'tasks') : []
       const partial = omitted(store, 'tasks') > 0
-      const lead = leadOf(tasks, { granted, partial })
+      const lead = leadOf(tasks, { partial })
       const spent = spentAny(lead.fold)
-      // Two nulls, two sentences: not granted is not nothing spent. And a
-      // period with nothing spent and no plan is one sentence for the page.
-      const bare = had && granted && !spent && plansOf(store).length === 0
+      // A period with nothing spent and no plan is one sentence for the page.
+      const bare = had && !spent && plansOf(store).length === 0
       stateBoxIn(
         closed,
-        had && !granted
+        bare
           ? stateOf(
               'empty',
-              'This device cannot read what the work costs',
-              'What each device may read is decided at the machine; the Devices screen lists what this one was given.',
+              period === null ? 'Nothing spent yet' : `Nothing spent ${period}`,
+              'Each agent’s turns are added here as it runs, and each plan’s windows as its harness says them.',
             )
-          : bare
-            ? stateOf(
-                'empty',
-                period === null ? 'Nothing spent yet' : `Nothing spent ${period}`,
-                'Each agent’s turns are added here as it runs, and each plan’s windows as its harness says them.',
-              )
-            : null,
+          : null,
       )
-      const open = had && granted && !bare
+      const open = had && !bare
       money.made.node.hidden = !open
       plans.made.node.hidden = !open
       // Every machine, where there is another to draw: a row each and the bottom line.
@@ -208,11 +199,7 @@ function plansView() {
           : stateOf(
               'empty',
               'No plan reported',
-              nothingSaid(
-                mayFor(view.store, 'plans'),
-                omitted(view.store, 'plans'),
-                'A sign-in on a plan says how much of it is used while its agents run.',
-              ),
+              'A sign-in on a plan says how much of it is used while its agents run.',
               'clock',
             ),
       )

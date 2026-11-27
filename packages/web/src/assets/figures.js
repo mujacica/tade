@@ -88,15 +88,11 @@ export function onPlanOf(spend) {
  * for the dash rather than an empty string.
  *
  * `why` is **two words**, because it goes in a column beside a figure at 360px.
- * What *not granted* means is a sentence, and it is said once on the page that
- * can hold one — never repeated down a column until it is the column.
  */
-export function money(spend, granted = true) {
-  // **Three dashes, not one.** Not granted to this device, nobody wrote it
-  // down, and nought are three different mornings, and a page that drew the
-  // first two the same way would tell somebody their work cost nothing when
-  // what happened is that their phone was never allowed to ask.
-  if (!granted) return { said: '—', mark: '', why: 'not granted' }
+export function money(spend) {
+  // **Two dashes, not one.** Nobody wrote it down and nought are different
+  // mornings, and a page that drew them the same way would tell somebody
+  // their work cost nothing.
   if (spend === null || spend === undefined || !spend.hasCost) {
     return { said: '—', mark: '', why: 'not recorded' }
   }
@@ -245,8 +241,8 @@ export function sinceSaid(at) {
  * harness's own, `claude-code @personal` for an added account or the name its
  * own was given.
  *
- * A device not granted `accounts` is sent no names, and two of one harness's
- * sign-ins would read as one twice: there each unnamed one past the first is
+ * A sign-in with no name of its own would read as one twice beside another of
+ * its harness's: there each unnamed one past the first is
  * told apart by its place, `claude-code #2` — which says nothing the rows do
  * not, how many there are and the order they arrive in (`plansKeyed`).
  */

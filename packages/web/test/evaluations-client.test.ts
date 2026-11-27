@@ -9,7 +9,7 @@ import {
   mergedSaid,
 } from '../src/assets/pages/evaluations-shape.js'
 import { evaluationsFor } from '../src/evaluations.ts'
-import { EVERY, reach } from './fixtures.ts'
+import { reach } from './fixtures.ts'
 
 // What the Evaluations page draws, against **a real answer**: the machine's
 // fold, per device, through `evaluationsFor` — so this holds that the page says
@@ -48,8 +48,8 @@ const journal: TadeEvent[] = ['a', 'b', 'c', 'd', 'e', 'f'].flatMap((name, at) =
     : []),
 ])
 
-const answer = (granted = EVERY, findings = true) =>
-  evaluationsFor(reach(granted), (projects) =>
+const answer = (findings = true) =>
+  evaluationsFor(reach(), (projects) =>
     evaluationsFrom(journal, {
       since: 0,
       projects,
@@ -94,14 +94,6 @@ describe('the Evaluations page', () => {
     expect(mergedSaid(answer())).toBe('merges from the journal')
   })
 
-  it('says the money is not granted rather than drawing it as nothing', () => {
-    const lead = leadOf(answer(EVERY.filter((one) => one !== 'spend')))
-    expect(lead.find((one) => one.key === 'cost')).toMatchObject({
-      value: null,
-      under: 'not granted',
-    })
-  })
-
   it('draws each harness as what landed, with every other figure under it', () => {
     const [claude, pi] = cardsOf(answer(), 'harness')
     expect(claude).toMatchObject({ label: 'claude-code', value: 4, said: '4 of 5 · 80% landed' })
@@ -121,17 +113,14 @@ describe('the Evaluations page', () => {
     expect(judged.bands?.map((band) => band.label)).toEqual(['0.9–1.0'])
   })
 
-  it('says which nothing it is: not read yet, no judge here, or not granted', () => {
+  it('says which nothing it is: not read yet, or no judge here', () => {
     expect(
       emptyOf(
-        evaluationsFor(reach(EVERY), () => null),
+        evaluationsFor(reach(), () => null),
         'harness',
       )?.kind,
     ).toBe('loading')
-    expect(emptyOf(answer(EVERY, false), 'judge')?.title).toBe('No judge reads anything here')
-    expect(emptyOf(answer(EVERY.filter((one) => one !== 'findings')), 'judge')?.title).toBe(
-      'Not granted to this device',
-    )
+    expect(emptyOf(answer(false), 'judge')?.title).toBe('No judge reads anything here')
     expect(emptyOf(answer(), 'harness')).toBeNull()
   })
 })

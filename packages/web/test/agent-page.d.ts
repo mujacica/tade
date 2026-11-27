@@ -100,10 +100,7 @@ declare module '*/assets/pages/agent-shape.js' {
     steps: { key: string; label: string; state: string; under: string; mine: boolean }[]
   } | null
   export function aboutOf(task: unknown, store: unknown, asOf: number, frozen?: boolean): Cell[]
-  export function findingsOf(
-    task: unknown,
-    store: unknown,
-  ): { may: boolean; n: number; said: string | null }
+  export function findingsOf(task: unknown, store: unknown): { n: number; said: string | null }
   export function whenSaid(at: string, asOf: number): string
   export function timelineOf(
     answer: unknown,

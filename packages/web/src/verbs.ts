@@ -220,11 +220,9 @@ export interface Verb {
   /** The last segment of its path, and the word in the journal. */
   name: string
   /**
-   * The scope a device needs for it, out of the scope matrix.
-   *
-   * Declared per verb and not per route table, which is why there is a route
-   * each: the guard's scope check is exact, so a device granted `answer` and
-   * not `steer` cannot park anything even though both are "acting".
+   * What kind of act it is (`SCOPES`): every paired device may do every one,
+   * and the kind is what the guard asks an act of — a trusted origin, a
+   * session not paired in the clear and, from the public name, the passkey.
    */
   needs: Scope
   /** What it is, in a sentence, for anything that lists the verbs. */
@@ -238,18 +236,6 @@ export interface Verb {
    * neither carries the other's.
    */
   on: 'task' | 'project'
-  /**
-   * Whether only **the person's own device** may ask for it — full access,
-   * a phone of theirs or a machine they paired as owner (`theirsOf`) —
-   * whatever scope another was granted.
-   *
-   * For the acts that delete work or change whose sign-in or which harness an
-   * agent runs as: what a box ticked for *stop and reopen agents* was never
-   * read as. Asked at the gate (`admit`, off `Reach.theirs`), which reads the
-   * device's record at every request, so unticking a box is an ordinary
-   * device at the next press.
-   */
-  theirs?: true
   read(body: unknown): Reading
 }
 
@@ -286,18 +272,12 @@ export const PARK: Verb = {
 /**
  * Allow or deny what an agent is held on.
  *
- * `answer` and not `steer`: the scope matrix puts answering a question that is
- * already waiting at the gentler tier, because it chooses between two things
- * the agent itself offered and changes nothing Tade would start by itself. A
- * device granted `answer` and nothing else can do this and cannot park, steer,
- * reorder or finish anything.
- *
  * **The approval's own id is in the payload**, so a key bound to allowing one
  * call is not a key that allows the next one.
  */
 export const ANSWER: Verb = {
   name: 'answer',
-  needs: 'answer',
+  needs: 'steer',
   about: 'allow or deny what an agent is waiting on',
   on: 'task',
   read(body) {
@@ -559,7 +539,7 @@ export const CONTEXT: Verb = {
  */
 export const INTAKE: Verb = {
   name: 'intake',
-  needs: 'answer',
+  needs: 'steer',
   about: 'approve a request that came from outside this machine',
   on: 'task',
   read(body) {
@@ -587,10 +567,6 @@ export const INTAKE: Verb = {
 /**
  * Stop a task's agent. Its lane ends; the lane's spec, its conversation, its
  * branch and its worktree all stay, and `reopen` puts it back.
- *
- * `agents`, a scope of its own and implied by neither acting tier: a device
- * that may tell an agent something has been granted a say in what it does, and
- * stopping one is a say in whether it does anything at all.
  *
  * **Two presses and a literal**, like `done`: what a turn was in the middle of
  * is not undone by opening the agent again.
@@ -780,16 +756,13 @@ export const START: Verb = {
  * Close a task's agent for good: stopped, off the list, its worktree and
  * branch removed — the window's Remove agent.
  *
- * **The person's own device alone** (`theirs`), two presses and a literal:
- * it deletes work that may not be merged anywhere, which a box ticked for
- * stopping agents was never read as allowing.
+ * Two presses and a literal: it deletes work that may not be merged anywhere.
  */
 export const REMOVE: Verb = {
   name: 'remove',
   needs: 'agents',
   about: 'close a task’s agent for good, removing its worktree and branch',
   on: 'task',
-  theirs: true,
   read(body) {
     const got = RemoveBody.safeParse(body)
     if (!got.success) return { ok: false }
@@ -854,16 +827,14 @@ export const THINKING: Verb = {
 }
 
 /**
- * Run an agent as another account of its harness, by name. **The person's own
- * device alone**: it decides whose sign-in and whose plan the work is paid
- * from, which is a credential's question even though no credential crosses.
+ * Run an agent as another account of its harness, by name: it decides whose
+ * sign-in and whose plan the work is paid from, and no credential crosses.
  */
 export const ACCOUNT: Verb = {
   name: 'account',
   needs: 'agents',
   about: 'run an agent as another account of its harness, its conversation with it',
   on: 'task',
-  theirs: true,
   read(body) {
     const got = AccountBody.safeParse(body)
     if (!got.success) return { ok: false }
@@ -879,13 +850,12 @@ export const ACCOUNT: Verb = {
   },
 }
 
-/** Run an agent in another harness. **The person's own device alone**, for `account`'s reason. */
+/** Run an agent in another harness. */
 export const HARNESS: Verb = {
   name: 'harness',
   needs: 'agents',
   about: 'run an agent in another harness, starting it again there if it is running',
   on: 'task',
-  theirs: true,
   read(body) {
     const got = HarnessBody.safeParse(body)
     if (!got.success) return { ok: false }
@@ -903,7 +873,7 @@ export const HARNESS: Verb = {
 
 /**
  * Hand a running agent to another of the person's machines: the window's own
- * Hand to. **The person's own device alone**, and two presses: the work goes
+ * Hand to, in two presses: the work goes
  * to a machine the device names, which is where its project is checked out
  * already and nowhere else.
  */
@@ -912,7 +882,6 @@ export const MOVE: Verb = {
   needs: 'agents',
   about: 'hand a running agent to another of your machines that has its project',
   on: 'task',
-  theirs: true,
   read(body) {
     const got = MoveBody.safeParse(body)
     if (!got.success) return { ok: false }
@@ -941,9 +910,7 @@ export const MOVE: Verb = {
  * method on `WebActing` — and what they have in common is also the limit:
  * **none of them takes a path, a command, a credential, a setting or a
  * prompt**. A model, an account, a harness or a machine is a *name* out of
- * what the machine itself offered, asked again at the act; the four that
- * delete work, hand it to another machine or change whose sign-in or harness
- * an agent runs on are the person's own device's alone (`Verb.theirs`). There is no push, no merge, no check
+ * what the machine itself offered, asked again at the act. There is no push, no merge, no check
  * override, no grant and no opening instruction, because there is no method
  * here one could be called through.
  *
@@ -955,9 +922,9 @@ export const MOVE: Verb = {
  *   ask — `projectRev` is about whether a project is open, not its queue.
  * - **a diff, a review's text, a lane's output.** Each ships source or an
  *   agent's bytes to a phone and to a browser cache; that is a *reading*
- *   grant with its own threat model (`fields.ts`'s `NEVER_A_FIELD`), not a
- *   verb. The first and the third are now that grant (`lanes`: `changes.ts`,
- *   `screen.ts`) and are still no verb: nothing writes a file or types into a
+ *   with its own threat model (`fields.ts`'s `NEVER_A_FIELD`), not a verb.
+ *   The first and the third are now readings of their own (`changes.ts`,
+ *   `screen.ts`, cleaned at the boundary) and are still no verb: nothing writes a file or types into a
  *   lane from away, and what a person says to an agent goes through `steer`
  *   or through Tade.
  *

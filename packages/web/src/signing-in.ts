@@ -3,7 +3,6 @@ import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
-import { fullAccessLacks, ownsOrTheirs } from './surface.ts'
 
 // Signing the orchestrator in from the person's own phone: `/login` typed on
 // the away view's line, carried out there rather than pointed back at the
@@ -18,11 +17,10 @@ import { fullAccessLacks, ownsOrTheirs } from './surface.ts'
 // and the few keys a sign-in's menu is moved with. When it ends signed in, the
 // orchestrator starts again on it, as `/login` at the machine does.
 //
-// **Theirs and an owner's, as `/api/orchestrator/restart` is** (`here` and
-// `theirs` in `routes.ts`): typing into a sign-in on this machine is what the
-// SSH key that reaches it may do, and the person decided their phone may do
-// what they can. Off this machine's door it is asked a trusted origin and the
-// passkey; every other session is refused it however much it was granted.
+// **A paired device's and an owner's, as `/api/orchestrator/restart` is**
+// (`here` in `routes.ts`): typing into a sign-in on this machine is what the
+// SSH key that reaches it may do, and every paired device is the person's own.
+// Off this machine's door it is asked a trusted origin and the passkey.
 //
 // **What goes back is never a credential.** The screen is cleaned as an
 // agent's is (`cleanScreen`), and the link is the page the person signs in on.
@@ -87,10 +85,6 @@ export async function signInHere(
   signing: WebSigningIn | undefined,
 ): Promise<{ body: SignInStanding } | { refusal: Refusal }> {
   if (signing === undefined) return { refusal: refuse('no_such') }
-  // Every box it lacks for full access, named: ticking it at the machine is the whole fix.
-  if (!ownsOrTheirs(device)) {
-    return { refusal: refuse('out_of_scope', { needs: fullAccessLacks(device) }) }
-  }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const parsed = SignInBody.safeParse(got.body)

@@ -34,13 +34,10 @@ import { delivered } from './away-intake.ts'
 
 afterEach(closeAll)
 
-/** A machine listening, with a device granted whatever a verb needs. */
-async function ready(
-  scopes: readonly string[] = ['read', 'answer', 'steer'],
-  over: MachineOptions = {},
-): Promise<Machine> {
+/** A machine listening, with a device paired. */
+async function ready(over: MachineOptions = {}): Promise<Machine> {
   const one = await machine(over)
-  await paired(one.home, one.port, scopes)
+  await paired(one.home, one.port)
   await one.away.open()
   return one
 }
@@ -129,19 +126,6 @@ describe('answering what an agent is held on', () => {
     expect(answer.body.error).toBe('gone')
     expect(one.decided).toEqual([])
   })
-
-  it('is refused for a device granted steer and not answer', async () => {
-    // The two tiers are separate scopes and the gate asks the verb's own.
-    const one = await ready(['read', 'steer'])
-    one.running(one.task)
-    one.waiting(one.task, 'req-1')
-    await one.refresh()
-
-    const answer = await act(one.port, 'answer', { ...every(one), approval: 'req-1', allow: true })
-    expect(answer.status).toBe(403)
-    expect(answer.body.error).toBe('out_of_scope')
-    expect(one.decided).toEqual([])
-  })
 })
 
 describe('telling an agent something', () => {
@@ -184,8 +168,8 @@ describe('telling an agent something', () => {
   })
 
   it('refuses where the harness has no way to take one, in the harness’s own words', async () => {
-    const one = await ready([], { cannotSteer: true })
-    await paired(one.home, one.port, ['read', 'steer'])
+    const one = await ready({ cannotSteer: true })
+    await paired(one.home, one.port)
     one.running(one.task)
     await one.refresh()
 
@@ -199,7 +183,7 @@ describe('telling an agent something', () => {
   })
 
   it('refuses with what is true now when the agent goes between the look and the write', async () => {
-    const one = await ready(['read', 'answer', 'steer'], {
+    const one = await ready({
       steering: () => Promise.reject(new Error('no agent running on app/migration')),
     })
     one.running(one.task)
@@ -279,7 +263,7 @@ describe('a choice about queued work', () => {
   })
 
   it('leaves work from outside the machine parked, which is the intake verb’s to approve', async () => {
-    const one = await ready(['read', 'answer', 'steer'], { intake: true })
+    const one = await ready({ intake: true })
     const task = await delivered(one)
     one.queued(task)
     await one.refresh()
@@ -313,15 +297,6 @@ describe('a choice about queued work', () => {
     one.queued(one.task)
     await one.refresh()
     expect(rowOf(one, one.task).can.map((each) => each.verb)).toContain('queue')
-  })
-
-  it('is refused for a device granted answer and not steer', async () => {
-    const one = await ready(['read', 'answer'])
-    one.queued(one.task)
-    await one.refresh()
-    const answer = await act(one.port, 'queue', { ...every(one), change: 'pause' })
-    expect(answer.status).toBe(403)
-    expect(answer.body.error).toBe('out_of_scope')
   })
 })
 
@@ -500,7 +475,7 @@ describe('adding to what an agent is told', () => {
 describe('approving what came from outside this machine', () => {
   /** A machine with an intake grant, and a real delivery parked in it. */
   async function proposal(over: MachineOptions = {}): Promise<{ one: Machine; task: string }> {
-    const one = await ready(['read', 'answer', 'steer'], { intake: true, ...over })
+    const one = await ready({ intake: true, ...over })
     return { one, task: await delivered(one) }
   }
 
@@ -550,14 +525,6 @@ describe('approving what came from outside this machine', () => {
     expect(did.at(-1)?.detail).toMatchObject({ tool: 'intake', why: 'done' })
   })
 
-  it('is refused for a device granted steer and not answer', async () => {
-    const { one, task } = await proposal()
-    await paired(one.home, one.port, ['read', 'steer'])
-    const answer = await act(one.port, 'intake', { ...every(one, task), confirm: true })
-    expect(answer.status).toBe(403)
-    expect(parkedIn(one.home, task)).toBe(true)
-  })
-
   it('is the verb the row names where park will not pick one up', async () => {
     const { one, task } = await proposal()
     const row = rowOf(one, task)
@@ -568,19 +535,19 @@ describe('approving what came from outside this machine', () => {
 
 describe('what is written down whatever happened', () => {
   it('is a line per act, refusals included, under the device that asked', async () => {
-    // **A refusal at the door is the case the audit matters most in**: a
-    // device that asked to change something and was not allowed to is exactly
-    // what a person reading back needs to see.
-    const one = await ready(['read'])
+    // **A refusal is the case the audit matters most in**: a device that
+    // asked to change something and was not allowed to is exactly what a
+    // person reading back needs to see.
+    const one = await ready()
     await one.refresh()
-    const answer = await act(one.port, 'note', { ...every(one), text: 'anything' })
-    expect(answer.status).toBe(403)
+    const answer = await act(one.port, 'note', { ...every(one), was: 'o1.c9', text: 'anything' })
+    expect(answer.status).toBe(409)
     const did = await waitFor(one.client, 'web_did')
     expect(did.at(-1)?.detail).toMatchObject({
       device: '00112233445566aa',
       tool: 'note',
       state: 'refused',
-      why: 'out_of_scope',
+      why: 'gone',
     })
   })
 
@@ -608,7 +575,7 @@ describe('what is written down whatever happened', () => {
   })
 
   it('has no route for any verb while the setting is off', async () => {
-    const one = await ready(['read', 'answer', 'steer'], { acting: false })
+    const one = await ready({ acting: false })
     await one.refresh()
     for (const verb of ['answer', 'steer', 'queue', 'done', 'note', 'context', 'intake']) {
       const answer = await act(one.port, verb, { ...every(one), confirm: true })

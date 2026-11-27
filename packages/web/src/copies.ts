@@ -21,10 +21,8 @@ import { type Cursor, type Frame, sseFrame } from './stream.ts'
 // moves when a field changes meaning, never when one is added (`protocol.ts`),
 // and moving it would cut every link between two machines on two versions.
 //
-// **Only the person's own device is sent any** (`copiesFor`): a copy is what
-// the other machine sent an *owner* — every project, every grant — and until a
-// grant can be given per machine, a narrower device narrowed at this door
-// would be narrowed by a rule that machine never agreed to. And never a link:
+// **Every paired phone is sent them** (`copiesFor`), every one being the
+// person's own. Never a link:
 // another machine following this one's stream is told nothing of the copies it
 // is itself the source of, and a third machine's is not relayed yet.
 //
@@ -59,12 +57,12 @@ export type CopyFrame =
   | { v: typeof PROTOCOL_VERSION; machine: string; kind: 'gone' }
 
 /**
- * Whether a device is sent the other machines' copies: the person's own
- * (`theirsOf`, read off the record at the request) and not another machine's
- * link, which is an owner device.
+ * Whether a device is sent the other machines' copies: a paired phone, every
+ * one of which is the person's own, and not another machine's link, which is
+ * an owner device.
  */
-export function copiesFor(reach: Pick<Reach, 'theirs'>, owner: boolean): boolean {
-  return reach.theirs === true && !owner
+export function copiesFor(_reach: Reach, owner: boolean): boolean {
+  return !owner
 }
 
 /** A copy as a page is sent it: without the two things that are one already. */

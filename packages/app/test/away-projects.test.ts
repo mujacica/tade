@@ -18,29 +18,11 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { awayCollections, nothingKnown } from '../src/away.ts'
 
-// **Two projects on one machine, two phones, and one listener.**
-//
-// `away.test.ts` asks what the projection does with a read scope, over a
-// hand-written `Workspace`; `away-real.test.ts` asks what it does with a real
-// `collectStatus`, with no listener. Neither asks the question an owner with
-// more than one repository actually has: *does the phone I gave somebody see
-// only the project I scoped it to, over the wire, out of what git really
-// said?*
-//
-// It is a different question from the unit one in three ways, and each is a
-// seam no single-project fixture can reach:
-//
-// 1. **A per-device projection is built per device** (`readingFor(reach)`).
-//    Two devices with two scopes have to be two projectors, and filtering one
-//    projection afterwards is how a field that should have been withheld rides
-//    along. Two projects are what make that visible: with one, a scope that
-//    was ignored looks exactly like a scope that was honoured.
-// 2. **The project a task is in is read off the task**, and a task id carries
-//    its project in its first half. A scope applied to the project list and
-//    not to the work would leave one project's task ids on a phone scoped to
-//    the other.
-// 3. **Over the wire**, so what is asserted is the bytes that left the
-//    machine rather than a value the test assembled.
+// **Two projects on one machine, and one listener.** Every paired phone is
+// the person's own and reads every project, so what is asked here is that the
+// bytes that leave the machine carry both projects' work, out of what git
+// really said — and name a project a warning is about without naming where it
+// is on the machine.
 //
 // Real repositories and a real `collectStatus`, for the house reason: a
 // fixture must not be kinder than reality, and nothing here mocks git.
@@ -195,20 +177,14 @@ function readingFor(
 async function serving(world: Awaited<ReturnType<typeof twoProjects>>) {
   const tickets = new Tickets()
   const held = new Map<string, Projector>()
-  /** Every reach the listener handed over, in the order it did. */
-  const reaches: Reach[] = []
   let epoch = ''
-  let scope: { projects: readonly string[] | null } = { projects: null }
   const server = webServer({
     home: world.home,
     surface: SURFACE,
-    readingFor: (reach) => {
-      reaches.push(reach)
-      return readingFor(world.world, held, () => epoch)(reach)
-    },
+    readingFor: (reach) => readingFor(world.world, held, () => epoch)(reach),
     tickets,
     tell: () => {},
-    confirm: () => Promise.resolve({ let: true, projects: scope.projects, granted: ['titles'] }),
+    confirm: () => Promise.resolve({ let: true }),
   })
   epoch = server.epoch
   shut.push({ close: () => server.close() })
@@ -217,10 +193,8 @@ async function serving(world: Awaited<ReturnType<typeof twoProjects>>) {
   if (host === undefined) throw new Error(`nothing bound on loopback: ${bound.join(', ')}`)
   return {
     host,
-    reaches: (): readonly Reach[] => reaches,
-    /** A device paired with that project scope, and the cookie it holds. */
-    pair: async (projects: readonly string[] | null, label: string): Promise<string> => {
-      scope = { projects }
+    /** A device paired, and the cookie it holds. */
+    pair: async (label: string): Promise<string> => {
       const ticket = tickets.mint(`http://${host}/pair`, Date.now())
       const body = JSON.stringify({ ticket: ticket.value, label })
       const answer = await new Promise<{ status: number; cookie: string }>((done, failed) => {
@@ -259,74 +233,17 @@ async function serving(world: Awaited<ReturnType<typeof twoProjects>>) {
   }
 }
 
-describe('two projects, as two phones read them over the wire', () => {
-  it('shows a phone scoped to one project that project’s work and no other’s', async () => {
+describe('two projects, as a phone reads them over the wire', () => {
+  it('shows a paired phone both of them', async () => {
     const world = await twoProjects()
     const serve = await serving(world)
-    const only = await serve.pair(['shop'], 'the one I lent out')
-
-    const answer = await get(serve.host, '/api/snapshot', only)
-    expect(answer.status).toBe(200)
-    const snapshot = SnapshotSchema.parse(JSON.parse(answer.text))
-
-    expect(snapshot.projects.map((one) => one.name)).toEqual(['shop'])
-    expect(snapshot.tasks.map((one) => one.id)).toEqual([world.shop])
-
-    // Asked of the whole payload rather than of the fields somebody
-    // remembered: a field added next month that carried the other project's
-    // work would fail here.
-    expect(answer.text).not.toContain(world.app)
-    expect(answer.text).not.toContain('app/')
-  })
-
-  it('shows a phone scoped to every project both of them', async () => {
-    const world = await twoProjects()
-    const serve = await serving(world)
-    const every = await serve.pair(null, 'mine')
+    const every = await serve.pair('mine')
 
     const answer = await get(serve.host, '/api/snapshot', every)
     const snapshot = SnapshotSchema.parse(JSON.parse(answer.text))
 
-    // The other half, so the test above cannot pass by showing one project to
-    // everybody: with no scope, both are there.
     expect(snapshot.projects.map((one) => one.name).sort()).toEqual(['app', 'shop'])
     expect(snapshot.tasks.map((one) => one.id).sort()).toEqual([world.app, world.shop].sort())
-  })
-
-  it('hands the listener each device’s own reach, never the one that asked first', async () => {
-    const world = await twoProjects()
-    const serve = await serving(world)
-    // **The narrow one first**, which is the order that catches a reach being
-    // reused: a listener that remembered the first device's would serve a wide
-    // phone one project while its own record says it reads every.
-    const only = await serve.pair(['shop'], 'the one I lent out')
-    const every = await serve.pair(null, 'mine')
-
-    const narrow = SnapshotSchema.parse(
-      JSON.parse((await get(serve.host, '/api/snapshot', only)).text),
-    )
-    const wide = SnapshotSchema.parse(
-      JSON.parse((await get(serve.host, '/api/snapshot', every)).text),
-    )
-    expect(narrow.projects.map((one) => one.name)).toEqual(['shop'])
-    expect(wide.projects.map((one) => one.name).sort()).toEqual(['app', 'shop'])
-
-    // And what the listener actually asked for, which is the half an
-    // assertion about the bytes cannot separate from the projection's own
-    // doing: one reach per device, each read out of that device's own record.
-    const asked = serve.reaches()
-    expect(asked.length).toBeGreaterThanOrEqual(2)
-    const byDevice = new Map(asked.map((one) => [one.device, one]))
-    expect(byDevice.size).toBe(2)
-    const scopes = [...byDevice.values()].map((one) => one.projects)
-    expect(scopes).toContainEqual({ kind: 'every' })
-    expect(scopes).toContainEqual({ kind: 'listed', names: ['shop'] })
-
-    // Asking again under the first cookie is still the first device's scope.
-    const again = SnapshotSchema.parse(
-      JSON.parse((await get(serve.host, '/api/snapshot', only)).text),
-    )
-    expect(again.projects.map((one) => one.name)).toEqual(['shop'])
   })
 
   it('names the project a warning is about without naming where it is on the machine', async () => {
@@ -353,7 +270,7 @@ describe('two projects, as two phones read them over the wire', () => {
     expect(world.warnings.join('\n')).toContain(gone)
 
     const serve = await serving({ home, client, world, shop: '', app: '' })
-    const every = await serve.pair(null, 'mine')
+    const every = await serve.pair('mine')
     const answer = await get(serve.host, '/api/snapshot', every)
     const snapshot = SnapshotSchema.parse(JSON.parse(answer.text))
 

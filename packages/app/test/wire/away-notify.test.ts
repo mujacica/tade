@@ -48,7 +48,7 @@ async function listening(push: boolean): Promise<Machine> {
         },
       }),
   })
-  await paired(one.home, one.port, [])
+  await paired(one.home, one.port)
   await one.away.open()
   return one
 }

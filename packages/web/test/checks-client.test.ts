@@ -19,7 +19,7 @@ import {
   whenSaid,
 } from '../src/assets/pages/checks-shape.js'
 import { snapshotOf } from '../src/snapshot.ts'
-import { checkRun, checkTree, EVERY, input, NOW, project, reach, task } from './fixtures.ts'
+import { checkRun, checkTree, input, NOW, project, reach, task } from './fixtures.ts'
 
 // What the checks page draws, against **real projected rows** rather than
 // shapes a test assembled: every answer, order, count and word goes through
@@ -30,7 +30,7 @@ import { checkRun, checkTree, EVERY, input, NOW, project, reach, task } from './
 
 /** The rows a device granted everything is handed, over the fixtures or what a test says. */
 function rows(over: Parameters<typeof input>[0] = {}) {
-  const made = snapshotOf(input({ reach: reach(EVERY), ...over }), NOW)
+  const made = snapshotOf(input({ reach: reach(), ...over }), NOW)
   const tasksOf = (name: string) => made.tasks.filter((one) => one.project === name)
   return { projects: made.projects, tasksOf }
 }

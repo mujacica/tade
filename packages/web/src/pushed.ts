@@ -12,7 +12,7 @@ import {
   type PushCall,
   type WebPushing,
 } from './pushing.ts'
-import { type Scope, trusted } from './surface.ts'
+import { trusted } from './surface.ts'
 
 // Subscribing and forgetting, from a parsed body to what the device is told
 // and what the journal is told — and **no sockets at all**, like its three
@@ -165,16 +165,7 @@ export function admitPush(pushing: Pushing, standing: Standing): Admitted {
     return no('locked', `${pushing.verb} while notifications are turned off`)
   }
 
-  // 2. The scope. `read` and nothing more, which is the honest answer: being
-  //    told that two things want you reveals nothing a device could not
-  //    already read, and requiring a grant above it would mean no phone got a
-  //    notification until somebody granted it acting — a different decision
-  //    wearing this one's clothes.
-  if (!standing.scopes.includes('read')) {
-    return no('out_of_scope', `${pushing.verb} needs read, device has ${said(standing.scopes)}`)
-  }
-
-  // 3. **The origin, and this is the check that earns its place here.** The
+  // 2. **The origin, and this is the check that earns its place here.** The
   //    route needs `read`, so the guard's own trusted-origin layer — which
   //    only runs above `read` — does not cover this one. Without it a session
   //    that crossed a network in the clear could hand this machine an endpoint
@@ -182,8 +173,9 @@ export function admitPush(pushing: Pushing, standing: Standing): Admitted {
   //    a read-only credential must not buy an outbound request. A browser
   //    could not have made a subscription on such an origin anyway — a service
   //    worker needs a secure context — so this refuses nothing real and
-  //    closes the crafted case.
-  if (!trusted(standing.origin, standing.surface)) {
+  //    closes the crafted case. A device paired in the clear is the same case,
+  //    whatever origin it asks from now.
+  if (standing.clear === true || !trusted(standing.origin, standing.surface)) {
     return no(
       'locked',
       `${pushing.verb} from ${standing.origin.scheme}://${standing.origin.host}, which is not a trusted origin`,
@@ -193,12 +185,8 @@ export function admitPush(pushing: Pushing, standing: Standing): Admitted {
   return { ok: true }
 }
 
-function no(error: 'locked' | 'out_of_scope', why: string): Admitted {
+function no(error: 'locked', why: string): Admitted {
   return { ok: false, refusal: refuse(error), why }
-}
-
-function said(scopes: readonly Scope[]): string {
-  return scopes.join(', ') || 'nothing'
 }
 
 /** Everything one of these is decided against. */

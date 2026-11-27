@@ -10,8 +10,8 @@ import { ELIDED, pathIn } from './fields.ts'
 // it just read, the command it just ran with its arguments, and on a bad day
 // the environment it was started with. `fields.ts` calls a lane's bytes the
 // field "that can carry anything an agent printed by accident", and that
-// sentence stands; what is here is the bounded, scrubbed copy a person granted
-// `lanes` at the machine may read while they are looking.
+// sentence stands; what is here is the bounded, scrubbed copy a paired device
+// may read while somebody is looking.
 //
 // What is taken out, and the claim is exactly this and nothing stronger:
 //
@@ -27,7 +27,7 @@ import { ELIDED, pathIn } from './fields.ts'
 // 3. **Anything shaped like a credential** (`CREDENTIALS`): an issuer's own
 //    prefix, a JWT, a value after a name that says what it is, a password in a
 //    URL, a private key's whole block. A net and not a promise, which is why
-//    `GRANT_MEANS.lanes` says the other half out loud.
+//    it is said out loud where it matters.
 //
 // What is **not** taken out is everything else an agent printed, and nothing
 // here pretends otherwise.

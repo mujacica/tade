@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { applyDelta, deltaBetween, revise, tick } from '../src/delta.ts'
 import { DeltaSchema, PROTOCOL_VERSION, SnapshotSchema } from '../src/protocol.ts'
 import { snapshotOf } from '../src/snapshot.ts'
-import { EVERY, input, NOW, reach, task } from './fixtures.ts'
+import { input, NOW, reach, task } from './fixtures.ts'
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 
@@ -37,12 +37,12 @@ const code = (path: string): string =>
 
 describe('the schema is the test', () => {
   it('parses a whole projection strictly, so a stray key is a failure', () => {
-    const snapshot = snapshotOf(input({ reach: reach(EVERY) }), NOW)
+    const snapshot = snapshotOf(input({ reach: reach() }), NOW)
     expect(SnapshotSchema.parse(snapshot)).toEqual(snapshot)
   })
 
   it('refuses a projection with a field nobody declared', () => {
-    const snapshot = snapshotOf(input({ reach: reach(EVERY) }), NOW)
+    const snapshot = snapshotOf(input({ reach: reach() }), NOW)
     const smuggled = {
       ...snapshot,
       tasks: snapshot.tasks.map((one) => ({ ...one, worktree: '/Users/testperson/x' })),
@@ -52,10 +52,10 @@ describe('the schema is the test', () => {
 
   it('parses every delta a run of changes produces', () => {
     const steps = [
-      input({ reach: reach(EVERY) }),
-      input({ reach: reach(EVERY), tasks: [...input().tasks, task({ id: 'tade/new' })] }),
-      input({ reach: reach(['notes']), notes: [] }),
-      input({ reach: reach(EVERY), projects: [], tasks: [], queue: [], findings: [], plans: [] }),
+      input({ reach: reach() }),
+      input({ reach: reach(), tasks: [...input().tasks, task({ id: 'tade/new' })] }),
+      input({ reach: reach(), notes: [] }),
+      input({ reach: reach(), projects: [], tasks: [], queue: [], findings: [], plans: [] }),
     ]
     let held = snapshotOf(steps[0]!, NOW)
     for (const [n, step] of steps.slice(1).entries()) {
@@ -68,7 +68,7 @@ describe('the schema is the test', () => {
   })
 
   it('stamps the version on every frame, so a client never has to guess', () => {
-    const one = input({ reach: reach(EVERY) })
+    const one = input({ reach: reach() })
     const made = revise(null, one, NOW)
     expect(made.snapshot.v).toBe(PROTOCOL_VERSION)
     const been = revise(made.snapshot, { ...one, notes: [] }, NOW + 2_000)

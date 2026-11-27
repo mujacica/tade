@@ -1,13 +1,6 @@
-import {
-  parseSetting,
-  type Setting,
-  type SettingGroup,
-  settingReach,
-  wantedInstead,
-} from '@tade/core'
+import { parseSetting, type Setting, type SettingGroup, wantedInstead } from '@tade/core'
 import {
   byOf,
-  clearOnly,
   type Device,
   type From,
   keysOf,
@@ -19,7 +12,6 @@ import {
   projectOfSetting,
   type SettingCall,
   settingOut,
-  theirsOf,
   type WebConfiguring,
 } from '@tade/web'
 
@@ -31,23 +23,17 @@ import {
 // else on it. Handing it the `Settings` subject would put `writeKey`, the
 // accounts and the extension host one property access away from a route.
 //
-// ## The four things only the window can do, and this file owes all four
+// ## The three things only the window can do, and this file owes all three
 //
 // 1. **Re-check who is asking, at the write.** The device record *now* — still
-//    paired, still granted `configure` and the `settings` reading grant, and
-//    still reading the project a setting belongs to — not the session the
-//    request arrived on. A grant taken back at the panel a second ago counts.
-// 2. **Re-check how far a device reaches.** `settingReach` asked again, so a
-//    path that was `open` when the listener started and is not now is refused
-//    — the tier is core's decision and this costs one call. The person's own
-//    device (`theirsOf`: full access, a phone or an owner's link) reaches every tier,
-//    asked of the record **now**, so revoking it or unticking one box at the
-//    panel is an ordinary device's reach at this very write.
-// 3. **Re-check the value against the row the window lists now**, through the
+//    paired — not the session the request arrived on. A device revoked a
+//    second ago counts. Every paired device is the person's own and reaches
+//    every tier of `settingReach`, a key included, as the keyboard does.
+// 2. **Re-check the value against the row the window lists now**, through the
 //    same `settingOut` the reading was built with: the write accepts exactly
 //    what the read offered, a key is only ever cleared, and a change from a
 //    screen drawn before somebody else's meets a value that has moved.
-// 4. **Write through the one door every setting goes through** —
+// 3. **Write through the one door every setting goes through** —
 //    `Settings.write`, which puts a refused value back, hands the new config to
 //    everything that holds one and writes `config_changed` — with `by` as the
 //    device (`byOf`), never `window` and never `you`.
@@ -63,7 +49,7 @@ import {
 export interface ConfiguringDeps {
   /** Whether `surfaces.web.settings` is on, read **at the change**. */
   configuring: () => boolean
-  /** The devices as they are now, so a grant narrowed a second ago counts. */
+  /** The devices as they are now, so a device revoked a second ago counts. */
   devices: () => readonly Device[]
   /** The settings as the Settings page lists them now. */
   rows: () => readonly SettingGroup[]
@@ -93,36 +79,20 @@ export function webConfiguring(deps: ConfiguringDeps): WebConfiguring {
 }
 
 async function changeOne(deps: ConfiguringDeps, call: SettingCall, from: From): Promise<Outcome> {
-  const device = deviceOf(deps, from)
-  const theirs = theirsOf(device)
+  // Every paired device is the person's own, so it reaches what they do.
+  deviceOf(deps, from)
   const project = projectOfSetting(call.path)
-  if (project !== null && device.projects !== null && !device.projects.includes(project)) {
-    throw new OutOfScope(`${byOf(from)} does not read ${project}`)
-  }
-  // **The tier, asked of core again.** The parse already refused anything that
-  // is not `open` from anything but the person's own device; this is the
-  // window not taking that on trust.
-  if (!theirs && settingReach(call.path).reach !== 'open') {
-    throw new NotOffered(`${call.path} is changed at this machine`)
-  }
   const groups = deps.rows()
   const found = findIn(groups, call.path)
   if (found === null) throw new NotThere(`Tade has no setting called ${call.path}`)
   const { group, setting } = found
-  const row = settingOut(group, setting, project, keysOf(groups, deps.known()), theirs)
+  const row = settingOut(group, setting, project, keysOf(groups, deps.known()))
   if (row.may !== 'change' || row.was === null) throw new NotOffered(row.why)
   if (row.was !== call.was) {
     // What is true now goes back with the refusal — the value as a device
-    // granted `settings` may read it, or for a key whether one is held — so
+    // reads it, or for a key whether one is held — so
     // the page redraws the truth and whatever was typed stays typed.
     throw new Moved(`${setting.title} has changed since this screen was drawn`, row.was)
-  }
-  // **A key is only ever cleared**, except from the person's own device. A
-  // device was never shown it, so it can never have meant to set one — and
-  // the `set` it was shown must never be round-tripped into the file where the
-  // key was. Theirs may type a new one, as at the keyboard.
-  if (clearOnly(group, setting, theirs) && call.value !== '') {
-    throw new NotOffered(`${setting.title} can only be cleared from away`)
   }
   // **What the value may be, asked before the write rather than after**, and
   // stricter than the page's own reading of a typed value: `parseSetting` takes
@@ -146,8 +116,8 @@ async function changeOne(deps: ConfiguringDeps, call: SettingCall, from: From): 
   const now =
     after === null
       ? ''
-      : (settingOut(after.group, after.setting, project, keysOf(deps.rows(), deps.known()), theirs)
-          .was ?? '')
+      : (settingOut(after.group, after.setting, project, keysOf(deps.rows(), deps.known())).was ??
+        '')
   return { did: true, rev: now, said: `${setting.title}: ${told}` }
 }
 
@@ -165,12 +135,6 @@ function deviceOf(deps: ConfiguringDeps, from: From): Device {
   }
   const device = deps.devices().find((one) => one.id === from.device && one.revoked === null)
   if (device === undefined) throw new OutOfScope('that device is not paired')
-  if (!device.scopes.includes('configure')) {
-    throw new OutOfScope(`${byOf(from)} was not granted changing settings`)
-  }
-  if (!device.granted.includes('settings')) {
-    throw new OutOfScope(`${byOf(from)} was not granted reading settings`)
-  }
   return device
 }
 

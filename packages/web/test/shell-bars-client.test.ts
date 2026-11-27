@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { DID_NOT_GO, GONE_BY_MS, restarter } from '../src/assets/restart.js'
 import { shellBars } from '../src/assets/shell-bars.js'
-import { GRANTS } from '../src/reach.ts'
-import { SCOPES } from '../src/surface.ts'
 
 // The bars the shell raises about the page itself, moved out of `boot.js`
 // whole: which stand for which state, in what order, and that the two that
-// reload do so only on a press — and the restart bar's press, which the
-// person's own phone has and every other device is told who has.
+// reload do so only on a press — and the restart bar's press, which every
+// paired device has but one paired in the clear, which is told who has.
 
 const NONE = { refused: null, restart: false, changed: false, newer: false }
 const DOES = { reload: () => {}, update: () => {}, restart: () => {} }
@@ -54,14 +52,14 @@ describe('the shell’s own bars', () => {
 })
 
 describe('the restart bar', () => {
-  it('offers a device without full access no press, and says who can restart it', () => {
+  it('offers a device paired in the clear no press, and says who can restart it', () => {
     const [restart] = shellBars({ ...NONE, restart: true }, DOES)
     expect(restart?.press).toBeUndefined()
-    expect(restart?.under).toContain('from a device with full access')
+    expect(restart?.under).toContain('from a device paired over https')
     expect(restartFor({ theirs: false })?.press).toBeUndefined()
   })
 
-  it('offers the person’s own phone the restart itself', () => {
+  it('offers a paired device the restart itself', () => {
     const bar = restartFor({})
     expect(bar?.press?.said).toBe('Restart Tade')
     expect(bar?.press?.does).toBe(DOES.restart)
@@ -95,8 +93,8 @@ describe('the restart bar', () => {
 })
 
 describe('the restart press', () => {
-  // Every scope and grant: the person's own device, as `fullAccessOf` reads it.
-  const FULL = { scopes: [...SCOPES], reads: [...GRANTS] }
+  // A paired device: the person's own.
+  const FULL = { device: 'dev_7f3a9c21', label: 'iPhone' }
 
   /** A press against answers in order, recording what was sent. */
   function pressing(answers: { status: number; body: unknown }[], you: unknown = FULL) {
@@ -177,6 +175,8 @@ describe('the restart press', () => {
   })
 
   it('reads whether this device may ask off its own session', () => {
-    expect(pressing([], { scopes: ['read'], reads: [] }).one.standing().theirs).toBe(false)
+    expect(pressing([]).one.standing().theirs).toBe(true)
+    expect(pressing([], { ...FULL, clear: true }).one.standing().theirs).toBe(false)
+    expect(pressing([], null).one.standing().theirs).toBe(false)
   })
 })

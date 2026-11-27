@@ -55,10 +55,7 @@ declare module '*/assets/figures.js' {
   export function duration(ms: number): string
   export function pricedOf(spend: unknown): string
   export function onPlanOf(spend: unknown): string
-  export function money(
-    spend: unknown,
-    granted?: boolean,
-  ): { said: string; mark: string; why: string }
+  export function money(spend: unknown): { said: string; mark: string; why: string }
   export function onPlan(spend: unknown): { said: string; floor: boolean; why: string } | null
   export function tokens(count: number): string
   export function tokensSaid(spend: unknown): { said: string; unpriced: string } | null
@@ -75,12 +72,6 @@ interface Mark {
   glyph: string
   word: string
   tone: string
-}
-
-declare module '*/assets/access.js' {
-  export const WITHHOLDS: Readonly<Record<string, readonly string[]>>
-  export function grantOf(path: string): string | null
-  export function mayFor(store: Record<string, any>, path: string): boolean
 }
 
 declare module '*/assets/glyphs.js' {
@@ -154,7 +145,6 @@ declare module '*/assets/routes.js' {
 
 declare module '*/assets/store.js' {
   export const SPEAKS: number
-  export const GRANTS: readonly string[]
   /**
    * Deliberately loose. These declarations exist so a test can *call* the
    * browser's copy of a rule; the shapes themselves are `protocol.ts`'s, and a
@@ -185,7 +175,6 @@ declare module '*/assets/store.js' {
   export function checksFold(tasks: readonly any[]): Record<string, any>
   export function checksWord(fold: Record<string, any>): string
   export function reviewsOf(store: Store): { offered: readonly any[]; unoffered: readonly any[] }
-  export function mayRead(store: Store, grant: string): boolean
   export function talkOf(store: Store): any
   export const WAITING: readonly string[]
   export function intakeOf(store: Store, project?: string | null): readonly any[]
@@ -561,14 +550,12 @@ declare module '*/assets/quick.js' {
 declare module '*/assets/acts.js' {
   export const SHOWN: readonly string[]
   export const MENU_SHOWN: readonly string[]
-  export const THEIRS: readonly string[]
   export const PROJECT_SHOWN: readonly string[]
   export const PAIRS: Readonly<Record<string, string>>
   export const NEEDS: Readonly<Record<string, string>>
   export const QUEUE_ASKS: readonly { change: string; said: string; ready?: boolean }[]
   export function asksFor(row: unknown): readonly { change: string; said: string }[]
   export function actsOf(session: unknown): {
-    answer: boolean
     steer: boolean
     ask: boolean
     draft: boolean
@@ -600,11 +587,11 @@ declare module '*/assets/acts.js' {
   export function standingOf(
     verb: string,
     row: unknown,
-    acts: { answer: boolean; steer: boolean },
+    acts: { steer: boolean; agents?: boolean; projects?: boolean },
   ): { kind: 'off' | 'no' | 'yes'; how?: string; why: string }
   export function controlsFor(
     row: unknown,
-    acts: { answer: boolean; steer: boolean; agents?: boolean; projects?: boolean },
+    acts: { steer: boolean; agents?: boolean; projects?: boolean },
     verbs?: readonly string[],
   ): { verb: string; kind: string; how?: string; why: string }[]
   export function bodyFor(
@@ -617,7 +604,6 @@ declare module '*/assets/acts.js' {
   export function afterAnswer(
     answer: unknown,
     sentence: string,
-    you?: unknown,
   ): {
     ok: boolean
     clear: boolean
@@ -639,8 +625,8 @@ declare module '*/assets/pages/inbox.js' {
    * holds to `protocol.ts`.
    */
   export function emptySays(sources: readonly any[]): string
-  export function factsOf(row: any, view: any): readonly [string, string][]
-  export function materialIn(nodes: any, row: any, view: any): void
+  export function factsOf(row: any): readonly [string, string][]
+  export function materialIn(nodes: any, row: any): void
 }
 
 declare module '*/assets/pages/runs.js' {
@@ -734,7 +720,7 @@ declare module '*/assets/push.js' {
 
 declare module '*/assets/passkey.js' {
   type You = {
-    scopes?: readonly string[]
+    clear?: boolean
     passkey?: {
       asks: boolean
       made: boolean
@@ -760,7 +746,7 @@ declare module '*/assets/passkey.js' {
   export const FRESH_MS: number
   export const GIVE_UP_MS: number
   export const RETRY_MS: number
-  export function actsAtAll(scopes: unknown): boolean
+  export function actsAtAll(you: unknown): boolean
   export function passkeyNeed(you: You): 'make' | 'use' | 'missed' | null
   export function passkeyBar(
     need: 'make' | 'use' | 'missed' | null,
@@ -879,19 +865,13 @@ declare module '*/assets/trouble.js' {
     steps?: readonly string[]
   }
   type Answer = { status: number; body: unknown } | null | undefined
-  type You = { label?: string; scopes?: readonly string[]; reads?: readonly string[] } | null
   export const AWAY_PLACE: string
-  export const SCOPE_NAMES: readonly string[]
-  export const GRANT_NAMES: readonly string[]
   export const TROUBLES: Record<string, Required<Trouble>>
   export const TOO_OLD: Required<Trouble>
   export const UNKNOWN_TROUBLE: Required<Trouble>
   export function needsOf(body: unknown): string[]
-  export function boxesFor(needs: readonly string[]): string[]
-  export function troubleOf(answer: Answer, where?: string, you?: You): Required<Trouble> | null
-  export function fullAccessOf(you: You | undefined): boolean
-  export function fullAccessLacks(you: You | undefined): string[]
-  export function theirsTrouble(answer: Answer, you: You | undefined): Required<Trouble> | null
+  export function troubleOf(answer: Answer, where?: string): Required<Trouble> | null
+  export function theirsTrouble(answer: Answer): Required<Trouble> | null
   export function troubleSaid(trouble: Trouble): string
 }
 

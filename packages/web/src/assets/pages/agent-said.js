@@ -3,8 +3,8 @@
 // the conversation with Tade is (`../conversation.js`), so the two read alike.
 //
 // **What is here is its harness's own record, read at the machine** while this
-// page asks (`agent-pane.js`, `web-lanes.ts`), cleaned there as its screen is,
-// and only for a device granted its screen. It is nobody's words: drawn as
+// page asks (`agent-pane.js`, `web-lanes.ts`), cleaned there as its screen is.
+// It is nobody's words: drawn as
 // markdown by a reader that builds nodes and never markup, and a call as text.
 //
 // **Asked every two seconds, sent only when it moved** — the pane says which
@@ -36,7 +36,6 @@ const TURN_HEADS = {
  * `test/agents-client.test.ts`: each is a different thing to do next.
  */
 export const UNREAD_SAID = {
-  'not granted': ['Conversation not granted', 'Grant its screen at the machine'],
   'not read yet': ['Reading its conversation…', null],
   'could not read': [
     'Couldn’t read its conversation',

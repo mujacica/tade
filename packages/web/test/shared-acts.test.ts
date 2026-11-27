@@ -92,7 +92,7 @@ describe('acts from another machine of the person’s', () => {
     expect(handed).toEqual([{ answers, label: 'mac' }])
   })
 
-  it('refuses a phone that is not the person’s own, and reads bodies as text', async () => {
+  it('answers a paired phone too, and reads bodies as text', async () => {
     const { one, handed } = await machine()
     const phone = await pair(one)
     const refused = await ask(one, '/api/acts', {
@@ -105,7 +105,7 @@ describe('acts from another machine of the person’s', () => {
       },
       body: JSON.stringify(ACT),
     })
-    expect(refused.status).toBe(403)
+    expect(refused.status, refused.text).toBe(200)
     const made = await owner(one)
     for (const body of [
       { ...ACT, method: '../../etc' },
@@ -124,14 +124,14 @@ describe('acts from another machine of the person’s', () => {
         })
       ).status,
     ).toBe(400)
-    expect(handed).toEqual([])
+    expect(handed).toHaveLength(1)
   })
 
-  it('is the 404 of a path nobody wired, and answers only at this machine’s own door and the person’s own device', async () => {
+  it('is the 404 of a path nobody wired, and answers only at this machine’s own door and a paired device', async () => {
     const one = await start()
     expect((await asOwner(one, await owner(one), '/api/acts', ACT)).status).toBe(404)
     for (const name of ['acts', 'acts outbox']) {
-      expect(OWNED.find((route) => route.name === name)).toMatchObject({ here: true, theirs: true })
+      expect(OWNED.find((route) => route.name === name)).toMatchObject({ here: true })
     }
   })
 })

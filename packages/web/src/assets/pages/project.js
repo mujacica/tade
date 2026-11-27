@@ -11,8 +11,8 @@
 //    the checks at each branch's HEAD, the queue, the commits ahead and the
 //    findings — each a figure, a bar of how it divides and the words for the
 //    parts, and a press to its section; then the money.
-// 2. **What needs you and what failed**, with the presses this device was
-//    granted on each row.
+// 2. **What needs you and what failed**, with the presses this device may
+//    ask for on each row.
 // 3. **The detail, in two bands of two columns at a desk**: the agents beside
 //    the checks and the findings; the queue as a graph of what waits on what,
 //    the whole width; the branches beside the money. One column on a phone,
@@ -40,7 +40,7 @@ import {
   toneIn,
 } from '../charts.js'
 import { actsIn, keyOf } from '../controls.js'
-import { classOn, el, glyphOf, into, keyed, skeleton, textIn, toneOn, unknown } from '../dom.js'
+import { classOn, el, glyphOf, into, keyed, skeleton, textIn, toneOn } from '../dom.js'
 import { flow, flowIn } from '../flow.js'
 import { AGENT_MARKS, checkMark, findingMark } from '../glyphs.js'
 import { icon } from '../icons.js'
@@ -123,8 +123,7 @@ export function projectScreen(where, ctx) {
   const cleared = el('a', { class: 'pj-green', attrs: { href: pathOf({ view: 'findings' }) } })
   into(cleared, glyphOf(findingMark({ verdict: { was: 'false positive' } })), el('span'))
   const noFindings = el('p', { class: 'empty nothing' })
-  const notGranted = unknown('not granted to this device')
-  into(found.body, findingList, cleared, noFindings, notGranted)
+  into(found.body, findingList, cleared, noFindings)
 
   const queue = part('QUEUE', 'pj-queue', {
     hint: 'What starts next, and what each piece waits on. An arrow runs from the work waited on to the work that waits.',
@@ -287,7 +286,7 @@ export function projectScreen(where, ctx) {
       )
 
       checksIn(checks, checkList, green, noChecks, checked)
-      findingsIn_(found, findingList, cleared, noFindings, notGranted, judged, where.project)
+      findingsIn_(found, findingList, cleared, noFindings, judged, where.project)
 
       // The queue: a graph where there is the width, an outline where there is not.
       const paused = queuePaused(queued)
@@ -461,20 +460,14 @@ function leadView() {
         tone: null,
         parts: f.branched.parts,
       })
-      findings.fill(
-        f.judged.may
-          ? { figure: f.judged.figure, tone: f.judged.tone, parts: f.judged.parts }
-          : { figure: null, tone: null, parts: null, why: 'not granted to this device' },
-      )
+      findings.fill({ figure: f.judged.figure, tone: f.judged.tone, parts: f.judged.parts })
 
       textIn(moneyFigure, f.paid.value ?? '—')
       classOn(moneyFigure, 'is-unknown', f.paid.value === null)
       textIn(
         moneyUnder,
         f.paid.value === null
-          ? f.paid.granted
-            ? 'none recorded'
-            : 'not granted to this device'
+          ? 'none recorded'
           : [
               f.paid.since === null ? null : `since ${f.paid.since}`,
               f.paid.tokens === null ? null : `${f.paid.tokens} tokens`,
@@ -617,9 +610,8 @@ function checksIn(made, list, green, none, checked) {
   textIn(none, 'No agent here has anything to check yet')
 }
 
-function findingsIn_(made, list, cleared, none, notGranted, judged, project) {
-  notGranted.hidden = judged.may
-  textIn(made.figure, judged.may && judged.n > 0 ? judged.figure : '')
+function findingsIn_(made, list, cleared, none, judged, project) {
+  textIn(made.figure, judged.n > 0 ? judged.figure : '')
   toneOn(made.figure, judged.tone === 'wants' ? 't-wants' : '')
   keyed(
     list,
@@ -628,13 +620,13 @@ function findingsIn_(made, list, cleared, none, notGranted, judged, project) {
     createFinding,
     (one, row) => fillFinding(one, row, project),
   )
-  list.hidden = !judged.may || judged.live.length === 0
-  cleared.hidden = !judged.may || judged.over.length === 0
+  list.hidden = judged.live.length === 0
+  cleared.hidden = judged.over.length === 0
   textIn(
     cleared.lastChild,
     `${countSaid(judged.over.length, 'more was', 'more were')} read and found a false positive`,
   )
-  none.hidden = !judged.may || judged.n > 0
+  none.hidden = judged.n > 0
   textIn(none, 'No judge has asked anything about this project')
 }
 
@@ -651,14 +643,10 @@ function spendDetail() {
   const most = rankedBars('Most spent, by agent')
   most.classList.add('pj-most')
   const notes = el('ul', { class: 'pj-notes' })
-  const scope = unknown('not granted to this device')
-  into(node, scope, cells, most, notes)
+  into(node, cells, most, notes)
   return {
     node,
     update(paid) {
-      scope.hidden = paid.granted
-      for (const one of [cells, most, notes]) one.hidden = !paid.granted
-      if (!paid.granted) return
       // What was billed and what was estimated are two claims, never added in
       // silence; an estimate nobody made is not a cell.
       factsIn(

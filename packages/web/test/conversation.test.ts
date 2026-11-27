@@ -17,7 +17,6 @@ import { snapshotOf } from '../src/snapshot.ts'
 import {
   agentHeld,
   conversationHeld,
-  EVERY,
   HELD_KEY,
   input,
   NOW,
@@ -160,7 +159,7 @@ describe('a call with nothing to ask its answer by', () => {
       line.call === null ? line : { ...line, call: { input: line.call.input, result: long } },
     )
     const row = snapshotOf(
-      input({ reach: reach(EVERY), talk: talk({ lines, known: [PRIVATE.opaque, HELD_KEY] }) }),
+      input({ reach: reach(), talk: talk({ lines, known: [PRIVATE.opaque, HELD_KEY] }) }),
       NOW,
     ).chat.find((one) => one.kind === 'tool')
     expect(() => ChatRowSchema.parse(row)).not.toThrow()
@@ -191,14 +190,11 @@ describe('an answer of nothing and an answer nobody kept', () => {
 })
 
 describe('the conversation with Tade, on the snapshot', () => {
-  const tool = (granted: readonly (typeof EVERY)[number][]) =>
-    snapshotOf(input({ reach: reach(granted), talk: talk() }), NOW).chat.find(
-      (row) => row.kind === 'tool',
-    )
+  const tool = () =>
+    snapshotOf(input({ reach: reach(), talk: talk() }), NOW).chat.find((row) => row.kind === 'tool')
 
-  it('gives a tool line its call only where an agent’s bytes were granted', () => {
-    expect(tool(EVERY.filter((one) => one !== 'lanes'))?.call).toBeNull()
-    const row = tool(EVERY)
+  it('gives a tool line its call, cleaned', () => {
+    const row = tool()
     expect(() => ChatRowSchema.parse(row)).not.toThrow()
     expect(row?.call?.brief).toContain('cat …')
     expect(row?.call).toMatchObject({ answered: 'words', id: 'call_status' })
@@ -210,21 +206,14 @@ describe('the conversation with Tade, on the snapshot', () => {
     const lines = talk().lines.map((line) =>
       line.kind === 'reply' ? { ...line, text: words } : line,
     )
-    const chat = snapshotOf(input({ reach: reach(EVERY), talk: talk({ lines }) }), NOW).chat
+    const chat = snapshotOf(input({ reach: reach(), talk: talk({ lines }) }), NOW).chat
     expect(chat.find((row) => row.kind === 'reply')?.text).toEqual({ words, more: false })
   })
 })
 
 describe('an agent’s conversation, on its own answer', () => {
-  it('is withheld from a device not granted its screen, and says that is why', () => {
-    const answer = agentOf(reach(EVERY.filter((one) => one !== 'lanes')), tasks, TASK, agentHeld())
-    expect(answer.conversation).toBeNull()
-    expect(answer.unread).toBe('not granted')
-    expect(JSON.stringify(answer)).not.toContain('The work')
-  })
-
-  it('is cleaned for a device granted it, markup kept as text', () => {
-    const answer = agentOf(reach(['lanes']), tasks, TASK, agentHeld())
+  it('is cleaned, markup kept as text', () => {
+    const answer = agentOf(reach(), tasks, TASK, agentHeld())
     expect(() => AgentOutSchema.parse(answer)).not.toThrow()
     expect(answer.unread).toBeNull()
     const turns = answer.conversation?.turns ?? []
@@ -239,30 +228,30 @@ describe('an agent’s conversation, on its own answer', () => {
   })
 
   it('is sent with no turns to a page that already holds that revision', () => {
-    const answer = agentOf(reach(['lanes']), tasks, TASK, agentHeld(), undefined, '7')
+    const answer = agentOf(reach(), tasks, TASK, agentHeld(), undefined, '7')
     expect(answer.conversation).toEqual({ rev: '7', turns: null, before: '2048', taken: 0 })
-    const moved = agentOf(reach(['lanes']), tasks, TASK, agentHeld(), undefined, '6')
+    const moved = agentOf(reach(), tasks, TASK, agentHeld(), undefined, '6')
     expect(moved.conversation?.turns?.length).toBe(4)
   })
 
   it('is threaded through a device’s reading with the revision it holds', () => {
-    const held = projector(input({ reach: reach(['lanes']) }), NOW, { agent: () => agentHeld() })
+    const held = projector(input({ reach: reach() }), NOW, { agent: () => agentHeld() })
     expect(held.agent(TASK).conversation?.turns?.length).toBe(4)
     expect(held.agent(TASK, '7').conversation?.turns).toBeNull()
   })
 
   it('tells not read yet and could not read apart from nothing said', () => {
-    const none = agentOf(reach(['lanes']), tasks, TASK, agentHeld({ conversation: undefined }))
+    const none = agentOf(reach(), tasks, TASK, agentHeld({ conversation: undefined }))
     expect(none).toMatchObject({ conversation: null, unread: 'not read yet' })
     const broken = agentOf(
-      reach(['lanes']),
+      reach(),
       tasks,
       TASK,
       agentHeld({ conversation: { kind: 'none', why: 'could not read' } }),
     )
     expect(broken).toMatchObject({ conversation: null, unread: 'could not read' })
     const quiet = agentOf(
-      reach(['lanes']),
+      reach(),
       tasks,
       TASK,
       agentHeld({ conversation: { kind: 'read', turns: [], before: null, rev: '1' } }),

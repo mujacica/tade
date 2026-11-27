@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  accessOf,
   agoSaid,
   answered,
   DAY,
-  DOES,
   dateSaid,
   daySaid,
-  FLOOR,
   KINDS,
   kindOf,
   leadState,
@@ -14,9 +13,7 @@ import {
   listSaid,
   listState,
   liveOf,
-  matrixOf,
   NEW_FOR,
-  READS,
   RECENT,
   reachOf,
   recentOf,
@@ -27,16 +24,13 @@ import {
   thisOf,
 } from '../src/assets/pages/devices-shape.js'
 import { CANNOT, DENIED, INSECURE, NOT_OFFERED, OFF, ON, PUSH_SAID } from '../src/assets/push.js'
-import { GRANTS as PAGE_GRANTS } from '../src/assets/store.js'
 import { TROUBLES } from '../src/assets/trouble.js'
 import { type Device, listing } from '../src/devices.ts'
 import type { NoteIn } from '../src/input.ts'
 import type { Keeping } from '../src/installable.ts'
-import { GRANTS } from '../src/reach.ts'
 import { SESSION_MS as SESSION_LENGTH } from '../src/sessions.ts'
 import { snapshotOf } from '../src/snapshot.ts'
-import { SCOPES } from '../src/surface.ts'
-import { EVERY, input, NOW, note, reach, talk } from './fixtures.ts'
+import { input, NOW, note, reach, talk } from './fixtures.ts'
 
 // What the devices page draws, against **what the machine actually sends**:
 // the list and this device's own session come out of `listing`, the function
@@ -58,9 +52,7 @@ function device(over: Partial<Device> = {}): Device {
     csrf: 'csrf-token',
     until: NOW + SESSION_LENGTH,
     pairedAt: NOW - 3 * DAY,
-    scopes: ['read'],
-    projects: null,
-    granted: [],
+    clear: false,
     from: '192.168.1.20',
     revoked: null,
     owner: false,
@@ -81,7 +73,7 @@ const NOT_ASKED = { asks: false, made: false, proven: false, until: null, makeBy
 /** What `/api/devices` answers this device with, for these devices. */
 function listed(me: Device, others: Device[] = []) {
   return listing(me, [me, ...others], KEEPING, NOT_ASKED) as unknown as {
-    you: { device: string; label: string; reads: string[]; scopes: string[]; until: string }
+    you: { device: string; label: string; clear: boolean; until: string }
     devices: { device: string; label: string; pairedAt: string; you: boolean }[]
   }
 }
@@ -163,49 +155,23 @@ describe('how this device reaches the machine', () => {
   })
 })
 
-describe('what this device was granted, as a matrix', () => {
-  it('has a cell for every reading grant the machine knows, in its order', () => {
-    expect(READS.map((one) => one.key)).toEqual([...GRANTS])
-    expect(READS.map((one) => one.key)).toEqual(PAGE_GRANTS)
-  })
-
-  it('has a cell for every scope beyond reading, and reading is the floor', () => {
-    expect(['read', ...DOES.map((one) => one.key)].sort()).toEqual([...SCOPES].sort())
-  })
-
-  it('draws a device paired with nothing granted as the floor and every cell off', () => {
+describe('what this device may do', () => {
+  it('is everything, because every paired device is the person’s own', () => {
     const { you } = listed(device())
-    const matrix = matrixOf(you)
-    expect(matrix).not.toBeNull()
-    if (matrix === null) return
-    expect(matrix.read[0]).toMatchObject({ key: FLOOR.key, on: true, floor: true })
-    expect(matrix.read.slice(1).every((one) => !one.on)).toBe(true)
-    expect(matrix.does.every((one) => !one.on)).toBe(true)
-    expect(matrix.readSaid).toBe(`1 of ${GRANTS.length + 1}`)
-    expect(matrix.doSaid).toBe('read only')
+    expect(you.clear).toBe(false)
+    expect(accessOf(you)).toEqual({ value: 'everything', under: 'every device is yours' })
   })
 
-  it('lights exactly what was granted at the machine, and draws the rest off', () => {
-    const { you } = listed(
-      device({ granted: ['titles', 'spend', 'talk'], scopes: ['read', 'answer', 'steer', 'ask'] }),
-    )
-    const matrix = matrixOf(you)
-    if (matrix === null) throw new Error('no matrix')
-    const lit = (cells: { key: string; on: boolean }[]) =>
-      cells.filter((one) => one.on).map((one) => one.key)
-    expect(lit(matrix.read)).toEqual([FLOOR.key, 'titles', 'spend', 'talk'])
-    expect(lit(matrix.does)).toEqual(['answer', 'steer', 'ask'])
-    expect(matrix.read).toHaveLength(GRANTS.length + 1)
-    expect(matrix.does).toHaveLength(SCOPES.length - 1)
-    expect(matrix.doSaid).toBe(`3 of ${SCOPES.length - 1}`)
+  it('is reading alone for a device paired in the clear, and nothing with no session', () => {
+    const { you } = listed(device({ clear: true }))
+    expect(accessOf(you)).toEqual({ value: 'read only', under: 'paired over plain HTTP' })
+    expect(accessOf(null)).toBeNull()
   })
 
-  it('draws no cell for a word nothing grants, and nothing at all with no session', () => {
-    const matrix = matrixOf({ reads: ['titles', 'everything'], scopes: ['read', 'root'] })
-    if (matrix === null) throw new Error('no matrix')
-    expect(matrix.read.map((one) => one.key)).not.toContain('everything')
-    expect(matrix.does.map((one) => one.key)).not.toContain('root')
-    expect(matrixOf(null)).toBeNull()
+  it('is never told what it was granted: the machine sends no grants and no scopes', () => {
+    const { you } = listed(device())
+    expect(Object.keys(you)).not.toContain('reads')
+    expect(Object.keys(you)).not.toContain('scopes')
   })
 })
 
@@ -385,20 +351,19 @@ describe('this device, for the lead', () => {
 })
 
 describe('what this device said', () => {
-  /** The rows a device granted these is handed, for these notes and the fixture's conversation. */
-  function rows(granted: typeof EVERY, notes: NoteIn[] = []) {
-    const snapshot = snapshotOf(input({ reach: reach(granted), talk: talk(), notes }), NOW)
+  /** The rows a paired device is handed, for these notes and the fixture's conversation. */
+  function rows(notes: NoteIn[] = []) {
+    const snapshot = snapshotOf(input({ reach: reach(), talk: talk(), notes }), NOW)
     return { chat: snapshot.chat, notes: [...snapshot.notes].reverse() }
   }
   const mine = `device ${ME}`
 
   it('is its own messages and notes, newest first, as they were said', () => {
-    const { chat, notes } = rows(EVERY, [
+    const { chat, notes } = rows([
       note({ by: mine, at: '2026-10-08T14:10:00.000Z', text: 'ring me if the deploy goes red' }),
       note({ by: 'voice', at: '2026-10-08T14:20:00.000Z' }),
     ])
-    const recent = recentOf({ chat, notes, device: ME, mayTalk: true, mayNotes: true }, NOW)
-    expect(recent.granted).toBe(true)
+    const recent = recentOf({ chat, notes, device: ME }, NOW)
     expect(recent.items.map((one) => one.kind)).toEqual(['note', 'asked'])
     // The words reach the page exactly as the row carried them.
     const asked = chat.find((one) => one.from === mine)
@@ -408,29 +373,17 @@ describe('what this device said', () => {
   })
 
   it('leaves out what anybody else said, the person at the machine included', () => {
-    const { chat, notes } = rows(EVERY)
-    const recent = recentOf({ chat, notes, device: OTHER, mayTalk: true, mayNotes: true }, NOW)
+    const { chat, notes } = rows()
+    const recent = recentOf({ chat, notes, device: OTHER }, NOW)
     expect(recent.items).toEqual([])
     expect(recent.said).toBe('')
   })
 
-  it('says not granted rather than nothing where neither was granted', () => {
-    const { chat, notes } = rows([])
-    const recent = recentOf({ chat, notes, device: ME, mayTalk: false, mayNotes: false }, NOW)
-    expect(recent).toMatchObject({ granted: false, items: [], said: '' })
-  })
-
-  it('says not granted and nothing yet as two different sentences, and nothing over lines', () => {
-    const { chat, notes } = rows(EVERY)
-    const none = recentState(
-      recentOf({ chat, notes, device: OTHER, mayTalk: true, mayNotes: true }, NOW),
-    )
-    const withheld = recentState(
-      recentOf({ chat, notes, device: ME, mayTalk: false, mayNotes: false }, NOW),
-    )
+  it('says nothing yet where it sent nothing, and nothing over lines', () => {
+    const { chat, notes } = rows()
+    const none = recentState(recentOf({ chat, notes, device: OTHER }, NOW))
     expect(none?.heading).toBe('Nothing sent from here yet')
-    expect(withheld?.heading).toBe('Not granted to this device')
-    const some = recentOf({ chat, notes, device: ME, mayTalk: true, mayNotes: true }, NOW)
+    const some = recentOf({ chat, notes, device: ME }, NOW)
     expect(some.items.length).toBeGreaterThan(0)
     expect(recentState(some)).toBeNull()
     expect(recentState(null)).toBeNull()
@@ -440,8 +393,8 @@ describe('what this device said', () => {
     const many = Array.from({ length: RECENT + 3 }, (_, at) =>
       note({ by: mine, at: new Date(NOW - (at + 1) * 60_000).toISOString(), summary: undefined }),
     )
-    const { chat, notes } = rows(EVERY, many)
-    const recent = recentOf({ chat, notes, device: ME, mayTalk: false, mayNotes: true }, NOW)
+    const { notes } = rows(many)
+    const recent = recentOf({ chat: [], notes, device: ME }, NOW)
     expect(recent.items).toHaveLength(RECENT)
     expect(recent.more).toBe(3)
     expect(recent.items[0]?.ago).toBe('1m')

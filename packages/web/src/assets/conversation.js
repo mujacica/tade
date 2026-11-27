@@ -20,9 +20,8 @@
 // **A row that opens is a real button with its own words**: the tool's name,
 // the line that says which call it was, and how it went — so a screen reader,
 // a voice control and a thumb all reach it by what it shows, and
-// `aria-expanded` says whether it is open. One the device was not granted the
-// call of, or one with nothing written down, is the same row with nothing to
-// open, and so is not a button.
+// `aria-expanded` says whether it is open. One with nothing written down is
+// the same row with nothing to open, and so is not a button.
 //
 // **The line that says which call it was is never cut** — not at the machine
 // (`briefOut`) and not here. It wraps, so a row reads in full; one so long
@@ -266,7 +265,6 @@ const NO_ANSWER = {
   unread: 'Its harness’s record is there and could not be read. Open it again to try again.',
   gone: 'The machine did not answer. Open it again to try again.',
   'not here': 'What it answered is not on this device',
-  'not granted': 'What it answered is not on this device',
 }
 
 function fill(label, frame, words) {

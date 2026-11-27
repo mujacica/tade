@@ -12,13 +12,10 @@ import {
   Copies,
   chatBefore,
   connectWhere,
-  copiesFor,
   copyFrame,
   type Device,
   factsOf,
-  GRANTS,
   type Host,
-  has,
   MOMENTS,
   nameDevice,
   type OrchestratorStanding,
@@ -69,7 +66,6 @@ import { connectingFor } from './web-connect.ts'
 import type { AwayDeps } from './web-deps.ts'
 import { diskFrom } from './web-disk.ts'
 import { builtFrom, turnTo } from './web-follow.ts'
-import { EVERYTHING, widen } from './web-grants.ts'
 import { halvesFor } from './web-halves.ts'
 import { knownHere, Lanes } from './web-lanes.ts'
 import { carryConnect, carryLink, isConnect, isLink } from './web-link.ts'
@@ -122,16 +118,10 @@ const OWN_EVERY_MS = 1_000
 
 /**
  * What this machine's own projection is built for when it is told another
- * machine of the person's: every project and every grant, as an owner device
- * is sent — never a device in the list, so no page's projector is it.
+ * machine of the person's: everything, as every device is sent — never a
+ * device in the list, so no page's projector is it.
  */
-const OWN: Reach = {
-  device: 'every machine',
-  projects: { kind: 'every' },
-  granted: [...GRANTS],
-  answers: true,
-  theirs: true,
-}
+const OWN: Reach = { device: 'every machine' }
 
 export class Away implements Subject {
   private readonly wire: Wiring
@@ -577,10 +567,10 @@ export class Away implements Subject {
     )
   }
 
-  /** Whether this device is sent the other machines' copies: the person's own, and not a link. */
+  /** Whether this device is sent the other machines' copies: a paired device, and not a link. */
   private sentCopies(device: string): boolean {
     const held = this.paired(device)
-    return held !== undefined && copiesFor(reachOf(held), held.owner)
+    return held !== undefined && !held.owner
   }
 
   /**
@@ -706,12 +696,8 @@ export class Away implements Subject {
       return
     }
     this.asking = null
-    asking.answer(
-      allow
-        ? // Everything, opt-out: the owner's call (`EVERYTHING`, `web-grants.ts`).
-          { let: true, projects: null, ...EVERYTHING }
-        : { let: false, why: 'refused' },
-    )
+    // A yes is all of it: every paired device is the person's own.
+    asking.answer(allow ? { let: true } : { let: false, why: 'refused' })
     await this.reread()
     this.wire.draw()
   }
@@ -795,7 +781,7 @@ export class Away implements Subject {
       else if (isLink(control)) await carryLink(this.wire, control, this.tickets, this.deps)
       else if (control.startsWith(AWAY_CONTROLS.revoke)) {
         await revokeOne(this.sessions(), control.slice(AWAY_CONTROLS.revoke.length))
-      } else await widen(this.widening(), control)
+      }
     } catch (err) {
       // Said on the panel where the button was pressed, and never swallowed:
       // pressing Disconnect everything and watching nothing happen is the
@@ -803,22 +789,6 @@ export class Away implements Subject {
       this.problem = err instanceof Error ? err.message : String(err)
     }
     this.wire.draw()
-  }
-
-  /**
-   * What letting one device act, talk or see needs of this subject. **A
-   * keypress at this machine** is the only door, and `web-grants.ts` has why.
-   */
-  private widening() {
-    return {
-      home: this.wire.opts.home,
-      config: () => this.config(),
-      now: () => this.wire.now(),
-      devices: () => this.devices,
-      log: (told: Told) => this.log(told),
-      news: (said: string) => this.deps.news(said),
-      reread: () => this.reread(),
-    }
   }
 
   /** What ending a session needs of this subject, in one place for all three. */
@@ -945,15 +915,14 @@ export class Away implements Subject {
           reach,
           this.collections().tasks,
           task,
-          this.agentIn(reach, task),
+          this.agentIn(task),
           AGENT,
           seen,
         )
-        // **Asking is looking**, and only a device that may read the screen,
-        // about a task it may read at all, makes the window read one: an
-        // ungranted phone with the page open costs the activity fold and no
-        // lane, and a crafted name for a task out of reach costs nothing.
-        if (answer.here && has(reach, 'lanes')) {
+        // **Asking is looking**: a device asking about a task that is here
+        // makes the window read its screen, and a crafted name for a task
+        // that is not costs nothing.
+        if (answer.here) {
           this.lanes.watch(reach.device, task, this.wire.now())
         }
         return answer
@@ -961,9 +930,8 @@ export class Away implements Subject {
       // **The conversation as it is now**, not as of the beat: what a look back
       // just read out of the record (`earlier`) is in it, under this request's reach.
       chat: (before) => chatBefore(this.talkNow(), reach, before),
-      // **This request's reach**, like an agent's, and what the window already holds.
-      settings: () =>
-        settingsFor(this.deps.settings.rows(), reach, knownHere(this.wire, this.config())),
+      // What the window already holds.
+      settings: () => settingsFor(this.deps.settings.rows(), knownHere(this.wire, this.config())),
       evaluations: () => evaluationsAnswer(this.wire, reach),
     }
   }
@@ -1079,16 +1047,14 @@ export class Away implements Subject {
    * What the window holds of one agent: its activity out of the journal it
    * already has, and the lane as last read on a beat. Never a read now.
    */
-  private agentIn(reach: Reach, task: string): AgentIn {
+  private agentIn(task: string): AgentIn {
     const keys = () => knownHere(this.wire, this.config())
     return {
       ...activityIn(this.wire.live?.events ?? [], task, AGENT.activity),
       lane: this.lanes.heldFor(task) ?? { kind: 'none', why: 'not read yet' },
       conversation: this.lanes.talkFor(task),
       places: this.placesOf(task),
-      // Only for a device that will be shown a screen: asking every extension
-      // for its keys is not free, and an ungranted answer has no screen.
-      known: has(reach, 'lanes') ? this.lanes.keys(keys) : [],
+      known: this.lanes.keys(keys),
     }
   }
 
@@ -1155,17 +1121,18 @@ export class Away implements Subject {
   }
 
   /**
-   * Whether one device may send a message: granted `ask`, and still paired.
+   * Whether one device may send a message: still paired, and not paired in
+   * the clear (`Device.clear`), which reads and never acts.
    *
-   * A **drawing hint** and not permission — `admitAsk` re-asks the scope, the
-   * setting and the origin at the turn, and `webAsking` builds the arm from
-   * the device record again. What it is for is the rule `TaskRow.can` already
-   * follows: a control nothing could carry out is a control nobody can
-   * explain, so the page leaves the composer out rather than drawing one that
-   * answers `403`.
+   * A **drawing hint** and not permission — `admitAsk` re-asks the setting
+   * and the origin at the turn, and `webAsking` builds the arm from the device
+   * record again. What it is for is the rule `TaskRow.can` already follows: a
+   * control nothing could carry out is a control nobody can explain, so the
+   * page leaves the composer out rather than drawing one that answers `403`.
    */
   private mayAsk(device: string): boolean {
-    return this.paired(device)?.scopes.includes('ask') === true
+    const held = this.paired(device)
+    return held !== undefined && !held.clear
   }
 
   /** The conversation as the projection takes it, or null where talking is off. */
@@ -1197,8 +1164,8 @@ export class Away implements Subject {
   }
 
   /**
-   * What the `ToolHost` asks at every call: the arm, narrowed to what that
-   * device is granted now, and this device's own projection.
+   * What the `ToolHost` asks at every call: the arm, re-checked against the
+   * device list now, and this device's own projection.
    *
    * Built here rather than in `app.ts` because every one of its three answers
    * is this subject's: the lease is the conversation's and the device list is

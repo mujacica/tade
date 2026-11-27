@@ -5,13 +5,12 @@ import type { AccountAway, AccountsAnswer, AccountsCall } from '../src/accounts.
 import { Moved, NotOffered, type Outcome, type WebActing } from '../src/acting.ts'
 import { type ActivityIn, AGENT, MOMENTS } from '../src/agent.ts'
 import type { MenuItemIn } from '../src/agent-menu.ts'
-import { allowDevice } from '../src/devices.ts'
 import type { ChatIn, TalkIn } from '../src/input.ts'
 import type { MachinesAnswer } from '../src/machines.ts'
-import { GRANTS, type Grant, type Reach } from '../src/reach.ts'
+import type { Reach } from '../src/reach.ts'
 import { projector } from '../src/reading.ts'
 import { webServer } from '../src/server.ts'
-import { OFF, SCOPES } from '../src/surface.ts'
+import { OFF } from '../src/surface.ts'
 import { Tickets } from '../src/tickets.ts'
 import {
   allUnrun,
@@ -20,7 +19,6 @@ import {
   exitFor,
   type Finding,
   LOOKS,
-  NOT_FOR_A_DEVICE_GRANTED_NOTHING,
   NOT_FOR_A_GRANTED_DEVICE,
   READY,
   said,
@@ -105,17 +103,6 @@ const SCRATCH = fileURLToPath(new URL('../../../node_modules/.cache/', import.me
 const shots = shotsDir(process.argv)
 const findings: Finding[] = []
 
-/**
- * What the next pairing is granted.
- *
- * Mutable because the harness pairs **twice**: a device granted nothing, which
- * is what the honesty checks are about, and one granted everything — because
- * every figure on every screen draws differently with the grant, and a page
- * nobody has rendered with a number in it is a page axe, the tap targets and
- * the 360px overflow have never actually been asked about.
- */
-let granting: Grant[] = []
-
 /** The real listener, the real pairing, and a ticket to walk in with. */
 async function serve() {
   await mkdir(SCRATCH, { recursive: true })
@@ -124,13 +111,9 @@ async function serve() {
   const held = new Map<string, ReturnType<typeof projector>>()
   const server = webServer({
     home,
-    // **Acting on, and the controls still absent for the first two devices.**
-    // The route table is built with the listener, so turning it on later is
-    // not a thing a harness can do — and it changes nothing for a device the
-    // page has no scope for: `actsOf` reads the scopes off its own session, so
-    // the honesty passes below still render a page with no control on it. What
-    // it buys is the third pass, where a device granted both tiers drives a
-    // real tap, a real Tab and a real refusal.
+    // **Acting on**: the route table is built with the listener, so turning it
+    // on later is not a thing a harness can do. Every paired device may act,
+    // and the third pass drives a real tap, a real Tab and a real refusal.
     // **`OFF` and then what this harness turns on**, so a capability added to
     // the surface arrives here off rather than as a guess.
     surface: {
@@ -145,10 +128,8 @@ async function serve() {
       keepsView: true,
     },
     acting: recording,
-    // **Talking on too, with the same stub treatment**: a device the page has
-    // no `ask` scope for draws no composer at all, which is what the honesty
-    // passes read, and the third pass grants it so a real tap sends a real
-    // message. `stop` answers `not_offered`, for the reason `note` answers
+    // **Talking on too, with the same stub treatment**: the third pass sends
+    // a real message with a real tap. `stop` answers `not_offered`, for the reason `note` answers
     // `gone`: a harness where everything succeeds can never show that a
     // refusal leaves what somebody typed where it was.
     asking: {
@@ -233,7 +214,7 @@ async function serve() {
     tell: () => {},
     // The keypress at the machine, answered yes — which is the whole of what
     // authorises a pairing, and the one thing a browser cannot press.
-    confirm: async () => ({ let: true, projects: null, granted: [...granting] }),
+    confirm: async () => ({ let: true }),
   })
   const bound = await server.listen()
   const at = bound.find((one) => one.startsWith('127.0.0.1'))
@@ -644,7 +625,7 @@ async function run(axe: Awaited<ReturnType<typeof axeSource>>) {
       await context.close()
     }
     await asGranted(made, origin, tickets, axe.source, server, held)
-    await asActing(made, origin, tickets, home, server, held)
+    await asActing(made, origin, tickets, server, held)
   } finally {
     try {
       await made.close()
@@ -656,20 +637,14 @@ async function run(axe: Awaited<ReturnType<typeof axeSource>>) {
 }
 
 /**
- * Every screen again, for a device granted everything.
- *
- * **The half the three widths above cannot see.** The harness's first device
- * is granted nothing on purpose, so every money figure, every note and every
- * sign-in on every screen is a dash — which means the laid-out page with
- * actual content in it, the one the owner will look at, has never been
- * rendered in a browser at all. Here it is, once, at the width with the most
- * on screen, and again at the phone's, with the same questions asked of it.
+ * Every screen again, at the widest width and then at the phone's, on one
+ * device resized, with the same questions asked of it.
  *
  * **The phone is the device the person actually holds**, and a page with real
  * figures in it is the one most likely to be wider than 360px or to draw a
  * control too small to hit — a dash fits anywhere. The desk is kept because it
- * has the most on screen. The tablet is left out: what differs with a grant is
- * the content, not the breakpoints, and the two ends are where it overflows.
+ * has the most on screen. The tablet is left out: the two ends are where it
+ * overflows.
  *
  * **One device, resized**, rather than a pairing per width: the harness pairs
  * exactly five times, which is the server's limit per address in ten minutes,
@@ -687,7 +662,6 @@ async function asGranted(
   const desk = [...WIDTHS].sort((a, b) => b.width - a.width)[0]
   const phone = WIDTHS.find((one) => one.narrow === true)
   if (desk === undefined) return
-  granting = [...GRANTS]
   const context = await made.newContext({
     viewport: { width: desk.width, height: desk.height },
   })
@@ -703,7 +677,7 @@ async function asGranted(
     for (const look of LOOKS) {
       if (look.path === '/pair') continue
       const before = noise.length
-      await lookAt(page, origin, look, { name: at }, axe, true)
+      await lookAt(page, origin, look, { name: at }, axe)
       const fresh = noise.slice(before)
       if (fresh.length > 0) {
         found('quiet', `${look.name} @ ${at}`, 'fail', fresh.slice(0, 2).join('; '))
@@ -742,11 +716,10 @@ async function asGranted(
     )
   }
   await context.close()
-  granting = []
 }
 
 /**
- * The controls, for a device a person granted both tiers at the machine.
+ * The controls, for a paired device: every one may act.
  *
  * **The three things only a browser can answer**, and each is a real failure
  * somebody would otherwise find on a phone:
@@ -760,23 +733,16 @@ async function asGranted(
  * - `typing` — that a refusal leaves what somebody typed where it was. The
  *   `note` verb here always answers `gone`, so this is the one check that
  *   exercises the path, and it is the one failure a person cannot undo.
- *
- * The grant is `allowDevice` — the same append the pairing panel makes, which
- * is the only door a scope widens through. There is no route for it and there
- * must never be one, so a harness that wanted one would be asking for the
- * thing this design is built to refuse.
  */
 async function asActing(
   made: Engine,
   origin: string,
   tickets: Tickets,
-  home: string,
   server: Served,
   held: Map<string, ReturnType<typeof projector>>,
 ) {
   const width = [...WIDTHS].find((one) => one.narrow === true) ?? WIDTHS[0]
   if (width === undefined) return
-  granting = [...GRANTS]
   const context = await made.newContext({
     viewport: { width: width.width, height: width.height },
     hasTouch: true,
@@ -784,15 +750,12 @@ async function asActing(
   const page = await context.newPage()
   const at = `${width.name} acting`
   await pairIn(page, origin, tickets.mint(`${origin}/pair`, Date.now()).value, at)
-  // The keypress at the machine, which is what a scope widens through.
   const device = await deviceIn(page)
   if (device === null) {
     found('controls', at, 'unrun', 'the page never said which device this is')
     await context.close()
-    granting = []
     return
   }
-  await allowDevice(home, device, ['read', 'answer', 'steer', 'ask'], new Date())
   try {
     await page.goto(`${origin}/t/sentry/away-projection`, { waitUntil: READY })
     await page.waitForSelector('main textarea', { timeout: 10_000 })
@@ -900,15 +863,11 @@ async function asActing(
   // address, the five tries are spent, and this is the right phone to ask
   // anyway — narrow, touch, granted (`browser-pwa.ts`).
   // **Queued work down the side, pressed**, on this same device: it may steer,
-  // so the queue's choices are on its menu, and it is not the person's own,
-  // so removing the work is not (`browser-queue.ts`).
+  // so the queue's choices are on its menu (`browser-queue.ts`).
   await queueAt(page as never, origin, found, asked, QUEUED.id)
   await asPwa({ context, origin, found })
-  // **The Machines page, on this same device made the person's own**: every
-  // scope granted at the machine, through the one door a scope widens through,
-  // since a sixth pairing would be refused — last, so nothing above is asked
-  // of a device it was not paired as (`browser-machines.ts`).
-  await allowDevice(home, device, [...SCOPES], new Date())
+  // **The Machines page, on this same device**, every paired device being the
+  // person's own, since a sixth pairing would be refused (`browser-machines.ts`).
   await machinesAt(page as never, origin, found, {
     machines: (MACHINES.columns ?? []).map((one) => one.machine),
     rows: MACHINES.rows.map((one) => ({ label: one.label, cells: one.cells.length })),
@@ -923,7 +882,6 @@ async function asActing(
     ],
   })
   await context.close()
-  granting = []
 }
 
 /** What `deltaUnder` and `asActing` both need of the listener. */
@@ -1131,7 +1089,6 @@ async function lookAt(
   look: { path: string; name: string },
   width: { name: string; narrow?: true },
   axe: string | null,
-  granted = false,
 ) {
   const where = `${look.name} @ ${width.name}`
   try {
@@ -1177,27 +1134,14 @@ async function lookAt(
   if (title === '' || title === 'Tade') found('titles', where, 'fail', `the title is "${title}"`)
   else found('titles', where, 'pass', title)
 
-  if (granted) {
-    // The other way round, and it is the same bug seen from the other side: a
-    // device that **was** granted the content must never be told the content
-    // was withheld from it.
-    const withheld = NOT_FOR_A_GRANTED_DEVICE.filter((one) => shape.words.includes(one))
-    if (withheld.length > 0) {
-      found('granted', where, 'fail', `says ${withheld.join('; ')} to a device granted everything`)
-    } else {
-      found('granted', where, 'pass', 'nothing is withheld from a device that was granted it')
-    }
+  // **Nothing is withheld from a paired device**: every one is the person's
+  // own, so a page that told one a thing was *not granted* is saying a thing
+  // that is not true of any device.
+  const withheld = NOT_FOR_A_GRANTED_DEVICE.filter((one) => shape.words.includes(one))
+  if (withheld.length > 0) {
+    found('granted', where, 'fail', `says ${withheld.join('; ')} to a paired device`)
   } else {
-    // The device this harness pairs was granted nothing, so every withheld
-    // field is a null — and a page that drew one as *not recorded* would be
-    // telling somebody their work cost nothing when their phone was never
-    // allowed to ask.
-    const lies = NOT_FOR_A_DEVICE_GRANTED_NOTHING.filter((one) => shape.words.includes(one))
-    if (lies.length > 0) {
-      found('honesty', where, 'fail', `says ${lies.join('; ')} to a device granted nothing`)
-    } else {
-      found('honesty', where, 'pass', 'every withheld field says it was withheld')
-    }
+    found('granted', where, 'pass', 'nothing is said to be withheld')
   }
 
   if (axe !== null) await axeOn(page, where, axe)

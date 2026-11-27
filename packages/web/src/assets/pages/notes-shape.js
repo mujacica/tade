@@ -414,11 +414,10 @@ export function tallyOf(page) {
 }
 
 /**
- * What the page says when there is nothing to draw: coming and unreachable,
- * not granted (with how many there are), or none — four sentences and never a
- * blank. Null when there are notes to draw.
+ * What the page says when there is nothing to draw: coming, unreachable, or
+ * none — three sentences and never a blank. Null when there are notes to draw.
  */
-export function wholeOf(had, shut, may, total, withheld) {
+export function wholeOf(had, shut, total) {
   if (!had) {
     if (!shut) return null
     return {
@@ -426,17 +425,6 @@ export function wholeOf(had, shut, may, total, withheld) {
       icon: 'alert',
       heading: TROUBLES.offline.title,
       line: TROUBLES.offline.fix,
-    }
-  }
-  if (!may) {
-    return {
-      kind: 'empty',
-      icon: 'notes',
-      heading: 'Notes aren’t granted to this device',
-      line:
-        withheld > 0
-          ? `${plural(withheld, 'note')} here. Grant this device notes at the machine to read them.`
-          : 'Grant this device notes at the machine to read them.',
     }
   }
   if (total > 0) return null

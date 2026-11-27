@@ -45,9 +45,6 @@ interface Over {
   web?: Record<string, unknown>
   key?: string | null
   devices?: { id: string; revoked: string | null }[]
-  titled?: boolean
-  /** Which projects the device may read, or null for every one of them. */
-  projects?: readonly string[] | null
   lastInputAt?: number | null
   localHour?: number
   answers?: number[]
@@ -95,14 +92,7 @@ async function made(over: Over = {}) {
       (over.devices ?? [{ id: DEVICE, revoked: null }]).some(
         (one) => one.id === device && one.revoked === null,
       )
-        ? {
-            device,
-            projects:
-              over.projects === undefined || over.projects === null
-                ? { kind: 'every' }
-                : { kind: 'listed', names: [...over.projects] },
-            granted: over.titled === true ? ['titles'] : [],
-          }
+        ? { device }
         : null,
     opens: (device) =>
       (over.devices ?? [{ id: DEVICE, revoked: null }]).some((one) => one.id === device)
@@ -263,7 +253,7 @@ describe('nothing is caught up', () => {
 
 describe('one notification, sent', () => {
   it('sends a generic payload to a subscribed device, and writes it down', async () => {
-    const it_ = await made({ asked: [DEVICE] })
+    const it_ = await made({ web: { push_details: false }, asked: [DEVICE] })
     await it_.push.open()
     it_.sees([task()])
     await it_.beat()
@@ -280,42 +270,21 @@ describe('one notification, sent', () => {
     expect(JSON.stringify(it_.told)).not.toContain('refunds')
   })
 
-  it('names the work only where the setting **and** the grant both say so', async () => {
-    // Two halves, and the device's is the narrower one: a phone that may not
-    // read what work is called never gets a name in a notification either.
-    for (const [details, titled, body] of [
-      [false, false, 'Work wants your answer'],
-      [true, false, 'Work wants your answer'],
-      [false, true, 'Work wants your answer'],
-      [true, true, 'Make the refunds work wants your answer'],
+  it('names the work only where the setting says so', async () => {
+    // Every paired device reads what work is called, so the setting is the
+    // whole of it.
+    for (const [details, body] of [
+      [false, 'Work wants your answer'],
+      [true, 'Make the refunds work wants your answer'],
     ] as const) {
-      const it_ = await made({ web: { push_details: details }, titled, asked: [DEVICE] })
+      const it_ = await made({ web: { push_details: details }, asked: [DEVICE] })
       await it_.push.open()
       it_.sees([task()])
       await it_.beat()
       it_.sees([task({ waiting: true })])
       await it_.beat(() => it_.pusher.sent.length === 1)
-      expect(it_.pusher.sent[0]?.notice.body, `${details} ${titled}`).toBe(body)
+      expect(it_.pusher.sent[0]?.notice.body, `${details}`).toBe(body)
     }
-  })
-
-  it('tells a device nothing about a project it may not read', async () => {
-    // **Not even as a count.** The collections are the window's own and are
-    // built once for every phone, so this narrowing happens at the send or
-    // nowhere — and a device granted one project of two would otherwise be
-    // told that something in the other one wants you.
-    const it_ = await made({ asked: [DEVICE], projects: ['shop'] })
-    await it_.push.open()
-    const two = [task({ id: 'shop/one', project: 'shop' }), task({ id: 'ops/two', project: 'ops' })]
-    it_.sees(two)
-    await it_.beat()
-    it_.sees([two[0] as TaskNow, { ...(two[1] as TaskNow), state: 'failed' }])
-    await it_.beat()
-    expect(it_.pusher.sent).toEqual([])
-    // And the project it does read still reaches it.
-    it_.sees([{ ...(two[0] as TaskNow), waiting: true }, two[1] as TaskNow])
-    await it_.beat(() => it_.pusher.sent.length === 1)
-    expect(it_.pusher.sent[0]?.notice.body).toBe('Work wants your answer')
   })
 
   it('sends one to each subscribed device, and none to a device that is not', async () => {
@@ -459,8 +428,6 @@ describe('who is in front of which screen', () => {
     const phone = {
       id: DEVICE,
       revoked: null,
-      projects: null,
-      granted: [],
       host: 'tade.example.com',
     }
     const push = pushFor(

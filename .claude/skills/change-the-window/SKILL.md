@@ -891,7 +891,7 @@ a shell with `vim` open in it is the same situation as an agent that draws its o
     kept per review in memory and sent together. **The hunk is an agent's text**, so Tade is handed
     it above `THEIR_WORDS` (`ask`'s `about`) and only the words go under it and into `said`, where
     `namedBy` reads authority. What could not be delivered stays kept and is said. The away view
-    draws no diff, so it has no comments: a diff is a reading grant of its own (`add-away-surface`).
+    draws no diff, so it has no comments: a diff is a reading of its own (`add-away-surface`).
   - **It is never on with `formatted`**, for `asking`'s reason: laid-out Markdown has no line of the
     file to mark. Each turns the other off, so `showsDiff` is the one answer everything else reads,
     and the heading pins its own controls before the path, which gives way (`shownPath`) — a heading

@@ -9,7 +9,7 @@
 //    a figure, a drawing and a line: its checks and a strip of every run,
 //    its branch as commits either side of where it started, what it cost and
 //    its share of its project's spend, and where it is in its run.
-// 2. **Its screen**, as the `lanes` grant has it, and under it the box to tell
+// 2. **Its screen**, cleaned at the machine, and under it the box to tell
 //    its agent something — look, then say.
 // 3. **Its timeline**: a lane each for the agent running, its turns, its
 //    tools, its checks and its commits over one axis ending at now, and every
@@ -31,7 +31,6 @@
 // task says that it is not here. Every figure is `agent-shape.js`'s, held by
 // `test/task-client.test.ts`.
 
-import { mayFor } from '../access.js'
 import { SHOWN } from '../acts.js'
 import { agentMenu } from '../agent-menu.js'
 import { heat, heatIn, steps, stepsIn, toneIn } from '../charts.js'
@@ -48,7 +47,6 @@ import {
   skeleton,
   textIn,
   toneOn,
-  unknown,
 } from '../dom.js'
 import { taskMark } from '../glyphs.js'
 import { icon } from '../icons.js'
@@ -104,7 +102,7 @@ export function taskScreen(where, ctx) {
   // The state as a pill beside the name, in its tone, readable across a desk.
   const pill = el('span', { class: 'ui-pill' })
   bar.heading.after(pill)
-  // The presses this device was granted, at the end of the bar: the answer to
+  // The presses this device may ask for, at the end of the bar: the answer to
   // an agent that is waiting is the reason somebody opened this page.
   // The command it would allow is the lead's, not the bar's (`command: false`).
   const quick = here ? quickActs(ctx, { tell: false, command: false }) : null
@@ -228,7 +226,7 @@ export function taskScreen(where, ctx) {
       paint()
       checks.update(task, view, record)
       work.update(task, view)
-      askedIn(asked, task, view.store)
+      askedIn(asked, task)
       about.update(task, view)
       controls?.update(withSilentWaits(task, view.store), view)
       kindsIn(acts.body)
@@ -570,9 +568,9 @@ function workView() {
       const parts = [one.value, one.under, one.where].filter((each) => each !== null && each !== '')
       textIn(said, one.name === null ? '' : parts.join(' · '))
       said.hidden = one.name === null
-      // The review: a press out to it where this device may have its address,
-      // a word where it may not, and nothing where there is none to offer.
-      const url = mayFor(view.store, 'tasks.review.url') ? safeHref(task.review?.url) : null
+      // The review: a press out to it where it has an address to go to, a
+      // word where it has none, and nothing where there is none to offer.
+      const url = safeHref(task.review?.url)
       const review = one.review
       link.hidden = review === null || url === null
       pill.hidden = review === null || url !== null
@@ -621,16 +619,11 @@ function withSilentWaits(task, store) {
 
 /**
  * What somebody asked for, in their own words, folded to three lines —
- * **verbatim, and never reworded**. A device granted neither the titles nor the
- * intent is told *that*, rather than that nobody wrote anything down. Written
- * once: rebuilding it would close a fold somebody had opened.
+ * **verbatim, and never reworded**. Written once: rebuilding it would close a
+ * fold somebody had opened.
  */
-function askedIn(made, task, store) {
+function askedIn(made, task) {
   if (made.body.children.length > 0) return
-  if (!mayFor(store, 'tasks.intent') && !mayFor(store, 'tasks.title')) {
-    into(made.body, unknown('not granted to this device'))
-    return
-  }
   const said = task.intent ?? task.title
   const card = panel('div', 'ag-asked')
   into(card, proseOf(said, true) ?? empty('nothing written down'))

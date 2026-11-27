@@ -2,8 +2,8 @@
 //
 // `⌘K` at a keyboard, the field in the header at any width, the middle of the
 // tab bar on a phone — all three open this. **What is typed is first a message
-// to Tade** where this device may send one, then the acts this device was
-// granted on the work that matches (allow, deny, done, set aside, tell), then
+// to Tade** where this device may send one, then the acts this device may ask
+// for on the work that matches (allow, deny, done, set aside, tell), then
 // where it could go (`commands.js`): the lit row is what Enter does, and the
 // first row is the message. So talking to the orchestrator, answering an agent
 // and going anywhere are each a press and a word away.
@@ -25,7 +25,6 @@
 // and patched, so a delta that arrives mid-sentence moves nothing under the
 // thumb.
 
-import { mayFor } from './access.js'
 import { afterAnswer, askBody, bodyFor, confirms, controlsFor } from './acts.js'
 import { commandsFor, litOf, movedTo, rememberedWith } from './commands.js'
 import { keyOf } from './controls.js'
@@ -276,10 +275,9 @@ export function palette(ctx) {
   /** The conversation's standing, its last lines, and why there is no message row. */
   const talkIn = () => {
     const talk = talkNow()
-    const may = mayFor(view.store, 'chat')
     // With something typed the list is what matters, and the conversation
     // steps back to its one line of standing.
-    const shown = may && input.value.trim() === '' ? chatOf(view.store).slice(-LINES) : []
+    const shown = input.value.trim() === '' ? chatOf(view.store).slice(-LINES) : []
     keyed(lines, shown, (line) => line.id, createLine, fillLine)
     lines.hidden = shown.length === 0
     const word =
@@ -288,7 +286,7 @@ export function palette(ctx) {
         : talk === null
           ? 'talking off'
           : talk.mine !== true
-            ? 'not granted'
+            ? 'reads only'
             : talk.busy === true
               ? 'answering'
               : 'ready'
@@ -319,7 +317,7 @@ export function palette(ctx) {
     going = true
     const answer = await ctx.ask('POST', path, body)
     going = false
-    const came = afterAnswer(answer, ctx.sentence(answer), ctx.session?.() ?? null)
+    const came = afterAnswer(answer, ctx.sentence(answer))
     if (came.ok) felt()
     answerIn(status, came.said, came.trouble)
     return came

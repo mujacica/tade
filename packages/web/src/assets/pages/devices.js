@@ -1,22 +1,20 @@
 // The devices: this one first — what it is, whether it is connected, how long
-// its session has left, how it reaches the machine and what it was granted —
-// then every device that can reach this machine, its notifications, and what
-// it has itself said to Tade.
+// its session has left, how it reaches the machine and what it may do — then
+// every device that can reach this machine, its notifications, and what it has
+// itself said to Tade.
 //
 // **What somebody opening this page wants** is two answers: *is this device
 // all right*, and *which devices can get in*. So the lead is this device,
 // drawn — its kind, a live mark, its session as a gauge and four facts — and
 // the list of every device is the first thing under it, this one marked and
-// the rest by name, kind and when each was let in. What this device may read
-// and do is a matrix of every grant, on and off, so a grant that is missing
-// can be told from one the page forgot.
+// the rest by name, kind and when each was let in. Every paired device is the
+// person's own and may do everything (`accessOf`); there is nothing to grant.
 //
 // **Nothing here widens anything.** Another device is a name and a date,
 // because that is all `/api/devices` sends about one (`listing`, `src/devices.ts`);
-// where it connects from, what it may do and what it did are the machine's to
-// show, where it is disconnected. Every figure and word is `devices-shape.js`'s.
+// where it connects from and what it did are the machine's to show, where it
+// is disconnected. Every figure and word is `devices-shape.js`'s.
 
-import { mayFor } from '../access.js'
 import { gauge, gaugeIn } from '../charts.js'
 import { classOn, el, into, keyed, skeleton, textIn } from '../dom.js'
 import { icon } from '../icons.js'
@@ -26,13 +24,13 @@ import { chatOf, notesOf } from '../store.js'
 import { TROUBLES, troubleOf, UNKNOWN_TROUBLE } from '../trouble.js'
 import { answerIn, facts, factsIn, panel, problem, problemIn, stateBox, stateBoxIn } from '../ui.js'
 import {
+  accessOf,
   answered,
   leadState,
   listOf,
   listSaid,
   listState,
   liveOf,
-  matrixOf,
   reachOf,
   recentOf,
   recentState,
@@ -70,17 +68,14 @@ export function devicesScreen(ctx) {
   into(top.body, out.said, lead.node)
 
   const every = everyOf(() => void freshen())
-  const grants = grantsOf()
   const telling = notifyingOf(ctx)
   const recent = recentPartOf()
-  // The list and, beside it at a desk, the two short ones; the matrix across
-  // the whole width under both, where its cells sit four abreast. On a phone
-  // it is one column in this order, the matrix last because the lead already
-  // says how much of it is on.
+  // The list and, beside it at a desk, the two short ones. On a phone it is
+  // one column in this order.
   const aside = el('div', { class: 'dv-aside' })
   into(aside, telling.node, recent.node)
   const cols = el('div', { class: 'dv-cols' })
-  into(cols, every.node, aside, grants.node)
+  into(cols, every.node, aside)
   into(node, top.node, cols)
 
   /** `asking` until the list answers, then `done` or `failed`. */
@@ -107,7 +102,6 @@ export function devicesScreen(ctx) {
     textIn(top.figure, list === null ? '' : String(list.length))
     lead.fill(who, rows, view, asked)
     every.fill(list, asked)
-    grants.fill(matrixOf(who))
     telling.fill()
     const store = view.store
     recent.fill(
@@ -117,8 +111,6 @@ export function devicesScreen(ctx) {
               chat: chatOf(store),
               notes: notesOf(store),
               device: who?.device ?? store.you?.device ?? null,
-              mayTalk: mayFor(store, 'chat'),
-              mayNotes: mayFor(store, 'notes'),
             },
             view.asOf,
           )
@@ -183,7 +175,7 @@ function signOutOf(ctx) {
 
 /* ── the lead: this device ─────────────────────────────────────────────────── */
 
-const FACTS = ['Paired', 'Reaches Tade', 'May read', 'May do']
+const FACTS = ['Paired', 'Reaches Tade', 'May do']
 
 function leadOf(retry) {
   const node = el('section', { class: 'ui-panel dv-lead', attrs: { 'aria-label': 'This device' } })
@@ -245,12 +237,11 @@ function leadOf(retry) {
             },
       )
       const reach = reachOf(globalThis.location?.hostname, globalThis.location?.protocol)
-      const grants = matrixOf(session)
+      const access = accessOf(session)
       factsIn(figures, [
         { label: FACTS[0], value: one.ago === null ? null : agoIn(one.ago), under: one.when },
         { label: FACTS[1], value: reach.word, under: reach.under },
-        { label: FACTS[2], value: grants?.readSaid ?? null },
-        { label: FACTS[3], value: grants?.doSaid ?? null },
+        { label: FACTS[2], value: access?.value ?? null, under: access?.under ?? null },
       ])
     },
   }
@@ -265,7 +256,7 @@ function agoIn(ago) {
 
 function everyOf(retry) {
   const made = section('EVERY DEVICE', {
-    hint: 'Every device that can reach this machine, by the name it was paired under. Nothing on that machine is contained — an agent there runs as you and could pair itself — which is why every one is listed. Where a device connects from, what it may do and what it did are shown at the machine, and disconnecting one is done there and needs no network.',
+    hint: 'Every device that can reach this machine, by the name it was paired under, and every one is yours: it may do what you can. Nothing on that machine is contained — an agent there runs as you and could pair itself — which is why every one is listed. Where a device connects from and what it did are shown at the machine, and disconnecting one is done there and needs no network.',
   })
   const sum = el('p', { class: 'dv-sum' })
   const list = panel('ul', 'dv-list')
@@ -326,83 +317,6 @@ function fillDevice(node, one) {
   fresh.hidden = !one.fresh
   textIn(under, one.when === null ? one.kindWord : `${one.kindWord} · paired ${one.when}`)
   textIn(ago, one.ago === null ? '' : agoIn(one.ago))
-}
-
-/* ── what this device may read and do ──────────────────────────────────────── */
-
-function grantsOf() {
-  const made = section('ACCESS', {
-    hint: 'What this device was granted at the machine, one device at a time — and only there: nothing on this page or any other can widen it. The machine asks again at every act, together with its own settings, which can turn a grant off for every device at once.',
-  })
-  const box = panel('div', 'dv-grants')
-  const read = groupOf('May read')
-  const does = groupOf('May do')
-  into(box, read.node, does.node)
-  const coming = skeleton(2)
-  into(made.body, box, coming)
-  return {
-    node: made.node,
-    fill(matrix) {
-      coming.hidden = matrix !== null
-      box.hidden = matrix === null
-      if (matrix === null) return
-      read.fill(matrix.read, matrix.readSaid)
-      does.fill(matrix.does, matrix.doSaid)
-    },
-  }
-}
-
-let groups = 0
-
-function groupOf(heading) {
-  groups += 1
-  const id = `dv-group-${groups}`
-  const node = el('div', { class: 'dv-group' })
-  const head = el('div', { class: 'dv-group-head' })
-  const n = el('span', { class: 'dv-group-n' })
-  into(head, el('h3', { text: heading, attrs: { id } }), n)
-  const cells = el('ul', { class: 'dv-cells', attrs: { 'aria-labelledby': id } })
-  into(node, head, cells)
-  return {
-    node,
-    fill(list, said) {
-      textIn(n, said)
-      keyed(cells, list, (one) => one.key, createCell, fillCell)
-    },
-  }
-}
-
-function createCell() {
-  const node = el('li', { class: 'dv-cell' })
-  const tick = el('span', { class: 'dv-tick', attrs: { 'aria-hidden': 'true' } })
-  const words = el('span', { class: 'dv-cell-words' })
-  into(
-    words,
-    el('span', { class: 'dv-cell-word' }),
-    el('span', { class: 'dv-cell-under' }),
-    el('span', { class: 'sr-only' }),
-  )
-  into(node, tick, words)
-  return node
-}
-
-function fillCell(node, one) {
-  const [tick, words] = node.children
-  const [word, under, sr] = words.children
-  classOn(node, 'is-on', one.on)
-  classOn(node, 'is-floor', one.floor)
-  const drawn = one.on ? 'check' : 'off'
-  if (tick.dataset.drawn !== drawn) {
-    tick.dataset.drawn = drawn
-    tick.replaceChildren(one.on ? icon('check') : el('span', { class: 'dv-dash' }))
-  }
-  textIn(word, one.word)
-  textIn(under, one.under ?? '')
-  under.hidden = one.under === null || one.under === undefined
-  // *On* and *off*, never *not granted*: that is the page's word for content
-  // withheld from this device (`NOT_FOR_A_GRANTED_DEVICE`), and a scope the
-  // machine did not give is not a figure this device was kept from reading.
-  textIn(sr, one.floor ? ', always on' : one.on ? ', on' : ', off')
 }
 
 /* ── notifications ─────────────────────────────────────────────────────────── */

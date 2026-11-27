@@ -4,7 +4,7 @@ import { Copies, copiesFor, copiesHeldOf, copyOf } from '../src/copies.ts'
 import { applyDelta } from '../src/delta.ts'
 import type { Snapshot } from '../src/protocol.ts'
 import { projector } from '../src/reading.ts'
-import { EVERY, input, NOW, reach, task } from './fixtures.ts'
+import { input, NOW, reach, task } from './fixtures.ts'
 
 // Every other machine's copy, as a door passes it on: whole the first time,
 // its change after, gone when it is no longer held — and a change a page's
@@ -15,7 +15,7 @@ const EPOCH = '7f3a9c21-0000-4000-8000-000000000000'
 function snapshot(over: { rev?: number; epoch?: string; title?: string } = {}): Snapshot {
   const made = projector(
     input({
-      reach: reach(EVERY),
+      reach: reach(),
       lifetime: { epoch: over.epoch ?? EPOCH, rev: over.rev ?? 12, openedAt: 1_000_000 },
       tasks: [task({ title: over.title ?? 'Fix the parser' })],
     }),
@@ -25,10 +25,9 @@ function snapshot(over: { rev?: number; epoch?: string; title?: string } = {}): 
 }
 
 describe('who is sent the copies', () => {
-  it('is the person’s own device, and never another machine’s link', () => {
-    expect(copiesFor({ theirs: true }, false)).toBe(true)
-    expect(copiesFor({ theirs: true }, true)).toBe(false)
-    expect(copiesFor({}, false)).toBe(false)
+  it('is every paired phone, and never another machine’s link', () => {
+    expect(copiesFor(reach(), false)).toBe(true)
+    expect(copiesFor(reach(), true)).toBe(false)
   })
 })
 

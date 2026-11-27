@@ -67,8 +67,8 @@ declare module '*/assets/pages/spend-shape.js' {
   export function machinesShape(store: any): { rows: MachineRow[]; total: MachineRow } | null
   export function moneySaid(fold: Fold): string | null
   export function onPlanSaid(fold: Fold): string | null
-  export function noMoneyWhy(fold: Fold, granted: boolean): string
-  export function leadOf(tasks: readonly any[], opts: { granted: boolean; partial: boolean }): Lead
+  export function noMoneyWhy(fold: Fold): string
+  export function leadOf(tasks: readonly any[], opts: { partial: boolean }): Lead
   export function periodOf(since: string | null | undefined, now: number): string | null
   export function wentOf(tasks: readonly any[], by: string, opts?: { partial?: boolean }): Went
   export function plansShape(rows: readonly any[], now: number): Card[]

@@ -24,14 +24,12 @@ import {
 } from '../src/assets/pages/agent-shape.js'
 import { applySnapshot, emptyStore, taskAt } from '../src/assets/store.js'
 import { notShownSaid } from '../src/assets/ui.js'
-import { GRANTS } from '../src/reach.ts'
 import { projector } from '../src/reading.ts'
 import {
   agentHeld,
   blocked,
   checkRun,
   checkTree,
-  EVERY,
   finding,
   input,
   NOW,
@@ -55,9 +53,9 @@ import {
 type Over = Parameters<typeof input>[0]
 
 /** A page's store, filled from the real projection. */
-function held(over: Over = {}, granted = EVERY) {
+function held(over: Over = {}) {
   const store = emptyStore()
-  const made = projector(input({ reach: reach(granted), ...over }), NOW)
+  const made = projector(input({ reach: reach(), ...over }), NOW)
   expect(applySnapshot(store, made.snapshot())).toBeNull()
   return store
 }
@@ -86,8 +84,9 @@ describe('the lead: what it is doing now', () => {
     const store = held({ tasks: [blocked()] })
     const now = nowOf(rowOf(store, 'sentry/blocked'), NOW)
     expect(now.loud).toBe('wants')
-    // A device that may not answer was sent no command, and draws none.
-    expect(now.waiting).toEqual({ tool: 'Bash', for: '10m', command: null })
+    // Every paired device may answer, so every one is sent what it would allow.
+    expect(now.waiting).toMatchObject({ tool: 'Bash', for: '10m' })
+    expect(now.waiting?.command?.text).toContain('Bash:')
     const failed = nowOf(rowOf(held({ tasks: [task({ mark: 'failed' })] })), NOW)
     expect(failed.loud).toBe('failed')
   })
@@ -230,16 +229,7 @@ describe('its money', () => {
     expect(paid.since).toMatch(/^since \d\d:\d\d$/)
   })
 
-  it('draws not granted and not recorded as two different dashes', () => {
-    const withheld = held(
-      {},
-      GRANTS.filter((one) => one !== 'spend'),
-    )
-    expect(spendOf(rowOf(withheld), withheld)).toMatchObject({
-      value: null,
-      why: 'not granted',
-      share: null,
-    })
+  it('draws a figure nobody recorded as a dash that says so', () => {
     const free = { ...spend(0), hasCost: false }
     const unrecorded = held({ tasks: [task({ spend: free })] })
     expect(spendOf(rowOf(unrecorded), unrecorded)).toMatchObject({
@@ -316,31 +306,26 @@ describe('the facts about it', () => {
     expect(cell(cells, 'Done when')?.value).toBe('its branch is merged into the base')
   })
 
-  it('says not granted where that is why, and names a shared checkout', () => {
-    const store = held({}, [])
+  it('says the account it runs as, and names a shared checkout', () => {
+    const store = held()
     const cells = aboutOf(rowOf(store), store, NOW)
-    expect(cell(cells, 'Account')?.value).toBe('not granted')
+    expect(cell(cells, 'Account')?.value).not.toBe('not granted')
     expect(cell(cells, 'Workspace')).toMatchObject({ value: 'shared checkout' })
     expect(cell(cells, 'Asked by')?.value).toBe('the orchestrator')
   })
 
-  it('counts the findings about it only where the device may read them', () => {
+  it('counts the findings about it, and says nothing where there are none', () => {
     const store = held({ findings: [finding(), finding({ key: 'two', tasks: ['tade/window'] })] })
-    expect(findingsOf(rowOf(store), store)).toEqual({ may: true, n: 1, said: '1 finding' })
-    const none = held({}, [])
-    expect(findingsOf(rowOf(none), none)).toEqual({ may: false, n: 0, said: null })
+    expect(findingsOf(rowOf(store), store)).toEqual({ n: 1, said: '1 finding' })
+    const none = held({ findings: [] })
+    expect(findingsOf(rowOf(none), none)).toEqual({ n: 0, said: null })
   })
 })
 
 describe('its timeline', () => {
   /** What the agent's own answer carries, through the real projection. */
   function answerOf(activity: ActivityIn[], earlier: string | null = null) {
-    return agentOf(
-      reach(EVERY),
-      [task()],
-      'sentry/away-projection',
-      agentHeld({ activity, earlier }),
-    )
+    return agentOf(reach(), [task()], 'sentry/away-projection', agentHeld({ activity, earlier }))
   }
 
   let made = 0
@@ -488,12 +473,6 @@ describe('its timeline, read on to its first moment', () => {
 
 describe('its screen, where there is none', () => {
   it('says each absence as a heading and what to do about it, and only a failed read as wrong', () => {
-    expect(whyOf('not granted')).toEqual({
-      kind: 'empty',
-      icon: 'devices',
-      title: 'Screen not granted',
-      line: 'grant it at the machine',
-    })
     expect(whyOf('no agent')).toMatchObject({
       kind: 'empty',
       title: 'No agent running',

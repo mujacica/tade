@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { CARRY_SCHEMA, keyDigest, type SettingGroup } from '@tade/core'
-import { digestOf, GRANTS, SCOPES, writeDevices } from '@tade/web'
+import { digestOf, writeDevices } from '@tade/web'
 import type { AccountView } from '@tade/workbench/accounts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
@@ -55,9 +55,6 @@ async function owner(home: string, port: number): Promise<void> {
       host: `127.0.0.1:${port}`,
       csrf: 'x'.repeat(43),
       until: new Date(Date.now() + 86_400_000).toISOString(),
-      scopes: [...SCOPES],
-      projects: null,
-      granted: [...GRANTS],
       from: '',
       owner: true,
     },
@@ -188,11 +185,11 @@ describe('a carry into this window', () => {
     ])
   })
 
-  it('writes for the person’s own phone, a device with full access, as that device', async () => {
-    // `Route.theirs`: the person decided their own phone may do what they can,
-    // and it already changes every setting from Settings, keys included.
+  it('writes for the person’s own phone, as that device', async () => {
+    // Every paired phone is the person's own: it may do what they can, and it
+    // already changes every setting from Settings, keys included.
     const one = await machine({ realKeys: true })
-    await paired(one.home, one.port, [...SCOPES], [...GRANTS])
+    await paired(one.home, one.port)
     await one.away.open()
     const answer = await carried(one.port, {
       from: 'phone',
@@ -201,20 +198,6 @@ describe('a carry into this window', () => {
     })
     expect(answer.status).toBe(200)
     expect(fileOf(one.home).agents?.commit).toBe('never')
-  })
-
-  it('is refused to a phone with one box unticked', async () => {
-    const one = await machine({ realKeys: true })
-    await paired(one.home, one.port, [...SCOPES], GRANTS.slice(1))
-    await one.away.open()
-    const answer = await carried(one.port, {
-      from: 'phone',
-      schema: CARRY_SCHEMA,
-      settings: [{ path: 'agents.commit', value: 'never' }],
-    })
-    expect(answer.status).toBe(403)
-    expect(answer.body.error).toBe('out_of_scope')
-    expect(fileOf(one.home).agents?.commit).toBeUndefined()
   })
 })
 

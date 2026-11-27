@@ -1,10 +1,7 @@
 import type { IncomingMessage } from 'node:http'
 import { z } from 'zod'
-import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
-import { type Reach, sees } from './reach.ts'
 import { readBody } from './request.ts'
-import { ownsOrTheirs, reachOf } from './surface.ts'
 
 // Where this machine's projects are checked out, and the branches their work
 // is on: what another machine of the person's needs to fetch that work into a
@@ -16,12 +13,10 @@ import { ownsOrTheirs, reachOf } from './surface.ts'
 // already was is who may ask and where: an owner is the SSH key (`owner.ts`),
 // this machine's own door from anywhere else is that same SSH connection, and
 // the fetch it is for goes over it too — whoever holds the key can already
-// `ssh` in and `cd` there. A phone's session is refused it however much it was
-// granted (`out_of_scope`), and the public listener answers the `404` of a
-// path nobody built — **but the person's own** (`Route.theirs`, `theirsOf`),
-// on any door, because a path on their own machine is theirs to be told; off
-// this machine's door it is asked a trusted origin and the passkey. Within
-// what the device reads: a project the window took back from it is left out.
+// `ssh` in and `cd` there. **And a paired device's**, on any door, because
+// every one is the person's own and a path on their own machine is theirs to
+// be told; off this machine's door it is asked a trusted origin and the
+// passkey.
 //
 // **No credential in it.** What names each repository is `repositoryNamed`'s
 // answer — `github.com/owner/name` — never the remote URL, which may hold one.
@@ -91,37 +86,32 @@ export type WebRepositories = () => Promise<readonly RepositoryHere[]>
 /** The route. `repositories` absent is a window that did not wire it: the `404` of a path nobody built. */
 export async function repositoriesHere(
   req: IncomingMessage,
-  device: Device,
   repositories: WebRepositories | undefined,
 ): Promise<{ body: RepositoriesAnswer } | { refusal: Refusal }> {
   if (repositories === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   if (!z.strictObject({}).safeParse(got.body).success) return { refusal: refuse('malformed') }
-  return { body: repositoriesFor(await repositories(), reachOf(device)) }
+  return { body: repositoriesFor(await repositories()) }
 }
 
-/** What one device is answered: the projects it reads, each within the bounds. */
-export function repositoriesFor(all: readonly RepositoryHere[], reach: Reach): RepositoriesAnswer {
-  const projects = all
-    .filter((one) => sees(reach, one.project))
-    .slice(0, REPOSITORIES_MOST)
-    .map((one) => ({
-      ...one,
-      base: named(one.base),
-      ...(one.baseHead === undefined
-        ? {}
-        : { baseHead: one.baseHead !== null && HEAD.test(one.baseHead) ? one.baseHead : null }),
-      branches: one.branches
-        .filter((branch) => BRANCH.test(branch.branch))
-        .slice(0, BRANCHES_MOST)
-        .map((branch) => ({
-          ...branch,
-          base: named(branch.base),
-          head: branch.head !== null && HEAD.test(branch.head) ? branch.head : null,
-        })),
-    }))
+/** What a device is answered: every project, each within the bounds. */
+export function repositoriesFor(all: readonly RepositoryHere[]): RepositoriesAnswer {
+  const projects = all.slice(0, REPOSITORIES_MOST).map((one) => ({
+    ...one,
+    base: named(one.base),
+    ...(one.baseHead === undefined
+      ? {}
+      : { baseHead: one.baseHead !== null && HEAD.test(one.baseHead) ? one.baseHead : null }),
+    branches: one.branches
+      .filter((branch) => BRANCH.test(branch.branch))
+      .slice(0, BRANCHES_MOST)
+      .map((branch) => ({
+        ...branch,
+        base: named(branch.base),
+        head: branch.head !== null && HEAD.test(branch.head) ? branch.head : null,
+      })),
+  }))
   return { projects }
 }
 

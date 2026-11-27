@@ -168,7 +168,7 @@ function heroOf() {
       factsIn(about, [
         { label: 'checks', value: checks.word, tone: checks.tone },
         // **Which dash it is, said in the one place with room for it.** Not
-        // granted, not recorded and nought are three different mornings.
+        // recorded and nought are two different mornings.
         { label: 'cost', value: costSaid(row.usd, view) },
         {
           label: 'workflow',
@@ -281,7 +281,7 @@ function fillStep(item, step, row, names, view) {
   link.setAttribute('href', taskPath(step.task))
   textIn(link, names.get(step.task) ?? step.name)
   // A step's cost only where it has one: nought on a step no agent has been
-  // on is not worth a column, and *not granted* is said once, in the facts.
+  // on is not worth a column, and *not recorded* is said once, in the facts.
   const paid = paidOf(step.usd, view, step.usd !== null && step.usd > 0)
   textIn(cost, paid.said === '—' ? '' : paid.said)
   const [project, words] = meta.children

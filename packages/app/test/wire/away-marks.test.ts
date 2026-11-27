@@ -76,7 +76,7 @@ const notSteerable = () => ({ how: null, why: 'nothing here' })
 
 function rows(world: Workspace, live: Beatable) {
   const made = awayCollections(beatParts(live, world, notSteerable))
-  const reach = reachOf({ id: 'aaaaaaaaaaaaaaaa', projects: null, granted: [] })
+  const reach = reachOf({ id: 'aaaaaaaaaaaaaaaa' })
   const lifetime = { epoch: 'e', rev: 0, openedAt: NOW }
   return projector({ ...made, talk: null, reach, lifetime }, NOW).snapshot().tasks
 }

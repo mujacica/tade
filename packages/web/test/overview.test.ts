@@ -14,18 +14,7 @@ import {
 import { applyCopy, applySnapshot, emptyStore } from '../src/assets/store.js'
 import { PROTOCOL_VERSION } from '../src/protocol.ts'
 import { projector } from '../src/reading.ts'
-import {
-  blocked,
-  EVERY,
-  input,
-  NOW,
-  plan,
-  project,
-  queued,
-  reach,
-  spend,
-  task,
-} from './fixtures.ts'
+import { blocked, input, NOW, plan, project, queued, reach, spend, task } from './fixtures.ts'
 
 // The overview's figures — the board, the money, the plan windows and the
 // projects' grid — held here with no browser.
@@ -33,13 +22,12 @@ import {
 // **What this cannot see is how any of it looks**, which is the browser
 // harness's (`scripts/browser.ts`). What it can see is that every figure is the
 // projection's own count, grouped and worded and never decided again; that a
-// figure nobody could read is a dash with *which* dash; and that nothing a
-// device was not granted turns into a nought.
+// figure nobody could read is a dash with *which* dash, never a nought.
 
 /** A page's store, filled from the real projection. */
-function held(over = {}, granted = EVERY) {
+function held(over = {}) {
   const store = emptyStore()
-  const made = projector(input({ reach: reach(granted), ...over }), NOW)
+  const made = projector(input({ reach: reach(), ...over }), NOW)
   expect(applySnapshot(store, made.snapshot())).toBeNull()
   return store
 }
@@ -223,13 +211,6 @@ describe('the money', () => {
     expect(moneyOf(store).value).toBe('≥$5.00')
   })
 
-  it('is a dash and the words for it when this device was not granted it — never a nought', () => {
-    const paid = moneyOf(held({}, []))
-    expect(paid.value).toBeNull()
-    expect(paid.under).toBe('not granted')
-    expect(paid.top).toEqual([])
-  })
-
   it('is a dash and the words for it where nobody wrote any down', () => {
     const paid = moneyOf(held({ tasks: [task({ spend: spend(0) })] }))
     expect(paid.value).toBeNull()
@@ -296,22 +277,9 @@ describe('the plan windows', () => {
     expect(gauges[0]?.under).toBe('7d · claude-code\n@personal\nnew agents')
     expect(gauges[1]?.under).toBe('7d · claude-code\n@vrolta\norchestrator')
     expect(gauges[2]?.under).toBe('claude-code · cannot tell')
-
-    // A device sent no names still tells them apart, by their place alone.
-    const nameless = gaugesOf(held({ plans }, ['spend']), NOW)
-    expect(nameless.map((one) => one.who)).toEqual([
-      'claude-code #2',
-      'claude-code #3',
-      'claude-code · cannot tell',
-      'codex · cannot tell',
-    ])
-    expect(nameless.map((one) => one.marks)).toEqual(['', '', '', ''])
   })
 
-  it('says not granted, none reported and cannot tell as three dashes, never a gauge at nought', () => {
-    expect(gaugesOf(held({}, []), NOW)).toMatchObject([
-      { share: null, said: null, under: 'not granted to this device' },
-    ])
+  it('says none reported and cannot tell as two dashes, never a gauge at nought', () => {
     expect(gaugesOf(held({ plans: [] }), NOW)).toMatchObject([
       { share: null, under: 'none reported' },
     ])
@@ -365,7 +333,7 @@ describe('the projects’ grid', () => {
     const theirs = (projects: string[]) =>
       projector(
         input({
-          reach: reach(EVERY),
+          reach: reach(),
           projects: projects.map((name) => project({ name })),
           tasks: projects.map((name) => task({ id: `${name}/x`, project: name })),
         }),
@@ -388,9 +356,8 @@ describe('the projects’ grid', () => {
     expect(new Set(rows.map((one) => one.key)).size).toBe(rows.length)
   })
 
-  it('says its money, and the dash’s own word where this device may not read it', () => {
+  it('says its money', () => {
     expect(projectRowsOf(held())[0]).toMatchObject({ spend: '$3.75', spendWhy: '' })
-    expect(projectRowsOf(held({}, []))[0]).toMatchObject({ spend: null, spendWhy: 'not granted' })
   })
 })
 

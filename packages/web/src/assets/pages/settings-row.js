@@ -17,9 +17,8 @@
 //   person's own device, whose key rows carry `sets` and a hidden box to type
 //   a new one into, which is what is sent and never what was shown.
 // - **A reason only to a device that may change anything.** `settingStanding`
-//   is `off` for one that was not granted changing settings, and then a row
-//   says nothing about controls at all: a sentence naming a scope somebody does
-//   not have is a map of what else to ask for.
+//   is `off` for one that cannot act (paired in the clear), and then a row
+//   says nothing about controls at all.
 // - **Two presses, and the body's own `confirm: true`**: the press stops a
 //   mis-tap, the literal means no body says *do not*. Leaving the press puts it
 //   back, so a first tap left behind is not a second one waiting.
@@ -275,7 +274,7 @@ function editorFor(row, opts) {
     armed = false
     press.disabled = false
     word()
-    const came = afterAnswer(got, opts.ctx.sentence(got), opts.ctx.session?.() ?? null)
+    const came = afterAnswer(got, opts.ctx.sentence(got))
     answerIn(said, came.said, came.trouble)
     // What is true now goes into the row, and the box is emptied only by a
     // `200`: a `409` is the world having moved, not a reason to throw away a

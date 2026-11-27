@@ -1,7 +1,6 @@
 import type { Reach } from './reach.ts'
 import { inTime } from './request.ts'
 import type { ServerOptions } from './serving.ts'
-import type { Scope } from './surface.ts'
 import { verbFor } from './verbs.ts'
 
 // One agent's menu, as the window's own row offers it, for a device to draw
@@ -17,13 +16,11 @@ import { verbFor } from './verbs.ts'
 // and the window's are one function of one agent, and an item the window
 // turns off is off on the phone with the same reason.
 //
-// **What a device may not ask is not drawn, not drawn off**: an item whose
-// verb needs a scope it was not granted, or that is the person's own device's
-// alone (`Verb.theirs`), is left out — a sentence naming a scope somebody does
-// not have is a map of what else there is to ask for. The items that are the
-// page's own (open its screen, copy its branch) stay, because they ask
-// nothing of the machine. **Possible, never permitted**: the gate asks the
-// scope, the device and the state again at the act.
+// **What a device may not ask is not drawn, not drawn off**: with acting
+// turned off every act is left out. The items that are the page's own (open
+// its screen, copy its branch) stay, because they ask nothing of the machine.
+// **Possible, never permitted**: the gate asks the setting, the device and the
+// state again at the act.
 //
 // Asked when somebody opens the menu, never on a beat: a model list is a
 // question to the agent's harness (Codex runs a program to answer), so it is
@@ -82,15 +79,11 @@ export interface AgentMenuIn {
 }
 
 /**
- * The window's half: one agent's menu, built when it is asked.
- *
- * `theirs` is whether the asking device is the person's own, so the window
- * can leave out what only matters to it (an account list, the machines) for
- * everybody else rather than reading them for nothing. Null where the task is
- * not one the window has.
+ * The window's half: one agent's menu, built when it is asked. Null where the
+ * task is not one the window has.
  */
 export interface WebMenus {
-  menu(task: string, theirs: boolean): Promise<AgentMenuIn | null>
+  menu(task: string): Promise<AgentMenuIn | null>
 }
 
 /** What the page is answered. */
@@ -103,17 +96,14 @@ export interface AgentMenuOut {
   why: string | null
 }
 
-/** What a device may ask, as the menu needs it: its scopes, whether acting is on, whether it is theirs. */
+/** What a device may ask, as the menu needs it: whether acting is on. */
 export interface MenuStanding {
-  scopes: readonly Scope[]
   acting: boolean
-  theirs: boolean
 }
 
 /**
- * Leave out what this device may not ask for: an act it was not granted the
- * scope of, one that is the person's own device's alone, and every act at all
- * where acting is off. The page's own items stay. Dividers move with what is
+ * Leave out what no device may ask for here: an act that is not a verb, and
+ * every act at all where acting is off. The page's own items stay. Dividers move with what is
  * left, so a menu never opens on a rule.
  */
 export function menuFor(items: readonly MenuItemIn[], standing: MenuStanding): MenuItemIn[] {
@@ -121,9 +111,7 @@ export function menuFor(items: readonly MenuItemIn[], standing: MenuStanding): M
     const act = item.act
     if (act.kind === 'page' || act.kind === 'here') return true
     const verb = verbFor(act.verb)
-    if (verb === null || !standing.acting) return false
-    if (!standing.scopes.includes(verb.needs)) return false
-    return verb.theirs !== true || standing.theirs
+    return verb !== null && standing.acting
   })
   return kept.map((item, at) => (at === 0 && item.divider ? { ...item, divider: false } : item))
 }
@@ -147,11 +135,7 @@ export async function menuHere(
   }
   // A window that threw is the server's to say: its one catch answers `broke`
   // with a request id and writes the detail as a warning at the machine.
-  const built = await inTime<AgentMenuIn | null | 'late'>(
-    opts.menus.menu(task, standing.theirs),
-    MENU_MS,
-    'late',
-  )
+  const built = await inTime<AgentMenuIn | null | 'late'>(opts.menus.menu(task), MENU_MS, 'late')
   if (built === 'late') {
     return { task, here, items: [], why: 'the machine took too long to say what it offers' }
   }

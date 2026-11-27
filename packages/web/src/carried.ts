@@ -40,7 +40,6 @@ import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
-import { ownsOrTheirs } from './surface.ts'
 
 export { type CarryLine, type ChangeSeen, changesIn, type HandEdit }
 
@@ -56,13 +55,10 @@ export { type CarryLine, type ChangeSeen, changesIn, type HandEdit }
 // connection, and only an owner device may use it — a session `tade web pair
 // --owner` minted through that same SSH key. **It is the one route that can
 // write a key, and that is what makes it no wider than what already was**:
-// whoever holds that key can already `ssh` here and edit `config.yaml`. A
-// phone's session, however much it was granted, is refused it — **but the
-// person's own** (`Route.theirs`, `theirsOf`: full access, a phone or an
-// owner's link), on any door, which already changes every setting from Settings, keys
-// included. The person decided it: their
-// phone is the screen they can pull the plug on — and off this machine's door
-// it is asked a trusted origin and the passkey, as acting is.
+// whoever holds that key can already `ssh` here and edit `config.yaml`. **And
+// a paired device's**, on any door: every one is the person's own and already
+// changes every setting from Settings, keys included — and off this machine's
+// door it is asked a trusted origin and the passkey, as acting is.
 //
 // **This machine decides, not the one sending.** Every path is asked of
 // `carryOf` again here, so a path that is this machine's own is refused
@@ -609,7 +605,6 @@ export async function carryHere(
   res: Answering,
 ): Promise<{ body: CarryAnswer } | { refusal: Refusal }> {
   if (carrying === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const parsed = CarryBody.safeParse(got.body)

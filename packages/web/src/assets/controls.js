@@ -26,9 +26,8 @@ import { answerIn } from './ui.js'
 /**
  * Every control this page has, as one block per verb.
  *
- * **Absent rather than refused, three times over.** A verb this device was not
- * granted is not built at all and says nothing — a sentence naming a scope
- * somebody does not have is a map of what else there is to ask for. A verb the
+ * **Absent rather than refused, three times over.** A verb this device cannot
+ * ask for (paired in the clear) is not built at all and says nothing. A verb the
  * *world* cannot do right now is absent with the row's own reason beside it.
  * And what every one of them sends is the task's own `rev`: what the screen
  * said, echoed back, so an act against a world that has moved is a `409` that
@@ -49,7 +48,7 @@ export function actsIn(node, ctx, verbs = SHOWN) {
   }
   return {
     update(row, view) {
-      const acts = view.may.acts ?? { answer: false, steer: false }
+      const acts = view.may.acts ?? { steer: false }
       for (const one of controlsFor(row, acts, verbs)) {
         blocks.get(one.verb)?.update(row, one)
       }
@@ -101,7 +100,7 @@ function blockFor(verb, ctx) {
     going = false
     press.disabled = false
     if (deny !== null) deny.disabled = false
-    const came = afterAnswer(answer, ctx.sentence(answer), ctx.session?.() ?? null)
+    const came = afterAnswer(answer, ctx.sentence(answer))
     answerIn(said, came.said, came.trouble)
     // **Only what actually happened clears the box.** A `409` is the world
     // having moved, and throwing away a paragraph somebody typed on a phone
@@ -151,7 +150,7 @@ function blockFor(verb, ctx) {
     node: part.node,
     update(task, standing) {
       held = task
-      // Nothing at all for a verb this device was not granted: no heading, no
+      // Nothing at all for a verb this device cannot ask for: no heading, no
       // reason, no control.
       part.node.hidden = standing.kind === 'off'
       if (standing.kind === 'off') return

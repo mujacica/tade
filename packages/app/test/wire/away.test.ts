@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ConfigSchema, LAN_IS_PLAINTEXT_SHORT, LOCAL, startOfToday } from '@tade/core'
-import { GRANTS, readDevices, SCOPES, writeDevices } from '@tade/web'
+import { readDevices, writeDevices } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Live } from '../../src/live.ts'
 import { type AppState, initialState, withTasks } from '../../src/model.ts'
@@ -525,13 +525,13 @@ describe('letting a device in', () => {
     expect(decided).toEqual([true])
   })
 
-  it('grants everything on a yes: the owner opts out, not in', async () => {
+  it('lets it in on a yes, with nothing to choose: every paired device is the person’s own', async () => {
     const { away } = await wiring({ web: { enabled: true } })
     await away.open()
     const asked = asking(away)
     await away.decide(true)
     const said = await asked
-    expect(said).toEqual({ let: true, projects: null, granted: GRANTS, scopes: SCOPES })
+    expect(said).toEqual({ let: true })
   })
 
   it('refuses on a no, and says which it was', async () => {
@@ -684,15 +684,14 @@ describe('what the panel is told', () => {
     expect(view.problem).toContain('could not be read')
   })
 
-  it('shows every device there is, with what each may read', async () => {
+  it('shows every device there is, by name', async () => {
     const { away, home } = await wiring({ web: { enabled: true } })
     await away.open()
     await twoPaired(home)
     await away.reread()
     const view = await viewOf(away)
     expect(view.devices.map((one) => one.label)).toEqual(['iPhone', 'MacBook'])
-    expect(view.devices[0]?.reads).toEqual(['notes'])
-    expect(view.devices[1]?.reads).toEqual([])
+    expect(view.devices.map((one) => one.from)).toEqual(['your network', 'your network'])
   })
 })
 
@@ -801,18 +800,18 @@ function asking(away: Away) {
 /** One paired device in the file, and the away view told about it. */
 async function paired(away: Away): Promise<void> {
   const home = (away as unknown as { wire: { opts: { home: string } } }).wire.opts.home
-  await writeDevices(home, [device('00112233445566aa', 'iPhone', ['notes'])])
+  await writeDevices(home, [device('00112233445566aa', 'iPhone')])
   await away.reread()
 }
 
 async function twoPaired(home: string): Promise<void> {
   await writeDevices(home, [
-    device('00112233445566aa', 'iPhone', ['notes']),
-    device('00112233445566bb', 'MacBook', []),
+    device('00112233445566aa', 'iPhone'),
+    device('00112233445566bb', 'MacBook'),
   ])
 }
 
-function device(id: string, label: string, granted: string[]) {
+function device(id: string, label: string) {
   return {
     kind: 'paired' as const,
     device: id,
@@ -822,9 +821,6 @@ function device(id: string, label: string, granted: string[]) {
     host: '127.0.0.1:7654',
     csrf: 'x'.repeat(43),
     until: new Date(1_000 + 86_400_000).toISOString(),
-    scopes: ['read' as const],
-    projects: null,
-    granted: granted as ('notes' | 'titles')[],
     from: '192.168.1.42',
   }
 }
@@ -838,9 +834,5 @@ function readingOf(away: Away) {
       }
     }
   ).readingFor
-  return made.call(away, {
-    device: '00112233445566aa',
-    projects: { kind: 'every' },
-    granted: [],
-  })
+  return made.call(away, { device: '00112233445566aa' })
 }

@@ -2,15 +2,13 @@ import { READY, said } from '../test/browser-plan.ts'
 import { until } from './browser-until.ts'
 
 // `queue`: a piece of queued work down the side, pressed the way a person
-// would, on the device `browser.ts` granted both acting tiers — at a small
+// would, on the acting device `browser.ts` paired — at a small
 // phone's width and a large one's.
 //
 // Its ⋯ is a whole target, a tap on it opens the window's own queued-work menu
 // read off the machine, holding the row down opens the same menu without
 // following the link, and a tap on one of its items asks the window for
-// exactly one act, through the same door every control uses. What the device
-// was not granted is not on the menu: removing queued work is the person's own
-// device's alone, and this one is not theirs.
+// exactly one act, through the same door every control uses.
 
 type Verdict = 'pass' | 'fail' | 'unrun'
 type Found = (check: string, where: string, verdict: Verdict, what: string) => void
@@ -112,7 +110,6 @@ export async function queueAt(
       for (const want of ['Start now', 'Do this one first', 'Pause', 'Wait for a retry']) {
         if (!items.includes(want)) throw new Error(`its menu has no ${want}: ${items.join(', ')}`)
       }
-      if (items.includes('Remove')) throw new Error('its menu offers Remove to a device not theirs')
 
       // A tap on Pause asks for exactly one act: the queue's, about this task.
       const before = asked.length

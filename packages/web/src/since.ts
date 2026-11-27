@@ -1,12 +1,10 @@
 import type { IncomingMessage } from 'node:http'
 import type { SinceHere, SinceItem } from '@tade/core'
 import { z } from 'zod'
-import { projectOf } from './acting.ts'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
-import { has, type Reach, sees } from './reach.ts'
+import type { Reach } from './reach.ts'
 import { readBody } from './request.ts'
-import { ownsOrTheirs } from './surface.ts'
 
 // "Since you were here": the card another machine of the person's draws once,
 // when its link to this one comes back — what finished,
@@ -18,13 +16,10 @@ import { ownsOrTheirs } from './surface.ts'
 // **An owner's, and only at this machine's own door** (`here` in `routes.ts`),
 // like the presence it is folded from: the person at another of their screens
 // asking this machine what they missed, through the SSH connection that is
-// their key. A phone's session is refused it however much it was granted — a
-// phone pairs with this machine and reads its projection — and the public
-// listener answers the `404` of a path nobody built, **but the person's own**
-// (`Route.theirs`), on any door: coming back to their phone is the same
-// question as coming back to the Mac. The person decided it: their
-// phone is the screen they can pull the plug on — and off this machine's door
-// it is asked a trusted origin and the passkey, as acting is.
+// their key — **or a paired phone**, every one of which is the person's own, on
+// any door: coming back to their phone is the same question as coming back to
+// the Mac. Off this machine's door it is asked a trusted origin and the
+// passkey, as acting is.
 //
 // **The moment they came back is told as an age**, never a moment
 // (`presence.ts`' rule, for its reason: two machines are two clocks). `back`
@@ -33,9 +28,7 @@ import { ownsOrTheirs } from './surface.ts'
 // stretch the person is in now — so the presence their link carried a breath
 // before it asked cannot make the card empty.
 //
-// **Within what the device reads, and capped with a count.** Each row is about
-// a task, and a task in a project the window took back from this device is
-// left out, not counted; money only where `spend` is granted. A list is cut
+// **Capped with a count.** A list is cut
 // at `SINCE_MOST` and says how many more there were — a catch-up that quietly
 // holds the first eight of forty is one that answers "is anything waiting for
 // me" wrongly. It changes nothing and writes nothing.
@@ -66,7 +59,7 @@ export const SinceAnswerSchema = z.strictObject({
   documents: ListSchema,
   held: ListSchema,
   proposed: ListSchema,
-  /** What the agents here spent since; null where `spend` is not granted, or nothing is since. */
+  /** What the agents here spent since; null where nothing is since. */
   spend: z.strictObject({ usd: z.number(), tokens: z.number(), hasCost: z.boolean() }).nullable(),
 })
 export type SinceAnswer = z.infer<typeof SinceAnswerSchema>
@@ -77,20 +70,20 @@ export type WebSince = (device: Device, cut: number) => Promise<SinceAnswer>
 const NONE = { rows: [], more: 0 }
 
 /**
- * The card, out of the fold and what is waiting now, for one device's reach.
+ * The card, out of the fold and what is waiting now.
  * `here` is null where this machine has never counted the person present,
  * which is a first link and has nothing to catch up on.
  */
 export function sinceAnswerOf(
   here: SinceHere | null,
   waiting: readonly SinceItem[],
-  reach: Reach,
+  _reach: Reach,
 ): SinceAnswer {
   if (here === null) {
     return {
       since: null,
       finished: NONE,
-      waiting: listOf(waiting, reach),
+      waiting: listOf(waiting),
       documents: NONE,
       held: NONE,
       proposed: NONE,
@@ -100,20 +93,17 @@ export function sinceAnswerOf(
   const spent = here.spend
   return {
     since: new Date(here.since).toISOString(),
-    finished: listOf(here.finished, reach),
-    waiting: listOf(waiting, reach),
-    documents: listOf(here.documents, reach),
-    held: listOf(here.held, reach),
-    proposed: listOf(here.proposed, reach),
+    finished: listOf(here.finished),
+    waiting: listOf(waiting),
+    documents: listOf(here.documents),
+    held: listOf(here.held),
+    proposed: listOf(here.proposed),
     spend:
-      has(reach, 'spend') && spent.tokens > 0
-        ? { usd: spent.usd, tokens: spent.tokens, hasCost: spent.hasCost }
-        : null,
+      spent.tokens > 0 ? { usd: spent.usd, tokens: spent.tokens, hasCost: spent.hasCost } : null,
   }
 }
 
-function listOf(items: readonly SinceItem[], reach: Reach): SinceAnswer['finished'] {
-  const seen = items.filter((one) => sees(reach, projectOf(one.task)))
+function listOf(seen: readonly SinceItem[]): SinceAnswer['finished'] {
   return {
     rows: seen.slice(0, SINCE_MOST).map((one) => ({
       task: one.task.slice(0, 200),
@@ -136,7 +126,6 @@ export async function sinceHereFor(
   since: WebSince | undefined,
 ): Promise<{ body: SinceAnswer } | { refusal: Refusal }> {
   if (since === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const parsed = SinceBody.safeParse(got.body)

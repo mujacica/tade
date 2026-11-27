@@ -5,7 +5,6 @@ import {
   type Listener,
   loopbackHost,
   type Origin,
-  type Scope,
   type Surface,
   sameHost,
   thisMachine,
@@ -47,7 +46,9 @@ import {
 // 5. **The token** — a per-session value in a header a form cannot set.
 // 6. **The session** — present, not expired, not revoked, and minted for
 //    *this* host.
-// 7. **The scope** — what the device was granted, against what the route needs.
+// 7. **The origin, for an act** — anything above `read` needs a trusted origin
+//    and a session that was not paired in the clear (`Device.clear`). Every
+//    paired device is the person's own, so there is no scope to ask beyond it.
 // 8. **The passkey** — from the public listener, anything above `read` needs a
 //    proof younger than `passkey_hours` (`proven`), so a session copied off a
 //    phone reads and cannot act.
@@ -102,9 +103,9 @@ export interface Asking {
   listener: Listener
 }
 
-/** What the guard concluded: the session's device and scopes, or a refusal. */
+/** What the guard concluded: the session's device, or a refusal. */
 export type Verdict =
-  | { ok: true; device: string; scopes: readonly Scope[]; origin: Origin }
+  | { ok: true; device: string; origin: Origin }
   | { ok: false; refusal: Refusal; why: string }
 
 /** What a guard needs to know beyond the request itself. */
@@ -131,7 +132,6 @@ export interface Guarding {
 /** A session, as the guard reads one. Minting and storing it is `sessions.ts`. */
 export interface Session {
   device: string
-  scopes: readonly Scope[]
   /**
    * The exact `Host` this session was minted for.
    *
@@ -144,8 +144,11 @@ export interface Session {
   csrf: string
   /** When this device last used its passkey, or null for never (`proven`). */
   proved: number | null
-  /** Whether it is the person's own device at this request (`theirsOf`), for `Route.theirs`. */
-  theirs?: boolean
+  /**
+   * Paired in the clear (`Device.clear`): it reads and never acts. Absent is
+   * no, for a session made anywhere but the device list.
+   */
+  clear?: boolean
 }
 
 /**
@@ -331,11 +334,12 @@ export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdi
   // so it is the `404` an absent path is and never a `403` that says it exists.
   // Asked of the listener and the `Host` both (`thisMachine`): the proxy's
   // socket never gets as far as one, whatever it is told.
-  // **The person's own device is the one exception** (`Route.theirs`): asked of
-  // the record at this request, before anything that would say the path
-  // exists, so every other device and nobody at all still meet the `404`.
+  // **A paired device is the one exception**, because every one is the
+  // person's own: asked before anything that would say the path exists, so
+  // nobody at all still meets the `404`, and a device is then asked
+  // everything below an act of its is, whatever the route needs.
   const away = route.here === true && !thisMachine(origin)
-  if (away && (route.theirs !== true || guarding.session?.theirs !== true)) {
+  if (away && guarding.session === null) {
     return no('no_such', `${route.name} is answered on this machine alone`)
   }
   // **A delivery is not a browser's request** (`hooked.ts`): no browser sends
@@ -349,11 +353,11 @@ export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdi
     if (origin.listener !== 'public') {
       return no('no_such', `${route.name} is answered on the public listener alone`)
     }
-    return { ok: true, device: '', scopes: [], origin }
+    return { ok: true, device: '', origin }
   }
-  // **Off this machine's door a connect page or press is the person's own
-  // device's** (`theirs`, let through above for that session alone), so it is
-  // asked everything below that any act of theirs is — the session, its token,
+  // **Off this machine's door a connect page or press is a paired device's**
+  // (let through above for a session alone), so it is
+  // asked everything below that any act of a device is — the session, its token,
   // an exact `Origin`, a trusted origin and the passkey — rather than the
   // sessionless door's few layers, which stand in for a session only here.
   if (route.connects !== undefined && !away) {
@@ -411,7 +415,7 @@ export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdi
         `${route.name} is public and mutating without being the pairing route`,
       )
     }
-    return { ok: true, device: '', scopes: [], origin }
+    return { ok: true, device: '', origin }
   }
 
   const session = guarding.session
@@ -424,19 +428,11 @@ export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdi
     return no('bad_origin', 'the session token was missing or wrong')
   }
 
-  if (!session.scopes.includes(route.needs)) {
-    return no(
-      'out_of_scope',
-      `needs ${route.needs}, device has ${session.scopes.join(', ') || 'nothing'}`,
-      [route.needs],
-    )
-  }
-
   // Re-asked here and not only at pairing, because the network a device is on
   // changes. A session that may read keeps reading over plain HTTP; anything
   // above `read` needs an origin whose credential did not travel in the clear.
-  // A route that is the SSH key's, asked by the person's own device off this
-  // machine's door (`away`), is asked what acting is, whatever it needs.
+  // A route that is the SSH key's, asked by a device off this machine's door
+  // (`away`), is asked what acting is, whatever it needs.
   // **A read cannot say its scheme** (no `Origin` on a navigation), so the
   // connect page is asked it by listener and host: `https` where the `Host` is
   // one the config trusts, which is what a proxy ends TLS for.
@@ -444,6 +440,12 @@ export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdi
   const what = route.needs === 'read' ? route.name : route.needs
   const read =
     route.connects === 'page' ? { ...origin, scheme: readScheme(asking, host, guarding) } : origin
+  // **Paired in the clear, it never acts** (`Device.clear`): its credential
+  // crossed a network anybody on it could read, and the origin it is asked
+  // from now does not make that cookie a secret again.
+  if (acts && session.clear === true) {
+    return no('locked', `${what} from a device paired in the clear`, ['https'])
+  }
   // `https` is named, because this `locked` and a setting turned off are two
   // different fixes and the page could not tell them apart (`Refusal.needs`).
   if (acts && !trusted(read, guarding.surface)) {
@@ -461,7 +463,7 @@ export function allowed(asking: Asking, route: Route, guarding: Guarding): Verdi
     return no('unproven', `${what} from the public listener with no passkey proved lately`)
   }
 
-  return { ok: true, device: session.device, scopes: session.scopes, origin }
+  return { ok: true, device: session.device, origin }
 }
 
 /**
@@ -502,7 +504,7 @@ function connecting(asking: Asking, route: Route, origin: Origin, ticketed: bool
       }
     }
   }
-  return { ok: true, device: '', scopes: [], origin }
+  return { ok: true, device: '', origin }
 }
 
 /** The scheme a request with no `Origin` was made over: the best this listener could have served it as. */

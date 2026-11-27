@@ -18,8 +18,8 @@
 //
 // **Built when the answer arrives and never by a paint**: a delta twice a
 // second would wipe a value somebody was halfway through typing. It is built
-// again only when what this device may do changed — a grant somebody made at
-// the machine — and then whatever was open stays open.
+// again only when whether this device may act changed, and then whatever was
+// open stays open.
 //
 // **Nothing here derives anything.** What may be changed and what a change
 // must echo are on the row (`may`, `was`) and in `settingStanding`; every word
@@ -40,11 +40,11 @@ import {
   HERE,
   hereOf,
   iconOf,
-  leftSaid,
   missedBox,
   pageState,
   partsOf,
   queryOf,
+  readable,
   totalOf,
 } from './settings-shape.js'
 
@@ -184,7 +184,6 @@ export function settingsScreen(ctx) {
       ...(leadMade.length > 0 ? [entryFor(HERE, 'Change from here', 'flag', true)] : []),
       ...answer.groups.map((group) => entryFor(group.id, group.title, iconOf(group.id), false)),
     )
-    textIn(left, leftSaid(answer) ?? '')
     apply()
   }
 
@@ -311,7 +310,7 @@ export function settingsScreen(ctx) {
 
   /** Who is shown, opened and counted, for the search and the choices as they are now. */
   const apply = () => {
-    if (answer === null || answer.granted !== true || answer.groups.length === 0) return
+    if (!readable(answer) || answer.groups.length === 0) return
     const finding = words.length > 0
     classOn(cols, 'is-finding', finding)
     let found = 0
@@ -372,16 +371,16 @@ export function settingsScreen(ctx) {
     const got = await ctx.ask('GET', SETTINGS_PATH)
     if (gone) return
     again.disabled = false
-    if (got.status === 200 && got.body !== null && typeof got.body?.granted === 'boolean') {
+    if (got.status === 200 && readable(got.body)) {
       answer = got.body
       trouble = null
       problemIn(failed, null)
     } else if (answer === null) {
-      trouble = troubleOf(got, '', ctx.session?.() ?? null) ?? UNKNOWN_TROUBLE
+      trouble = troubleOf(got) ?? UNKNOWN_TROUBLE
     } else {
       // What was read before stays: a failed read again is not a reason to
       // take away the settings it could not replace.
-      problemIn(failed, troubleOf(got, '', ctx.session?.() ?? null) ?? UNKNOWN_TROUBLE, {
+      problemIn(failed, troubleOf(got) ?? UNKNOWN_TROUBLE, {
         word: 'Ask again',
         run: () => void load(),
       })
@@ -398,8 +397,8 @@ export function settingsScreen(ctx) {
     node,
     update(view) {
       acts = view.may?.acts ?? {}
-      // Built again only when what this device may do changed — a grant
-      // somebody made at the machine — and never on an ordinary paint.
+      // Built again only when whether this device may act changed, and never
+      // on an ordinary paint.
       if (answer !== null && drawnWith !== (acts.configure === true)) draw()
     },
     leave() {

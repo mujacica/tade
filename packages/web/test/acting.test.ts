@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { From, Outcome, ParkCall, WebActing } from '../src/acting.ts'
-import { allowDevice, appendDevice, readDevices } from '../src/devices.ts'
+import { appendDevice, readDevices } from '../src/devices.ts'
 import { receiptsPath } from '../src/receipts.ts'
 import { CSRF_HEADER } from '../src/request.ts'
 import { COOKIE, HOST_COOKIE } from '../src/sessions.ts'
@@ -53,17 +53,13 @@ function window_(
   }
 }
 
-/**
- * A listener with acting on, a device paired, and that device granted `steer`
- * **at the machine** — which is the only door a scope widens through.
- */
+/** A listener with acting on, and a device paired: every one may act. */
 async function ready(
   opts: { acting?: WebActing } = {},
 ): Promise<{ one: Running; cookie: string; csrf: string; device: string }> {
   const made = opts.acting ?? window_().acting
   const one = await start({ acting: true }, { acting: made })
   const paired = await pair(one)
-  await allowDevice(one.home, paired.device, ['read', 'steer'], new Date())
   return { one, ...paired }
 }
 
@@ -97,7 +93,6 @@ describe('with acting turned off', () => {
     // there.
     const one = await start()
     const paired = await pair(one)
-    await allowDevice(one.home, paired.device, ['read', 'steer'], new Date())
     const answer = await act(one, paired)
     expect(answer.status).toBe(404)
     expect(said(answer).error).toBe('no_such')
@@ -116,7 +111,6 @@ describe('with acting turned off', () => {
     const made = window_()
     const one = await start({ acting: false }, { acting: made.acting })
     const paired = await pair(one)
-    await allowDevice(one.home, paired.device, ['read', 'steer'], new Date())
     expect((await act(one, paired)).status).toBe(404)
     expect(made.calls).toEqual([])
   })
@@ -126,7 +120,6 @@ describe('with acting turned on but nothing wired up', () => {
   it('answers `404` rather than a `500`, and reaches nothing', async () => {
     const one = await start({ acting: true })
     const paired = await pair(one)
-    await allowDevice(one.home, paired.device, ['read', 'steer'], new Date())
     expect((await act(one, paired)).status).toBe(404)
   })
 })
@@ -195,32 +188,6 @@ describe('a crafted call', () => {
 })
 
 describe('a device that may not', () => {
-  it('is refused where a person never granted it the scope', async () => {
-    // Pairing mints `read`, because a keypress with one question on it cannot
-    // honestly grant more. Nothing a request can do widens that.
-    const made = window_()
-    const one = await start({ acting: true }, { acting: made.acting })
-    const paired = await pair(one)
-    const answer = await act(one, paired)
-    expect(answer.status).toBe(403)
-    expect(said(answer).error).toBe('out_of_scope')
-    expect(made.calls).toEqual([])
-  })
-
-  it('is refused the moment a person takes the grant back', async () => {
-    // **Revoking the feature from one device, mid-session.** The scope is read
-    // out of the file on every request, so taking it back needs no restart and
-    // no reconnection.
-    const made = window_()
-    const { one, cookie, csrf, device } = await ready({ acting: made.acting })
-    expect((await act(one, { cookie, csrf })).status).toBe(200)
-    await allowDevice(one.home, device, ['read'], new Date())
-    const answer = await act(one, { cookie, csrf }, { ...BODY, key: 'second0012345678' })
-    expect(answer.status).toBe(403)
-    expect(said(answer).error).toBe('out_of_scope')
-    expect(made.calls).toHaveLength(1)
-  })
-
   it('is refused the moment the device itself is disconnected', async () => {
     const made = window_()
     const { one, cookie, csrf, device } = await ready({ acting: made.acting })
@@ -273,7 +240,6 @@ describe('off this machine', () => {
     const paired = await pair(one, {
       headers: { host, origin: `https://${host}` },
     })
-    await allowDevice(one.home, paired.device, ['read', 'steer'], new Date())
     return { one, host, ...paired }
   }
 
@@ -379,14 +345,15 @@ describe('an act that goes through', () => {
     const made = window_()
     const one = await start({ acting: true }, { acting: made.acting })
     const paired = await pair(one)
-    await act(one, paired)
+    // The session's token, wrong: refused at the door, with a session.
+    await act(one, { cookie: paired.cookie, csrf: 'x'.repeat(43) })
     const did = one.told.filter((line) => line.type === 'web_did')
     expect(did).toHaveLength(1)
     expect(did[0]?.detail).toEqual({
       device: paired.device,
       tool: 'park',
       state: 'refused',
-      why: 'out_of_scope',
+      why: 'bad_origin',
     })
   })
 

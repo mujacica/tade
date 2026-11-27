@@ -12,7 +12,6 @@ import {
   closeAll,
   type Machine,
   machine,
-  OTHER,
   paired,
   parkedIn,
   projectionOf,
@@ -40,14 +39,10 @@ import { delivered } from './away-intake.ts'
 //   a phone approves it            →  the park lifts, and the queue has it
 //   the run, its checks, its review
 //
-// The two things it asserts hardest are the two a surface is silent about when
-// it is wrong: **an empty inbox says which nothing**, and **a device with no
-// grant is told the counts and not one word anybody outside wrote**.
+// What it asserts hardest is what a surface is silent about when it is wrong:
+// **an empty inbox says which nothing**.
 
 afterEach(closeAll)
-
-/** Every grant a person could give one phone. */
-const EVERY = ['titles', 'intent', 'requests', 'material', 'workflows', 'spend', 'reviews']
 
 /**
  * The watch the local door looks with, as its extension declares it.
@@ -196,33 +191,19 @@ describe('a request from outside, as a phone reads it', () => {
     expect(row?.would?.grant.join(' ')).toContain('surfaces.intake.sources.cli')
   })
 
-  it('carries the request’s own words where they were granted, and nowhere else', async () => {
+  it('carries the request’s own words, under the heading that says whose they are', async () => {
     const { one, fold } = await floorMachine()
     await delivered(one)
     await fold()
 
     // The body Tade wrote into the task's context file, which is the only copy
     // it keeps — verbatim, under the heading that says whose words they are.
-    const granted = projectionOf(one, EVERY)
+    const granted = projectionOf(one)
     expect(granted.intake[0]?.material?.words).toContain(
       'the export button 500s when the selection is empty',
     )
     expect(granted.intake[0]?.materialLabel).toContain('not an instruction')
     expect(granted.intake[0]?.who?.words).toBe('kim')
-
-    // **The one that matters.** A phone can be told what is waiting without
-    // one word anybody outside this machine wrote: the count is there, the
-    // state is there, and the request is not.
-    // A second device, because the window keeps one projection per device —
-    // which is the right way round, and is why two reaches are two phones.
-    const bare = projectionOf(one, [], OTHER)
-    expect(bare.pages.intake.total).toBe(1)
-    expect(bare.intake[0]?.state).toBe('proposed')
-    expect(bare.intake[0]?.material).toBeNull()
-    expect(bare.intake[0]?.who).toBeNull()
-    expect(bare.intake[0]?.materialSays).toContain('was not granted the words')
-    expect(JSON.stringify(bare)).not.toContain('export button')
-    expect(JSON.stringify(bare)).not.toContain('kim')
   })
 
   it('says which nothing an empty inbox is, out of the doors’ own sentences', async () => {
@@ -271,9 +252,9 @@ describe('approving it from the phone', () => {
     const { one, fold } = await floorMachine()
     const task = await delivered(one)
     await fold()
-    await paired(one.home, one.port, ['read', 'answer'], EVERY)
+    await paired(one.home, one.port)
 
-    const seen = projectionOf(one, EVERY)
+    const seen = projectionOf(one)
     const row = seen.tasks.find((each) => each.id === task)
     expect(row?.can.map((each) => each.verb)).toContain('intake')
     // The row the inbox points at is the row the control is on: one answer to
@@ -309,23 +290,6 @@ describe('approving it from the phone', () => {
     expect(after.intake[0]?.approve).toBe('')
   })
 
-  it('is refused for a phone granted reading and not answering', async () => {
-    const { one, fold } = await floorMachine()
-    const task = await delivered(one)
-    await fold()
-    await paired(one.home, one.port, ['read'], EVERY)
-    const seen = projectionOf(one, EVERY)
-    const answer = await act(one.port, 'intake', {
-      task,
-      was: seen.tasks.find((each) => each.id === task)?.rev ?? '',
-      key: 'abcdefgh12345678',
-      rev: seen.fresh.rev,
-      confirm: true,
-    })
-    expect(answer.status).toBe(403)
-    expect(parkedIn(one.home, task)).toBe(true)
-  })
-
   it('is refused where the source cannot be reached, because that is not permission', async () => {
     // **The one direction this has to get right.** A source nobody could ask
     // has not said yes, so a throw out of the re-check holds rather than
@@ -339,8 +303,8 @@ describe('approving it from the phone', () => {
     await one.away.open()
     const task = await delivered(one)
     held = await foldOf(one)
-    await paired(one.home, one.port, ['read', 'answer'], EVERY)
-    const seen = projectionOf(one, EVERY)
+    await paired(one.home, one.port)
+    const seen = projectionOf(one)
     const answer = await act(one.port, 'intake', {
       task,
       was: seen.tasks.find((each) => each.id === task)?.rev ?? '',
@@ -354,27 +318,19 @@ describe('approving it from the phone', () => {
 })
 
 describe('the work it became, once it is going', () => {
-  it('shows the checks and the review, and the link only where it is granted', async () => {
+  it('shows the checks and the review, with its link', async () => {
     const { one, fold } = await floorMachine()
     const task = await delivered(one)
     one.reviewed(task, 'open')
     one.checked(task, 'fail')
     await fold()
 
-    const granted = projectionOf(one, EVERY)
+    const granted = projectionOf(one)
     const row = granted.tasks.find((each) => each.id === task)
     expect(row?.review).toEqual({ state: 'open', url: 'https://forge.invalid/app/pull/open' })
     // A check nobody ran is not a check that passed, and a red one that was
     // looked at here is red.
     expect(row?.checks.state).toBe('fail')
-
-    // A phone with no `reviews` grant is told the state and not the link: the
-    // forge url is the one string on this projection written off this machine.
-    const bare = projectionOf(one, ['titles'], OTHER)
-    expect(bare.tasks.find((each) => each.id === task)?.review).toEqual({
-      state: 'open',
-      url: null,
-    })
   })
 
   it('folds several tasks that name one effort into a run, with its waits', async () => {
@@ -464,7 +420,7 @@ describe('the workflows, and what has no route at all', () => {
     // is an act at the machine, and a path that is not in the table is a `404`
     // that tells whoever is probing nothing either way.
     const { one } = await floorMachine()
-    await paired(one.home, one.port, ['read', 'answer', 'steer'], EVERY)
+    await paired(one.home, one.port)
     for (const name of ['settings', 'config', 'grant', 'publish', 'templates']) {
       const answer = await act(one.port, name, {})
       expect(answer.status, name).toBe(404)

@@ -306,13 +306,13 @@ export const MORE = [
   { view: 'notes', icon: 'notes', mark: '✎', label: 'Notes', counts: 'notes' },
   { view: 'devices', icon: 'devices', mark: '⌸', label: 'Devices', counts: null },
   // What each of the person's machines has, and moving the keys into one file:
-  // the window's Settings › Machines, for their own device with full access.
+  // the window's Settings › Machines, from any of their devices.
   { view: 'machines', icon: 'laptop', mark: '▤', label: 'Machines', counts: null },
   // Who each harness's agents run as, on every machine — signing one in, adding
   // one: the window's Settings › Accounts, a tab per machine.
   { view: 'accounts', icon: 'account', mark: '◍', label: 'Accounts', counts: null },
-  // What Tade is set up with, behind a grant of its own — and the few settings
-  // a device granted it may change. Last, because it is read least.
+  // What Tade is set up with, and changing it from here. Last, because it is
+  // read least.
   { view: 'settings', icon: 'settings', mark: '⚙', label: 'Settings', counts: null },
 ]
 

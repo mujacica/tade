@@ -62,7 +62,7 @@ export interface Visit {
 /** The made-up world a visit is drawn against. */
 export interface World {
   now: number
-  /** Every device that can get in, each with its name and what it was granted. */
+  /** Every device that can get in, each with its name. */
   devices: readonly Device[]
   input: (reach: Reach) => SnapshotInput
   agent: (task: string) => AgentIn | null

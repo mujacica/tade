@@ -41,7 +41,7 @@ export interface AgentMenuDoors {
   /** Hand it to another machine: what was set going, in words. */
   move(task: string, machine: string, by: Asker): Promise<string>
   /** Its menu, as the window's row would draw it, for a device. Null where there is no such task. */
-  menu(task: string, theirs: boolean): Promise<AgentMenuIn | null>
+  menu(task: string): Promise<AgentMenuIn | null>
 }
 
 /** What the doors need beyond the wiring: the subjects that hold a removal and a hand-over. */
@@ -138,21 +138,20 @@ export function agentMenuDoors(wire: Wiring, parts: AgentMenuParts): AgentMenuDo
       said(`${by}: ${words}`)
       return words
     },
-    menu: (task, theirs) => menuFor(wire, parts, task, theirs),
+    menu: (task) => menuFor(wire, parts, task),
   }
 }
 
 /**
  * One agent's menu, as the window's own row draws it (`menuItems`), with the
- * lists under its items asked the way the window's pickers ask them — and the
- * two only a person's own device may use (accounts, machines) read only for
- * one, so nobody else's menu costs a look at them.
+ * lists under its items asked the way the window's pickers ask them. Every
+ * paired device is the person's own, so every one is offered the accounts and
+ * the machines too.
  */
 async function menuFor(
   wire: Wiring,
   parts: AgentMenuParts,
   task: string,
-  theirs: boolean,
 ): Promise<AgentMenuIn | null> {
   const client = wire.opts.client
   const facts = wire.live?.factsOf(task) ?? null
@@ -181,7 +180,7 @@ async function menuFor(
     },
     wire.live?.changes(task).length ?? 0,
     offers,
-    theirs ? (parts.handsOver()?.handItems(task) ?? []) : [],
+    parts.handsOver()?.handItems(task) ?? [],
   )
   const vitals = wire.live?.vitals(task) ?? null
   const harness = offers?.harness ?? known?.harness ?? ''
@@ -212,23 +211,21 @@ async function menuFor(
           }
         })
     : null
-  const reading = theirs
-    ? client
-        .accounts()
-        .then((views) =>
-          accountMenuItems(
-            views.map(
-              (view) => ({ ...view, limits: null, agents: 0, forNewAgents: false }) as AccountShown,
-            ),
-            harness,
-            known?.account ?? '',
-          ),
-        )
-        .catch((err: unknown) => {
-          wire.note(err)
-          return null
-        })
-    : []
+  const reading = client
+    .accounts()
+    .then((views) =>
+      accountMenuItems(
+        views.map(
+          (view) => ({ ...view, limits: null, agents: 0, forNewAgents: false }) as AccountShown,
+        ),
+        harness,
+        known?.account ?? '',
+      ),
+    )
+    .catch((err: unknown) => {
+      wire.note(err)
+      return null
+    })
   const [models, accounts] = await Promise.all([
     asking === null
       ? null
@@ -237,7 +234,7 @@ async function menuFor(
           current: vitals?.model ?? null,
           why: 'its harness took too long to say which models it runs',
         }),
-    Array.isArray(reading) ? reading : inTime(reading, LISTS_MS, null),
+    inTime(reading, LISTS_MS, null),
   ])
   const title = pane ? shownName(pane) : task.slice(task.indexOf('/') + 1)
   return {

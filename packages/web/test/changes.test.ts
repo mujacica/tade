@@ -6,15 +6,14 @@ import {
   hunksOf,
   type WebChanges,
 } from '../src/changes.ts'
-import { namesOnly, type Reach } from '../src/reach.ts'
+import { type Reach, reachFor } from '../src/reach.ts'
 import type { WebReading } from '../src/reading.ts'
 import { ROUTES } from '../src/routes.ts'
 
-// One agent's changes from away: the window's Show changes, on `lanes`.
+// One agent's changes from away: the window's Show changes.
 
 const params = { project: 'tade', task: 'away-agent' }
-const bare = namesOnly('00112233445566aa')
-const seeing: Reach = { ...bare, granted: ['lanes'] }
+const seeing: Reach = reachFor('00112233445566aa')
 
 function reading(here: boolean): (reach: Reach) => WebReading {
   return () => ({ agent: () => ({ here }) }) as unknown as WebReading
@@ -125,11 +124,9 @@ describe('an agent’s changes, from away', () => {
     expect((await changesHere(params, seeing, { readingFor: reading(true) })).says).toBe('unread')
   })
 
-  it('is told only to a device granted an agent’s bytes, about a task it reads, and asks git nothing else', async () => {
+  it('is not told about a task that is not here, and asks git nothing', async () => {
     const asked: string[] = []
     const changes = window({ base: 'main', files: [] }, asked)
-    const out = await changesHere(params, bare, { readingFor: reading(true), changes })
-    expect(out).toMatchObject({ says: 'not granted', files: [] })
     const away = await changesHere(params, seeing, { readingFor: reading(false), changes })
     expect(away).toMatchObject({ says: 'not here', files: [] })
     expect(asked).toEqual([])

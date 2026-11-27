@@ -537,12 +537,12 @@ describe('the route', () => {
   /** The answer's response, as far as the route reads one: when it has gone. */
   const answering = () => new EventEmitter()
 
-  it('answers an owner, and nobody else', async () => {
-    expect(await carryHere(asking(body), owner, nothing, answering())).toEqual({
+  it('answers an owner, and a paired phone the same', async () => {
+    const answer = {
       body: { schema: CARRY_SCHEMA, machine: 'vps', settings: [], files: [], signIns: [] },
-    })
-    const refused = await carryHere(asking(body), phone, nothing, answering())
-    expect('refusal' in refused && refused.refusal.error).toBe('out_of_scope')
+    }
+    expect(await carryHere(asking(body), owner, nothing, answering())).toEqual(answer)
+    expect(await carryHere(asking(body), phone, nothing, answering())).toEqual(answer)
   })
 
   it('turns talking from another screen on where an owner pressed, once the answer has gone', async () => {

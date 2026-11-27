@@ -1,13 +1,9 @@
 import { stripTerminalSequences } from '@earendil-works/pi-tui'
 import {
-  ACTING_IS_NOT_YOU,
-  ACTING_IS_NOT_YOU_SHORT,
   ConfigSchema,
   DEVICES_SEEN_BY_AGENTS,
   LAN_IS_PLAINTEXT_SHORT,
   PUBLIC_IS_THE_INTERNET_SHORT,
-  TALKING_IS_NOT_YOU,
-  TALKING_IS_NOT_YOU_SHORT,
 } from '@tade/core'
 import { blocksFor, codeFor, surfaceOf } from '@tade/web'
 import { describe, expect, it } from 'vitest'
@@ -27,12 +23,11 @@ import { drawPanel } from '../src/panels/context.ts'
 import { settingsClick, settingsPanel } from '../src/panels/settings/state.ts'
 import { reachOf } from '../src/scroll.ts'
 import { COLOUR, type Skin, skinFor } from '../src/skin.ts'
-import { awayView, codeShownOn, grantsHelp } from '../src/wire/web-panel.ts'
+import { awayView, codeShownOn } from '../src/wire/web-panel.ts'
 
 // The away panel's rules that no golden can be trusted to notice: that the
-// clause about this machine's agents cannot be scrolled away, that what a
-// grant does is one clause under the pointer and never a paragraph, that a
-// code is never drawn cut, that the region offers a bar when it scrolls, and
+// clause about this machine's agents cannot be scrolled away, that a device's
+// block has nothing to tick, that a code is never drawn cut, that the region offers a bar when it scrolls, and
 // that the only way to say yes to a device is the key that means yes.
 //
 // The goldens are `test/screens/__screens__/away-*`; this is what they cannot
@@ -43,7 +38,7 @@ const URL = 'http://studio.local:7654/pair#t=Qp3vNn1bXg7kQ2mPvR4tLz8'
 
 function view(over: Partial<AwayView> = {}): AwayView {
   const code = codeFor(URL)
-  const made: AwayView = {
+  return {
     listening: true,
     bind: 'loopback',
     bound: ['127.0.0.1:7654', '[::1]:7654'],
@@ -52,29 +47,16 @@ function view(over: Partial<AwayView> = {}): AwayView {
     ticket: { url: URL, secondsLeft: 84 },
     code: code === null ? [] : blocksFor(code),
     asking: null,
-    talking: false,
-    configuring: false,
-    help: {},
     devices: [
       {
         id: '00112233445566aa',
         label: 'iPhone',
         from: 'your network',
         pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
-        reads: ['titles'],
-        mayAct: false,
-        mayTalk: false,
-        maySee: false,
-        mayStop: false,
-        mayClose: false,
-        mayReadSettings: false,
-        mayConfigure: false,
-        full: false,
         live: true,
       },
     ],
     streams: 1,
-    acting: false,
     lan: LAN_IS_PLAINTEXT_SHORT,
     internet: PUBLIC_IS_THE_INTERNET_SHORT,
     public: null,
@@ -82,7 +64,6 @@ function view(over: Partial<AwayView> = {}): AwayView {
     problem: null,
     ...over,
   }
-  return { ...made, help: over.help ?? grantsHelp(made) }
 }
 
 interface Size {
@@ -223,60 +204,6 @@ describe('the two clauses', () => {
       expect(words(said({}, { width, height })), `${width}×${height}`).toContain(
         DEVICES_SEEN_BY_AGENTS,
       )
-    }
-  })
-})
-
-describe('what a grant does', () => {
-  const everything = { acting: true, talking: true, configuring: true }
-  const onAct: Target = { kind: 'control', id: `${AWAY_CONTROLS.act}00112233445566aa` }
-  const onTalk: Target = { kind: 'control', id: `${AWAY_CONTROLS.talk}00112233445566aa` }
-
-  it('is no paragraph at all, with every capability on', () => {
-    // What it once was: the whole of acting and the whole of talking above the
-    // list, read every time the panel opened. The whole sentences are each
-    // setting's `means` and the README's.
-    const text = said(everything, { height: 80 })
-    for (const word of ['overrule', 'refused in code', 'Trusted hostnames', 'which is why']) {
-      expect(text, word).not.toContain(word)
-    }
-    expect(text).not.toContain(ACTING_IS_NOT_YOU.slice(0, 40))
-    expect(text).not.toContain(TALKING_IS_NOT_YOU.slice(0, 40))
-  })
-
-  it('is one clause in the foot while the pointer is on its control', () => {
-    expect(said(everything, { height: 80, hover: onAct })).toContain(
-      `answer & steer: ${ACTING_IS_NOT_YOU_SHORT}`,
-    )
-    // Wrapped where it does not fit, so read as words rather than as one row.
-    expect(words(said(everything, { height: 80, hover: onTalk }))).toContain(
-      `talk to Tade: ${TALKING_IS_NOT_YOU_SHORT}`,
-    )
-    // Nothing pointed at, nothing said.
-    expect(said(everything, { height: 80 })).not.toContain(ACTING_IS_NOT_YOU_SHORT)
-  })
-
-  it('moves nothing when it appears: the foot keeps its rows whatever is pointed at', () => {
-    // A foot that grew under the pointer would move the chip it explains out
-    // from under it — so every row of the panel is the same row with or
-    // without the clause in it, the clause's own rows excepted.
-    for (const width of [120, 60]) {
-      const still = drawn(everything, { width, height: 80 }).rows
-      const pointed = drawn(everything, { width, height: 80, hover: onAct }).rows
-      expect(pointed.length, String(width)).toBe(still.length)
-      const differ = still.filter((row, at) => row !== pointed[at])
-      expect(differ.length, String(width)).toBeGreaterThan(0)
-      expect(differ.length, String(width)).toBeLessThanOrEqual(3)
-    }
-  })
-
-  it('names only the controls that are drawn', () => {
-    const off = grantsHelp({ acting: false, talking: false, configuring: false })
-    expect(Object.keys(off)).not.toContain(AWAY_CONTROLS.act)
-    expect(Object.keys(off)).not.toContain(AWAY_CONTROLS.talk)
-    // The reading grants and the `×` are drawn on every row, whatever is on.
-    for (const always of [AWAY_CONTROLS.see, AWAY_CONTROLS.settings, AWAY_CONTROLS.revoke]) {
-      expect(Object.keys(off)).toContain(always)
     }
   })
 })
@@ -559,7 +486,7 @@ describe('answering the device at the door', () => {
 })
 
 describe('what the panel never carries', () => {
-  it('says nothing of a device but its label, where in words, its grants and when it paired', () => {
+  it('says nothing of a device but its label, where in words and when it paired', () => {
     const text = said(
       {
         devices: [
@@ -568,15 +495,6 @@ describe('what the panel never carries', () => {
             label: 'iPhone',
             from: 'your network',
             pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
-            reads: [],
-            mayAct: false,
-            mayTalk: false,
-            maySee: false,
-            mayStop: false,
-            mayClose: false,
-            mayReadSettings: false,
-            mayConfigure: false,
-            full: false,
             live: false,
           },
         ],
@@ -590,13 +508,11 @@ describe('what the panel never carries', () => {
     // is a name, a place in words and a date.
     expect(text).toContain('iPhone')
     expect(text).toContain('from your network')
-    expect(text).toMatch(/reads\s+\(names\)\s+\(states\)\s+\(counts\)/)
     expect(text).not.toContain('192.168')
   })
 
   it('says an owner is one before anything else about it, and how it came in', () => {
-    // Its turns reach what the keyboard does, which
-    // the boxes cannot say on their own — so the row's first word says it.
+    // Another machine's link and not a phone, so the row's first word says it.
     const text = said(
       {
         devices: [
@@ -606,15 +522,6 @@ describe('what the panel never carries', () => {
             from: 'over SSH',
             owner: true,
             pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
-            reads: [],
-            mayAct: true,
-            mayTalk: true,
-            maySee: true,
-            mayStop: true,
-            mayClose: true,
-            mayReadSettings: true,
-            mayConfigure: true,
-            full: true,
             live: true,
           },
         ],
@@ -651,188 +558,6 @@ describe('what the panel never carries', () => {
   })
 })
 
-describe('letting one device act', () => {
-  it('draws no control for it at all while the setting is off', () => {
-    // **Absent, not greyed out.** With `surfaces.web.acting` off there is no
-    // route a grant could reach, so a button here would be one that cannot do
-    // what it says — and the row is byte-identical to what it was before any
-    // of this existed.
-    const text = said({}, { height: 64 })
-    expect(text).not.toContain('answer & steer')
-    // Nor the lifecycle's two: they are acting routes, and with acting off
-    // there is no route a grant of either could reach.
-    expect(text).not.toContain('stop agents')
-    expect(text).not.toContain('close projects')
-  })
-
-  it('offers it per device once a person has turned acting on', () => {
-    // Tall enough that the whole scrolling region is drawn: the code comes
-    // first, so on an ordinary terminal the device list is a scroll away and
-    // is correct to be.
-    const text = said({ acting: true }, { height: 64 })
-    expect(text).toContain('□ answer & steer')
-    // A box each for the lifecycle, beside it and implied by it in neither
-    // direction.
-    expect(text).toContain('□ stop agents')
-    expect(text).toContain('□ close projects')
-  })
-
-  it('says which devices may, and offers to take it back from those', () => {
-    const text = said(
-      {
-        acting: true,
-        devices: [
-          {
-            id: '00112233445566aa',
-            label: 'iPhone',
-            from: 'your network',
-            pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
-            reads: ['titles'],
-            mayAct: true,
-            mayTalk: false,
-            maySee: false,
-            mayStop: false,
-            mayClose: false,
-            mayReadSettings: false,
-            mayConfigure: false,
-            full: false,
-            live: true,
-          },
-        ],
-      },
-      { height: 64 },
-    )
-    // **On the row, without colour.** The list is what somebody reads to
-    // answer *can any of these change my work*, and a capability visible only
-    // as the colour of a button is one nobody audits — and one a screenshot
-    // cannot carry. A ticked box is the answer and the control in one.
-    expect(text).toContain('■ answer & steer')
-    expect(text).not.toContain('□ answer & steer')
-  })
-
-  it('says nothing about acting where it is off, even with a device granted it', () => {
-    // A grant that was made and then the setting turned off: the honest
-    // drawing is the one that matches what the server will do, which is
-    // nothing.
-    const text = said(
-      {
-        acting: false,
-        devices: [
-          {
-            id: '00112233445566aa',
-            label: 'iPhone',
-            from: 'your network',
-            pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
-            reads: [],
-            mayAct: true,
-            mayTalk: false,
-            maySee: false,
-            mayStop: false,
-            mayClose: false,
-            mayReadSettings: false,
-            mayConfigure: false,
-            full: false,
-            live: false,
-          },
-        ],
-      },
-      { height: 64 },
-    )
-    expect(text).not.toContain('answer & steer')
-    for (const word of ['never your own words', 'overrule']) expect(text).not.toContain(word)
-  })
-})
-
-describe('letting one device talk to Tade', () => {
-  it('draws no control for it at all while the setting is off', () => {
-    // Absent, not greyed out, and **not implied by acting**: these are two
-    // decisions with two settings, and a person who turned the first on has
-    // not answered the second.
-    const text = said({ acting: true }, { height: 72 })
-    expect(text).toContain('answer & steer')
-    expect(text).not.toContain('talk to Tade')
-  })
-
-  it('offers it per device once a person has turned talking on', () => {
-    const text = said({ talking: true }, { height: 72 })
-    expect(text).toContain('□ talk to Tade')
-  })
-
-  it('says which devices may, and says both where a device has both', () => {
-    const text = said(
-      {
-        acting: true,
-        talking: true,
-        devices: [
-          {
-            id: '00112233445566aa',
-            label: 'iPhone',
-            from: 'your network',
-            pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
-            reads: ['titles'],
-            mayAct: true,
-            mayTalk: true,
-            maySee: false,
-            mayStop: false,
-            mayClose: false,
-            mayReadSettings: false,
-            mayConfigure: false,
-            full: false,
-            live: true,
-          },
-        ],
-      },
-      // **The date the window actually draws**, because this is the one test
-      // about what fits on a row: a row that fills its width loses its pinned
-      // chips whole rather than half-drawn (`Row.build`), and `×` is the chip
-      // that must never be the one that goes. Tall enough for the code, how to
-      // use it and the two sentences above the list, so the row is in view.
-      { height: 76, date: () => '11 Sep' },
-    )
-    // **Both, on the row, in words.** Two grants is two facts, and a list that
-    // folded them into one would be a list somebody reads to answer the wrong
-    // question — *can this change my work* and *can this ask Tade for
-    // anything* have different answers.
-    expect(text).toContain('■ answer & steer')
-    expect(text).toContain('■ talk to Tade')
-    // And Sign out, which a long row of boxes must never push off.
-    const ids = drawn(
-      { acting: true, talking: true, configuring: true },
-      { height: 76, date: () => '11 Sep' },
-    ).hits.map((hit) => (hit.target.kind === 'control' ? hit.target.id : ''))
-    expect(ids).toContain(`${AWAY_CONTROLS.revoke}00112233445566aa`)
-  })
-
-  it('says nothing about talking where it is off, even with a device granted it', () => {
-    const text = said(
-      {
-        talking: false,
-        devices: [
-          {
-            id: '00112233445566aa',
-            label: 'iPhone',
-            from: 'your network',
-            pairedAt: Date.parse('2026-09-11T09:12:00.000Z'),
-            reads: [],
-            mayAct: false,
-            mayTalk: true,
-            maySee: false,
-            mayStop: false,
-            mayClose: false,
-            mayReadSettings: false,
-            mayConfigure: false,
-            full: false,
-            live: false,
-          },
-        ],
-      },
-      { height: 72 },
-    )
-    expect(text).not.toContain('talk to Tade')
-    expect(text).not.toContain('refused in code')
-  })
-})
-
 describe('on the Away page of Settings', () => {
   it('is drawn on that page and the panel, and nowhere else — not in a search', () => {
     expect(codeShownOn(awayPanel())).toBe('panel')
@@ -845,7 +570,7 @@ describe('on the Away page of Settings', () => {
 
   it('hands the panel’s own controls to the subject that holds them, and stays', () => {
     const page = settingsPanel('away')
-    for (const control of [AWAY_CONTROLS.code, `${AWAY_CONTROLS.act}00112233445566aa`]) {
+    for (const control of [AWAY_CONTROLS.code, `${AWAY_CONTROLS.revoke}00112233445566aa`]) {
       const outcome = settingsClick(page, control, {})
       expect(outcome.submit, control).toBe(true)
       expect(outcome.choice, control).toBe(control)
@@ -853,7 +578,7 @@ describe('on the Away page of Settings', () => {
     }
   })
 
-  it('says what a device may do in the domain’s own clauses, there and in the panel', () => {
+  it('says what is true of every device in the domain’s own clauses, there and in the panel', () => {
     const facts = {
       surface: surfaceOf(ConfigSchema.parse({ surfaces: { web: { enabled: true } } }).surfaces.web),
       bound: [],
@@ -870,9 +595,7 @@ describe('on the Away page of Settings', () => {
       now: 0,
     }
     const view = awayView(facts)
-    // Never a third wording: the clause the domain says once, after the chip's name.
-    expect(view.help[AWAY_CONTROLS.act]).toBe(`answer & steer: ${ACTING_IS_NOT_YOU_SHORT}`)
-    expect(view.help[AWAY_CONTROLS.talk]).toBe(`talk to Tade: ${TALKING_IS_NOT_YOU_SHORT}`)
+    // Never a third wording: the clauses the domain says once.
     expect(view.lan).toBe(LAN_IS_PLAINTEXT_SHORT)
     expect(view.agents).toBe(DEVICES_SEEN_BY_AGENTS)
     expect(view.internet).toBe(PUBLIC_IS_THE_INTERNET_SHORT)

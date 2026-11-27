@@ -2,8 +2,6 @@ import { readFile } from 'node:fs/promises'
 import { afterEach, describe, expect, it } from 'vitest'
 import { appendDevice, devicesPath, readDevices, revokeAll } from '../src/devices.ts'
 import { PENDING_MS, writeCode } from '../src/pending.ts'
-import { GRANTS } from '../src/reach.ts'
-import { SCOPES } from '../src/surface.ts'
 import { Tickets } from '../src/tickets.ts'
 import { type Answer, ask, closeAll, homeFor, type Running, said, start } from './harness.ts'
 
@@ -16,9 +14,6 @@ import { type Answer, ask, closeAll, homeFor, type Running, said, start } from '
 // the claim and the device.
 
 afterEach(closeAll)
-
-/** Everything, as `tade web pair` lets a device have unless told otherwise. */
-const EVERYTHING = { scopes: [...SCOPES], projects: null, granted: [...GRANTS] }
 
 /** Present a value on the pairing route, as the page does with a link's fragment. */
 function claim(one: Running, ticket: string, host = one.host): Promise<Answer> {
@@ -41,7 +36,7 @@ async function kinds(home: string): Promise<string[]> {
 describe('a code the terminal wrote', () => {
   it('lets a device in with nobody asked, as the device the code named', async () => {
     const one = await start({ acting: true, talking: true })
-    const code = await writeCode(one.home, { host: one.host, label: '', ...EVERYTHING }, Date.now())
+    const code = await writeCode(one.home, { host: one.host, label: '' }, Date.now())
     const answer = await claim(one, code.secret)
     expect(answer.status).toBe(201)
     // Running the command was the yes: the window's question is never asked.
@@ -65,16 +60,13 @@ describe('a code the terminal wrote', () => {
     expect(read.status).toBe(200)
   })
 
-  it('carries the terminal’s name for it and what it was let have', async () => {
+  it('carries the terminal’s name for it', async () => {
     const one = await start({ acting: true })
     const code = await writeCode(
       one.home,
       {
         host: one.host,
         label: 'the kitchen iPad',
-        scopes: ['read'],
-        projects: ['tade'],
-        granted: [],
       },
       Date.now(),
     )
@@ -82,14 +74,13 @@ describe('a code the terminal wrote', () => {
     const device = (await readDevices(one.home)).devices[0]
     expect(device).toMatchObject({
       label: 'the kitchen iPad',
-      scopes: ['read'],
-      projects: ['tade'],
+      clear: false,
     })
   })
 
   it('is one use: the same code again finds nothing', async () => {
     const one = await start()
-    const code = await writeCode(one.home, { host: one.host, label: '', ...EVERYTHING }, Date.now())
+    const code = await writeCode(one.home, { host: one.host, label: '' }, Date.now())
     expect((await claim(one, code.secret)).status).toBe(201)
     const again = await claim(one, code.secret)
     expect(again.status).toBe(401)
@@ -99,7 +90,7 @@ describe('a code the terminal wrote', () => {
 
   it('lets exactly one of two racing claims in', async () => {
     const one = await start()
-    const code = await writeCode(one.home, { host: one.host, label: '', ...EVERYTHING }, Date.now())
+    const code = await writeCode(one.home, { host: one.host, label: '' }, Date.now())
     const answers = await Promise.all([claim(one, code.secret), claim(one, code.secret)])
     expect(answers.map((a) => a.status).sort()).toEqual([201, 401])
     expect((await readDevices(one.home)).devices).toHaveLength(1)
@@ -108,7 +99,7 @@ describe('a code the terminal wrote', () => {
   it('stays spent across a restart, because the burn is on the disk', async () => {
     const home = await homeFor('restart')
     const first = await start({}, { home })
-    const code = await writeCode(home, { host: first.host, label: '', ...EVERYTHING }, Date.now())
+    const code = await writeCode(home, { host: first.host, label: '' }, Date.now())
     expect((await claim(first, code.secret)).status).toBe(201)
     await first.server.close()
     // A new window: a new ticket store, so nothing of the first claim is in
@@ -126,7 +117,7 @@ describe('a code the terminal wrote', () => {
     const one = await start()
     const code = await writeCode(
       one.home,
-      { host: one.host, label: '', ...EVERYTHING },
+      { host: one.host, label: '' },
       Date.now() - PENDING_MS - 1,
     )
     expect((await claim(one, code.secret)).status).toBe(401)
@@ -141,7 +132,7 @@ describe('a code the terminal wrote', () => {
     const one = await start()
     const code = await writeCode(
       one.home,
-      { host: 'studio.yak-bebop.ts.net', label: '', ...EVERYTHING },
+      { host: 'studio.yak-bebop.ts.net', label: '' },
       Date.now(),
     )
     expect((await claim(one, code.secret)).status).toBe(401)
@@ -153,7 +144,7 @@ describe('a code the terminal wrote', () => {
 
   it('refuses one revoked before anybody used it', async () => {
     const one = await start()
-    const code = await writeCode(one.home, { host: one.host, label: '', ...EVERYTHING }, Date.now())
+    const code = await writeCode(one.home, { host: one.host, label: '' }, Date.now())
     await appendDevice(one.home, {
       kind: 'revoked',
       device: code.device,
@@ -166,8 +157,8 @@ describe('a code the terminal wrote', () => {
 
   it('keeps only the newest code claimable, as the window’s panel does', async () => {
     const one = await start()
-    const old = await writeCode(one.home, { host: one.host, label: '', ...EVERYTHING }, Date.now())
-    const now = await writeCode(one.home, { host: one.host, label: '', ...EVERYTHING }, Date.now())
+    const old = await writeCode(one.home, { host: one.host, label: '' }, Date.now())
+    const now = await writeCode(one.home, { host: one.host, label: '' }, Date.now())
     expect((await readDevices(one.home)).pending.map((code) => code.id)).toEqual([now.device])
     expect((await claim(one, old.secret)).status).toBe(401)
     expect((await claim(one, now.secret)).status).toBe(201)
@@ -175,18 +166,14 @@ describe('a code the terminal wrote', () => {
 
   it('is taken by "disconnect everything", which is one phone short otherwise', async () => {
     const home = await homeFor('everything')
-    await writeCode(home, { host: 'localhost:7654', label: '', ...EVERYTHING }, Date.now())
+    await writeCode(home, { host: 'localhost:7654', label: '' }, Date.now())
     expect(await revokeAll(home, new Date())).toEqual([])
     expect((await readDevices(home)).pending).toEqual([])
   })
 
   it('writes the digest of the secret, never the secret', async () => {
     const home = await homeFor('digest')
-    const code = await writeCode(
-      home,
-      { host: 'localhost:7654', label: '', ...EVERYTHING },
-      Date.now(),
-    )
+    const code = await writeCode(home, { host: 'localhost:7654', label: '' }, Date.now())
     const text = await readFile(devicesPath(home), 'utf8')
     expect(text).not.toContain(code.secret)
     expect(code.secret).toMatch(/^[A-Za-z0-9_-]{27}$/)

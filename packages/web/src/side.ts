@@ -3,9 +3,7 @@ import { DONE_RULES, INBOX_STATES, LOOK_TROUBLES, TaskState } from '@tade/core'
 import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
-import { sees } from './reach.ts'
 import { readBody } from './request.ts'
-import { ownsOrTheirs, reachOf } from './surface.ts'
 
 // One project of this machine's as its own window draws it: the agents down
 // the side and their queued work, its schedules, its requests, what changed in
@@ -27,11 +25,9 @@ import { ownsOrTheirs, reachOf } from './surface.ts'
 // **An owner's, and only at this machine's own door** (`here` in
 // `routes.ts`): the answer names where the project is on this machine
 // (`where`) and which files are in it, which no row a phone reads holds
-// (`input.ts`). Whoever holds the SSH key can already `ssh` in and look; a
-// phone's session is refused it however much it was granted
-// (`out_of_scope`) — **but the person's own** (`Route.theirs`), as on every
-// owner's route. Within what the device reads: a project the window took
-// back from it is answered as one that is not open here.
+// (`input.ts`). Whoever holds the SSH key can already `ssh` in and look — or
+// a paired phone, every one of which is the person's own, as on every owner's
+// route.
 //
 // **It reads, and changes nothing.** Asked while another screen stands in the
 // project, every beat it is drawn on; what it names is what the window here
@@ -428,17 +424,14 @@ export type WebSide = (ask: SideAsk) => Promise<SideAnswer | null>
 /** The route. `side` absent is a window that did not wire it: the `404` of a path nobody built. */
 export async function sideHere(
   req: IncomingMessage,
-  device: Device,
+  _device: Device,
   side: WebSide | undefined,
 ): Promise<{ body: SideAnswer } | { refusal: Refusal }> {
   if (side === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const ask = SideAskSchema.safeParse(got.body)
   if (!ask.success) return { refusal: refuse('malformed') }
-  // A project the window took back from this device is one that is not open here.
-  if (!sees(reachOf(device), ask.data.project)) return { refusal: refuse('no_such') }
   const answer = await side(ask.data)
   if (answer === null) return { refusal: refuse('no_such') }
   // What leaves is what the schema says may: a field nobody decided on stays here.

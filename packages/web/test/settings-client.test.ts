@@ -19,7 +19,6 @@ import {
   hereOf,
   iconOf,
   KEYS_SAID,
-  leftSaid,
   missedBox,
   PICK_MOST,
   pageState,
@@ -32,7 +31,6 @@ import {
 } from '../src/assets/pages/settings-shape.js'
 import { TROUBLES } from '../src/assets/trouble.js'
 import { type SettingOut, type SettingsOut, settingsFor } from '../src/configuring.ts'
-import type { Reach } from '../src/reach.ts'
 
 // What the settings page draws, against **what the machine actually sends**:
 // the rows are `settingsOf`'s own over a parsed config, through `settingsFor`,
@@ -60,13 +58,9 @@ const ROWS = settingsOf(
   ],
 )
 
-function reach(over: Partial<Reach> = {}): Reach {
-  return { device: DEVICE, projects: { kind: 'every' }, granted: ['settings'], ...over }
-}
-
-/** What `/api/settings` answers a device with this reach. */
-function answer(over: Partial<Reach> = {}): SettingsOut {
-  return settingsFor(ROWS, reach(over), [])
+/** What `/api/settings` answers a paired device with: every device is the person's own. */
+function answer(): SettingsOut {
+  return settingsFor(ROWS, [])
 }
 
 const ALL = answer()
@@ -194,14 +188,6 @@ describe('changing one', () => {
     expect(crumbs['projects.app.push']).toBe('app')
   })
 
-  it('offers nothing of a project this device does not read', () => {
-    const narrow = answer({ projects: { kind: 'listed', names: ['app'] } })
-    const paths = hereOf(narrow, MAY).map((one) => one.row.path)
-    expect(paths).toContain('projects.app.push')
-    expect(paths).not.toContain('projects.site.push')
-    expect(leftSaid(narrow)).toMatch(/^\d+ settings of projects this device does not read/)
-  })
-
   it('draws each changeable row with a control its value fits', () => {
     // A push mode: four options on the screen at once, the empty one named
     // as the window names it.
@@ -218,7 +204,8 @@ describe('changing one', () => {
     expect(editor.kind).toBe('list')
     expect(editor.options.length).toBeGreaterThan(PICK_MOST)
     expect(editorOf(row('surfaces.window.strip_height')).kind).toBe('number')
-    expect(editorOf(row('extensions.jev.key')).kind).toBe('clear')
+    // A key row may be set as well as cleared: a box to type a new one in.
+    expect(editorOf(row('extensions.jev.key')).kind).toBe('secret')
     const flag = EVERY.find((one) => one.kind === 'flag') as SettingOut
     expect(editorOf(flag).options.map((one) => one.value)).toEqual(['true', 'false'])
     // Every option offered is one the machine takes exactly.
@@ -293,10 +280,9 @@ describe('changing one', () => {
   })
 })
 
-describe('on the person’s own device', () => {
-  // Full access and not a machine link: the machine says `theirs` in the reach
-  // and every row it is shown whole comes with a control.
-  const OWN = answer({ theirs: true })
+describe('on a paired device, which is the person’s own', () => {
+  // Every row it is shown whole comes with a control.
+  const OWN = answer()
   const own = (path: string): SettingOut => {
     const found = OWN.groups.flatMap((group) => group.settings).find((one) => one.path === path)
     if (found === undefined) throw new Error(`no row for ${path}`)
@@ -306,10 +292,7 @@ describe('on the person’s own device', () => {
   it('offers a control on a setting that needs their words, and one nobody else may change', () => {
     for (const path of ['agents.commit', 'approvals.mode', 'agents.instructions']) {
       expect(settingStanding(own(path), MAY).kind, path).toBe('yes')
-      // And an ordinary device is still told it is changed at the machine.
-      expect(settingStanding(row(path), MAY).kind, path).toBe('no')
     }
-    expect(hereOf(OWN, MAY).length).toBeGreaterThan(hereOf(ALL, MAY).length)
   })
 
   it('draws a key as a box to type a new one in, never filled with it', () => {
@@ -327,9 +310,6 @@ describe('on the person’s own device', () => {
     // A 200 empties the box, as for any typed value.
     const came = afterAnswer({ status: 200, body: { rev: 'set' } }, '')
     expect(afterChange(key, editor, 'set', came)).toMatchObject({ clear: true })
-    // And every other device's key row is still a clear, sending nothing typed.
-    expect(editorOf(row('extensions.jev.key')).kind).toBe('clear')
-    expect(changeBody(row('extensions.jev.key'), 'jev_new', 'k', 1).value).toBe('')
   })
 })
 
@@ -359,10 +339,11 @@ describe('the groups', () => {
   })
 
   it('counts its settings, and what may be changed only to a device that may', () => {
-    expect(groupSaid(group('agents'), MAY)).toBe(settingsWord(group('agents').settings.length))
-    expect(groupSaid(group('window'), MAY)).toBe(
-      `${settingsWord(group('window').settings.length)} · 3 you can change`,
-    )
+    for (const one of ALL.groups) {
+      const n = one.settings.filter((each) => settingStanding(each, MAY).kind === 'yes').length
+      const word = settingsWord(one.settings.length)
+      expect(groupSaid(one, MAY), one.id).toBe(n === 0 ? word : `${word} · ${n} you can change`)
+    }
     for (const one of ALL.groups) expect(groupSaid(one, MAY_NOT)).not.toContain('change')
     expect(settingsWord(1)).toBe('1 setting')
   })
@@ -410,28 +391,16 @@ describe('the page’s four states', () => {
     })
   })
 
-  it('says not granted and nothing here as two different things', () => {
-    const ungranted = pageState(answer({ granted: [] }), null)
-    expect(ungranted.kind).toBe('ungranted')
-    expect(ungranted.box?.title).toContain('not granted')
-    // A device granted the settings and reading none is never told it was
-    // not granted — that is the browser harness's `granted` check.
-    const none = pageState({ granted: true, groups: [], withheld: 0 }, null)
+  it('says nothing here as that, never as not granted', () => {
+    const none = pageState({ groups: [] }, null)
     expect(none.kind).toBe('nothing')
     expect(`${none.box?.title} ${none.box?.line}`).not.toContain('not granted')
-    expect(pageState({ granted: true, groups: [], withheld: 4 }, null).box?.line).toBe(
-      leftSaid({ granted: true, groups: [], withheld: 4 }),
-    )
     expect(pageState(ALL, null)).toEqual({ kind: 'ready', box: null })
   })
 
-  it('counts what it holds, and what another project’s left out', () => {
+  it('counts what it holds', () => {
     expect(totalOf(ALL)).toBe(EVERY.length)
     expect(totalOf(null)).toBeNull()
-    expect(leftSaid(ALL)).toBeNull()
-    expect(leftSaid({ granted: true, groups: [], withheld: 1 })).toBe(
-      '1 setting of a project this device does not read is not here.',
-    )
   })
 
   it('opens a desk on what may be changed, where anything may, and else on the first group', () => {

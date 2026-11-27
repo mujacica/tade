@@ -3,7 +3,6 @@ import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
-import { fullAccessLacks, ownsOrTheirs } from './surface.ts'
 
 // The Machines page, for the person's own phone: what each of their machines
 // has, item by item — the window's Settings › Machines grid, a row per sign-in,
@@ -15,12 +14,11 @@ import { fullAccessLacks, ownsOrTheirs } from './surface.ts'
 // (`MachinesNote`), and a change made here that waits for a press on the
 // machine its note was taken on (`MachinesWaiting`).
 //
-// **Theirs, as `/api/machine` is** (`here` and `theirs` in `routes.ts`): what
-// it reads is what `tade machine` over the SSH key reads, and what the move
-// edits is the person's own shell files, which the same key can edit. The
-// person decided their phone may do what they can — off this machine's door it
-// is asked a trusted origin and the passkey, as acting is — and every other
-// session is refused it however much it was granted.
+// **The SSH key's, as `/api/machine` is** (`here` in `routes.ts`): what it
+// reads is what `tade machine` over the SSH key reads, and what the move edits
+// is the person's own shell files, which the same key can edit. Every paired
+// device is the person's own — off this machine's door it is asked a trusted
+// origin and the passkey, as acting is.
 //
 // **Nothing here waits on the look or the move.** A press starts it and is
 // answered with the page as it stands; the page asks again while `looking` or
@@ -121,8 +119,8 @@ export interface MachinesWaiting {
 /**
  * A change another machine gave to a note taken here, waiting for the
  * person's press (`@tade/workbench`'s `Memory.held`) — on this page because a
- * linked machine's word about a note is only that machine's, and the
- * person's own phone is theirs: the same press the window's Settings ›
+ * linked machine's word about a note is only that machine's, and a paired
+ * phone is the person's own: the same press the window's Settings ›
  * Remotes offers.
  */
 export interface MachinesNote {
@@ -159,24 +157,13 @@ export interface WebMachines {
 /** `POST /api/machines`: the page. */
 export async function machinesHere(
   req: IncomingMessage,
-  device: Device,
   machines: WebMachines | undefined,
 ): Promise<{ body: MachinesAnswer } | { refusal: Refusal }> {
   if (machines === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: notTheirs(device) }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   if (!z.strictObject({}).safeParse(got.body).success) return { refusal: refuse('malformed') }
   return { body: machines.shown() }
-}
-
-/**
- * A device that is not the person's own, refused with every box it lacks for
- * full access named (`Refusal.needs`): ticking full access for it at the
- * machine is the whole fix, and the page says which ones are missing.
- */
-function notTheirs(device: Device): Refusal {
-  return refuse('out_of_scope', { needs: fullAccessLacks(device) })
 }
 
 const PressSchema = z.union([
@@ -197,7 +184,6 @@ export async function machinesPressHere(
   machines: WebMachines | undefined,
 ): Promise<{ body: MachinesAnswer } | { refusal: Refusal }> {
   if (machines === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: notTheirs(device) }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const parsed = PressSchema.safeParse(got.body)

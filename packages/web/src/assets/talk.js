@@ -22,7 +22,7 @@
 //   and a refusal, which is `afterAnswer`'s one line.
 // - **The composer is absent where it could not be used**, with its reason.
 //   Three different absences and three different sentences: this surface is
-//   not turned on, this device was not granted it, or Tade is answering
+//   not turned on, this device was paired in the clear, or Tade is answering
 //   somebody else. A disabled box invites a paragraph and then refuses it.
 // - **Tade's own words, never this page's.** What came of a press is the
 //   answer's `said`; what the conversation says is the projection's. There is
@@ -31,7 +31,6 @@
 //   paired device that read as something the person typed would be the `said`
 //   confusion in the one place somebody actually reads the words.
 
-import { mayFor } from './access.js'
 import { afterAnswer, askBody, stopBody } from './acts.js'
 import { keyOf } from './controls.js'
 import { BRIEF_FOLDS, CALL_STATES, callIn, callRow, readFrom, wordsIn } from './conversation.js'
@@ -42,10 +41,9 @@ import { followOf } from './follow.js'
 import { CHAT_KINDS, toolNamed } from './glyphs.js'
 import { icon } from './icons.js'
 import { plainOf } from './markdown.js'
-import { nothingSaid, section } from './rows.js'
+import { section } from './rows.js'
 import { isLogin, signInSheet } from './sign-in.js'
 import { chatOf, omitted, talkOf } from './store.js'
-import { fullAccessOf } from './trouble.js'
 import { answerIn } from './ui.js'
 
 /** The orchestrator's sign-in sheet: one a page, made the first time `/login` is typed. */
@@ -168,10 +166,7 @@ export function talkScreen(ctx) {
     const lines = kept.all()
     textIn(made.figure, lines.length === 0 ? '' : String(lines.length))
     none.hidden = lines.length > 0
-    textIn(
-      none,
-      nothingSaid(mayFor(view.store, 'chat'), omitted(view.store, 'chat'), 'nothing said yet'),
-    )
+    textIn(none, 'nothing said yet')
     keyed(
       list,
       lines,
@@ -183,7 +178,7 @@ export function talkScreen(ctx) {
     // lines it left out, or a record that goes back past what the window holds.
     const more =
       further ?? (omitted(view.store, 'chat') > 0 || talkOf(view.store)?.earlier === true)
-    back.more(mayFor(view.store, 'chat') && lines.length > 0 && more)
+    back.more(lines.length > 0 && more)
   }
 
   return {
@@ -214,9 +209,8 @@ export function talkScreen(ctx) {
  * One function for both, so there is one draft, one `afterAnswer` and one
  * three-sentence absence rather than a second copy of each that drifts: the
  * strip is a smaller box over the same ask flow, not a second door. Nothing
- * here can reach an agent — a message goes to Tade, which is narrowed to what
- * this device was granted at the machine (`origin.ts`) and written down under
- * its id.
+ * here can reach an agent but through Tade, which answers this device as
+ * the person (`origin.ts`) and writes it down under its id.
  */
 export function composerOf(ctx, words) {
   // **The absence in a word, and its sentence one tap away** (`hintOf`): what
@@ -304,7 +298,7 @@ export function composerOf(ctx, words) {
     settle()
     const answer = await ctx.ask('POST', `/api/ask/${what}`, body)
     going = false
-    const came = afterAnswer(answer, ctx.sentence(answer), ctx.session?.() ?? null)
+    const came = afterAnswer(answer, ctx.sentence(answer))
     answerIn(said, came.said, came.trouble)
     if (came.clear && what === 'ask') {
       box.value = ''
@@ -367,10 +361,10 @@ export function composerOf(ctx, words) {
 
   press.addEventListener('click', () => {
     if (talk === null || box.value.trim() === '') return
-    // `/login` on the person's own phone is carried out here, never sent as a
-    // sentence: the orchestrator's sign-in, in a sheet (`sign-in.js`). Any
-    // other device is answered by the window with who may.
-    if (isLogin(box.value) && fullAccessOf(ctx.session?.() ?? null)) {
+    // `/login` is carried out here, never sent as a sentence: the
+    // orchestrator's sign-in, in a sheet (`sign-in.js`). Every paired device
+    // is the person's own, so every one may.
+    if (isLogin(box.value)) {
       box.value = ''
       draft.set('')
       grow()
@@ -496,7 +490,7 @@ function briefSaid(brief) {
 export function reasonWord(talk) {
   if (talk === undefined) return ''
   if (talk === null) return 'Talking is off'
-  if (talk.mine !== true) return 'Not granted'
+  if (talk.mine !== true) return 'Reads only'
   if (talk.busy === true) return 'Answering'
   return ''
 }
@@ -505,8 +499,7 @@ export function reasonWord(talk) {
  * Why there is no box, in words — or empty where there is one.
  *
  * **Three absences and three sentences**, because the thing to do about each is
- * different: turn a setting on at the machine, be granted it at the machine, or
- * wait. A page that said *you cannot do that* to all three would send somebody
+ * different: turn a setting on at the machine, pair again over https, or wait. A page that said *you cannot do that* to all three would send somebody
  * to the wrong place twice out of three times.
  */
 export function reasonFor(talk) {
@@ -516,7 +509,7 @@ export function reasonFor(talk) {
     return 'Talking to Tade is not turned on for this machine. It is a setting in the window, beside the one that let this device in.'
   }
   if (talk.mine !== true) {
-    return 'This device was not granted talking to Tade. That needs the person at the machine: it is a control in the away panel, beside the one that lets a device act.'
+    return 'This device was paired over a connection that is not encrypted, so it reads and never sends. Pair it again by an https name to talk to Tade.'
   }
   if (talk.busy === true) {
     return talk.whose === 'you'

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { readDevices, writeDevices } from '../src/devices.ts'
 import { Streams } from '../src/peers.ts'
 import type { Delta } from '../src/protocol.ts'
-import type { Reach } from '../src/reach.ts'
+import { reachFor } from '../src/reach.ts'
 import { idFor } from '../src/stream.ts'
 import { NOW } from './fixtures.ts'
 import { ask, closeAll, pair, projectorFor, type Running, said, start } from './harness.ts'
@@ -156,13 +156,12 @@ describe('what an EventSource is served', () => {
     live.close()
   })
 
-  it('carries the projection this device was granted and no other', async () => {
+  it('carries the whole projection to a paired device', async () => {
     const { one, cookie } = await paired()
     const live = await listen(one, '/api/stream', { cookie })
     await live.until('snapshot')
-    // Granted nothing beyond names and counts, so the one note's words are not
-    // on the wire while its count is.
-    expect(live.text()).not.toContain('the checkout is at')
+    // Every paired device is the person's own: the note's words are on the wire.
+    expect(live.text()).toContain('the checkout is at')
     expect(live.text()).toContain('"notes"')
     live.close()
   })
@@ -327,9 +326,6 @@ describe('a session that renews under an open stream', () => {
         host: held.host,
         csrf: held.csrf,
         until: new Date(until).toISOString(),
-        scopes: ['read'],
-        projects: null,
-        granted: [],
         from: held.from,
       },
     ])
@@ -471,11 +467,6 @@ function moved(rev: number): Delta {
 /** The epoch this server's streams are stamping. The server's own. */
 function epochOf(one: Running): string {
   return one.epoch
-}
-
-/** The reach the server builds a projection for, for one paired device. */
-function reachFor(device: string): Reach {
-  return { device, projects: { kind: 'every' }, granted: [] }
 }
 
 /** Poll a condition, bounded, because a socket closing is another tick away. */

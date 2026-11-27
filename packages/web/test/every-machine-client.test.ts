@@ -8,7 +8,7 @@ import { applyCopy, applySnapshot, emptyStore } from '../src/assets/store.js'
 import { everyMachine, machineChips, machinePicked } from '../src/assets/there.js'
 import { PROTOCOL_VERSION } from '../src/protocol.ts'
 import { snapshotOf } from '../src/snapshot.ts'
-import { EVERY, input, NOW, queued, reach, task } from './fixtures.ts'
+import { input, NOW, queued, reach, task } from './fixtures.ts'
 
 // Every machine's rows on one page (ONE-AWAY-VIEW §2.4): the machine chips —
 // All · This machine · each other — over the side, the overview and every list
@@ -42,7 +42,7 @@ function storeOf(linked: boolean, state: 'up' | 'closed' = 'up') {
     store,
     snapshotOf(
       input({
-        reach: reach(EVERY),
+        reach: reach(),
         machines,
         tasks: [{ ...one, review: { state: 'open', url: PR } }],
         queue: [queued({ task: 'tade/one', project: 'tade' })],
@@ -54,7 +54,7 @@ function storeOf(linked: boolean, state: 'up' | 'closed' = 'up') {
   const two = task({ id: 'tade/two', project: 'tade', title: 'the mac’s two' })
   const theirs = snapshotOf(
     input({
-      reach: reach(EVERY),
+      reach: reach(),
       tasks: [{ ...two, review: { state: 'open', url: PR } }],
       queue: [queued({ task: 'tade/two', project: 'tade' })],
     }),

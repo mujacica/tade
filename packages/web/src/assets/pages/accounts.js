@@ -29,7 +29,7 @@ import { el, into, keyed, skeleton, textIn } from '../dom.js'
 import { icon } from '../icons.js'
 import { section } from '../rows.js'
 import { signInSheet } from '../sign-in.js'
-import { fullAccessOf, theirsTrouble, UNKNOWN_TROUBLE } from '../trouble.js'
+import { theirsTrouble, UNKNOWN_TROUBLE } from '../trouble.js'
 import { answerIn, panel, stateBox, stateBoxIn } from '../ui.js'
 import {
   ACCOUNT_SIGN_IN_PATH,
@@ -261,7 +261,7 @@ export function accountsScreen(ctx) {
             'error',
             refused.title,
             refused.why ?? refused.fix,
-            { word: 'Ask again', run: () => void load(true) },
+            { word: 'Ask again', run: () => void load() },
             refused.steps ?? null,
           ),
     )
@@ -284,7 +284,7 @@ export function accountsScreen(ctx) {
           armed = null
           wanting = null
           trouble = null
-          void load(true)
+          void load()
         })
       },
     )
@@ -354,7 +354,7 @@ export function accountsScreen(ctx) {
     void signing().open(from, {
       with: signInWith(harness, account, chosen),
       heading: signInHeading(name, chosen),
-      ended: () => void load(true),
+      ended: () => void load(),
     })
   }
 
@@ -370,7 +370,7 @@ export function accountsScreen(ctx) {
       answer = got.body
       if (!answer.trouble && after !== null) after(answer)
     } else {
-      trouble = theirsTrouble(got, ctx.session()) ?? UNKNOWN_TROUBLE
+      trouble = theirsTrouble(got) ?? UNKNOWN_TROUBLE
     }
     draw()
   }
@@ -408,15 +408,7 @@ export function accountsScreen(ctx) {
     draw()
   })
 
-  // Not full access: refused unasked, but Ask again asks.
-  async function load(asked = false) {
-    const you = ctx.session()
-    if (!asked && answer === null && you != null && !fullAccessOf(you)) {
-      refused =
-        theirsTrouble({ status: 403, body: { error: 'out_of_scope' } }, you) ?? UNKNOWN_TROUBLE
-      draw()
-      return
-    }
+  async function load() {
     asking = true
     draw()
     const want = chosen
@@ -430,20 +422,20 @@ export function accountsScreen(ctx) {
       const here = tabHere(chosen, answer)
       if (here !== chosen) {
         chosen = here
-        void load(true)
+        void load()
         return
       }
     } else if (answer === null) {
-      refused = theirsTrouble(got, ctx.session()) ?? UNKNOWN_TROUBLE
+      refused = theirsTrouble(got) ?? UNKNOWN_TROUBLE
     } else {
-      trouble = theirsTrouble(got, ctx.session()) ?? UNKNOWN_TROUBLE
+      trouble = theirsTrouble(got) ?? UNKNOWN_TROUBLE
     }
     draw()
   }
 
   again.addEventListener('click', () => {
     trouble = null
-    void load(true)
+    void load()
   })
 
   draw()

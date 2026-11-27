@@ -46,7 +46,7 @@ afterEach(closeAll)
 /** A device granted what approving needs, listening, with a real delivery parked. */
 async function proposal(): Promise<{ one: Machine; task: string }> {
   const one = await machine({ intake: true })
-  await paired(one.home, one.port, ['read', 'answer', 'steer'])
+  await paired(one.home, one.port)
   await one.away.open()
   return { one, task: await delivered(one) }
 }

@@ -166,7 +166,7 @@ describe('what a call from away may reach, over the socket', () => {
       const gate = await call(path, 'origin/allow', { tool: 'tade_project_sync' })
       expect(gate.result).toMatchObject({ allow: false })
       const said = await call(path, 'project/sync', { project: 'sentry', said: 'sync sentry' })
-      expect(said.error?.message).toContain('on their own device with full access')
+      expect(said.error?.message).toContain('on a device they paired')
     }
     expect(synced).toEqual([])
     expect(refused.map((one) => one.method)).toEqual([

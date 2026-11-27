@@ -113,17 +113,14 @@ export function evaluationsNow(
 }
 
 /**
- * The away view's answer for one device: folded over the projects it reads,
- * every range there is, and what its grants withhold taken out (`evaluationsFor`).
+ * The away view's answer for one device: folded over every project, every
+ * range there is (`evaluationsFor`). Every paired device reads all of it.
  */
 export function evaluationsAnswer(wire: Wiring, reach: Reach): EvaluationsOut {
   return evaluationsFor(
     reach,
-    (projects) => evaluationsNow(wire, 'all', projects)?.evaluations ?? null,
-    // The races, over the projects this device reads and never filtered after:
-    // a race is one project's, so leaving the others out is the whole fold.
-    (projects) =>
-      racesHeld(wire, usdByTask(wire)).filter((one) => !projects || projects.has(one.project)),
+    () => evaluationsNow(wire, 'all')?.evaluations ?? null,
+    () => racesHeld(wire, usdByTask(wire)),
   )
 }
 

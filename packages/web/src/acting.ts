@@ -37,7 +37,7 @@ import type { Scope } from './surface.ts'
 //   intake grant — the thing that grants authority is never reachable from
 //   inside the authority it granted. Running an agent as another account or
 //   in another harness names one **by its name**, among what this machine
-//   already set up, and only the person's own device may (`Verb.theirs`);
+//   already set up;
 // - no reach into the `ToolHost`, which is a Unix socket in
 //   `@tade/orchestrator` for the window's own children and is not this
 //   (`test/separation.test.ts`).
@@ -230,8 +230,8 @@ export type StartAgentCall = Target
  * Close a task's agent for good: the window's Remove agent — its agent
  * stopped, the task off the list, and its worktree and branch with it.
  *
- * The one verb here that **deletes** something, so it is the person's own
- * device's alone (`Verb.theirs`), takes two presses and a literal, and names
+ * The one verb here that **deletes** something, so it takes two presses and a
+ * literal, and names
  * what it loses in its answer.
  */
 export interface RemoveAgentCall extends Target {
@@ -446,11 +446,11 @@ export class NotThere extends Error {
  * That the verb exists and this device may not have it for *this* target.
  *
  * The one refusal a verb can raise that the gate could not: the gate knows the
- * scope, the project and the origin, and this is about what the target
- * **is** — work that came from outside the machine, which a request from away
- * may not approve (`parked.ts`'s `NotYours`). `out_of_scope` and not a `404`,
- * because the task is one this device can see and the honest answer is that it
- * was not granted that rather than that there is nothing there.
+ * project and the origin, and this is about what the target **is** — work that
+ * came from outside the machine, which a request from away may not approve
+ * (`parked.ts`'s `NotYours`). `out_of_scope` and not a `404`, because the task
+ * is one this device can see and the honest answer is that it may not do that
+ * rather than that there is nothing there.
  */
 export class OutOfScope extends Error {
   constructor(said: string) {

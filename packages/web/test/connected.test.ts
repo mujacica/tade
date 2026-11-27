@@ -822,7 +822,7 @@ describe('an owner asking from another machine', () => {
     expect(asked.kept).toEqual([{ signing_secret: PASTED }])
   })
 
-  it('answers no device that is not an owner', async () => {
+  it('answers a paired phone as it answers an owner', async () => {
     const { half } = connecting()
     const one = await start({}, { connecting: half })
     const phone = await pair(one)
@@ -836,9 +836,8 @@ describe('an owner asking from another machine', () => {
       },
       body: JSON.stringify({ source: 'github' }),
     })
-    // Refused as every owner route refuses a phone: it was not granted this.
-    expect(answer.status).toBe(403)
-    expect(JSON.parse(answer.text).error).toBe('out_of_scope')
+    // Every paired device is the person's own.
+    expect(answer.status, answer.text).toBe(200)
   })
 })
 

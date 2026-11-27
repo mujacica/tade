@@ -73,14 +73,12 @@ describe('another machine’s scorecards, folded', () => {
     const answer = EvaluationsAnswerSchema.parse({
       read: true,
       mergedFrom: 'journal',
-      granted: { spend: true, findings: false },
-      judge: 'not granted',
+      judge: 'none here',
       total: CARD,
       by: { harness: [CARD], model: [], persona: [], template: [] },
     })
     const cards = cardsOf({ answer, at: NOW, said: null, busy: false })
     expect(cards?.at).toBe(NOW)
-    expect(cards?.granted).toEqual({ spend: true, findings: false })
     expect(cards?.by.model).toEqual([])
     expect(cards?.by.harness[0]).toMatchObject({
       label: 'pi␛',

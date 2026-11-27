@@ -8,13 +8,10 @@ import {
 } from '@tade/core'
 import {
   type AnswerCall,
-  allowDevice,
   byOf,
   type ContextCall,
-  type Device,
   type DoneCall,
   type From,
-  grantDevice,
   type IntakeCall,
   Moved,
   type NoteCall,
@@ -44,11 +41,9 @@ import {
 } from '@tade/workbench'
 import type { Steering } from '../away.ts'
 import type { AgentActing } from './web-agent.ts'
-import { BOXES, readsAfter, ticked } from './web-boxes.ts'
 import type { LifecycleActing, LifecycleDeps } from './web-lifecycle.ts'
 
-// The window's end of acting: what a verb actually does, and the one door a
-// device's scope widens through.
+// The window's end of acting: what a verb actually does.
 //
 // **Its own file, and the seam is the point.** What the away view is *handed*
 // is exactly this — a `WebActing` with a method per verb and nothing else on
@@ -178,13 +173,6 @@ export interface ActingDoors extends IntakeDoors {
   ): Promise<void>
 }
 
-/** What letting a device act needs. Deliberately not the whole window. */
-export interface GrantDeps {
-  home: string
-  acting: () => boolean
-  now: () => number
-}
-
 /**
  * What a paired device may do, as the window implements it.
  *
@@ -297,7 +285,7 @@ export function park(deps: ActingDeps, call: ParkCall, from: From): Promise<Outc
       // approving somebody else's request, which is the `intake` verb and its
       // two re-checks (`parked.ts`'s `NotYours`) rather than this one.
       // `out_of_scope` and not a `404`, because the task is one this device
-      // can see and the honest answer is that it was not granted *that*.
+      // can see and the honest answer is that it may not do *that* from away.
       if (err instanceof NotYours) throw new OutOfScope(err.message)
       throw err
     }
@@ -617,8 +605,8 @@ export function intake(deps: ActingDeps, call: IntakeCall, from: From): Promise<
       // and that is the honest word for all of them: the grant was turned off,
       // the project came off its list, the source closed the ticket, or nobody
       // could reach the source. None of them is a thing to retry and none is a
-      // failure of this machine — what they have in common is that this device
-      // was not granted *that*, now.
+      // failure of this machine — what they have in common is that *that* is
+      // not something a device may do, now.
       throw new OutOfScope(err instanceof Error ? err.message : String(err))
     }
   })
@@ -628,131 +616,4 @@ export function intake(deps: ActingDeps, call: IntakeCall, from: From): Promise<
 async function rowOf(deps: ActingDeps, task: string): Promise<InboxRow | null> {
   const rows = await inboxFrom({ home: deps.tade.home, events: await deps.tade.log.read({}) })
   return rows.find((row) => row.tasks.includes(task)) ?? null
-}
-
-/** What granting, or taking it back, came to. */
-export interface Granted {
-  /** What that device may do now, in full. */
-  scopes: readonly string[]
-  /** What it may read now, in full, where the box wrote that too (`BOXES`). */
-  reads?: readonly string[]
-  /** Tade's own sentence for the strip. */
-  said: string
-}
-
-/**
- * Let one device act, or take it back. **A person at this machine, only.**
- *
- * There is deliberately no other door: no route, no orchestrator tool and no
- * config key, because the thing that grants authority is never reachable from
- * inside the authority it granted.
- *
- * **What it grants is both tiers**, and that is a decision rather than a
- * convenience. The scope matrix has two — `answer` for choosing between things an
- * agent itself offered, `steer` for changing what gets done — and one control
- * that granted only the gentler one would mean a phone that can allow a
- * command and cannot set the work aside, which is the wrong half. A control
- * per tier is the thing to build if somebody wants the narrower grant; until
- * then this grants what the sentence beside it names
- * (`ACTING_IS_NOT_YOU`), and that sentence is held to naming all of it.
- *
- * **It leaves `ask` exactly as it was**, which is why the scopes are composed
- * from what the device already has rather than written out. Two controls over
- * one list is how one of them silently takes the other's grant away: a device
- * that could talk to Tade and was then granted acting would have stopped
- * being able to, with nobody told and nothing in the journal saying so.
- *
- * The projects it may act in are the ones it may already read, so revoking a
- * project revokes acting in it in the same act.
- *
- * **Refused while the setting is off**, rather than written and then ignored:
- * a grant that did nothing because of a second setting is exactly what Tade
- * accepting and ignoring a setting would be. The control is not drawn there
- * either; this is the half that holds if something else ever presses it.
- */
-/** What granting `ask` needs: the file, the setting read now, and the clock. */
-export interface TalkDeps {
-  home: string
-  /** Whether talking is on, read at the act. A grant nothing could use is not written. */
-  talking: () => boolean
-  now: () => number
-}
-
-export async function letOneAct(
-  deps: GrantDeps,
-  devices: readonly Device[],
-  id: string,
-): Promise<Granted> {
-  if (!deps.acting()) {
-    throw new Error('turn on “Act” in Settings → Away view first')
-  }
-  const device = devices.find((one) => one.id === id && one.revoked === null)
-  if (device === undefined) throw new Error('that device is not paired')
-  const may = ticked(device, BOXES.act)
-  // **`read` is never taken away here, and neither is anything this control
-  // does not decide.** Widening what one device may do and signing it out are
-  // different acts, and only the first of them is this control; a grant
-  // written without `read` would quietly make a phone stop being able to see
-  // anything, and one written without `ask` would take talking away from a
-  // device somebody granted it to.
-  const scopes = kept(device, ['answer', 'steer'], !may)
-  await allowDevice(deps.home, id, scopes, new Date(deps.now()))
-  const what = device.label === '' ? 'that device' : device.label
-  return { scopes, said: may ? `${what} can no longer act` : `${what} can act` }
-}
-
-/**
- * Let one device talk to Tade, or take it back. **A person at this machine,
- * only**, and a second control from the one above.
- *
- * `acting` and this are different decisions and each has its own sentence on
- * its own control: eight bounded verbs, and free text to a model that holds
- * tools. A person who granted the first has not answered the second.
- *
- * What it grants is `ask` and the conversation it is about (`BOXES.talk`),
- * and nothing that changes anything. What a turn sent under it may
- * *do* is read off the `answer` and `steer` scopes the act control writes
- * (`armFor`), so a device that may talk and may not act is answered in words
- * and changes nothing — and there is no third list of the same decision.
- */
-export async function letOneTalk(
-  deps: TalkDeps,
-  devices: readonly Device[],
-  id: string,
-): Promise<Granted> {
-  if (!deps.talking()) {
-    throw new Error('turn on “Talk to Tade” in Settings → Away view first')
-  }
-  const device = devices.find((one) => one.id === id && one.revoked === null)
-  if (device === undefined) throw new Error('that device is not paired')
-  // Ticked only with the conversation too (`BOXES.talk`): a device that may
-  // ask and may not read what came back has a composer and *Not granted*.
-  const may = ticked(device, BOXES.talk)
-  const scopes = kept(device, ['ask'], !may)
-  const reads = readsAfter(device, BOXES.talk, !may)
-  const when = new Date(deps.now())
-  await grantDevice(deps.home, id, reads, when)
-  await allowDevice(deps.home, id, scopes, when)
-  const what = device.label === '' ? 'that device' : device.label
-  return {
-    scopes,
-    reads,
-    said: may ? `${what} can no longer talk to Tade` : `${what} can talk to Tade`,
-  }
-}
-
-/**
- * The scopes a grant writes: everything this control does not decide, kept as
- * it was, plus the ones it does where it is turning them on.
- *
- * **`allowDevice` writes the whole list**, so every control over it has to
- * compose rather than enumerate — and the day two of them enumerate is the day
- * the second one silently revokes the first. `read` is in the kept half by
- * construction: no control here decides it.
- */
-export function kept(device: Device, decides: readonly string[], on: boolean): string[] {
-  const rest = device.scopes.filter((scope) => !decides.includes(scope))
-  const scopes = new Set<string>(['read', ...rest])
-  if (on) for (const scope of decides) scopes.add(scope)
-  return [...scopes]
 }

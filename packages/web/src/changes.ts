@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { cleanAway } from './cleaning.ts'
 import { withoutPaths } from './fields.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
-import { has, type Reach } from './reach.ts'
+import type { Reach } from './reach.ts'
 import { inTime } from './request.ts'
 import type { ServerOptions } from './serving.ts'
 
@@ -10,11 +10,10 @@ import type { ServerOptions } from './serving.ts'
 // that opened its changes (`GET /api/agent/:project/:task/changes`) — the
 // window's own Show changes, from away.
 //
-// **On `lanes`, because it is the same thing leaving the machine.** A diff is
-// source, and source already leaves on that grant: an agent's screen is
-// whatever it printed, and a call's whole answer (`answered.ts`) is whatever
-// it read — a `read` of a file is the file. So this is that grant's, for a
-// task the device reads, and never a field of a row or a snapshot (`diff` and
+// **The same thing leaving the machine as an agent's screen.** A diff is
+// source, and an agent's screen is whatever it printed, and a call's whole
+// answer (`answered.ts`) is whatever it read — a `read` of a file is the file.
+// So this is its own answer, and never a field of a row or a snapshot (`diff` and
 // `patch` are still names `NEVER_A_FIELD` refuses): it is asked when somebody
 // opens it, answered once, and held by nobody.
 //
@@ -44,10 +43,8 @@ export const CHANGES_SAY = [
   'not looked',
   /** Its tree could not be read, or not in time. */
   'unread',
-  /** Not a task this device reads, or no such task. One answer, so neither is told apart. */
+  /** No such task. */
   'not here',
-  /** This device was not granted an agent's own bytes. */
-  'not granted',
 ] as const
 
 export const FILE_SAYS = [
@@ -156,10 +153,8 @@ async function fileOut(one: ChangedIn, known: readonly string[]): Promise<Change
 }
 
 /**
- * The route's answer: one agent's changes for a task this device reads, on
- * `lanes`. A task it does not read is the same answer as one that is not
- * there, so a crafted name learns nothing; a device without `lanes` is told
- * only that, never whether anything changed.
+ * The route's answer: one agent's changes, or that there is no such task —
+ * asked before the window is asked to read anything.
  */
 export async function changesHere(
   params: Readonly<Record<string, string>>,
@@ -168,7 +163,6 @@ export async function changesHere(
 ): Promise<ChangesOut> {
   const task = `${params.project ?? ''}/${params.task ?? ''}`
   if (!opts.readingFor(reach).agent(task).here) return out(task, 'not here')
-  if (!has(reach, 'lanes')) return out(task, 'not granted')
   const changes = opts.changes
   if (changes === undefined) return out(task, 'unread')
   // The window's half says at the machine what it could not read and answers

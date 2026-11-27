@@ -36,30 +36,6 @@
 /** The protocol this page speaks. A frame of any other version is refused. */
 export const SPEAKS = 1
 
-/**
- * The kinds of reading a device can be granted, as the page asks about them.
- *
- * `reach.ts`'s own list, and held equal to it by `test/store.test.ts` — a word
- * here that the machine does not grant is a page asking a question nobody can
- * answer yes to, and one the machine grants that is missing here is a reading
- * the page silently treats as withheld.
- */
-export const GRANTS = [
-  'titles',
-  'intent',
-  'notes',
-  'findings',
-  'spend',
-  'reviews',
-  'accounts',
-  'talk',
-  'requests',
-  'material',
-  'workflows',
-  'lanes',
-  'settings',
-]
-
 const COLLECTIONS = [
   'projects',
   'tasks',
@@ -510,19 +486,6 @@ export function reviewsOf(store) {
     else if ((task.ahead ?? 0) > 0) unoffered.push(task)
   }
   return { offered, unoffered }
-}
-
-/**
- * Whether this device was granted a kind of reading.
- *
- * **The difference between two dashes.** A field that is null because nobody
- * wrote the figure down and one that is null because this device may not read
- * it are different facts, and a page that drew both as *not recorded* would be
- * telling somebody their work cost nothing. `you.reads` is what the machine
- * granted at pairing, and it is the only way to tell them apart from here.
- */
-export function mayRead(store, grant) {
-  return store.you?.reads.includes(grant) ?? false
 }
 
 /**

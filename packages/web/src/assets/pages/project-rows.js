@@ -21,7 +21,7 @@ import { armOf, branchSaid, checkSaid, reviewOf, spentSaid } from './project-sha
 /**
  * One piece of work waiting on a person — or one whose agent failed: its mark
  * in a square of its tone, the name, how long ago, why in `deriveState`'s own
- * words, and the presses this device was granted.
+ * words, and the presses this device may ask for.
  */
 export function createWant(ctx) {
   const node = el('li', { class: 'pj-want' })

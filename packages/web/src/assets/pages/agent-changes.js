@@ -84,7 +84,7 @@ export function changesScreen(where, ctx) {
       answer = got.body
       failed = null
     } else {
-      failed = troubleSaid(troubleOf(got, '', ctx.session?.() ?? null) ?? UNKNOWN_TROUBLE)
+      failed = troubleSaid(troubleOf(got) ?? UNKNOWN_TROUBLE)
     }
     draw()
     // The machine had not looked at its tree yet: once more in a moment, by itself.

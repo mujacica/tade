@@ -9,12 +9,9 @@ import {
   perLandedCost,
   precisionSaid,
   type Race,
-  type RaceWon,
   raceDollars,
-  raceKey,
   racerRunsOn,
   raceSpentSays,
-  racesIn,
   type Scorecard,
   scorecardsBy,
   UNRECORDED,
@@ -22,9 +19,9 @@ import {
   worthSaid,
 } from '@tade/core'
 import { z } from 'zod'
-import { has, type Reach } from './reach.ts'
+import type { Reach } from './reach.ts'
 
-// The scorecards, as one device may read them: which harness, model, persona
+// The scorecards: which harness, model, persona
 // and template lands work, and the judge's own calibration.
 //
 // **An answer of its own, not a collection**, for the reason the notes and the
@@ -32,23 +29,15 @@ import { has, type Reach } from './reach.ts'
 // is not sent four tables of it on every frame for a page nobody has open. The
 // page asks while it is open (`GET /api/evaluations`).
 //
-// **Folded per device, never filtered afterwards.** A scorecard is a sum, and a
-// sum over work a device may not read cannot be made safe by removing rows from
-// it — so the window folds again over the projects this device reads
-// (`EvaluationsFor`), and what comes back is only ever about those.
+// Every paired device is the person's own, so the fold is over every project.
 //
 // Every figure that is a count out of a count arrives with the machine's own
 // words for it (`countSaid`, `precisionSaid`), so the page draws and decides
-// nothing — and a rate is said only from `ENOUGH`, after its counts. Money is
-// the `spend` grant's and what the judge said is the `findings` grant's, each
-// withheld here as a *not granted* the page can say rather than as a nought.
+// nothing — and a rate is said only from `ENOUGH`, after its counts.
 //
 // **And the races**, the head-to-head version of the same question — one
 // request, several harnesses or models — read-only here: picking is a press in
-// the window or a line to the orchestrator. Their order reads the judge, so a
-// device without `findings` gets them ordered by the checks and the size alone
-// rather than by what it may not read; what was asked is `intent`'s, and the
-// money is `spend`'s.
+// the window or a line to the orchestrator.
 
 /** A count out of a count, and the machine's words for it. */
 export interface RateOut {
@@ -71,9 +60,9 @@ export interface CardOut {
   firstPushGreen: RateOut
   /** Red runs on this machine; null where nothing ran a check here. */
   redsHere: number | null
-  /** Null where no judge reads anything here, or this device was not granted it. */
+  /** Null where no judge reads anything here. */
   findings: { fired: number; on: number; confirmed: number; wrong: number; open: number } | null
-  /** What a landed task cost, part by part; null where not granted `spend`. */
+  /** What a landed task cost, part by part; null where nothing recorded one. */
   cost: CostPart[] | null
   tokensPerLanded: number | null
   toDoneMs: number | null
@@ -100,10 +89,8 @@ export interface EvaluationsOut {
   /** False until the window has read the journal: a page of noughts before then would be a lie. */
   read: boolean
   mergedFrom: Evaluations['mergedFrom'] | null
-  /** Whether the money and the judge reached this device, each its own grant. */
-  granted: { spend: boolean; findings: boolean }
-  /** Null where nothing reads anything here; withheld where not granted. */
-  judge: 'read' | 'none here' | 'not granted'
+  /** Whether a judge here reads anything. */
+  judge: 'read' | 'none here'
   total: CardOut | null
   by: Readonly<Record<EvalBy, CardOut[]>>
   calibration: CalibrationOut | null
@@ -122,7 +109,6 @@ export interface RacerOut {
   closed: boolean
   /** Every figure this device may read, in the machine's words. */
   says: string[]
-  /** Null where not granted `spend`. */
   usd: string | null
 }
 
@@ -130,12 +116,12 @@ export interface RacerOut {
 export interface RaceOut {
   name: string
   project: string
-  /** What every entrant was asked, verbatim; null where not granted `intent`. */
+  /** What every entrant was asked, verbatim. */
   said: string | null
   finished: number
-  /** What it has cost so far, in a clause; null where not granted `spend`. */
+  /** What it has cost so far, in a clause. */
   spent: string | null
-  /** Who picked; `why` is null where not granted `intent`. */
+  /** Who picked, and why. */
   won: { task: string; by: string; why: string | null } | null
   racers: RacerOut[]
 }
@@ -148,73 +134,48 @@ export type EvaluationsFor = (projects: ReadonlySet<string> | null) => Evaluatio
 
 /** The answer for one device. */
 export function evaluationsFor(
-  reach: Reach,
+  _reach: Reach,
   fold: EvaluationsFor | undefined,
   races?: RacesFor,
 ): EvaluationsOut {
-  const granted = { spend: has(reach, 'spend'), findings: has(reach, 'findings') }
-  const projects = reach.projects.kind === 'every' ? null : new Set(reach.projects.names)
-  const raced = racesOut(reach, races?.(projects) ?? [])
-  const evals = fold?.(projects) ?? null
+  // Every paired device reads every project, so the folds are over all of them.
+  const raced = racesOut(races?.(null) ?? [])
+  const evals = fold?.(null) ?? null
   const empty = { harness: [], model: [], persona: [], template: [] }
   if (evals === null) {
     return {
       read: false,
       mergedFrom: null,
-      granted,
-      judge: granted.findings ? 'none here' : 'not granted',
+      judge: 'none here',
       total: null,
       by: empty,
       calibration: null,
       races: raced,
     }
   }
-  const card = (row: Scorecard, by: EvalBy | null): CardOut => cardOut(row, by, granted)
+  const card = (row: Scorecard, by: EvalBy | null): CardOut => cardOut(row, by)
   return {
     read: true,
     mergedFrom: evals.mergedFrom,
-    granted,
-    judge: !granted.findings ? 'not granted' : evals.calibration === null ? 'none here' : 'read',
+    judge: evals.calibration === null ? 'none here' : 'read',
     total: card(evals.total, null),
     by: Object.fromEntries(
       EVAL_BY.map(({ id }) => [id, scorecardsBy(evals, id).map((row) => card(row, id))]),
     ) as Record<EvalBy, CardOut[]>,
-    calibration:
-      granted.findings && evals.calibration !== null ? calibrationOut(evals.calibration) : null,
+    calibration: evals.calibration !== null ? calibrationOut(evals.calibration) : null,
     races: raced,
   }
 }
 
-/**
- * The races as one device may read them. Without `findings` the judge's part is
- * taken out *before* they are ordered, so the order says nothing it may not
- * read; a race in a project it does not read never reaches here at all.
- */
-function racesOut(reach: Reach, races: readonly Race[]): RaceOut[] {
-  const findings = has(reach, 'findings')
-  const intent = has(reach, 'intent')
-  const spend = has(reach, 'spend')
-  const shown = findings
-    ? races
-    : racesIn(
-        races.flatMap((race) =>
-          race.racers.map((one) => ({ ...one.facts, findings: null, strayed: null })),
-        ),
-        new Map(
-          races.flatMap((race) =>
-            race.won ? [[raceKey(race.project, race.name), race.won] as [string, RaceWon]] : [],
-          ),
-        ),
-      )
-  return shown.map((race) => ({
+/** The races, each with every figure the machine has about its entrants. */
+function racesOut(races: readonly Race[]): RaceOut[] {
+  return races.map((race) => ({
     name: race.name,
     project: race.project,
-    said: intent ? race.said : null,
+    said: race.said,
     finished: race.finished,
-    spent: spend ? raceSpentSays(race) : null,
-    won: race.won
-      ? { task: race.won.task, by: race.won.by, why: intent ? race.won.why : null }
-      : null,
+    spent: raceSpentSays(race),
+    won: race.won ? { task: race.won.task, by: race.won.by, why: race.won.why } : null,
     racers: race.racers.map((one) => {
       const facts = one.facts
       const says = [
@@ -226,18 +187,14 @@ function racesOut(reach: Reach, races: readonly Race[]): RaceOut[] {
             : facts.checks === 'unknown'
               ? 'checks not run'
               : 'checks not looked at',
-        ...(findings
-          ? [
-              facts.strayed === null
-                ? 'no judge reads it'
-                : facts.strayed
-                  ? 'strayed from what was asked'
-                  : 'kept to what was asked',
-              facts.findings === null
-                ? 'findings not read'
-                : `${facts.findings.open + facts.findings.answered + facts.findings.confirmed} findings open`,
-            ]
-          : []),
+        facts.strayed === null
+          ? 'no judge reads it'
+          : facts.strayed
+            ? 'strayed from what was asked'
+            : 'kept to what was asked',
+        facts.findings === null
+          ? 'findings not read'
+          : `${facts.findings.open + facts.findings.answered + facts.findings.confirmed} findings open`,
         facts.size && facts.size.added !== null && facts.size.removed !== null
           ? `+${facts.size.added} −${facts.size.removed}`
           : 'size not counted',
@@ -249,17 +206,13 @@ function racesOut(reach: Reach, races: readonly Race[]): RaceOut[] {
         won: one.won,
         closed: one.closed,
         says,
-        usd: spend ? raceDollars(facts.usd) : null,
+        usd: raceDollars(facts.usd),
       }
     }),
   }))
 }
 
-function cardOut(
-  row: Scorecard,
-  by: EvalBy | null,
-  granted: { spend: boolean; findings: boolean },
-): CardOut {
+function cardOut(row: Scorecard, by: EvalBy | null): CardOut {
   const rate = (count: number, of: number): RateOut => ({ count, of, said: countSaid(count, of) })
   return {
     key: row.key,
@@ -271,9 +224,9 @@ function cardOut(
     merged: row.merged,
     firstPushGreen: rate(row.firstPushGreen, row.pushed),
     redsHere: row.checkedHere === 0 ? null : row.redsHere,
-    findings: granted.findings && row.findings ? { ...row.findings } : null,
-    cost: granted.spend ? perLandedCost(row) : null,
-    tokensPerLanded: granted.spend ? perLanded(row, (spend) => spend.tokens) : null,
+    findings: row.findings ? { ...row.findings } : null,
+    cost: perLandedCost(row),
+    tokensPerLanded: perLanded(row, (spend) => spend.tokens),
     toDoneMs: row.toDoneMs,
     moved: row.moved,
   }
@@ -355,12 +308,11 @@ const CardSchema = z.object({
 })
 export type CardRead = z.infer<typeof CardSchema>
 
-/** `EvaluationsOut` as another machine reads it: the scorecards, and whether money and the judge reached it. */
+/** `EvaluationsOut` as another machine reads it: the scorecards, and whether its judge reads anything. */
 export const EvaluationsAnswerSchema = z.object({
   read: z.boolean(),
   mergedFrom: z.enum(['journal', 'journal and forge']).nullable(),
-  granted: z.object({ spend: z.boolean(), findings: z.boolean() }),
-  judge: z.enum(['read', 'none here', 'not granted']),
+  judge: z.enum(['read', 'none here']),
   total: CardSchema.nullable(),
   by: z.object({
     harness: z.array(CardSchema).max(CARDS_MOST),

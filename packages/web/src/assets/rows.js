@@ -186,8 +186,7 @@ function waitsIn(node, row) {
   for (const one of row.waitsOn ?? []) {
     // The state's own sentence already names what this waits on (`after a and
     // b`). A connector line earns its place by carrying **why** — and where
-    // nobody wrote one, or this device was not granted it, there is nothing to
-    // draw but the same id again.
+    // nobody wrote one there is nothing to draw but the same id again.
     if (one.why === null || one.why === undefined) continue
     lines.push({ edge: true, said: `${one.task} — ${one.why.words}` })
   }
@@ -404,21 +403,4 @@ export function fillSaidRow(node, one) {
   const [glyph, name] = body.children
   markIn(glyph, one.bad ? checkMark('fail') : { glyph: '⚠', word: 'warning', tone: 't-working' })
   textIn(name, one.said)
-}
-
-/**
- * What an empty list says, which is **two different nothings**.
- *
- * A collection with no rows because there are none, and one with no rows
- * because this device was not granted them, are different facts — and the
- * second carries its count, because *there are forty-one notes and you may not
- * read them from here* is the honest shape of a read scope. A nought in its
- * place reads as "you have none", which is a page answering a question nobody
- * asked it.
- */
-export function nothingSaid(may, total, nothing) {
-  if (may) return nothing
-  return total === 0
-    ? 'not granted to this device'
-    : `${total} here, and this device was not granted them`
 }

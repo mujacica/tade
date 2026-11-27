@@ -1,4 +1,4 @@
-import { digestOf, GRANTS, readDevices, SCOPES, writeDevices } from '@tade/web'
+import { digestOf, readDevices, writeDevices } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import { MachinesSeen } from '../../src/wire/machines-seen.ts'
 import { closeAll, DEVICE, machine, SECRET, seen } from './away-harness.ts'
@@ -23,9 +23,6 @@ async function owner(home: string, port: number): Promise<void> {
       host: `127.0.0.1:${port}`,
       csrf: 'x'.repeat(43),
       until: new Date(Date.now() + 86_400_000).toISOString(),
-      scopes: [...SCOPES],
-      projects: null,
-      granted: [...GRANTS],
       from: '',
       owner: true,
     },

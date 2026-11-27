@@ -90,12 +90,6 @@ declare module '*/assets/pages/notes-shape.js' {
     said: string
     ticks: [number, string][]
   }
-  export function wholeOf(
-    had: boolean,
-    shut: boolean,
-    may: boolean,
-    total: number,
-    withheld: number,
-  ): Whole | null
+  export function wholeOf(had: boolean, shut: boolean, total: number): Whole | null
   export function asOfLine(frozen: boolean, clock: string): string
 }

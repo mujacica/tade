@@ -34,11 +34,10 @@ const EVERY_MS = 2000
  * Why there is no screen, as a sentence somebody can act on.
  *
  * One per word of `SCREEN_WHY`, held equal to it by `test/agents-client.test.ts`:
- * each is a different thing to do next, and one sentence for all five would be
- * the page lying four times out of five.
+ * each is a different thing to do next, and one sentence for all four would be
+ * the page lying three times out of four.
  */
 export const WHY_SAID = {
-  'not granted': 'Screen not granted — grant it at the machine',
   'no agent': 'No agent running',
   'not read yet': 'Reading the screen…',
   'could not read': 'Couldn’t read the screen — the window at the machine still shows it',
@@ -47,7 +46,6 @@ export const WHY_SAID = {
 
 /** The icon each absence is drawn with: a lock is not a broken pane. */
 const WHY_ICON = {
-  'not granted': 'devices',
   'no agent': 'agents',
   'not read yet': 'clock',
   'could not read': 'alert',
@@ -139,7 +137,7 @@ export function agentPane(where, ctx, told = () => {}) {
         answer = withHeld(answer, got.body)
         failed = null
       } else {
-        failed = troubleSaid(troubleOf(got, '', ctx.session?.() ?? null) ?? UNKNOWN_TROUBLE)
+        failed = troubleSaid(troubleOf(got) ?? UNKNOWN_TROUBLE)
       }
       draw()
       told()

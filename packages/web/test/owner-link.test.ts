@@ -1,10 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Outcome, WebActing } from '../src/acting.ts'
-import { allowDevice, appendDevice, grantDevice, readDevices } from '../src/devices.ts'
+import { appendDevice, readDevices } from '../src/devices.ts'
 import { mintOwner, type Owner } from '../src/owner.ts'
-import { GRANTS } from '../src/reach.ts'
 import { CSRF_HEADER } from '../src/request.ts'
-import { reachOf, SCOPES, theirsOf } from '../src/surface.ts'
 import { VERBS } from '../src/verbs.ts'
 import {
   type Answer,
@@ -17,8 +15,8 @@ import {
   start,
 } from './harness.ts'
 
-// A machine the person paired as owner reaches everything their own
-// full-access device reaches here (`theirsOf`). Amir, after ipax refused a
+// A machine the person paired as owner reaches everything a paired phone
+// reaches here, which is everything. Amir, after ipax refused a
 // Remove and a Run as account from his Mac: "there should be no difference
 // between controlling ipax's agents and local ones", and "when I add a machine
 // per default I have all permissions so this doesn't happen again".
@@ -26,8 +24,7 @@ import {
 // Asked of a real listener over a real socket, on this machine's own door with
 // the owner's session as `tade web pair --owner` mints it — which every way of
 // adding a machine runs there (`tade host`, `tade remote add`, the window's
-// add-a-machine, the setup over ssh). A link somebody narrowed, and a device
-// that is not an owner's link, keep exactly what they had.
+// add-a-machine, the setup over ssh).
 
 afterEach(closeAll)
 
@@ -130,15 +127,11 @@ async function pairedByAnOlderTade(home: string, port: number): Promise<Owner> {
 }
 
 describe('a machine the person paired as owner', () => {
-  it('is paired with full access, the person’s own, with nothing to switch on afterwards', async () => {
+  it('is paired as the person’s own, with nothing to switch on afterwards', async () => {
     const { one, port } = await listening()
     const owner = await mintOwner(one.home, { port, label: 'mac', from: '' }, Date.now())
     const device = (await readDevices(one.home)).devices.find((d) => d.id === owner.device)
-    expect(device).toMatchObject({ owner: true, projects: null })
-    expect([...(device?.scopes ?? [])].sort()).toEqual([...SCOPES].sort())
-    expect([...(device?.granted ?? [])].sort()).toEqual([...GRANTS].sort())
-    expect(device && theirsOf(device)).toBe(true)
-    expect(device && reachOf(device).theirs).toBe(true)
+    expect(device).toMatchObject({ owner: true, clear: false })
   })
 
   it('reaches every verb a device may ask, remove and run as account included', async () => {
@@ -157,42 +150,19 @@ describe('a machine the person paired as owner', () => {
     const { one, asked, port } = await listening()
     const owner = await pairedByAnOlderTade(one.home, port)
     const device = (await readDevices(one.home)).devices.find((d) => d.id === owner.device)
-    expect([...(device?.scopes ?? [])].sort()).toEqual([...SCOPES].sort())
-    expect([...(device?.granted ?? [])].sort()).toEqual([...GRANTS].sort())
-    expect(device && theirsOf(device)).toBe(true)
+    expect(device).toMatchObject({ owner: true, clear: false })
     for (const [n, verb] of ['remove', 'account', 'harness', 'move', 'stop'].entries()) {
       const answer = await actAs(one, owner, verb, n)
       expect(answer.status, `${verb}: ${answer.text}`).toBe(200)
     }
     expect(asked).toEqual(['remove', 'account', 'harness', 'move', 'stop'])
   })
-
-  it('keeps what somebody here left it once they unticked a box, refused the person’s own verbs', async () => {
-    const { one, asked, port } = await listening()
-    const owner = await mintOwner(one.home, { port, label: 'mac', from: '' }, Date.now())
-    await grantDevice(
-      one.home,
-      owner.device,
-      GRANTS.filter((grant) => grant !== 'spend'),
-      new Date(),
-    )
-    const device = (await readDevices(one.home)).devices.find((d) => d.id === owner.device)
-    expect(device?.granted).not.toContain('spend')
-    expect(device && theirsOf(device)).toBe(false)
-    const refused = await actAs(one, owner, 'remove', 0)
-    expect(refused.status).toBe(403)
-    expect(said(refused).error).toBe('out_of_scope')
-    // What it was left still works.
-    expect((await actAs(one, owner, 'stop', 1)).status).toBe(200)
-    expect(asked).toEqual(['stop'])
-  })
 })
 
 describe('a device that is not the owner’s link', () => {
-  it('keeps today’s limits: a phone granted `agents` is refused the person’s own verbs', async () => {
+  it('reaches the same verbs from a paired phone, every one being the person’s own', async () => {
     const { one, asked } = await listening()
     const phone = await pair(one)
-    await allowDevice(one.home, phone.device, ['read', 'steer', 'agents'], new Date())
     for (const [n, verb] of ['remove', 'account', 'harness', 'move'].entries()) {
       const answer = await ask(one, `/api/act/${verb}`, {
         method: 'POST',
@@ -204,10 +174,9 @@ describe('a device that is not the owner’s link', () => {
         },
         body: JSON.stringify(bodyOf(verb, n)),
       })
-      expect(answer.status, verb).toBe(403)
-      expect(said(answer).error, verb).toBe('out_of_scope')
+      expect(answer.status, `${verb}: ${answer.text}`).toBe(200)
     }
-    expect(asked).toEqual([])
+    expect(asked).toEqual(['remove', 'account', 'harness', 'move'])
   })
 
   it('is never widened by the owner rule: an owner line bound to a public name is read as written', async () => {
@@ -229,7 +198,6 @@ describe('a device that is not the owner’s link', () => {
       owner: true,
     })
     const device = (await readDevices(one.home)).devices.find((d) => d.id === '00112233445566aa')
-    expect(device).toMatchObject({ owner: false, scopes: ['read', 'agents'], granted: [] })
-    expect(device && theirsOf(device)).toBe(false)
+    expect(device).toMatchObject({ owner: false })
   })
 })

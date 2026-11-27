@@ -44,9 +44,8 @@ import { VERBS } from './verbs.ts'
 // but the owner's `take`, which makes queued work the window starts by its own
 // rule (`taken.ts`) — no route takes a path or a command, and no route reaches
 // the `ToolHost`. One
-// route reads the settings, behind a grant, and the one that writes one is
-// `SETTINGS`, built only where `surfaces.web.settings` says so and reaching
-// `settingReach`'s `open` tier and nothing else (`configuring.ts`). A path that is not in
+// route reads the settings, and the one that writes one is `SETTINGS`, built
+// only where `surfaces.web.settings` says so (`configuring.ts`). A path that is not in
 // the table is a `404` and not a `403` — an off capability is not a thing to
 // probe — so the absences cost nothing to keep.
 
@@ -154,24 +153,11 @@ export interface Route {
    */
   here?: true
   /**
-   * Whether the person's own device (`theirsOf`: full access, a phone of
-   * theirs or a machine they paired as owner) is answered this `here` route
-   * on **any** door, as an owner is on this one. Off this machine's door the guard lets it through only for a
-   * session that is theirs at that request — every other is still the `404`
-   * of a path nobody built — and asks it what acting asks, a trusted origin
-   * and the passkey, because what it reaches is the SSH key's.
-   *
-   * The person decided it: their phone is the device they can pull the plug
-   * on, so it may do what they can. Revoking it, or unticking one box, makes
-   * it an ordinary device at the next request (`sessionOf` reads the record).
-   */
-  theirs?: true
-  /**
    * What this route is in connecting a source
    * (`connected.ts`), where it is one of `CONNECTS`: the guided `page`, one
    * `press` on it — each answered on this machine's door with no session, a
    * press there carrying a connect ticket instead (`connect-tickets.ts`), and
-   * to the person's own device on any other under its session (`theirs`) — or where the
+   * to a paired device on any other under its session — or where the
    * source sends the browser `back`, answered on any door and only for the
    * one-time word a press minted.
    */
@@ -312,17 +298,15 @@ export const ROUTES: readonly Route[] = [
   { method: 'GET', path: '/api/notes', name: 'notes', needs: 'read', mutates: false },
   // **The conversation with Tade before a line the page holds** (`earlier.ts`),
   // read as somebody scrolls up past what the snapshot carries, so every line
-  // of it can be read here. On the conversation's own grant, checked in the
-  // answer; asking may make the window read its record further back, which
+  // of it can be read here. Asking may make the window read its record further back, which
   // is the window's own scrollback and changes nothing about the work.
   { method: 'GET', path: '/api/chat', name: 'chat', needs: 'read', mutates: false },
   // **One agent, read while somebody is looking at it.** A `GET`, like every
   // other read, and it changes nothing about the work: what asking does is
   // tell the window that a device is still looking, which is what keeps it
   // reading that lane (`web-lanes.ts`) — and a page that stops asking stops
-  // that within a beat or two. The screen's rows are behind the device's own
-  // `lanes` grant, checked in the projection (`agentOf`) rather than here,
-  // because a grant is per device and this route is the same for all of them.
+  // that within a beat or two. The screen's rows are cleaned at the boundary
+  // (`screen.ts`), for every device alike.
   {
     method: 'GET',
     path: '/api/agent/:project/:task',
@@ -344,9 +328,8 @@ export const ROUTES: readonly Route[] = [
   },
   // **What one agent has changed, every file and its whole diff, read when
   // somebody opens it** (`changes.ts`): the window's Show changes, from away.
-  // Source leaving the machine, so it is on `lanes` — the grant an agent's
-  // screen and a call's answer, which carry source already, are on — checked
-  // in the answer, and it changes nothing.
+  // Source leaving the machine, cleaned as an agent's screen is, and it
+  // changes nothing.
   {
     method: 'GET',
     path: '/api/agent/:project/:task/changes',
@@ -365,8 +348,8 @@ export const ROUTES: readonly Route[] = [
   },
   // **One agent's moments before a cursor its page holds**: its timeline read
   // on past the newest stretch, to its first moment, out of the journal on a
-  // thread of the window's own. On no grant, as its newest moments are — what
-  // it did is Tade's sentences about metadata — and only for a task it reads.
+  // thread of the window's own: what it did is Tade's sentences about
+  // metadata.
   {
     method: 'GET',
     path: '/api/agent/:project/:task/moments',
@@ -394,15 +377,12 @@ export const ROUTES: readonly Route[] = [
   },
   { method: 'GET', path: '/api/devices', name: 'devices', needs: 'read', mutates: false },
   // **What Tade is set up with, read while somebody has the page open.** A
-  // `GET` like every other read, and the same for every device: what it may
-  // see is the device's own `settings` grant, checked in the answer
-  // (`settingsFor`) as `lanes` is in an agent's, and a key is never in it
-  // under any grant. It changes nothing — the one route that does is in
+  // `GET` like every other read, and the same for every device: a key is
+  // never in it (`settingsFor`). It changes nothing — the one route that does is in
   // `SETTINGS`, a table of its own behind a setting of its own.
   { method: 'GET', path: '/api/settings', name: 'settings', needs: 'read', mutates: false },
-  // **The scorecards, read while somebody has the page open**, folded over the
-  // projects this device reads, with money and the judge behind their grants
-  // (`evaluationsFor`). A `GET` that changes nothing, like the settings.
+  // **The scorecards, read while somebody has the page open** (`evaluationsFor`).
+  // A `GET` that changes nothing, like the settings.
   { method: 'GET', path: '/api/evaluations', name: 'evaluations', needs: 'read', mutates: false },
 
   // Signing out. A mutation, because it destroys a credential — and **its own
@@ -441,8 +421,8 @@ export const ROUTES: readonly Route[] = [
   // phone while the person sits at the Mac. Lifecycle like the passkey — this
   // device's own word about the person holding it, written to no file and
   // touching no project — and only on this machine's own door (`here`), which
-  // is the one door an owner session can be used at, but for the person's own
-  // phone (`theirs`), which may say it from any door.
+  // is the one door an owner session can be used at, but for a paired
+  // phone, which may say it from any door.
   {
     method: 'POST',
     path: '/api/presence',
@@ -450,7 +430,6 @@ export const ROUTES: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
 
   // **Another machine of the person's is up, or closing** (`seen.ts`): its
@@ -458,7 +437,7 @@ export const ROUTES: readonly Route[] = [
   // quits, so this machine knows the Mac closed rather than guessing from a
   // silence. Lifecycle like `presence`, and for its reasons: a machine link's
   // word about itself, under the label it paired with, touching no project —
-  // or the person's own phone's (`theirs`), which may say it of itself.
+  // or a paired phone's, which may say it of itself.
   {
     method: 'POST',
     path: '/api/seen',
@@ -466,7 +445,6 @@ export const ROUTES: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
 
   // **This device's own page is in front of somebody** (`looking.ts`): any
@@ -499,14 +477,7 @@ export const LIFECYCLE = [
 /**
  * The acting routes: **one path per verb**, and the table is `VERBS`.
  *
- * A path each rather than one `/api/act/:verb`, and the reason is the scope
- * check. A single route would need one `needs` for every verb, which is either
- * the weakest of them — so a device granted `answer` could park something —
- * or the strongest, so the gentler verbs need more than they should. With a
- * route each, the guard's existing per-route scope check is exact and nothing
- * new had to learn about verbs.
- *
- * It also means there is no handler anywhere that takes a name and dispatches
+ * A path each rather than one `/api/act/:verb`, so there is no handler anywhere that takes a name and dispatches
  * on it: a name that is not in `VERBS` has no path, and a path that has no
  * route is a `404`.
  */
@@ -538,9 +509,7 @@ export const ASKS: readonly Route[] = Object.keys(SAYINGS).map((name) => ({
   method: 'POST' as const,
   path: `/api/ask/${name}`,
   name: `ask ${name}`,
-  // Both need `ask` and neither is implied by `answer` or `steer`: stopping
-  // the turn you started is part of being able to start one, and a device that
-  // may answer an approval has not been granted free text to a model.
+  // Both are `ask`: stopping the turn you started is part of starting one.
   needs: 'ask' as Scope,
   mutates: true,
   says: name,
@@ -582,9 +551,6 @@ export const DRAFTS: readonly Route[] = Object.keys(SAVINGS).map((name) => ({
   method: 'POST' as const,
   path: `/api/draft/${name}`,
   name: `${name} a draft`,
-  // `draft`, and implied by nothing: a device granted both acting tiers has
-  // been granted eight bounded things about work that exists, and not a file
-  // every future run of a workflow would be stamped from.
   needs: 'draft' as Scope,
   mutates: true,
   saves: name,
@@ -597,12 +563,8 @@ export const DRAFTS: readonly Route[] = Object.keys(SAVINGS).map((name) => ({
  * A fifth table rather than a thirteenth verb, for the reason `configuring.ts`
  * gives: the target is a dotted path into the config rather than a task, and
  * the write is the one door every setting goes through. One route and not one
- * per setting, because which settings a device reaches is `settingReach`'s
- * `open` tier — a function, with a project's name in some of its paths — and
- * a table built from it would be a second answer to the question it answers.
- * What keeps a `never` path off this route is the parse
- * (`readSettingChange`): it is not a change at all, so it is the `404` a path
- * nobody built is.
+ * per setting, because the settings are the window's to list, and the window
+ * asks the row again at the write.
  *
  * `/api/settings/change` and not `/api/config`, which would read as the file.
  */
@@ -610,8 +572,6 @@ export const SETTINGS: readonly Route[] = Object.keys(CHANGES).map((name) => ({
   method: 'POST' as const,
   path: `/api/settings/${name}`,
   name: `${name} a setting`,
-  // `configure`, and implied by nothing: a device granted every acting tier
-  // has been granted things about work, not the config.
   needs: 'configure' as Scope,
   mutates: true,
   configures: name,
@@ -625,7 +585,7 @@ export const SETTINGS: readonly Route[] = Object.keys(CHANGES).map((name) => ({
  * (`shared-notes.ts`), what this machine is (`machine.ts`), work handed
  * here to start (`taken.ts`), and a project moved here (`opened.ts`).
  *
- * A table of its own because each is what no ordinary device may ever be given: the
+ * A table of its own because each is the SSH key's: the
  * carry writes the config beyond `settingReach`'s `open` tier — preferences,
  * files and, on a press, keys — and so is the one exception to "no route
  * reaches a credential", and the attach line is the one answer that is a way
@@ -636,18 +596,17 @@ export const SETTINGS: readonly Route[] = Object.keys(CHANGES).map((name) => ({
  * loopback `Host` (`here`), which from anywhere else is that same SSH
  * connection — and whoever holds the key can already edit `config.yaml` and
  * attach to a lane over it. No setting turns them on, because none would add
- * anything: each is answered where the window wired it, refused
- * (`out_of_scope`) to every session that is not an owner, and the `404` of a
- * path nobody built on every other door.
+ * anything: each is answered where the window wired it, and the `404` of a
+ * path nobody built to anybody with no session on every other door.
  *
- * **But the person's own device** (`theirs`, `theirsOf`), on every one of
- * them, on any door: presence, the carry, the attach line, the catch-up,
- * sharing notes, where each project is, what this machine is, a document, a
- * tool that reads, its public name's records, taking work, opening a project
- * and connecting a source.
- * The person decided it — their phone is the screen they can pull the plug
- * on, so it may do what their SSH key may — and it is read off the record at
- * every request, so revoking it or unticking one box ends it at the next.
+ * **And a paired device**, on every one of them, on any door: presence, the
+ * carry, the attach line, the catch-up, sharing notes, where each project is,
+ * what this machine is, a document, a tool that reads, its public name's
+ * records, taking work, opening a project and connecting a source. Every
+ * paired device is the person's own — their phone is the screen they can pull
+ * the plug on, so it may do what their SSH key may — and off this machine's
+ * door it is asked what acting asks, a trusted origin and the passkey.
+ * Revoking it is read at every request.
  */
 export const OWNED: readonly Route[] = [
   {
@@ -657,7 +616,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   {
     method: 'POST',
@@ -666,7 +624,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // What the person missed while they were away (`since.ts`): a read, folded
   // over this machine's journal from the last moment it counted them present.
@@ -680,7 +637,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // The person's notes shared with the machine that asks (`shared-notes.ts`):
   // what it gives is written into this home's `memory.jsonl`, which every
@@ -692,7 +648,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // Every machine's journal shared with the machine that asks (`shared-feeds.ts`):
   // what it gives is kept as a copy in this home, apart from this machine's own
@@ -706,7 +661,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // Another machine's whole projection, told here in pieces (`projection-told.ts`):
   // kept as a copy in this home for this machine's page to draw that machine —
@@ -718,7 +672,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // One orchestrator conversation on every machine (`shared-conversation.ts`):
   // what it gives is kept as a copy in this home, apart from this machine's
@@ -732,7 +685,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // Another machine of the person's acting here through this machine's own
   // gate (`shared-acts.ts`): what it reaches is what this machine's own
@@ -744,7 +696,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // What this machine's orchestrator wants done on a machine that links here,
   // which this one can never call: handed over when that one asks.
@@ -755,7 +706,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // A press on another machine's row from this door's page — the Mac's agent
   // on ipax's — put in the outbox for that machine and answered once it ran it
@@ -768,7 +718,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // Where each project is checked out here and the branches its work is on
   // (`repositories.ts`): a path on this machine, which no phone reads, for the
@@ -780,7 +729,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // One project as this machine's window draws it (`side.ts`): its agents,
   // its queued work, its schedules and requests, what changed in its checkout,
@@ -793,7 +741,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // What is on disk in one of those projects, pressed there (`disk.ts`): a
   // file, a change with what git says of it, or its branches — the one
@@ -806,7 +753,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // What this machine is, for another of the person's that links to it
   // (`machine.ts`): its version, its public name's health, its own problems,
@@ -820,7 +766,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // The Machines page, for the person's own phone (`machines.ts`): every
   // machine's inventory as the window's Settings › Machines draws it, and a
@@ -834,7 +779,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   {
     method: 'POST',
@@ -843,7 +787,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // Tade started again on the code on disk now (`restarted.ts`), from the
   // page's restart bar: what the SSH key that started it may do. A press that
@@ -856,7 +799,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // The orchestrator alone started again on what it is signed in as now
   // (`restarted.ts`): what `/login` on this machine's tab elsewhere ends in.
@@ -868,7 +810,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // The orchestrator's own sign-in, driven from the person's own phone
   // (`signing-in.ts`): `/login` typed on the away view's line, carried out on
@@ -880,7 +821,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // Settings › Accounts for every machine of the person's (`accounts.ts`):
   // this machine's sign-ins and the presses on them, or another machine's,
@@ -894,7 +834,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   {
     method: 'POST',
@@ -903,7 +842,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // What another machine of the person's has, told here (`inventory-told.ts`):
   // its sign-ins and keys by name and digest, kept as a copy in this home so
@@ -916,7 +854,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // What one of this machine's watches has already found (`watch-seen.ts`):
   // its keys and its cursor, for another machine of the person's taking back
@@ -929,7 +866,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // Whose each duty is, where one repository is a project on several of the
   // person's machines (`duties.ts`): a claim can make a watch here hold off,
@@ -941,7 +877,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   {
     method: 'POST',
@@ -950,7 +885,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   {
     method: 'POST',
@@ -959,7 +893,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // The records this machine's public name needs, looked at now (`records.ts`):
   // what `tade host domain` says here, asked only while somebody there has its
@@ -971,7 +904,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // Work another machine of the person's hands this one (`taken.ts`): made
   // queued work in one of its projects, which the window here starts by its
@@ -984,7 +916,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // A project another machine of the person's is moving here (`opened.ts`):
   // cloned with this machine's own credentials where it is not checked out
@@ -997,7 +928,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
   // A source's guided page as it stands, and one press on it (`connected.ts`):
   // for another machine of the person's whose browser cannot reach this one's
@@ -1010,7 +940,6 @@ export const OWNED: readonly Route[] = [
     needs: 'read',
     mutates: true,
     here: true,
-    theirs: true,
   },
 ]
 
@@ -1026,8 +955,8 @@ export const OWNED: readonly Route[] = [
  * turning a source on is `never`-tier — a press there carrying a ticket only
  * somebody running as the person was handed (`connect-tickets.ts`), because
  * loopback is every account on this machine —
- * **but the person's own device** (`theirs`), which is asked for them on any
- * other door under its session, as every other act of its is: its cookie and
+ * **but a paired device**, every one of which is the person's own, is asked
+ * for them on any other door under its session, as every other act of its is: its cookie and
  * token, an exact `Origin`, a trusted origin and the passkey;
  * the two callbacks are on whichever door the source was told to send the
  * browser to — the public name, or this machine's own where it has none — and
@@ -1047,7 +976,6 @@ export const CONNECTS: readonly Route[] = [
     needs: 'read',
     mutates: false,
     here: true,
-    theirs: true,
     connects: 'page',
   },
   // Each source's presses and callbacks, as its flow says (`CONNECT_FLOWS`):
@@ -1062,7 +990,6 @@ export const CONNECTS: readonly Route[] = [
         needs: 'read',
         mutates: true,
         here: true,
-        theirs: true,
         connects: 'press',
         source,
         press,

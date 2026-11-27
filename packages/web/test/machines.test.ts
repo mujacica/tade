@@ -1,16 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { allowDevice, grantDevice } from '../src/devices.ts'
 import type { MachinesAnswer, MachinesPress, WebMachines } from '../src/machines.ts'
-import { GRANTS } from '../src/reach.ts'
 import { CSRF_HEADER } from '../src/request.ts'
 import { OWNED } from '../src/routes.ts'
-import { SCOPES } from '../src/surface.ts'
 import { ask, closeAll, pair, type Running, start } from './harness.ts'
 
 // The Machines page, for the person's own phone (`machines.ts`): every
 // machine's inventory as the window's Settings › Machines draws it, and a
-// press there. Theirs and an owner's, never an ordinary phone's however much
-// it was granted; a press is the device's, and a move with no plan shown is
+// press there. A paired phone's and an owner's; a press is the device's, and a move with no plan shown is
 // refused rather than worked out and done unseen.
 
 afterEach(closeAll)
@@ -79,11 +75,9 @@ function post(one: Running, device: Awaited<ReturnType<typeof pair>>, path: stri
   })
 }
 
-async function theirs(one: Running) {
-  const phone = await pair(one, { label: 'mine' })
-  await allowDevice(one.home, phone.device, SCOPES, new Date())
-  await grantDevice(one.home, phone.device, GRANTS, new Date())
-  return phone
+/** A paired phone: every one is the person's own. */
+function theirs(one: Running) {
+  return pair(one, { label: 'mine' })
 }
 
 describe('the Machines page, for the person’s own phone', () => {
@@ -158,20 +152,7 @@ describe('the Machines page, for the person’s own phone', () => {
     expect(machines.pressed).toEqual([])
   })
 
-  it('refuses an ordinary phone however much it was granted, and is the 404 of a path nobody wired', async () => {
-    const machines = half(true)
-    const one = await start({}, { owned: { machines } })
-    const phone = await pair(one)
-    // Everything to read, but not every scope: not the person's own.
-    await grantDevice(one.home, phone.device, GRANTS, new Date())
-    const refused = await post(one, phone, '/api/machines', {})
-    expect(refused.status).toBe(403)
-    // Every box it lacks for full access is named, and no grant it has.
-    const body = JSON.parse(refused.text)
-    expect(body.error).toBe('out_of_scope')
-    expect(body.needs).toEqual(SCOPES.filter((one) => one !== 'read'))
-    expect((await post(one, phone, '/api/machines/press', { press: 'look' })).status).toBe(403)
-    expect(machines.pressed).toEqual([])
+  it('is the 404 of a path nobody wired', async () => {
     const none = await start()
     const mine = await theirs(none)
     expect((await post(none, mine, '/api/machines', {})).status).toBe(404)
@@ -183,7 +164,6 @@ describe('the Machines page, for the person’s own phone', () => {
       expect(OWNED.find((route) => route.name === name)).toMatchObject({
         method: 'POST',
         here: true,
-        theirs: true,
       })
     }
   })

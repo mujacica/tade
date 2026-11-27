@@ -1,6 +1,4 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { NO_AGENT } from '../src/attached.ts'
-import { appendDevice } from '../src/devices.ts'
 import { mintOwner } from '../src/owner.ts'
 import { CSRF_HEADER } from '../src/request.ts'
 import { OWNED } from '../src/routes.ts'
@@ -68,7 +66,7 @@ describe('asking what to run here to be shown an agent', () => {
     expect(JSON.parse(said.text)).toEqual({ command: null, why: 'its agent is not running' })
   })
 
-  it('refuses a phone, however much it was granted, and never asks the window', async () => {
+  it('answers a paired phone too, every one being the person’s own', async () => {
     const { one, asked } = await machine()
     const phone = await pair(one)
     const said = await ask(one, '/api/attach', {
@@ -81,24 +79,8 @@ describe('asking what to run here to be shown an agent', () => {
       },
       body: JSON.stringify({ task: 'far/fix-it' }),
     })
-    expect(said.status).toBe(403)
-    expect(asked).toEqual([])
-  })
-
-  it('answers an owner whose lanes were taken back as for a task that is not there', async () => {
-    const { one, asked } = await machine()
-    const made = await owner(one)
-    // The boxes in the window can take anything back from an owner; `lanes` is
-    // the one a way into a lane stands on.
-    await appendDevice(one.home, {
-      kind: 'granted',
-      device: made.device,
-      at: new Date().toISOString(),
-      granted: ['titles'],
-    })
-    const said = await asOwner(one, made, { task: 'far/fix-it' })
-    expect(JSON.parse(said.text)).toEqual({ command: null, why: NO_AGENT })
-    expect(asked).toEqual([])
+    expect(said.status, said.text).toBe(200)
+    expect(asked).toHaveLength(1)
   })
 
   it('reads a task id and nothing else', async () => {

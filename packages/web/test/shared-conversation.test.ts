@@ -79,7 +79,7 @@ describe('one conversation, shared', () => {
     expect(handed).toEqual([body])
   })
 
-  it('refuses a phone that is not the person’s own, and never asks the heart', async () => {
+  it('answers a paired phone too, every one being the person’s own', async () => {
     const { one, handed } = await machine()
     const phone = await pair(one)
     const said = await ask(one, '/api/conversation', {
@@ -92,8 +92,8 @@ describe('one conversation, shared', () => {
       },
       body: JSON.stringify(fine),
     })
-    expect(said.status).toBe(403)
-    expect(handed).toEqual([])
+    expect(said.status, said.text).toBe(200)
+    expect(handed).toHaveLength(1)
   })
 
   it('reads ids, counts, chain links, lines and lease words as text, and nothing else', async () => {
@@ -138,7 +138,6 @@ describe('one conversation, shared', () => {
       method: 'POST',
       path: '/api/conversation',
       here: true,
-      theirs: true,
     })
   })
 })

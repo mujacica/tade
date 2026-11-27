@@ -130,18 +130,6 @@ export interface Page<T> {
 }
 
 /**
- * A collection whose rows this device was not granted: the count, and nothing
- * of it.
- *
- * `total` is the real number and every one of them is `omitted`, which is the
- * honest shape of a read scope — *there are forty-one notes, and you may not
- * read them from here* — rather than a nought that reads as "you have none".
- */
-export function withheld<T>(total: number): Page<T> {
-  return { rows: [], total, omitted: total, next: null, restarted: false }
-}
-
-/**
  * The rows that fit, from `after` onwards.
  *
  * `rows` arrive in the order the collection chooses between them — newest

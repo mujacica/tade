@@ -12,9 +12,8 @@ import { COLLECTIONS } from './protocol.ts'
 // every one of the person's own words on a terminal and into a scrollback.
 //
 // So: the measurement is **counts, lengths and byte totals**, and the only
-// strings it ever emits are its own column headings, the names of the
-// collections and the names of the grants — all of which are this file's own
-// vocabulary. `packages/web/scripts/measure.ts` is what points it at a real
+// strings it ever emits are its own column headings and the names of the
+// collections — both of which are this file's own vocabulary. `packages/web/scripts/measure.ts` is what points it at a real
 // `TADE_HOME`; `test/measure.test.ts` asserts that a fixture stuffed with
 // distinctive private strings produces a report containing none of them.
 //
@@ -56,8 +55,6 @@ export interface Measurement {
    * projection with none at all is more suspicious than one with many.
    */
   nulls: number
-  /** What this device was granted, by name. */
-  reads: readonly string[]
   warnings: number
 }
 
@@ -86,7 +83,6 @@ export function measureOf(snapshot: Snapshot): Measurement {
       longest: mine.reduce((most, one) => Math.max(most, Array.from(one.words).length), 0),
     },
     nulls: nullsIn(snapshot),
-    reads: [...snapshot.you.reads],
     warnings: snapshot.fresh.warnings.length,
   }
 }
@@ -146,16 +142,13 @@ const right = (n: number, width: number): string => num(n).padStart(width)
 /**
  * The report, as text.
  *
- * Every string in what comes back is either a heading, a collection's name or
- * a grant's name. There is no path through this function that emits a value out
+ * Every string in what comes back is either a heading or a collection's name. There is no path through this function that emits a value out
  * of the projection, which is the property `test/measure.test.ts` asserts
  * against a fixture built to be caught.
  */
 export function sayMeasurement(found: Measurement, deltas: readonly DeltaMeasured[] = []): string {
   const lines: string[] = []
-  lines.push(
-    `projection  ${num(found.bytes)} bytes   reads: ${found.reads.length === 0 ? 'names and counts only' : found.reads.join(', ')}`,
-  )
+  lines.push(`projection  ${num(found.bytes)} bytes`)
   lines.push(`            ${num(found.nulls)} unknown, ${num(found.warnings)} warnings`)
   lines.push(
     `            ${num(found.strings.all)} strings: ${num(found.strings.metadata)} Tade's, ${num(found.strings.authored)} authored (longest ${num(found.strings.longest)})`,

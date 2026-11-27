@@ -1,10 +1,9 @@
 import type { World } from '../scripts/still.ts'
 import type { Device } from '../src/devices.ts'
-import { GRANTS } from '../src/reach.ts'
 import { agentHeld, input, NOW, settingRows } from './fixtures.ts'
 
 // A world for `still.test.ts` to draw, out of this package's own fixtures:
-// one device granted every reading and both acting tiers. A module of its own
+// one paired device, which is the person's own. A module of its own
 // because a visit loads its world in a process of its own, by URL.
 
 const DEVICE: Device = {
@@ -15,9 +14,7 @@ const DEVICE: Device = {
   csrf: '',
   until: NOW + 30 * 86_400_000,
   pairedAt: NOW - 86_400_000,
-  scopes: ['read', 'answer', 'steer'],
-  projects: null,
-  granted: [...GRANTS],
+  clear: false,
   from: '127.0.0.1',
   revoked: null,
   owner: false,

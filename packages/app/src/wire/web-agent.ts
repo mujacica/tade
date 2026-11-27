@@ -25,9 +25,9 @@ import { type ActingDeps, after, onTask } from './web-acting.ts'
 // | `account`, `harness` | nothing past `was`: the door compares with where it is | `setAgentAccount`/`setAgentHarness` |
 // | `move` | the lane is running | `Moves.handOver`, which asks the machine there first |
 //
-// **Who may ask is the gate's** (`admit`, `Verb.theirs`): `remove`, `account`,
-// `harness` and `move` are the person's own device's alone, asked off the
-// device's record at the request. Nothing here widens that.
+// **Who may ask is the gate's**: every paired device is the person's own and
+// may ask for all eight, under the origin and the passkey. Nothing here
+// widens that.
 
 /** The eight verbs this file carries out, as `WebActing` declares them. */
 export type AgentActing = Pick<

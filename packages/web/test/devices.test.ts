@@ -7,14 +7,13 @@ import {
   DEVICES_FILE,
   devicesIn,
   devicesPath,
-  grantDevice,
   nameDevice,
   readDevices,
   revokeAll,
   writeDevices,
 } from '../src/devices.ts'
 import { mint, SESSION_MS } from '../src/sessions.ts'
-import { DEVICES_AND_AGENTS, DEVICES_SEEN_BY_AGENTS, reachOf } from '../src/surface.ts'
+import { DEVICES_AND_AGENTS, DEVICES_SEEN_BY_AGENTS } from '../src/surface.ts'
 
 const NOW = Date.parse('2026-10-08T12:00:00Z')
 const HOUR = 3_600_000
@@ -41,9 +40,6 @@ function pairedLine(over: Record<string, unknown> = {}): Record<string, unknown>
     host: '192.168.1.10:7654',
     csrf: minted.csrf,
     until: new Date(NOW + SESSION_MS).toISOString(),
-    scopes: ['read'],
-    projects: null,
-    granted: [],
     from: '192.168.1.42',
     ...over,
   }
@@ -290,87 +286,50 @@ describe('a passkey, in the file', () => {
   })
 })
 
-describe('read scopes, as a reach', () => {
-  it('turns no project list into every project', () => {
-    const { devices } = devicesIn(`${JSON.stringify(pairedLine({ projects: null }))}\n`)
-    expect(reachOf(devices[0] as never).projects).toEqual({ kind: 'every' })
+describe('every paired device is the person’s own', () => {
+  it('reads a line with nothing about what it may do as a device that may do everything', () => {
+    const { devices, skipped } = devicesIn(`${JSON.stringify(pairedLine())}\n`)
+    expect(skipped).toBe(0)
+    expect(devices[0]).toMatchObject({ clear: false, owner: false })
   })
 
-  it('turns a list into exactly that list', () => {
-    const { devices } = devicesIn(`${JSON.stringify(pairedLine({ projects: ['tade', 'ops'] }))}\n`)
-    expect(reachOf(devices[0] as never).projects).toEqual({
-      kind: 'listed',
-      names: ['tade', 'ops'],
-    })
-  })
-
-  it('carries the grants it recognises and drops a word it does not', () => {
-    // A line in this file is one an agent on this machine could have written,
-    // so a grant nobody here understands is exactly the shape of one somebody
-    // invented. Dropped, which is what `has()` would have made of it anyway.
-    const { devices } = devicesIn(
-      `${JSON.stringify(pairedLine({ granted: ['notes', 'spend'] }))}\n`,
-    )
-    expect(reachOf(devices[0] as never).granted).toEqual(['notes', 'spend'])
-    expect(reachOf({ id: 'a', projects: null, granted: ['notes', 'everything'] }).granted).toEqual([
-      'notes',
-    ])
-  })
-
-  it('refuses a grant word in the file itself, which is the stronger guard', () => {
-    const { skipped } = devicesIn(`${JSON.stringify(pairedLine({ granted: ['everything'] }))}\n`)
-    expect(skipped).toBe(1)
+  it('reads a device paired in the clear as one that never acts', () => {
+    const { devices } = devicesIn(`${JSON.stringify(pairedLine({ clear: true }))}\n`)
+    expect(devices[0]?.clear).toBe(true)
   })
 })
 
-describe('a reading grant made after pairing', () => {
-  it('replaces what a device may read, in full, and touches nothing else', () => {
-    const one = pairedLine({ granted: ['titles'], scopes: ['read', 'answer'] })
-    const text = [
-      JSON.stringify(one),
-      JSON.stringify({
-        kind: 'granted',
-        device: one.device,
-        at: new Date(NOW + 1).toISOString(),
-        granted: ['titles', 'lanes'],
-      }),
-    ].join('\n')
-    const found = devicesIn(text).devices[0]
-    expect(found?.granted).toEqual(['titles', 'lanes'])
-    // What it may *do* is the other half of its reach, and a reading grant
-    // never moves it.
-    expect(found?.scopes).toEqual(['read', 'answer'])
-    expect(found?.digest).toBe(one.digest)
+describe('what an older Tade wrote', () => {
+  it('still parses its scopes, projects and grants, words this Tade no longer has included', () => {
+    const line = pairedLine({
+      scopes: ['read', 'answer', 'steer'],
+      projects: ['tade'],
+      granted: ['titles', 'everything'],
+    })
+    const { devices, skipped } = devicesIn(`${JSON.stringify(line)}\n`)
+    expect(skipped).toBe(0)
+    expect(devices[0]).toMatchObject({ id: line.device, clear: false })
   })
 
-  it('takes a grant back with the same line and less in it', () => {
-    const one = pairedLine({ granted: ['lanes'] })
+  it('reads a line it cut to reading alone, off this machine, as paired in the clear', () => {
+    // That Tade wrote no `clear`: it wrote `read` alone where the origin was
+    // not trusted. Read in the direction that takes authority away.
+    const lan = devicesIn(`${JSON.stringify(pairedLine({ scopes: ['read'] }))}\n`)
+    expect(lan.devices[0]?.clear).toBe(true)
+    const here = pairedLine({ scopes: ['read'], host: 'localhost:7654' })
+    expect(devicesIn(`${JSON.stringify(here)}\n`).devices[0]?.clear).toBe(false)
+  })
+
+  it('parses its allowed and granted lines, and folds them into nothing', () => {
+    const one = pairedLine()
     const text = [
       JSON.stringify(one),
+      JSON.stringify({ kind: 'allowed', device: one.device, at: 'x', scopes: ['read'] }),
       JSON.stringify({ kind: 'granted', device: one.device, at: 'x', granted: [] }),
     ].join('\n')
-    expect(devicesIn(text).devices[0]?.granted).toEqual([])
-  })
-
-  it('refuses a word nothing reads, on the way in and in the file', async () => {
-    const where = await home()
-    const one = pairedLine()
-    await writeDevices(where, [one as never])
-    await expect(
-      grantDevice(where, String(one.device), ['everything'], new Date(NOW)),
-    ).rejects.toThrow()
-    const { skipped } = devicesIn(
-      JSON.stringify({ kind: 'granted', device: one.device, at: 'x', granted: ['everything'] }),
-    )
-    expect(skipped).toBe(1)
-  })
-
-  it('writes the line the fold reads', async () => {
-    const where = await home()
-    const one = pairedLine()
-    await writeDevices(where, [one as never])
-    await grantDevice(where, String(one.device), ['lanes'], new Date(NOW))
-    expect((await readDevices(where)).devices[0]?.granted).toEqual(['lanes'])
+    const { devices, skipped } = devicesIn(text)
+    expect(skipped).toBe(0)
+    expect(devices[0]).toMatchObject({ clear: false, digest: one.digest, revoked: null })
   })
 })
 

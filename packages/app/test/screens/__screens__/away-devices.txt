@@ -1,0 +1,34 @@
+ ▄▀   T A D E      checkout !⠋   ×  ≡   search ✓    infra      +    ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+ ▌ ! stripe-v15   880k ╭─ AWAY VIEW ────────────────────────────────────────────────────── esc ─╮                       
+ ▌   wants you to appro│                                                                        │                       
+                       │ ● On — only this Mac can reach it                            port 7654 │                       
+   ⠋ refunds         $0│                                                                        │                       
+     working           │ PAIR A DEVICE                                                New code  │                       
+                       │                                                                        │                       
+ ▸ SMART QUEUE         │ DEVICES  3 paired · 1 connected                                        │                       
+ ▸ SCHEDULES           │                                                                        │                       
+ ▸ INTAKE              │  ● iPhone  connected now                                     Sign out  │                       
+ ▾ CHANGES  3        vs│    phone · from your network · paired Fri 11 Sep 09:12 · passkey made  │                       
+  M package.json       │    Fri 11 Sep 09:13, used Sat 12 Sep 07:30                             │                       
+  A …/webhooks.test.ts │                                                                        │                       
+  M src/webhooks.ts   +│  ○ studio  not connected                                     Sign out  │                       
+                       │    owner · over SSH · paired Fri 11 Sep 09:40                          │                       
+ ▾ FILES               │                                                                        │                       
+   ▾ src/              │  ○ kitchen screen  not connected                             Sign out  │                       
+       webhooks.test.ts│    from your network · paired Thu 10 Sep 18:02 · reads only: paired in │                       
+       webhooks.ts     │    the clear                                                           │                       
+   ▸ test/             │                                                                        │                       
+━   orchestrator     + │ an agent on this machine could pair itself     Disconnect everything   │━━━━━━━━━   ↑     ↓   ━
+                       ╰────────────────────────────────────────────────────────────────────────╯                       
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake          remote 1 │ claude-opus-5 ▾ │ high ▾ │ 2h 5m │ $1.40 today ▾ 

@@ -1,13 +1,12 @@
 import type { Inventory } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
-import { DOCUMENT_MOST, DocumentAnswerSchema, documentReadable } from '../src/document.ts'
+import { DOCUMENT_MOST, DocumentAnswerSchema } from '../src/document.ts'
 import { InventoryToldAnswerSchema, toldBody } from '../src/inventory-told.ts'
 import { type MachineAnswer, MachineAnswerSchema, machineFor } from '../src/machine.ts'
 import { mintOwner } from '../src/owner.ts'
 import { CSRF_HEADER } from '../src/request.ts'
 import { OWNED } from '../src/routes.ts'
 import type { ServerOptions } from '../src/serving.ts'
-import { reachOf } from '../src/surface.ts'
 import { ToolAnswerSchema } from '../src/tool-read.ts'
 import { ask, closeAll, pair, type Running, start } from './harness.ts'
 
@@ -168,25 +167,18 @@ async function asPhone(one: Running, path: string, body: unknown) {
 }
 
 describe('what this machine has', () => {
-  it('rides the answer, origin only of the projects the device reads, every value within bounds', () => {
-    const answer = machineFor(
-      { ...MACHINE, inventory: INVENTORY },
-      reachOf({ id: 'd', projects: ['tade'], granted: [] }),
+  it('rides the answer, every value within bounds', () => {
+    const answer = machineFor({ ...MACHINE, inventory: INVENTORY })
+    expect(answer.inventory?.items.map((one) => one.id)).toEqual(
+      INVENTORY.items.map((one) => one.id),
     )
-    expect(answer.inventory?.items.map((one) => one.id)).toEqual([
-      'env:OPENROUTER_API_KEY',
-      'origin:tade',
-    ])
-    const long = machineFor(
-      {
-        ...MACHINE,
-        inventory: {
-          ...INVENTORY,
-          items: [{ ...INVENTORY.items[0]!, where: ['x'.repeat(900)], said: 'y'.repeat(900) }],
-        },
+    const long = machineFor({
+      ...MACHINE,
+      inventory: {
+        ...INVENTORY,
+        items: [{ ...INVENTORY.items[0]!, where: ['x'.repeat(900)], said: 'y'.repeat(900) }],
       },
-      reachOf({ id: 'd', projects: null, granted: [] }),
-    )
+    })
     expect(MachineAnswerSchema.safeParse(long).success).toBe(true)
   })
 
@@ -219,14 +211,14 @@ describe('what this machine has', () => {
     expect((await asOwner(one, made, '/api/inventory', { inventory: { machine: 1 } })).status).toBe(
       400,
     )
-    expect((await asPhone(one, '/api/inventory', { inventory: INVENTORY })).status).toBe(403)
+    // A paired phone is the person's own, and may tell one too.
+    expect((await asPhone(one, '/api/inventory', { inventory: INVENTORY })).status).toBe(200)
     const none = await start()
     expect(
       (await asOwner(none, await owner(none), '/api/inventory', { inventory: INVENTORY })).status,
     ).toBe(404)
     expect(OWNED.find((route) => route.name === 'inventory')).toMatchObject({
       here: true,
-      theirs: true,
     })
   })
 
@@ -255,7 +247,7 @@ describe('what this machine is', () => {
     expect(MachineAnswerSchema.parse(JSON.parse(said.text))).toEqual(MACHINE)
   })
 
-  it('refuses a phone however much it was granted, takes an empty body only, and is the 404 of a path nobody wired', async () => {
+  it('answers a paired phone, takes an empty body only, and is the 404 of a path nobody wired', async () => {
     let asked = 0
     const one = await machine({
       machine: async () => {
@@ -263,12 +255,13 @@ describe('what this machine is', () => {
         return MACHINE
       },
     })
-    expect((await asPhone(one, '/api/machine', {})).status).toBe(403)
+    expect((await asPhone(one, '/api/machine', {})).status).toBe(200)
+    expect(asked).toBe(1)
     const made = await owner(one)
     for (const body of [{ project: 'tade' }, null, []]) {
       expect((await asOwner(one, made, '/api/machine', body)).status).toBe(400)
     }
-    expect(asked).toBe(0)
+    expect(asked).toBe(1)
     const none = await start()
     expect((await asOwner(none, await owner(none), '/api/machine', {})).status).toBe(404)
   })
@@ -287,44 +280,37 @@ describe('what this machine is', () => {
     }
   })
 
-  it('leaves out what the device does not read, and a finding’s title without `requests`', () => {
-    const answer = machineFor(MACHINE, reachOf({ id: 'd', projects: ['tade'], granted: [] }))
-    expect(answer.schedules.map((one) => one.id)).toEqual(['new-sentry-errors'])
-    expect(answer.documents.map((one) => one.task)).toEqual(['tade/research'])
-    expect(answer.schedules[0]?.watch?.found[0]?.title).toBeNull()
-    const granted = machineFor(MACHINE, reachOf({ id: 'd', projects: null, granted: ['requests'] }))
-    expect(granted.schedules[0]?.watch?.found[0]?.title).toBe('TypeError in the beat')
-    expect(granted.documents).toHaveLength(2)
+  it('leaves nothing out: every paired device reads every project and every title', () => {
+    const answer = machineFor(MACHINE)
+    expect(answer.schedules[0]?.watch?.found[0]?.title).toBe('TypeError in the beat')
+    expect(answer.documents).toHaveLength(2)
   })
 
   it('cuts what is too long rather than sending what the other machine would refuse whole', () => {
     const long = 'x'.repeat(5000)
-    const answer = machineFor(
-      {
-        ...MACHINE,
-        version: long,
-        problems: Array.from({ length: 90 }, () => ({
-          from: 'journal' as const,
-          at: AT,
-          said: long,
-        })),
-        schedules: [
-          {
-            ...MACHINE.schedules[0]!,
-            name: long,
-            watch: {
-              id: 'sentry.new-errors',
-              looks: Array.from({ length: 9 }, () => ({
-                ...MACHINE.schedules[0]!.watch!.looks[0]!,
-                problem: long,
-              })),
-              found: [{ at: AT, key: long, title: long, task: null }],
-            },
+    const answer = machineFor({
+      ...MACHINE,
+      version: long,
+      problems: Array.from({ length: 90 }, () => ({
+        from: 'journal' as const,
+        at: AT,
+        said: long,
+      })),
+      schedules: [
+        {
+          ...MACHINE.schedules[0]!,
+          name: long,
+          watch: {
+            id: 'sentry.new-errors',
+            looks: Array.from({ length: 9 }, () => ({
+              ...MACHINE.schedules[0]!.watch!.looks[0]!,
+              problem: long,
+            })),
+            found: [{ at: AT, key: long, title: long, task: null }],
           },
-        ],
-      },
-      reachOf({ id: 'd', projects: null, granted: ['requests'] }),
-    )
+        },
+      ],
+    })
     expect(MachineAnswerSchema.safeParse(answer).success).toBe(true)
     expect(answer.problems).toHaveLength(40)
     expect(answer.schedules[0]?.watch?.looks).toHaveLength(5)
@@ -379,13 +365,10 @@ describe('one of its documents', () => {
     expect((await asOwner(one, made, '/api/document', missing)).status).toBe(404)
     expect(
       (await asPhone(one, '/api/document', { task: 'tade/research', name: 'PLAN.md' })).status,
-    ).toBe(403)
+    ).toBe(200)
   })
 
-  it('is within what the device reads, and says where it was cut', async () => {
-    const reach = reachOf({ id: 'd', projects: ['other'], granted: [] })
-    expect(documentReadable({ task: 'tade/research', name: 'PLAN.md' }, reach)).toBe(false)
-    expect(documentReadable({ task: 'other/notes', name: 'NOTES.md' }, reach)).toBe(true)
+  it('says where it was cut', async () => {
     const long = 'y'.repeat(DOCUMENT_MOST + 10)
     const one = await machine({
       document: async () => ({ at: AT, text: long, bytes: long.length }),
@@ -437,6 +420,6 @@ describe('one of its tools that only reads', () => {
     ]) {
       expect((await asOwner(one, made, '/api/tool', body)).status, JSON.stringify(body)).toBe(400)
     }
-    expect((await asPhone(one, '/api/tool', { tool: 'sentry_issues', input: {} })).status).toBe(403)
+    expect((await asPhone(one, '/api/tool', { tool: 'sentry_issues', input: {} })).status).toBe(200)
   })
 })

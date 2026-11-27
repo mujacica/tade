@@ -1,12 +1,12 @@
-// The presses on a card: what a device was granted, a thumb's reach from the
+// The presses on a card: what a device may ask for, a thumb's reach from the
 // overview.
 //
 // **The same acts as the task's own page, and nothing else.** Each press is a
 // verb out of `acts.js` — `controlsFor` decides whether it is drawn,
 // `bodyFor` what it sends, `afterAnswer` what came of it — so a card cannot
-// offer what the task's page would not, and the machine re-asks the scope, the
-// setting, the origin, the project and the state at the act whatever the card
-// said. A verb this device was not granted is **absent**; a verb the world
+// offer what the task's page would not, and the machine re-asks the setting,
+// the origin, the passkey and the state at the act whatever the card said. A
+// verb this device cannot ask for is **absent**; a verb the world
 // cannot do right now is absent too, because its reason is the task's page's
 // to give in full, one tap away.
 //
@@ -71,7 +71,7 @@ export function quickActs(ctx, opts = {}) {
     going = false
     press.disabled = false
     if (answer.status === 200) felt()
-    const came = afterAnswer(answer, ctx.sentence(answer), ctx.session?.() ?? null)
+    const came = afterAnswer(answer, ctx.sentence(answer))
     answerIn(said, came.said, came.trouble)
   }
 

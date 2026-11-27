@@ -74,9 +74,8 @@ const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 const byText = (a, b) => (a < b ? -1 : a > b ? 1 : 0)
 
 /**
- * What a request is called: the source's own title where this device was
- * granted it, and the source's own id where it was not — never the id dressed
- * up as a title.
+ * What a request is called: the source's own title where it has one, and the
+ * source's own id where it has none — never the id dressed up as a title.
  */
 export function nameOf(row) {
   return row.title === null ? `${row.source} ${row.externalId}` : row.title.words
@@ -113,8 +112,8 @@ const newestFirst = (a, b) => (a.waited ?? -1) - (b.waited ?? -1) || byText(a.ke
 
 /**
  * Where a request came from, in a line: the source and its id, who asked, and
- * the project it made work in. A handle this device was not granted is left
- * out rather than drawn as a dash, because the request's own screen has the
+ * the project it made work in. A handle nobody gave is left out rather than
+ * drawn as a dash, because the request's own screen has the
  * room to say which nothing it is. `withId` is false where the id is already
  * the name above the line.
  */
@@ -192,7 +191,7 @@ export function requestOf(row, asOf, known = () => false) {
     mark: intakeMark(row),
     name: nameOf(row),
     named: row.title !== null,
-    // The id is the name where the title was not granted, and is not said twice.
+    // The id is the name where there is no title, and is not said twice.
     from: fromSaid(row, row.title !== null),
     project: row.project,
     because: row.because,
@@ -382,11 +381,9 @@ export function troubleOf(sources) {
  * `inboxProvenance`'s own list, with the two revisions collapsed the way it
  * collapses them and `—` wherever the answer is that nobody said: a row drawn
  * with an empty grant reads as a request nothing authorised, and one nothing
- * authorised was refused and never got a row. `may` is whether this device
- * was granted a request's words, which is what tells *nobody said who* from
- * *not granted*.
+ * authorised was refused and never got a row.
  */
-export function provenanceOf(row, may) {
+export function provenanceOf(row) {
   const dash = (value) => (value === null || value === '' ? '—' : value)
   return [
     ['source', row.source],
@@ -395,7 +392,7 @@ export function provenanceOf(row, may) {
       'revision',
       row.taken === row.revision ? row.revision : `${row.revision} now, work made for ${row.taken}`,
     ],
-    ['asked by', row.who === null ? (may ? '—' : 'not granted') : `@${row.who.words}`],
+    ['asked by', row.who === null ? '—' : `@${row.who.words}`],
     ['project', dash(row.project)],
     ['allowed by', dash(row.grant)],
     ['mode', dash(row.mode)],
@@ -445,11 +442,10 @@ export function standingOfRequest(row, asOf) {
 /**
  * Where a request came from, as the chips under its state: the source and its
  * id, who asked, the project, and the workflow it was stamped from. Who asked
- * is left out where nobody said and *not granted* where this device may not
- * read the handle (`mayWho`) — two nothings, never one.
+ * is left out where nobody said.
  */
-export function chipsOf(row, mayWho) {
-  const who = row.who === null ? (mayWho ? null : 'asked by: not granted') : `@${row.who.words}`
+export function chipsOf(row) {
+  const who = row.who === null ? null : `@${row.who.words}`
   return [
     { key: 'source', said: `${row.source} ${row.externalId}`, mono: true },
     { key: 'who', said: who, mono: false },
@@ -467,7 +463,7 @@ export function chipsOf(row, mayWho) {
  * nothing to say: only a request waiting on a yes says why it cannot be given
  * one, because the rest already say where they stand in the line above, and
  * a second sentence under it would be the same fact twice. `standing` is the
- * verb's (`standingOf`), and `off` — a device not granted the act — is said
+ * verb's (`standingOf`), and `off` — a device that cannot act — is said
  * by the control being absent, not by a sentence.
  */
 export function approveWhy(row, here, standing) {

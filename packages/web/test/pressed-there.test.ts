@@ -1,11 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { allowDevice, grantDevice } from '../src/devices.ts'
 import { mintOwner } from '../src/owner.ts'
 import { methodOf, PRESSES_THERE, type PressThere } from '../src/pressed-there.ts'
-import { GRANTS } from '../src/reach.ts'
 import { CSRF_HEADER } from '../src/request.ts'
 import { OWNED } from '../src/routes.ts'
-import { SCOPES } from '../src/surface.ts'
 import { ask, closeAll, pair, type Running, start } from './harness.ts'
 
 // A press on another machine's row from this door's page (`pressed-there.ts`):
@@ -82,12 +79,9 @@ async function door(said: { ok: boolean; said: string } = { ok: true, said: 'ste
   return { one, handed }
 }
 
-/** A paired phone with every scope and grant: the person's own. */
-async function theirs(one: Running, label = 'mine') {
-  const phone = await pair(one, { label })
-  await allowDevice(one.home, phone.device, SCOPES, new Date())
-  await grantDevice(one.home, phone.device, GRANTS, new Date())
-  return phone
+/** A paired phone: every one is the person's own. */
+function theirs(one: Running, label = 'mine') {
+  return pair(one, { label })
 }
 
 function press(one: Running, phone: Awaited<ReturnType<typeof pair>>, body: unknown) {
@@ -164,15 +158,6 @@ describe('POST /api/there/press', () => {
     expect(handed[0]).toMatchObject({ method: 'worker/stop', key: `${made.device}-press-0001` })
   })
 
-  it('refuses a device that is not the person’s own, and reaches nothing', async () => {
-    const { one, handed } = await door()
-    const ordinary = await pair(one, { label: 'a friend’s' })
-    // Every scope but not every grant: not the person's own.
-    await allowDevice(one.home, ordinary.device, SCOPES, new Date())
-    for (const [body] of MAPPED) expect((await press(one, ordinary, body)).status).toBe(403)
-    expect(handed).toEqual([])
-  })
-
   it('refuses every body that is not one of its seven presses, as text', async () => {
     const { one, handed } = await door()
     const phone = await theirs(one)
@@ -219,7 +204,6 @@ describe('POST /api/there/press', () => {
       method: 'POST',
       mutates: true,
       here: true,
-      theirs: true,
     })
   })
 })

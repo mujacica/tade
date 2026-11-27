@@ -47,7 +47,7 @@ describe('the scorecards from away', () => {
       run: `${one.task}/agent`,
       detail: { harness: 'claude-code', model: 'claude-opus-5' },
     })
-    await paired(one.home, one.port, ['read'], [])
+    await paired(one.home, one.port)
     await one.away.open()
 
     // The first ask starts the read and is told so, rather than shown noughts.
@@ -63,9 +63,10 @@ describe('the scorecards from away', () => {
     expect(answer.body.read).toBe(true)
     const total = answer.body.total as { tasks: number; cost: unknown }
     expect(total.tasks).toBe(1)
-    // Granted nothing but reading: no money, and the judge not granted.
-    expect(total.cost).toBeNull()
-    expect(answer.body.judge).toBe('not granted')
+    // Every paired device reads the money: none was recorded, which is a
+    // dash and never nought, and no judge here reads anything.
+    expect(total.cost).toEqual([{ said: '—', kind: 'none' }])
+    expect(answer.body.judge).toBe('none here')
     const by = answer.body.by as Record<string, { label: string }[]>
     expect(by.harness?.map((row) => row.label)).toEqual(['claude-code'])
   })

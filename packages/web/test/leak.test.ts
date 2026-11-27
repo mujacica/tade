@@ -4,21 +4,8 @@ import { describe, expect, it } from 'vitest'
 import { agentOf } from '../src/agent.ts'
 import { AUTHORED, authored, forbidden, keysIn, NEVER_A_FIELD, stringsIn } from '../src/fields.ts'
 import { BUDGET } from '../src/page.ts'
-import type { Grant } from '../src/reach.ts'
 import { snapshotOf } from '../src/snapshot.ts'
-import {
-  agentHeld,
-  EVERY,
-  HELD_KEY,
-  input,
-  NOW,
-  PRIVATE,
-  plan,
-  project,
-  reach,
-  screenText,
-  task,
-} from './fixtures.ts'
+import { agentHeld, HELD_KEY, input, NOW, PRIVATE, plan, project, reach, task } from './fixtures.ts'
 
 // What the projection leaves out, and what it deliberately does not.
 //
@@ -28,10 +15,9 @@ import {
 //    a check's id, a file name, a warning — Tade wrote all of it, and this is
 //    the half a regex can hold, because a field added to a row that drags a
 //    path in with it fails here.
-// 2. **What a person wrote goes out as they wrote it, and only where it was
-//    granted.** It is *not* scrubbed — scrubbing a note is rewording it — so
-//    the test for it is the other way round: with the grant, the pasted
-//    credential is there; without the grant, nothing of it is anywhere.
+// 2. **What a person wrote goes out as they wrote it.** It is *not* scrubbed —
+//    scrubbing a note is rewording it — so the test for it is the other way
+//    round: the pasted credential is there.
 //
 // Anything stronger than those two is a promise this design cannot keep, and
 // a test that implied otherwise would be the most dangerous thing in the
@@ -60,7 +46,7 @@ const SECRETS = [PRIVATE.credential, PRIVATE.opaque]
 
 describe('Tade’s own words carry nothing of the machine', () => {
   it('puts no path, no id and no credential in any metadata field', () => {
-    const snapshot = snapshotOf(input({ reach: reach(EVERY) }), NOW)
+    const snapshot = snapshotOf(input({ reach: reach() }), NOW)
     const guilty: string[] = []
     for (const found of stringsIn(snapshot)) {
       if (authored(found.at)) continue
@@ -73,7 +59,7 @@ describe('Tade’s own words carry nothing of the machine', () => {
   it('names every string it found, so a new field cannot arrive unclassified', () => {
     // The half that stops the test above passing by finding nothing: if a row
     // stopped being projected, this is what goes red.
-    const snapshot = snapshotOf(input({ reach: reach(EVERY) }), NOW)
+    const snapshot = snapshotOf(input({ reach: reach() }), NOW)
     const paths = new Set(stringsIn(snapshot).map((found) => found.at))
     expect(paths.has('tasks[].reason')).toBe(true)
     expect(paths.has('fresh.epoch')).toBe(true)
@@ -81,7 +67,7 @@ describe('Tade’s own words carry nothing of the machine', () => {
   })
 
   it('has no field named anything a projection may never hold', () => {
-    const snapshot = snapshotOf(input({ reach: reach(EVERY) }), NOW)
+    const snapshot = snapshotOf(input({ reach: reach() }), NOW)
     expect(forbidden(keysIn(snapshot))).toEqual([])
   })
 
@@ -106,7 +92,7 @@ describe('Tade’s own words carry nothing of the machine', () => {
     // on a wire: a client written against two spellings of "nobody said" gets
     // one of them wrong.
     const bare = input({
-      reach: reach(EVERY),
+      reach: reach(),
       tasks: [task({ branch: '', model: '', effort: '', account: '', title: '', intent: '' })],
       projects: [project({ title: '' })],
     })
@@ -122,7 +108,7 @@ describe('Tade’s own words carry nothing of the machine', () => {
   it('reads a figure nobody could give as unknown, not as nought', () => {
     const snapshot = snapshotOf(
       input({
-        reach: reach(EVERY),
+        reach: reach(),
         tasks: [task({ ahead: null, behind: null, dirty: null, movedAt: null })],
         machineUpSince: null,
       }),
@@ -135,7 +121,7 @@ describe('Tade’s own words carry nothing of the machine', () => {
   })
 
   it('counts agents and lanes, and names neither', () => {
-    const snapshot = snapshotOf(input({ reach: reach(EVERY) }), NOW)
+    const snapshot = snapshotOf(input({ reach: reach() }), NOW)
     expect(snapshot.tasks[0]?.agents).toBe(1)
     expect(snapshot.tasks[0]?.lanes).toBe(2)
     expect(JSON.stringify(snapshot)).not.toContain(PRIVATE.lane)
@@ -186,35 +172,24 @@ describe('a raw tool payload never becomes a reason', () => {
     expect(derived.reason).toContain(PRIVATE.command)
   })
 
-  it('says the same sentence from the tool’s name, and nothing of the call', () => {
-    const snapshot = snapshotOf(input({ reach: reach(EVERY) }), NOW)
+  it('says the same sentence from the tool’s name, and the command only as `commandOut` made it', () => {
+    const snapshot = snapshotOf(input({ reach: reach() }), NOW)
     const row = snapshot.tasks.find((one) => one.id === 'sentry/blocked')
     expect(row?.reason).toBe('wants approval: Bash (+1 more)')
-    // Every reading grant and no `answer`: the command is not this device's.
-    expect(row?.approval).toEqual({
-      id: 'req_914',
-      tool: 'Bash',
-      since: '2026-10-08T14:20:00.000Z',
-      command: null,
-    })
+    expect(row?.approval).toMatchObject({ id: 'req_914', tool: 'Bash' })
+    expect(row?.approval?.command?.text).toBe('Bash: pnpm vitest run ./packages/web --reporter=dot')
+    // Never the raw summary, which is the call with this machine's paths in it.
     expect(JSON.stringify(snapshot)).not.toContain('id_rsa')
     expect(JSON.stringify(snapshot)).not.toContain('Authorization')
-  })
-
-  it('carries the command only beside the reason, to a device that may answer it', () => {
-    const snapshot = snapshotOf(input({ reach: { ...reach(EVERY), answers: true } }), NOW)
-    const row = snapshot.tasks.find((one) => one.id === 'sentry/blocked')
-    expect(row?.reason).toBe('wants approval: Bash (+1 more)')
-    expect(row?.approval?.command?.text).toBe('Bash: pnpm vitest run ./packages/web --reporter=dot')
   })
 })
 
 describe('what a person wrote', () => {
-  it('goes out as they wrote it, pasted credential and all, where it was granted', () => {
+  it('goes out as they wrote it, pasted credential and all', () => {
     // Deliberately asserted. Somebody "fixing" the leakage test by scrubbing
     // these fields breaks the one promise they exist to keep, and this is what
     // tells them so.
-    const snapshot = snapshotOf(input({ reach: reach(EVERY) }), NOW)
+    const snapshot = snapshotOf(input({ reach: reach() }), NOW)
     const row = snapshot.tasks.find((one) => one.id === 'sentry/pasted')
     expect(row?.intent?.words).toContain(PRIVATE.credential)
     expect(row?.intent?.words).toContain(PRIVATE.opaque)
@@ -222,20 +197,9 @@ describe('what a person wrote', () => {
     expect(row?.title?.words).toContain('<script>alert(1)</script>')
   })
 
-  it('is nowhere at all when the device was granted nothing', () => {
-    // Names and counts, which is what a paired device gets before anybody
-    // decides otherwise. This is the assertion that makes a read scope real.
-    const text = JSON.stringify(snapshotOf(input({ reach: reach([]) }), NOW))
-    for (const needle of [...SECRETS, ...PATHS])
-      expect(text, `granted nothing, yet it carries ${needle}`).not.toContain(needle)
-    expect(text).not.toContain('<script>')
-    expect(text).toContain('sentry/pasted')
-    expect(text).toContain('4 files touched')
-  })
-
   it('is cut on whole characters, so a budget cannot break an emoji', () => {
     const snapshot = snapshotOf(
-      input({ reach: reach(EVERY), tasks: [task({ title: '🔧'.repeat(10) })] }),
+      input({ reach: reach(), tasks: [task({ title: '🔧'.repeat(10) })] }),
       NOW,
       {},
       {
@@ -265,92 +229,38 @@ describe('what a person wrote', () => {
   })
 })
 
-describe('each grant lets through exactly its own content', () => {
-  const only = (...granted: Grant[]) => snapshotOf(input({ reach: reach(granted) }), NOW)
-
-  it('gives titles without intent, and intent without titles', () => {
-    expect(only('titles').tasks[0]?.title).not.toBeNull()
-    expect(only('titles').tasks[0]?.intent).toBeNull()
-    expect(only('intent').tasks[0]?.title).toBeNull()
-    expect(only('intent').tasks[0]?.intent).not.toBeNull()
-  })
-
-  it('gives a review’s state always and its url only with the grant', () => {
-    expect(only().tasks[0]?.review).toEqual({ state: 'open', url: null })
-    expect(only('reviews').tasks[0]?.review?.url).toContain('pull/412')
-  })
-
-  it('gives money only with the grant, and never a nought in its place', () => {
-    expect(only().tasks[0]?.spend).toBeNull()
-    expect(only('spend').tasks[0]?.spend?.usd).toBe(1.25)
-    expect(only('spend').tasks[0]?.spend?.usdOnPlan).toBe(0.4)
-  })
-
-  it('gives a sign-in’s name only with the grant', () => {
-    expect(only().tasks[0]?.account).toBeNull()
-    expect(only('accounts').tasks[0]?.account?.words).toBe('work@example.invalid')
-  })
-
-  it('names a plan’s sign-in only with the grant, and not in its id or its cursor', () => {
-    // A plan row is keyed, and its page walked, by an id every `spend` device
-    // is sent, and one spelt out of the account handed the name over beside
-    // an `account` of null.
+describe('a plan’s sign-in', () => {
+  it('is named in `account`, and never in its id or its cursor', () => {
+    // A plan row is keyed, and its page walked, by an id, and one spelt out of
+    // the account would carry the name somewhere a reader does not look.
     const plans = [
       plan({ account: null }),
       plan({ account: `${PRIVATE.opaque}@example.invalid` }),
       plan({ harness: 'pi', account: null }),
       plan(),
     ]
-    const read = (granted: Grant[], after: string | null = null) =>
-      snapshotOf(
-        input({ reach: reach(granted), plans }),
-        NOW,
-        { plans: after },
-        { ...BUDGET, plans: 2 },
-      )
-    const first = read(['spend'])
-    const rest = read(['spend'], first.pages.plans.next)
+    const read = (after: string | null = null) =>
+      snapshotOf(input({ reach: reach(), plans }), NOW, { plans: after }, { ...BUDGET, plans: 2 })
+    const first = read()
+    const rest = read(first.pages.plans.next)
     expect(first.pages.plans.next).not.toBeNull()
-    for (const seen of [first, rest])
-      expect(JSON.stringify(seen), 'no `accounts`, yet it names a sign-in').not.toContain(
-        '@example.invalid',
-      )
+    expect(first.pages.plans.next).not.toContain('@example.invalid')
     expect([...first.plans, ...rest.plans].map((one) => one.id)).toEqual([
       'claude-code/0',
       'claude-code/1',
       'claude-code/2',
       'pi/0',
     ])
-    // With the grant the names are in `account`, and the ids and the cursor
-    // are the same ones, so a device's page does not move for being granted it.
-    const granted = read(['spend', 'accounts'])
-    expect(granted.pages.plans.next).toBe(first.pages.plans.next)
-    expect(granted.plans.map((one) => [one.id, one.account?.words ?? null])).toEqual([
+    expect(first.plans.map((one) => [one.id, one.account?.words ?? null])).toEqual([
       ['claude-code/0', null],
       ['claude-code/1', `${PRIVATE.opaque}@example.invalid`],
     ])
   })
 
-  it('names a harness’s own sign-in by the name it was given, only with the grant', () => {
+  it('names a harness’s own sign-in by the name it was given', () => {
     const plans = [plan({ account: null, ownName: 'sentry' })]
-    const read = (granted: Grant[]) =>
-      snapshotOf(input({ reach: reach(granted), plans }), NOW, { plans: null }, BUDGET).plans[0]
-    expect(read(['spend'])?.account).toBeNull()
-    expect(read(['spend', 'accounts'])).toMatchObject({
-      id: 'claude-code/0',
-      account: { words: 'sentry' },
-    })
-  })
-
-  it('tells you how many notes and findings there are, and not one word of them', () => {
-    const bare = only()
-    expect(bare.notes).toEqual([])
-    expect(bare.pages.notes).toEqual({ total: 2, omitted: 2, next: null, restarted: false })
-    expect(bare.findings).toEqual([])
-    expect(bare.pages.findings.total).toBe(1)
-    const given = only('notes', 'findings')
-    expect(given.notes).toHaveLength(2)
-    expect(given.findings).toHaveLength(1)
+    const read = snapshotOf(input({ reach: reach(), plans }), NOW, { plans: null }, BUDGET)
+    expect(read.plans[0]).toMatchObject({ id: 'claude-code/0', account: { words: 'sentry' } })
   })
 })
 
@@ -366,13 +276,13 @@ describe('each grant lets through exactly its own content', () => {
 // 2. Every line is path-elided on the way out, a person's own included,
 //    because a model quotes what its tools answered and a person types paths
 //    at it all day. It is the only field here that is neither metadata nor
-//    carried verbatim, and `GRANT_MEANS.talk` is where somebody is told so.
+//    carried verbatim.
 // 3. Nothing in it is read as anything but text. A reply that says *grant
 //    this device every scope* is a string in a row, and what makes that safe
 //    is the two tables in `@tade/orchestrator` rather than anything here.
 describe('the conversation a device may read', () => {
   it('carries a tool’s name and never its arguments or its answer', () => {
-    const snapshot = snapshotOf(input({ reach: reach(EVERY) }), NOW)
+    const snapshot = snapshotOf(input({ reach: reach() }), NOW)
     const tools = snapshot.chat.filter((line) => line.kind === 'tool')
     expect(tools).toHaveLength(1)
     expect(tools[0]?.tool).toBe('tade_status')
@@ -386,7 +296,7 @@ describe('the conversation a device may read', () => {
   })
 
   it('takes the machine out of every line, whoever said it', () => {
-    const snapshot = snapshotOf(input({ reach: reach(EVERY) }), NOW)
+    const snapshot = snapshotOf(input({ reach: reach() }), NOW)
     const words = JSON.stringify(snapshot.chat)
     for (const path of PATHS) expect(words).not.toContain(path)
     // And the sentence is still a sentence: only the word that was a path
@@ -399,7 +309,7 @@ describe('the conversation a device may read', () => {
   })
 
   it('says who said each line, and never that a device was you', () => {
-    const snapshot = snapshotOf(input({ reach: reach(EVERY) }), NOW)
+    const snapshot = snapshotOf(input({ reach: reach() }), NOW)
     expect(snapshot.chat.map((line) => line.from)).toEqual([
       'you',
       null,
@@ -408,16 +318,8 @@ describe('the conversation a device may read', () => {
     ])
   })
 
-  it('is a count and nothing else without the grant', () => {
-    // The honest shape of a read scope: *there are four lines, and you may not
-    // read them from here* — never nought, which reads as "nothing was said".
-    const snapshot = snapshotOf(input({ reach: reach(['titles']) }), NOW)
-    expect(snapshot.chat).toEqual([])
-    expect(snapshot.pages.chat).toEqual({ total: 4, omitted: 4, next: null, restarted: false })
-  })
-
   it('says this surface is off rather than saying nothing was said', () => {
-    const snapshot = snapshotOf(input({ reach: reach(EVERY), talk: null }), NOW)
+    const snapshot = snapshotOf(input({ reach: reach(), talk: null }), NOW)
     expect(snapshot.you.talk).toBeNull()
     expect(snapshot.chat).toEqual([])
     expect(snapshot.pages.chat.total).toBe(0)
@@ -437,7 +339,7 @@ describe('the conversation a device may read', () => {
     ].join(' ')
     const snapshot = snapshotOf(
       input({
-        reach: reach(EVERY),
+        reach: reach(),
         talk: {
           lines: [
             {
@@ -477,8 +379,8 @@ describe('an agent’s screen, which is nobody’s words', () => {
   // screen carries every one of them, a key wrapped across two rows included.
   const TASK = 'sentry/away-projection'
 
-  it('carries no path, no id and no credential, with every grant', () => {
-    const answer = agentOf(reach(EVERY), input().tasks, TASK, agentHeld())
+  it('carries no path, no id and no credential', () => {
+    const answer = agentOf(reach(), input().tasks, TASK, agentHeld())
     expect(answer.screen?.lines.length).toBeGreaterThan(0)
     const guilty: string[] = []
     for (const found of stringsIn(answer)) {
@@ -488,26 +390,10 @@ describe('an agent’s screen, which is nobody’s words', () => {
     expect(guilty).toEqual([])
   })
 
-  it('carries not one row of it to a device granted everything but the screen', () => {
-    const answer = agentOf(
-      reach(EVERY.filter((one) => one !== 'lanes')),
-      input().tasks,
-      TASK,
-      agentHeld(),
-    )
-    const said = JSON.stringify(answer)
-    for (const row of screenText()
-      .split('\n')
-      .filter((one) => one.trim().length > 4)) {
-      expect(said).not.toContain(row.trim())
-    }
-    expect(answer.screen).toBeNull()
-  })
-
   it('has no field named anything a projection may never hold', () => {
     // `output` and `transcript` stay forbidden: a screen crosses as `lines`
     // on a `screen` that says how much was taken out, which is a different
     // thing from a lane's bytes under the name a harness reaches for.
-    expect(forbidden(keysIn(agentOf(reach(EVERY), input().tasks, TASK, agentHeld())))).toEqual([])
+    expect(forbidden(keysIn(agentOf(reach(), input().tasks, TASK, agentHeld())))).toEqual([])
   })
 })

@@ -143,11 +143,9 @@ Three answers and no fourth:
   costs. The shape of that argument is the one to copy: it is reach over a *setting* and never over
   an act, the act stays behind whatever already gates it (`approvals`), and the residual risk is
   named rather than left for somebody to find. A key only belongs here on the person's own say-so.
-  **And `open` is also what a paired phone may change** where `surfaces.web.settings` is on
-  (`awayReach`, `packages/web/src/configuring.ts`): a key added to the tier is reachable from away
-  the day it is added, so `SETTINGS_FROM_AWAY`'s list moves in the same commit —
-  `packages/web/test/configuring.test.ts` holds the two together. `asked` and `never` are reachable
-  only from the person's own full-access device (`theirsOf`); that is argued in `configuring.ts`.
+  **Every tier is what a paired phone may change** where `surfaces.web.settings` is on
+  (`packages/web/src/configuring.ts`): every paired device is the person's own, so a key is
+  reachable from away the day it is added, a key included (set, never shown).
 
 **Which account new agents run as is a default too, among the accounts that exist.**
 `workers.accounts.<harness>` (the machine's) and `projects.<name>.accounts.<harness>` (one
@@ -261,7 +259,7 @@ The rules the table stands on:
   Machines and the checklist.
 - **A peer's change to a `never` path lands only where the person made it** (`peerMayWrite`):
   who changed it first travels with it (`by`, and `origin` on the carried line — `whoChanged`), and
-  only `window`, `cli`, `file`, `you` or a device (which reaches past `open` only with full access)
+  only `window`, `cli`, `file`, `you` or a paired device
   count. That holds for what the linking machine sends — the owner's carry. **What comes back newer
   to widen the linking machine waits for a press there** (`takenOnAPress`, `remote:take`, Settings ›
   Remotes): `by` is the box's word, and its agents run as you, so `tade config` or an edit to its

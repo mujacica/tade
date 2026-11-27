@@ -45,7 +45,6 @@ const LAN: Surface = {
 
 const SESSION = {
   device: '00112233445566aa',
-  scopes: ['read'] as const,
   host: '192.168.1.10:7654',
   csrf: 'x'.repeat(43),
   proved: null,
@@ -425,32 +424,35 @@ describe('the session', () => {
   })
 })
 
-describe('the scope, and the trusted origin an act needs', () => {
-  it('refuses a route the device was not granted', () => {
-    const verdict = allowed(
-      asking(),
-      { ...READ, needs: 'steer' },
-      guarding({ session: { ...SESSION, scopes: ['read'] } }),
-    )
-    expect(verdict.ok).toBe(false)
-    if (!verdict.ok) {
-      expect(verdict.refusal.error).toBe('out_of_scope')
-      // The scope it lacks is named, so the page says the box to tick.
-      expect(verdict.refusal.needs).toEqual(['steer'])
+describe('the trusted origin an act needs', () => {
+  it('refuses every act to a device paired in the clear, from this machine too', () => {
+    // Its cookie crossed a network anybody on it could read, so it reads and
+    // never acts — whatever origin it is asked from now.
+    for (const at of [asking(), asking({ host: 'localhost:7654', listener: 'loopback' })]) {
+      const verdict = allowed(
+        at,
+        { ...READ, needs: 'steer' },
+        guarding({ session: { ...SESSION, host: at.host ?? '', clear: true } }),
+      )
+      expect(!verdict.ok && verdict.refusal.error).toBe('locked')
+      if (!verdict.ok) expect(verdict.refusal.needs).toEqual(['https'])
     }
+    // And it still reads.
+    const read = allowed(
+      asking({ method: 'GET', origin: null }),
+      READ,
+      guarding({ session: { ...SESSION, clear: true } }),
+    )
+    expect(read.ok).toBe(true)
   })
 
-  it('refuses an act over plain HTTP off this machine, however it was granted', () => {
+  it('refuses an act over plain HTTP off this machine', () => {
     // Plain HTTP buys no act, and the point of asking it here rather than at
     // pairing:
     // the network a device is on changes, so a session that may steer on the
     // sofa may not steer from a cafe. A `locked`, which the page draws as
     // *that needs turning on at the machine*.
-    const verdict = allowed(
-      asking(),
-      { ...READ, needs: 'steer' },
-      guarding({ session: { ...SESSION, scopes: ['read', 'steer'] } }),
-    )
+    const verdict = allowed(asking(), { ...READ, needs: 'steer' }, guarding({ session: SESSION }))
     expect(verdict.ok).toBe(false)
     if (!verdict.ok) {
       expect(verdict.refusal.error).toBe('locked')
@@ -462,7 +464,7 @@ describe('the scope, and the trusted origin an act needs', () => {
 
   it('allows the same act from this machine, and from a trusted https host', () => {
     const steering = { ...READ, needs: 'steer' as const }
-    const session = { ...SESSION, scopes: ['read', 'steer'] as const }
+    const session = SESSION
     expect(
       allowed(
         asking({ host: 'localhost:7654', listener: 'loopback' }),
@@ -579,7 +581,6 @@ describe('this machine is the loopback listener and a loopback Host, both', () =
     const mine = kind === 'this machine' ? host : '127.0.0.1:7654'
     return {
       ...SESSION,
-      scopes: ['read', 'steer'],
       host: minted === 'minted for this machine' ? mine : NAME,
     }
   }
@@ -629,9 +630,9 @@ describe('this machine is the loopback listener and a loopback Host, both', () =
   it('pairs as this machine on the loopback listener and never on a public one', () => {
     // The two routes that need no session: the shell, and the pairing that
     // mints one. On a public listener this machine's name refuses both, so no
-    // session can ever be minted *for* this machine from outside it — and the
-    // origin a pairing carries into `scopesOn` is this machine's only where
-    // both halves are.
+    // session can ever be minted *for* this machine from outside it — and a
+    // pairing is paired in the clear unless both halves are, or the origin is
+    // trusted.
     for (const [listener, kind, want] of [
       ['loopback', 'this machine', 'ok'],
       ['loopback', 'a trusted name', 'ok'],
@@ -673,7 +674,7 @@ describe('this machine is the loopback listener and a loopback Host, both', () =
     // name is something on this machine with a stolen cookie, and `proven`
     // asks the passkey of the public listener alone. Refused at the door there.
     const surface = { ...LAN, trustedHosts: [NAME], publicName: NAME, passkeyMs: 3_600_000 }
-    const session = { ...SESSION, scopes: ['read', 'steer'] as const, host: NAME }
+    const session = { ...SESSION, host: NAME }
     const at = (proved: number | null) => ({ ...BESIDE, surface, session: { ...session, proved } })
     const act = (listener: 'loopback' | 'public') =>
       asking({
@@ -725,13 +726,13 @@ describe('a route for this machine alone', () => {
       expect(allowed(asking({ host, listener: 'loopback' }), SETUP, MINE).ok, host).toBe(true)
   })
 
-  it('is the 404 of a path nobody built from anywhere else, and the proxy’s socket above all', () => {
+  it('is the 404 of a path nobody built from anywhere else to nobody, and the proxy’s socket above all', () => {
     for (const [host, listener] of [
       ['studio.yak-bebop.ts.net', 'loopback'],
       ['studio.yak-bebop.ts.net', 'public'],
       ['192.168.1.10:7654', 'public'],
     ] as const) {
-      const verdict = allowed(asking({ host, listener }), SETUP, guarding())
+      const verdict = allowed(asking({ host, listener }), SETUP, guarding({ session: null }))
       expect(verdict.ok, `${host} on ${listener}`).toBe(false)
       if (!verdict.ok) expect(verdict.refusal.error, `${host} on ${listener}`).toBe('no_such')
     }
@@ -795,11 +796,11 @@ describe('the pages that connect a source', () => {
     ).toMatchObject({ ok: true })
   })
 
-  it('is the 404 of a path nobody built anywhere but this machine, a phone’s session or not', () => {
+  it('is the 404 of a path nobody built anywhere but this machine, to nobody', () => {
     for (const [host, listener, at] of [
       [NAME, 'public', PUBLIC],
-      ['192.168.1.10:7654', 'public', guarding()],
-      ['studio.yak-bebop.ts.net', 'loopback', guarding()],
+      ['192.168.1.10:7654', 'public', guarding({ session: null })],
+      ['studio.yak-bebop.ts.net', 'loopback', guarding({ session: null })],
     ] as const) {
       for (const route of [PAGE, PRESS]) {
         const verdict = allowed(press({ host, listener, origin: `https://${host}` }), route, at)
@@ -867,7 +868,7 @@ describe('a webhook delivery', () => {
 
   it('is let through on the public listener with no session, Origin, token or JSON', () => {
     const verdict = allowed(delivery(), GITHUB, PUBLIC)
-    expect(verdict).toMatchObject({ ok: true, device: '', scopes: [] })
+    expect(verdict).toMatchObject({ ok: true, device: '' })
   })
 
   it('is the 404 of a path nobody built on this machine’s own listener', () => {

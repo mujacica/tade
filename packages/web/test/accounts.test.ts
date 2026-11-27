@@ -10,15 +10,12 @@ import {
   signInStandingOf,
   type WebAccounts,
 } from '../src/accounts.ts'
-import { allowDevice, grantDevice } from '../src/devices.ts'
-import { GRANTS } from '../src/reach.ts'
 import { CSRF_HEADER } from '../src/request.ts'
 import { OWNED } from '../src/routes.ts'
-import { SCOPES } from '../src/surface.ts'
 import { ask, closeAll, pair, type Running, start } from './harness.ts'
 
 // Settings › Accounts for every machine, asked from the person's own phone
-// (`accounts.ts`): theirs and an owner's and never an ordinary phone's, a look
+// (`accounts.ts`): a paired phone's and an owner's, a look
 // or one of six presses and nothing else, each handed to the window's half
 // parsed and as the device's — and what another machine answers, read back
 // bounded, so nothing it says reaches the phone but the fields Tade writes.
@@ -93,11 +90,9 @@ function post(one: Running, device: Awaited<ReturnType<typeof pair>>, path: stri
   })
 }
 
-async function theirs(one: Running) {
-  const phone = await pair(one, { label: 'mine' })
-  await allowDevice(one.home, phone.device, SCOPES, new Date())
-  await grantDevice(one.home, phone.device, GRANTS, new Date())
-  return phone
+/** A paired phone: every one is the person's own. */
+function theirs(one: Running) {
+  return pair(one, { label: 'mine' })
 }
 
 describe('a machine’s accounts, asked from the person’s own phone', () => {
@@ -143,7 +138,7 @@ describe('a machine’s accounts, asked from the person’s own phone', () => {
     expect(accounts.calls).toEqual(calls.map((call) => ['signIn', call, phone.device]))
   })
 
-  it('takes nothing else, refuses an ordinary phone, and is the 404 of a path nobody wired', async () => {
+  it('takes nothing else, and is the 404 of a path nobody wired', async () => {
     const accounts = half()
     const one = await start({}, { owned: { accounts } })
     const mine = await theirs(one)
@@ -170,13 +165,6 @@ describe('a machine’s accounts, asked from the person’s own phone', () => {
       const said = await post(one, mine, '/api/accounts/sign-in', body)
       expect(said.status, JSON.stringify(body)).toBe(400)
     }
-    const phone = await pair(one)
-    await grantDevice(one.home, phone.device, GRANTS, new Date())
-    for (const path of ['/api/accounts', '/api/accounts/sign-in']) {
-      const refused = await post(one, phone, path, { do: 'look', harness: 'pi', account: null })
-      expect(refused.status, path).toBe(403)
-      expect(JSON.parse(refused.text).error).toBe('out_of_scope')
-    }
     expect(accounts.calls).toEqual([])
     const none = await start()
     const nobody = await theirs(none)
@@ -185,7 +173,6 @@ describe('a machine’s accounts, asked from the person’s own phone', () => {
       expect(OWNED.find((route) => route.name === name)).toMatchObject({
         method: 'POST',
         here: true,
-        theirs: true,
         mutates: true,
       })
     }

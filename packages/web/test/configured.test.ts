@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { ConfigSchema, settingReach, settingsOf } from '@tade/core'
+import { ConfigSchema, settingsOf } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { type From, Moved, NotOffered, NotThere, type Outcome, OutOfScope } from '../src/acting.ts'
 import {
@@ -10,19 +10,17 @@ import {
   readSettingChange,
 } from '../src/configured.ts'
 import type { SettingCall, WebConfiguring } from '../src/configuring.ts'
-import type { Reach } from '../src/reach.ts'
-import { Receipts, readReceipts } from '../src/receipts.ts'
-import type { Scope, Surface } from '../src/surface.ts'
+import { Receipts } from '../src/receipts.ts'
+import type { Surface } from '../src/surface.ts'
 import { homeFor } from './harness.ts'
 
 // One setting changed from away, end to end, with a real receipt store on disk
 // and a window that answers whatever the test wants it to — the sibling of
 // `drafted.test.ts`, and with no sockets for the same reason.
 //
-// **The tier matrix is the point.** Every path Settings draws is put through
-// the door, and what comes out is decided by `settingReach` alone: `open` goes
-// through to the window, `asked` and `never` never reach it, never claim a key,
-// and are written down as refused under the device that asked.
+// **Every path is reached.** Every paired device is the person's own, so every
+// path Settings draws — `open`, `asked` and `never` alike — goes through the
+// door to the window, as the device that asked.
 
 const SURFACE: Surface = {
   enabled: true,
@@ -72,10 +70,6 @@ function window_(
   }
 }
 
-function granted(over: Partial<Reach> = {}): Reach {
-  return { device: DEVICE, projects: { kind: 'every' }, granted: ['settings'], ...over }
-}
-
 async function context(
   configuring: WebConfiguring,
   over: Partial<Configured> = {},
@@ -90,8 +84,6 @@ async function context(
     surface: SURFACE,
     unlocked: true,
     rev: 4,
-    reach: granted(),
-    scopes: ['read', 'configure'] as readonly Scope[],
     origin: { scheme: 'http', host: '127.0.0.1', listener: 'loopback' },
     device: DEVICE,
     now: Date.parse('2026-10-11T14:30:00.000Z'),
@@ -134,88 +126,17 @@ const CRAFTED_NEVER = [
   'surfaces.intake.enabled',
 ]
 
-describe('the tier matrix, over every setting there is', () => {
-  it('lets a path through only where settingReach says open', () => {
-    const tiers = { open: 0, asked: 0, never: 0 }
-    for (const path of [...everyPath(), ...CRAFTED_NEVER]) {
-      const tier = settingReach(path).reach
-      tiers[tier] += 1
-      const read = readSettingChange({ ...BODY, path })
-      if (tier === 'open') {
-        expect(read.ok, path).toBe(true)
-      } else {
-        // **Not a change at all**: there is no `Changing` for it to be.
-        expect(read, path).toEqual({ ok: false, why: 'out_of_reach', path })
-      }
-    }
-    // All three tiers were actually asked, so a passing run is not one where
-    // every path happened to land in one of them.
-    expect(tiers.open).toBeGreaterThan(0)
-    expect(tiers.asked).toBeGreaterThan(10)
-    expect(tiers.never).toBeGreaterThan(10)
-  })
-
-  it('never reaches the window, never claims a key, and writes the refusal down', async () => {
-    for (const path of [...everyPath(), ...CRAFTED_NEVER]) {
-      if (settingReach(path).reach === 'open') continue
-      const one = window_()
-      const ctx = await context(one.configuring, {}, 'configured-matrix')
-      const answered = await carryChange('change', { ...BODY, path }, ctx)
-      // The `404` of a path nobody built: an off capability is not a thing to
-      // probe, and the tier's name is not on the wire.
-      expect(answered.refusal?.status, path).toBe(404)
-      expect(answered.refusal?.error, path).toBe('not_offered')
-      expect(one.calls, path).toEqual([])
-      // And it is in the journal under the device, naming what it asked for.
-      expect(answered.did.device, path).toBe(DEVICE)
-      expect(answered.did.tool, path).toBe('setting')
-      expect(answered.did.task, path).toBe(path)
-      expect(answered.did.state, path).toBe('refused')
-    }
-  })
-
-  it('claims no key for a path out of reach, so a replay cannot be one either', async () => {
-    const home = await homeFor('configured-nokey')
-    const receipts = new Receipts({ home, epoch: 'one' })
-    await receipts.open()
-    const ctx = await context(window_().configuring, { receipts })
-    await carryChange('change', { ...BODY, path: 'approvals.mode', value: 'bypass' }, ctx)
-    expect((await readReceipts(home)).receipts).toEqual([])
-    // And the same store does record a change that was in reach, so the line
-    // above is about the tier and not about a store that writes nothing.
-    await carryChange('change', BODY, ctx)
-    expect((await readReceipts(home)).receipts.length).toBeGreaterThan(0)
-  })
-
-  it('refuses the asked tier however the request is worded', async () => {
-    // The tier passed by the person's own words — and a device has none to
-    // bring. Nothing a body can carry changes that: there is no `said` field,
-    // and one would fail the strict parse.
-    for (const path of ['checks.before', 'agents.commit', 'agents.push', 'projects.app.title']) {
-      expect(readSettingChange({ ...BODY, path }).ok, path).toBe(false)
-      expect(readSettingChange({ ...BODY, path, said: `please change ${path}` }).ok, path).toBe(
-        false,
-      )
-    }
-  })
-})
-
-describe('the person’s own device, which reaches every tier', () => {
-  // Full access, not a machine link: `reachOf` says `theirs` (`theirsOf`), off
-  // the record read at this request.
-  const theirs = () => granted({ theirs: true })
-
+describe('every setting there is, from a paired device', () => {
   it('reads a change for every path there is, asked and never included', () => {
     for (const path of [...everyPath(), ...CRAFTED_NEVER]) {
-      const read = readSettingChange({ ...BODY, path }, true)
-      expect(read.ok, path).toBe(true)
+      expect(readSettingChange({ ...BODY, path }).ok, path).toBe(true)
     }
   })
 
   it('reaches the window as the device for an asked and a never path', async () => {
     for (const path of ['checks.before', 'agents.commit', 'approvals.mode', 'extensions.jev.key']) {
       const one = window_()
-      const ctx = await context(one.configuring, { reach: theirs() }, 'configured-theirs')
+      const ctx = await context(one.configuring, {}, 'configured-every')
       const answered = await carryChange('change', { ...BODY, path }, ctx)
       expect(answered.refusal, path).toBeNull()
       // **Still the device**: the record says the change came from the phone.
@@ -228,10 +149,8 @@ describe('the person’s own device, which reaches every tier', () => {
     }
   })
 
-  it('cannot be claimed by the body: a request saying it is theirs is malformed', async () => {
-    // Whose device it is comes off the record, never out of anything the
-    // request carries — so no text from outside makes a device the person's.
-    for (const claim of ['theirs', 'owner', 'full']) {
+  it('takes no word from the body about whose device it is', async () => {
+    for (const claim of ['theirs', 'owner', 'full', 'said']) {
       const one = window_()
       const ctx = await context(one.configuring, {}, 'configured-claim')
       const answered = await carryChange(
@@ -244,17 +163,15 @@ describe('the person’s own device, which reaches every tier', () => {
     }
   })
 
-  it('still needs configure, the settings grant and a trusted origin', async () => {
+  it('still needs a trusted origin', async () => {
     const one = window_()
-    for (const over of [
-      { scopes: ['read'] as readonly Scope[] },
-      { reach: granted({ theirs: true, granted: [] }) },
-      { origin: { scheme: 'http', host: 'evil.example', listener: 'loopback' } as const },
-    ]) {
-      const ctx = await context(one.configuring, { reach: theirs(), ...over }, 'configured-still')
-      const answered = await carryChange('change', { ...BODY, path: 'approvals.mode' }, ctx)
-      expect(answered.refusal).not.toBeNull()
-    }
+    const ctx = await context(
+      one.configuring,
+      { origin: { scheme: 'http', host: 'evil.example', listener: 'loopback' } },
+      'configured-still',
+    )
+    const answered = await carryChange('change', { ...BODY, path: 'approvals.mode' }, ctx)
+    expect(answered.refusal?.error).toBe('locked')
     expect(one.calls).toEqual([])
   })
 })
@@ -308,37 +225,6 @@ describe('the gate, re-asked at every change', () => {
     expect(
       admitSetting(changing(), { ...ctx, surface: { ...SURFACE, configuring: false } }),
     ).toMatchObject({ ok: false, refusal: { error: 'locked' } })
-  })
-
-  it('needs configure, which no other scope implies', async () => {
-    const ctx = await context(window_().configuring)
-    const every: Scope[] = ['read', 'answer', 'steer', 'ask', 'draft', 'agents', 'projects']
-    expect(admitSetting(changing(), { ...ctx, scopes: every })).toMatchObject({
-      ok: false,
-      refusal: { error: 'out_of_scope' },
-    })
-    expect(admitSetting(changing(), ctx)).toEqual({ ok: true })
-  })
-
-  it('needs the settings reading grant beside it', async () => {
-    // A device may not change what it was not allowed to see.
-    const ctx = await context(window_().configuring)
-    expect(
-      admitSetting(changing(), { ...ctx, reach: granted({ granted: ['titles', 'lanes'] }) }),
-    ).toMatchObject({ ok: false, refusal: { error: 'out_of_scope' } })
-  })
-
-  it('holds the per-project boundary for a project setting', async () => {
-    const ctx = await context(window_().configuring)
-    const read = readSettingChange({ ...BODY, path: 'projects.ledger.push', was: '' })
-    if (!read.ok) throw new Error('the body')
-    const listed = granted({ projects: { kind: 'listed', names: ['app'] } })
-    expect(admitSetting(read.changing, { ...ctx, reach: listed })).toMatchObject({
-      ok: false,
-      refusal: { error: 'out_of_scope' },
-    })
-    // A machine-wide setting has no project to hold it to.
-    expect(admitSetting(changing(), { ...ctx, reach: listed })).toEqual({ ok: true })
   })
 
   it('needs a trusted origin, re-asked here because the network changes', async () => {

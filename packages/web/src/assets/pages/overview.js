@@ -10,7 +10,7 @@
 //    and the line that breaks it down, and under them the money with where
 //    most of it went and a gauge per plan window, fullest first. Every cell is
 //    a press to the screen with the whole of it.
-// 2. **What needs you**, with the presses this device was granted on each row;
+// 2. **What needs you**, with the presses this device may ask for on each row;
 //    what failed under it, red; a calm line when nothing does.
 // 3. **Every project as one row of a grid**, every column on the same line as
 //    the one above it: the shape of its work, its counts, its checks, its money.
@@ -446,7 +446,7 @@ function dotsIn(node, drawn) {
 /**
  * One piece of work that wants somebody — or that failed: its mark, its name
  * and project, why in `deriveState`'s own words, how long ago, and the
- * presses this device was granted.
+ * presses this device may ask for.
  *
  * The row is not a link: it holds buttons, and a button inside a link is two
  * targets in one place. Its name is the link, stretched over the row by the

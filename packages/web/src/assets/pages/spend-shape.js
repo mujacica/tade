@@ -63,9 +63,8 @@ export function onPlanSaid(fold) {
   return `${kind === 'partly' || fold.partial ? '≥' : ''}≈${dollars(fold.usdOnPlan)}`
 }
 
-/** Why there is no money figure: this device, an empty period, or work nobody priced. */
-export function noMoneyWhy(fold, granted) {
-  if (!granted) return 'not granted'
+/** Why there is no money figure: an empty period, or work nobody priced. */
+export function noMoneyWhy(fold) {
   if (fold.tokens === 0 && fold.usdOnPlan === 0) return 'nothing recorded'
   return 'none reported'
 }
@@ -80,22 +79,21 @@ function tokensWord(fold) {
  * The lead: the bill, what a plan's turns would have cost, and the tokens —
  * each with its word, and a mixed bill's parts named rather than averaged.
  */
-export function leadOf(tasks, { granted, partial }) {
+export function leadOf(tasks, { partial }) {
   const fold = spendFold(tasks, partial)
-  const money = granted ? moneySaid(fold) : null
+  const money = moneySaid(fold)
   const kinds = [
     ['exact', fold.usdExact],
     ['estimate', fold.usdEstimated],
     ['listed', fold.usdListed],
   ].filter(([, usd]) => usd > 0)
-  const plan = granted ? onPlanSaid(fold) : null
-  const toks = granted && fold.tokens > 0 ? `${partial ? '≥' : ''}${tokens(fold.tokens)}` : null
-  const no = 'not granted'
+  const plan = onPlanSaid(fold)
+  const toks = fold.tokens > 0 ? `${partial ? '≥' : ''}${tokens(fold.tokens)}` : null
   return {
     fold,
     billed: {
       value: money,
-      word: money === null ? noMoneyWhy(fold, granted) : MADE_OF[pricedOf(fold)],
+      word: money === null ? noMoneyWhy(fold) : MADE_OF[pricedOf(fold)],
       parts:
         money === null || kinds.length < 2
           ? []
@@ -107,15 +105,14 @@ export function leadOf(tasks, { granted, partial }) {
     },
     onPlan: {
       value: plan,
-      word: !granted
-        ? no
-        : plan !== null
+      word:
+        plan !== null
           ? 'at list · not billed'
           : fold.tokensOnPlanUnrated > 0
             ? 'no rate for its model'
             : 'no plan ran',
     },
-    tokens: { value: toks, word: granted ? tokensWord(fold) : no },
+    tokens: { value: toks, word: tokensWord(fold) },
   }
 }
 
@@ -247,7 +244,7 @@ const LINES = {
  * where the machine's do, and `in` with the projects that name it as theirs —
  * `new agents in search` where only they do — and `orchestrator` where the
  * orchestrator runs as it, as the Accounts page says. Empty where nobody runs as it,
- * and where it was not sent: not granted, or not said, which the page draws
+ * and where it was not said, which the page draws
  * as nothing, as the window does, rather than as nobody.
  */
 export function usesSaid(uses) {

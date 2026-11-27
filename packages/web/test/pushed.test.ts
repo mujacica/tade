@@ -10,8 +10,7 @@ import {
   type Subscribed,
 } from '../src/pushed.ts'
 import { AUTH_BYTES, P256DH_BYTES, type PushCall, type WebPushing } from '../src/pushing.ts'
-import { namesOnly, type Reach } from '../src/reach.ts'
-import type { Scope, Surface } from '../src/surface.ts'
+import type { Surface } from '../src/surface.ts'
 
 // Subscribing and forgetting, end to end, with a window that answers whatever
 // the test wants it to — and **no sockets**, for the reason the three siblings
@@ -85,8 +84,6 @@ function ctx(over: Partial<Subscribed> = {}): Subscribed {
     surface: SURFACE,
     unlocked: true,
     rev: 4,
-    reach: namesOnly(DEVICE) as Reach,
-    scopes: ['read'] as Scope[],
     origin: { scheme: 'http', host: 'localhost', listener: 'loopback' },
     device: DEVICE,
     now: 1_000,
@@ -199,7 +196,7 @@ describe('the gate', () => {
     return read.pushing
   })()
 
-  it('lets a paired device with read through from this machine', () => {
+  it('lets a paired device through from this machine', () => {
     expect(admitPush(subscribing, ctx()).ok).toBe(true)
   })
 
@@ -208,10 +205,10 @@ describe('the gate', () => {
     expect(admitPush(subscribing, ctx({ surface: { ...SURFACE, pushing: false } })).ok).toBe(false)
   })
 
-  it('refuses a device that may not even read', () => {
-    const refused = admitPush(subscribing, ctx({ scopes: [] as Scope[] }))
+  it('refuses a device paired in the clear, whatever origin it asks from now', () => {
+    const refused = admitPush(subscribing, ctx({ clear: true }))
     expect(refused.ok).toBe(false)
-    if (!refused.ok) expect(refused.why).toContain('needs read')
+    if (!refused.ok) expect(refused.refusal.error).toBe('locked')
   })
 
   it('refuses it off a trusted origin, which the guard’s own layer does not cover', () => {

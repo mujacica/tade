@@ -35,7 +35,6 @@ import {
   OFF,
   type Origin,
   sameHost,
-  scopesOn,
   surfaceOf,
   thisMachine,
   trusted,
@@ -473,12 +472,11 @@ describe('what a session minted on an origin may ever do', () => {
   const WIFI: Origin = { scheme: 'http', host: '192.168.1.10', listener: 'public' }
   const STRANGER: Origin = { scheme: 'https', host: 'evil.example', listener: 'public' }
 
-  it('is everything it was granted, from this machine', () => {
+  it('is trusted from this machine', () => {
     expect(trusted(HERE, lan)).toBe(true)
-    expect(scopesOn(HERE, lan, ['read', 'steer'])).toEqual(['read', 'steer'])
   })
 
-  it('is read and nothing else for this machine’s name on a public listener', () => {
+  it('is not trusted for this machine’s name on a public listener', () => {
     // The request that *says* it is this machine, on a listener anybody can
     // reach: one header from across the internet, or a proxy on this box.
     // `thisMachine` needs both halves, so neither half alone is ever trusted.
@@ -487,33 +485,23 @@ describe('what a session minted on an origin may ever do', () => {
     expect(thisMachine({ ...WIFI, listener: 'loopback' })).toBe(false)
     expect(thisMachine({ ...HERE, host: '[::1]' })).toBe(true)
     expect(trusted(claimed, lan)).toBe(false)
-    expect(scopesOn(claimed, lan, ['read', 'steer'])).toEqual(['read'])
   })
 
-  it('is everything it was granted, over https to a host the config trusts', () => {
+  it('is trusted over https to a host the config trusts', () => {
     expect(trusted(TUNNEL, lan)).toBe(true)
-    expect(scopesOn(TUNNEL, lan, ['read', 'answer'])).toEqual(['read', 'answer'])
   })
 
-  it('is read and nothing else over plain HTTP off this machine', () => {
-    // `bind: lan` is a read-only transport. A credential that
-    // travelled in the clear across a network never buys an act, whatever is
-    // turned on later — not a flag that could be raised, not a scope a grant
-    // could widen.
+  it('is not trusted over plain HTTP off this machine', () => {
+    // `bind: lan` is a read-only transport. A credential that travelled in
+    // the clear across a network never buys an act, whatever is turned on
+    // later (`Device.clear`).
     expect(trusted(WIFI, lan)).toBe(false)
-    expect(scopesOn(WIFI, lan, ['read', 'steer', 'ask'])).toEqual(['read'])
   })
 
-  it('is nothing at all for an https host nobody wrote down', () => {
+  it('is not trusted for an https host nobody wrote down', () => {
     // An `https` origin Tade was never told about is somebody else's name
     // resolving here.
     expect(trusted(STRANGER, lan)).toBe(false)
-    expect(scopesOn(STRANGER, lan, ['read', 'steer'])).toEqual(['read'])
-  })
-
-  it('grants nothing to a device that was granted nothing', () => {
-    expect(scopesOn(HERE, lan, [])).toEqual([])
-    expect(scopesOn(WIFI, lan, [])).toEqual([])
   })
 })
 
@@ -614,12 +602,9 @@ describe('the sentences', () => {
     // every one of these is a `never remote` line with an argument behind it,
     // and a control that quietly stopped naming one would be
     // the comfortable version of this sentence.
-    // **Both halves, in one breath**, as talking has them: the person's own
-    // device with full access acts as them, every other device's act is a
-    // request, and what turns the one into the other is unticking something.
-    expect(ACTING_IS_NOT_YOU).toContain('with full access, acts as you')
-    expect(ACTING_IS_NOT_YOU).toContain('untick')
-    expect(ACTING_IS_NOT_YOU).toContain('any other paired device is never your own words')
+    // **Every paired device is the person's own** (§10 T1), so the sentence
+    // says it acts as them before it says what the buttons never reach.
+    expect(ACTING_IS_NOT_YOU).toContain('Every device you pair is yours and acts as you')
     for (const never of [
       'change a setting',
       'read a credential',
@@ -633,7 +618,7 @@ describe('the sentences', () => {
     }
     // And what acting needs, with the way out in the same breath.
     expect(ACTING_IS_NOT_YOU).toContain('https origin you named')
-    expect(ACTING_IS_NOT_YOU).toContain('in the clear')
+    expect(ACTING_IS_NOT_YOU).toContain('paired over a network in the clear only ever reads')
     expect(ACTING_IS_NOT_YOU).toContain('journal under the device')
   })
 
@@ -673,32 +658,20 @@ describe('the sentences', () => {
     }
   })
 
-  it('say what a device talking to Tade is, and what the narrowing actually is', () => {
+  it('say what a device talking to Tade is, and whose words a machine link carries', () => {
     // **The sentence that must never get comfortable**, and the clause that
     // would go first is the one saying what stands against a stranger's words:
     // a closed list of tools, in code. A control that said *Tade is careful
     // with messages from away* would be this sentence with its argument taken
     // out.
-    // **Both halves, in one breath**: a device with full access is the person
-    // (their own words, the keyboard's reach), and what makes one a request
-    // again is unticking something — said where somebody decides.
-    expect(TALKING_IS_NOT_YOU).toContain('full access is yours')
+    // **Every paired device is the person's own**, and a machine link's words
+    // are theirs only where they were typed there — the one half that is not
+    // the comfortable one, since that machine's own agents may write them.
+    expect(TALKING_IS_NOT_YOU).toContain('A message from a device you paired is yours')
     expect(TALKING_IS_NOT_YOU).toContain('counts as your own words')
-    expect(TALKING_IS_NOT_YOU).toContain('untick')
+    expect(TALKING_IS_NOT_YOU).toContain('only where you typed the message at that machine')
     expect(TALKING_IS_NOT_YOU).toContain('never your own words')
     expect(TALKING_IS_NOT_YOU).toContain('cannot authorise a setting change')
-    expect(TALKING_IS_NOT_YOU).toContain('refused in code')
-    for (const never of [
-      'no setting',
-      'no credential',
-      'no command',
-      'no new agent',
-      'no push',
-      'no merge',
-      'no check overruled',
-    ]) {
-      expect(TALKING_IS_NOT_YOU, never).toContain(never)
-    }
     // And where it is: the transcript, marked, and the journal under the id.
     expect(TALKING_IS_NOT_YOU).toContain('transcript')
     expect(TALKING_IS_NOT_YOU).toContain('journal under its id')
@@ -714,14 +687,12 @@ describe('the sentences', () => {
     // naming one would be the comfortable version of this sentence.
     for (const never of [
       'Publishing a workflow',
-      'turning a source on',
       'granting an account or a tool',
-      'changing what a device may do',
       'no route at all',
     ]) {
       expect(LOCAL_ONLY_ACTS, never).toContain(never)
     }
-    // And what a granted device *can* do, in the same breath: a page that
+    // And what a device *can* do, in the same breath: a page that
     // only listed refusals would read as a surface nobody finished.
     for (const can of ['approve a request', 'follow what the work does', 'save a draft']) {
       expect(LOCAL_ONLY_ACTS, can).toContain(can)
@@ -756,13 +727,8 @@ describe('the sentences', () => {
 
   it('have a short clause for the one line a control gets', () => {
     expect(TALKING_IS_NOT_YOU_SHORT.length).toBeLessThan(70)
-    expect(TALKING_IS_NOT_YOU_SHORT).toContain('never as your own words')
-    expect(TALKING_IS_NOT_YOU_SHORT).toContain('full-access device talks as you')
-    // Short enough to sit on the away panel's foot after `answer & steer: `,
-    // and still carrying both halves: the person's own full-access device
-    // acts as them, and a request from any other device is a request.
-    expect(ACTING_IS_NOT_YOU_SHORT).toContain('full access acts as you')
-    expect(ACTING_IS_NOT_YOU_SHORT).toContain('other devices, as a request')
+    expect(TALKING_IS_NOT_YOU_SHORT).toContain('every paired device talks as you')
+    expect(ACTING_IS_NOT_YOU_SHORT).toContain('every paired device acts as you')
     expect(ACTING_IS_NOT_YOU_SHORT.length).toBeLessThan(56)
     // And neither of them says a device acts *for* the person, which is the
     // comfortable phrasing that would make `namedBy` sound like it applied.

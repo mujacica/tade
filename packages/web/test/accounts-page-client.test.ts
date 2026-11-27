@@ -24,9 +24,7 @@ import {
   whoseSaid,
   windowsSaid,
 } from '../src/assets/pages/accounts-shape.js'
-import { GRANTS } from '../src/reach.ts'
 import { OWNED } from '../src/routes.ts'
-import { SCOPES } from '../src/surface.ts'
 
 // What the Accounts page draws and sends (`pages/accounts-shape.js`), against
 // the answer the person's own phone is sent (`accounts.ts`): a tab per
@@ -327,7 +325,7 @@ describe('the page, drawn and pressed', () => {
         }
         return { status: 200, body: body.machine === 'ipax' ? THERE : ANSWER }
       },
-      session: () => ({ scopes: [...SCOPES], reads: [...GRANTS] }),
+      session: () => ({ device: 'dev_7f3a9c21', label: 'iPhone' }),
       sentence: () => '',
     }
     const screen = accountsScreen(ctx)

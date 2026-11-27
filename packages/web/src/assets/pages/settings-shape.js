@@ -8,8 +8,8 @@
 // field either renames is a red test rather than a blank row on a phone.
 //
 // **Nothing here decides what a device may do.** Whether a row has a control
-// is `settingStanding`'s, off the row's own `may` and `was` and this device's
-// own scopes, and the machine asks `settingReach` again at the write. This
+// is `settingStanding`'s, off the row's own `may` and `was` and whether this
+// device acts at all (`actsOf`), and the machine asks `settingReach` again at the write. This
 // file only says how to draw what the wire already answered.
 
 import { settingStanding } from '../acts.js'
@@ -341,7 +341,7 @@ export function settingsWord(n) {
  * row out of its group is otherwise a name nobody can place.
  */
 export function hereOf(answer, acts) {
-  if (answer === null || answer?.granted !== true) return []
+  if (!readable(answer)) return []
   const rows = []
   for (const group of answer.groups) {
     for (const row of group.settings) {
@@ -371,26 +371,21 @@ export function groupSaid(group, acts, words = []) {
 
 /** How many settings the answer holds. */
 export function totalOf(answer) {
-  if (answer === null || answer?.granted !== true) return null
+  if (!readable(answer)) return null
   return answer.groups.reduce((sum, group) => sum + group.settings.length, 0)
 }
 
-/** The line under the groups about another project's settings, or null with none. */
-export function leftSaid(answer) {
-  const n = answer?.withheld ?? 0
-  if (n === 0) return null
-  return n === 1
-    ? '1 setting of a project this device does not read is not here.'
-    : `${n} settings of projects this device does not read are not here.`
+/** Whether an answer is one the page can draw: the machine's groups. */
+export function readable(answer) {
+  return Array.isArray(answer?.groups)
 }
 
 /**
  * Which of its four states the page is in, and what its box says.
  *
  * `coming` before the machine answers; `wrong` when the asking failed (the
- * words are `trouble.js`'s, handed in); `ungranted` for a device that was not
- * granted reading the settings — said as that, never as *nothing*; `nothing`
- * for a device that may read them and reads none; and `ready`.
+ * words are `trouble.js`'s, handed in); `nothing` for a machine that lists
+ * none; and `ready`.
  */
 export function pageState(answer, trouble) {
   if (trouble !== null && trouble !== undefined) {
@@ -399,25 +394,13 @@ export function pageState(answer, trouble) {
   if (answer === null || answer === undefined) {
     return { kind: 'coming', box: boxOf('loading', 'Asking for the settings…', null) }
   }
-  if (answer.granted !== true) {
-    return {
-      kind: 'ungranted',
-      box: boxOf(
-        'empty',
-        'Settings are not granted to this device',
-        'Reading them is granted at this machine, from the away panel.',
-        false,
-        'settings',
-      ),
-    }
-  }
   if (answer.groups.length === 0) {
     return {
       kind: 'nothing',
       box: boxOf(
         'empty',
-        'Nothing here this device may read',
-        leftSaid(answer) ?? 'Every setting this device may read would be listed here.',
+        'No settings here',
+        'Every setting this machine has would be listed here.',
         false,
         'settings',
       ),

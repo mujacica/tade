@@ -8,11 +8,9 @@ import {
   checksFold,
   checksWord,
   emptyStore,
-  GRANTS,
   intakeAt,
   intakeOf,
   intakeWaiting,
-  mayRead,
   notesOf,
   omitted,
   projectAt,
@@ -36,7 +34,6 @@ import {
   workflowsOf,
 } from '../src/assets/store.js'
 import { PROTOCOL_VERSION } from '../src/protocol.ts'
-import { GRANTS as REACH } from '../src/reach.ts'
 import { projector } from '../src/reading.ts'
 import { input, NOW, queued, reach, task } from './fixtures.ts'
 
@@ -406,45 +403,13 @@ describe('the notes', () => {
   })
 })
 
-describe('what this device was granted', () => {
-  it('asks about exactly the readings the machine can grant', () => {
-    // A word here the machine does not grant is a page asking a question
-    // nobody can answer yes to; one the machine grants that is missing here is
-    // a reading the page silently treats as withheld, for ever.
-    expect([...GRANTS].sort()).toEqual([...REACH].sort())
-  })
-
-  it('is what the machine put in the snapshot, and nothing by default', () => {
+describe('what a paired device holds', () => {
+  it('is every row and figure the machine has: nothing is kept back from a device', () => {
     const store = emptyStore()
     applySnapshot(store, projector(input(), NOW).snapshot())
-    // The fixtures' device was granted nothing, which is the floor: names and
-    // counts, and not one figure or word of anybody's own.
-    for (const grant of ['spend', 'notes', 'findings', 'reviews', 'titles', 'intent']) {
-      expect(mayRead(store, grant), grant).toBe(false)
-    }
-  })
-
-  it('is what a granted device holds', () => {
-    const store = emptyStore()
-    applySnapshot(store, projector(input({ reach: reach(['spend', 'notes']) }), NOW).snapshot())
-    expect(mayRead(store, 'spend')).toBe(true)
-    expect(mayRead(store, 'notes')).toBe(true)
-    expect(mayRead(store, 'findings')).toBe(false)
-  })
-
-  it('is nothing at all before a snapshot, rather than throwing', () => {
-    expect(mayRead(emptyStore(), 'spend')).toBe(false)
-  })
-
-  it('withholds a figure as a null, and says how many rows it kept back', () => {
-    // The shape that makes the two nothings tellable apart from the page: the
-    // count is a name-and-count fact and goes out always; the rows are content
-    // and need a grant.
-    const store = emptyStore()
-    applySnapshot(store, projector(input(), NOW).snapshot())
-    expect(rowsOf(store, 'notes')).toEqual([])
-    expect(omitted(store, 'notes')).toBeGreaterThan(0)
-    expect(taskAt(store, 'sentry', 'away-projection').spend).toBeNull()
+    expect(rowsOf(store, 'notes').length).toBeGreaterThan(0)
+    expect(omitted(store, 'notes')).toBe(0)
+    expect(taskAt(store, 'sentry', 'away-projection').spend).not.toBeNull()
   })
 })
 
@@ -504,7 +469,7 @@ describe('the projects and the tasks in them', () => {
 describe('the factory floor, as the page holds it', () => {
   const held = () => {
     const store = emptyStore()
-    applySnapshot(store, projector(input({ reach: reach(REACH) }), NOW).snapshot())
+    applySnapshot(store, projector(input({ reach: reach() }), NOW).snapshot())
     return store
   }
 

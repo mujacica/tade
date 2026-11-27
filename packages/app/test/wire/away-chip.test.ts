@@ -80,7 +80,7 @@ describe('the away view, in the strip', () => {
 
   it('counts a phone opening the page, and opens the pairing panel', async () => {
     const port = await freePort()
-    await paired(home, port, ['read'])
+    await paired(home, port)
     await opened(port, true)
     // Listening, and nobody reading yet: a count it made, not an unknown.
     await until('the listener', footSays('remote 0'))

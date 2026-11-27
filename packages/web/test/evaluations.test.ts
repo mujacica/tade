@@ -1,11 +1,10 @@
 import { evaluationsFrom, noSpend, type TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { CARDS_MOST, EvaluationsAnswerSchema, evaluationsFor } from '../src/evaluations.ts'
-import { EVERY, reach } from './fixtures.ts'
+import { reach } from './fixtures.ts'
 
-// The scorecards as one device may read them: folded over its own projects,
-// money behind `spend`, the judge behind `findings`, and nothing before the
-// journal has been read.
+// The scorecards a paired device reads: folded over every project, the money
+// and the judge's precision in them, and nothing before the journal has been read.
 
 let seq = 0
 const line = (over: Partial<TadeEvent> & Pick<TadeEvent, 'type'>): TadeEvent => ({
@@ -50,70 +49,50 @@ const fold = (projects: ReadonlySet<string> | null) =>
 
 describe('the scorecards a device reads', () => {
   it('says nothing was read before the journal is, rather than a page of noughts', () => {
-    const out = evaluationsFor(reach(EVERY), () => null)
+    const out = evaluationsFor(reach(), () => null)
     expect(out).toMatchObject({ read: false, total: null, calibration: null })
   })
 
-  it('is folded over the projects this device reads, never filtered after the sum', () => {
-    const all = evaluationsFor(reach(EVERY), fold)
+  it('is folded over every project', () => {
+    const all = evaluationsFor(reach(), fold)
     expect(all.total?.tasks).toBe(2)
-    const one = evaluationsFor(reach(EVERY, ['blog']), fold)
-    expect(one.total?.tasks).toBe(1)
-    expect(one.by.harness.map((row) => row.key)).toEqual(['codex'])
+    expect(all.by.harness.map((row) => row.key).sort()).toEqual(['codex', 'pi'])
   })
 
   it('carries the machine’s own words for every count out of a count', () => {
-    const [pi] = evaluationsFor(reach(EVERY), fold).by.harness.filter((row) => row.key === 'pi')
+    const [pi] = evaluationsFor(reach(), fold).by.harness.filter((row) => row.key === 'pi')
     expect(pi?.landed).toEqual({ count: 1, of: 1, said: '1 of 1' })
     expect(pi?.redsHere).toBeNull()
   })
 
-  it('withholds the money under spend, as not granted rather than nought', () => {
-    const without = evaluationsFor(reach(EVERY.filter((one) => one !== 'spend')), fold)
-    expect(without.granted.spend).toBe(false)
-    expect(without.total?.cost).toBeNull()
-    expect(without.total?.tokensPerLanded).toBeNull()
-    expect(evaluationsFor(reach(['spend']), fold).total?.cost).toEqual([
-      { said: '$2.00', kind: 'billed' },
-    ])
-  })
-
-  it('withholds what the judge said under findings, and says which', () => {
-    const without = evaluationsFor(reach(EVERY.filter((one) => one !== 'findings')), fold)
-    expect(without.judge).toBe('not granted')
-    expect(without.calibration).toBeNull()
-    expect(without.total?.findings).toBeNull()
-    const granted = evaluationsFor(reach(['findings']), fold)
-    expect(granted.judge).toBe('read')
-    expect(granted.calibration?.questions[0]).toMatchObject({
+  it('carries the money and what the judge said', () => {
+    const out = evaluationsFor(reach(), fold)
+    expect(out.total?.cost).toEqual([{ said: '$2.00', kind: 'billed' }])
+    expect(out.judge).toBe('read')
+    expect(out.calibration?.questions[0]).toMatchObject({
       question: 'test_missing',
       fired: 1,
       said: '1 of 1, too few to call',
     })
   })
 
-  it('says no judge reads anything here apart from one that was not granted', () => {
+  it('says no judge reads anything here', () => {
     const none = (projects: ReadonlySet<string> | null) =>
       evaluationsFrom(journal, { since: 0, projects, spent: {}, findings: null })
-    expect(evaluationsFor(reach(['findings']), none).judge).toBe('none here')
-    expect(evaluationsFor(reach([]), none).judge).toBe('not granted')
+    expect(evaluationsFor(reach(), none).judge).toBe('none here')
   })
 })
 
 describe('the scorecards, as another machine of the person’s reads them', () => {
-  it('is an answer that reads for its shape, granted or not, read or not', () => {
-    for (const out of [
-      evaluationsFor(reach(EVERY), fold),
-      evaluationsFor(reach([]), fold),
-      evaluationsFor(reach(EVERY), () => null),
-    ]) {
+  it('is an answer that reads for its shape, read or not', () => {
+    for (const out of [evaluationsFor(reach(), fold), evaluationsFor(reach(), () => null)]) {
       const read = EvaluationsAnswerSchema.safeParse(JSON.parse(JSON.stringify(out)))
       expect(read.success, JSON.stringify(read.error?.issues)).toBe(true)
     }
   })
 
   it('keeps what it reads and lets be what a newer Tade adds, and refuses what is not a count', () => {
-    const out = JSON.parse(JSON.stringify(evaluationsFor(reach(EVERY), fold)))
+    const out = JSON.parse(JSON.stringify(evaluationsFor(reach(), fold)))
     const read = EvaluationsAnswerSchema.parse({ ...out, newer: 'a field from later' })
     expect(read.total?.tasks).toBe(2)
     expect(read.by.harness.map((row) => row.key).sort()).toEqual(['codex', 'pi'])

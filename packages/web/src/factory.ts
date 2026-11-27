@@ -22,7 +22,7 @@ import type {
   WorkflowStep,
   Would,
 } from './protocol-factory.ts'
-import { has, type Reach, sees } from './reach.ts'
+import type { Reach } from './reach.ts'
 
 // The factory floor, projected: what was handed to this machine, the doors it
 // came through, what a run of a workflow is doing, and the workflows.
@@ -267,14 +267,10 @@ export interface WorkflowIn {
 /**
  * One request, as this device may read it.
  *
- * The three grants are asked separately and the page is told which answer it
- * is looking at: a body that is null because nobody granted it and one that is
- * null because Tade never wrote one down are different facts, and a page that
- * drew both as *nothing to read* tells somebody a request is empty.
+ * Every paired device is the person's own, so the request's own words go
+ * with it — framed as material, under the heading that travels with them.
  */
-export function intakeRow(one: IntakeIn, reach: Reach, budget: Budget): IntakeRow {
-  const words = has(reach, 'requests')
-  const body = has(reach, 'material')
+export function intakeRow(one: IntakeIn, budget: Budget): IntakeRow {
   return {
     item: one.item,
     source: one.source,
@@ -321,25 +317,25 @@ export function intakeRow(one: IntakeIn, reach: Reach, budget: Budget): IntakeRo
     at: ISO(one.at),
     approve: SOME(one.approve),
     locally: one.locally.map((act) => ({ act: act.act, why: act.why })),
-    title: words ? textOf(one.title, budget.text) : null,
-    who: words ? textOf(one.who, budget.text) : null,
+    title: textOf(one.title, budget.text),
+    who: textOf(one.who, budget.text),
     // An `https` url and nothing else, which is the client's rule
     // (`safeHref`) asked on this side too: a `javascript:` href that reached
     // the page would be refused there, and a row that carried one would be a
     // row whose safety depended on one function in a browser.
-    url: words && https(one.url) ? one.url : null,
-    material: body ? textOf(one.material, budget.material) : null,
+    url: https(one.url) ? one.url : null,
+    material: textOf(one.material, budget.material),
     // Why there is no body can name the context file it could not read, or
     // carry an error that does: scrubbed of paths, like `problem` above, and
     // never shortened.
-    materialSays: body ? SOME(withoutPaths(one.materialProblem)) : notGranted(one),
+    materialSays: SOME(withoutPaths(one.materialProblem)),
     // **The heading travels with the body and is not the page's to choose.**
     // A drawing that put its own word above a stranger's sentences would be
     // one word away from putting none there, and this is the repository's one
     // wording of what material means — the same sentence the agent working on
     // it reads in its context file.
-    materialLabel: body && one.material !== '' ? MATERIAL_LABEL : null,
-    would: one.would === null ? null : wouldOf(one.would, budget, has(reach, 'spend')),
+    materialLabel: one.material !== '' ? MATERIAL_LABEL : null,
+    would: one.would === null ? null : wouldOf(one.would, budget),
   }
 }
 
@@ -351,7 +347,7 @@ export function intakeRow(one: IntakeIn, reach: Reach, budget: Budget): IntakeRo
  * `spend` reads the rows and the grant and is told the figures are not its to
  * see, rather than reading a budget sentence with a dollar amount in it.
  */
-export function wouldOf(would: WouldIn, budget: Budget, money: boolean): Would {
+export function wouldOf(would: WouldIn, budget: Budget): Would {
   return {
     starts: would.starts.map((start) => ({
       task: start.task,
@@ -367,16 +363,11 @@ export function wouldOf(would: WouldIn, budget: Budget, money: boolean): Would {
       parked: start.parked,
     })),
     grant: [...would.grant],
-    limits: money ? [...would.limits] : [],
+    limits: [...would.limits],
     // A problem may carry an error the window caught, path and all.
     problems: would.problems.map(withoutPaths),
     warnings: [...would.warnings],
   }
-}
-
-/** Why there is no body, for a device that was not granted one. */
-function notGranted(one: IntakeIn): string {
-  return `this device was not granted the words of a request; ${one.source} ${one.externalId} has them`
 }
 
 /** Whether a url may go on the wire at all. Parsed, never pattern-matched. */
@@ -389,16 +380,8 @@ function https(url: string): boolean {
   }
 }
 
-/**
- * One door, with its project list narrowed to what this device may read.
- *
- * The narrowing is the part worth the words: a grant lists project names, and
- * a device granted one project of five must not learn the other four's names
- * from a door's row. The rest are counted, which is the shape every other
- * withheld thing here has.
- */
-export function sourceRow(one: SourceIn, reach: Reach): SourceRow {
-  const mine = one.projects.filter((project) => sees(reach, project))
+/** One door, with every project it works for. */
+export function sourceRow(one: SourceIn): SourceRow {
   return {
     source: one.source,
     state: one.state,
@@ -409,8 +392,8 @@ export function sourceRow(one: SourceIn, reach: Reach): SourceRow {
     names: one.names,
     mode: one.mode,
     template: SOME(one.template),
-    projects: mine,
-    projectsElsewhere: one.projects.length - mine.length,
+    projects: [...one.projects],
+    projectsElsewhere: 0,
     allowed: one.allowed,
     watch: SOME(one.watch),
     schedule: SOME(one.schedule),
@@ -432,18 +415,15 @@ export function sourceRow(one: SourceIn, reach: Reach): SourceRow {
  * The three rollups are computed here rather than carried, because each is a
  * fold over the steps this device can see and all three have a rule that must
  * not be guessed: **`unknown` beats `pass`** for checks (a check nobody ran is
- * not a check that passed), money is null without the grant rather than
- * nought, and `finished` counts what the journal says rather than what a state
- * happens to be.
+ * not a check that passed), and `finished` counts what the journal says rather
+ * than what a state happens to be.
  */
-export function runRow(one: RunIn, reach: Reach, budget: Budget): RunRow {
-  const steps = one.steps.filter((step) => sees(reach, step.project))
-  const money = has(reach, 'spend')
-  const rows = steps.map((step) => runStep(step, { money, why: has(reach, 'intent'), budget }))
-  const usd = money ? rows.reduce((total, step) => total + (step.usd ?? 0), 0) : null
+export function runRow(one: RunIn, _reach: Reach, budget: Budget): RunRow {
+  const rows = one.steps.map((step) => runStep(step, budget))
+  const usd = rows.reduce((total, step) => total + (step.usd ?? 0), 0)
   return {
     run: one.run,
-    projects: one.projects.filter((project) => sees(reach, project)),
+    projects: [...one.projects],
     steps: rows,
     finished: rows.filter((step) => step.finished).length,
     total: rows.length,
@@ -456,7 +436,7 @@ export function runRow(one: RunIn, reach: Reach, budget: Budget): RunRow {
   }
 }
 
-function runStep(step: RunStepIn, how: { money: boolean; why: boolean; budget: Budget }): RunStep {
+function runStep(step: RunStepIn, budget: Budget): RunStep {
   return {
     task: step.task,
     project: step.project,
@@ -465,11 +445,7 @@ function runStep(step: RunStepIn, how: { money: boolean; why: boolean; budget: B
     layer: step.layer,
     waits: step.waits.map((wait) => ({
       task: wait.task,
-      // The reason somebody gave for a wait is their own words, so it rides on
-      // the same grant the queue's own `waitsOn` reason rides on — one answer
-      // to one question, rather than a second rule for the same sentence seen
-      // through a different collection.
-      why: how.why ? textOf(wait.why, how.budget.text) : null,
+      why: textOf(wait.why, budget.text),
     })),
     finished: step.finished,
     parked: step.parked,
@@ -477,10 +453,8 @@ function runStep(step: RunStepIn, how: { money: boolean; why: boolean; budget: B
     active: step.active,
     checks: step.checks,
     review: step.review,
-    // Nought where a step reported nothing and null where this device may not
-    // be told: `hasCost` tells those apart on a task row, and a run's steps
-    // are a rollup, so the honest shape here is the grant deciding the field.
-    usd: how.money ? (step.usd ?? 0) : null,
+    // Nought where a step reported nothing: a run's steps are a rollup.
+    usd: step.usd ?? 0,
   }
 }
 
@@ -502,19 +476,9 @@ export function rollup(
   return 'pass'
 }
 
-/**
- * One stored workflow, as this device may read it.
- *
- * **The whole of the content is behind one grant** (`workflows`), because a
- * step's prompt is the owner's own words about how they want work done and
- * there is no useful half of it: a list of step names with the prompts
- * withheld is a designer nobody can design with. So without the grant the row
- * is the name, the versions, and the counts — which still answers *is this
- * published, and what is running on it*.
- */
-export function workflowRow(one: WorkflowIn, reach: Reach, budget: Budget): WorkflowRow {
-  const read = has(reach, 'workflows')
-  const said = (text: string): Said | null => (read ? textOf(text, budget.text) : null)
+/** One stored workflow, its steps' prompts in the words they were written in. */
+export function workflowRow(one: WorkflowIn, budget: Budget): WorkflowRow {
+  const said = (text: string): Said | null => textOf(text, budget.text)
   return {
     name: one.name,
     builtIn: one.builtIn,
@@ -525,27 +489,21 @@ export function workflowRow(one: WorkflowIn, reach: Reach, budget: Budget): Work
     rev: SOME(one.rev),
     title: said(one.title),
     about: said(one.about),
-    projectInput: read ? SOME(one.projectInput) : null,
-    saidInput: read ? SOME(one.saidInput) : null,
-    nameSuffix: read ? SOME(one.nameSuffix) : null,
-    inputs: read
-      ? one.inputs.map((input) => ({
-          name: input.name,
-          kind: input.kind,
-          required: input.required,
-          about: textOf(input.about, budget.text),
-        }))
-      : [],
-    steps: read ? one.steps.map((step) => workflowStep(step, budget)) : [],
-    fields: read ? one.fields.map((field) => workflowField(field, budget)) : [],
-    // Tade's own sentences about what publishing would refuse. Metadata, so
-    // they go out whether or not the content does: *this draft will not
-    // publish* is a name-and-count fact about a workflow.
+    projectInput: SOME(one.projectInput),
+    saidInput: SOME(one.saidInput),
+    nameSuffix: SOME(one.nameSuffix),
+    inputs: one.inputs.map((input) => ({
+      name: input.name,
+      kind: input.kind,
+      required: input.required,
+      about: textOf(input.about, budget.text),
+    })),
+    steps: one.steps.map((step) => workflowStep(step, budget)),
+    fields: one.fields.map((field) => workflowField(field, budget)),
+    // Tade's own sentences about what publishing would refuse.
     problems: [...one.problems],
     warnings: [...one.warnings],
-    // The shape, and it is metadata: a step's name and its column are Tade's
-    // own words about the owner's own file, so they go out with the counts.
-    // The reason beside a wait is the owner's and rides on the grant.
+    // The shape: a step's name, its column, and the reason beside a wait.
     places: one.places.map((place) => ({
       at: place.at,
       name: place.name,
@@ -553,7 +511,7 @@ export function workflowRow(one: WorkflowIn, reach: Reach, budget: Budget): Work
       parent: place.parent === '' ? null : place.parent,
       why: place.why.map((wait) => ({
         on: wait.on,
-        why: read ? textOf(wait.why, budget.text) : null,
+        why: textOf(wait.why, budget.text),
       })),
       circular: place.circular,
     })),

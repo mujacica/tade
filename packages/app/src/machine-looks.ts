@@ -87,8 +87,6 @@ export interface CardsThere {
   at: number
   /** False where it had not read its journal yet: nothing to draw, rather than noughts. */
   read: boolean
-  /** Whether money and the judge were sent: each that machine's grant to this one. */
-  granted: { spend: boolean; findings: boolean }
   total: CardThere | null
   by: Readonly<Record<EvalBy, readonly CardThere[]>>
 }
@@ -142,7 +140,6 @@ export function cardsOf(held: LookHeld<EvaluationsAnswer> | null | undefined): C
   return {
     at: held.at,
     read: answer.read,
-    granted: answer.granted,
     total: answer.total === null ? null : cardOf(answer.total),
     by: Object.fromEntries(EVAL_BY.map(({ id }) => [id, answer.by[id].map(cardOf)])) as Record<
       EvalBy,

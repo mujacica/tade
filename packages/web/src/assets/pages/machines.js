@@ -28,7 +28,7 @@ import { el, into, keyed, skeleton, textIn } from '../dom.js'
 import { shortClockOf } from '../figures.js'
 import { icon } from '../icons.js'
 import { section } from '../rows.js'
-import { fullAccessOf, theirsTrouble, UNKNOWN_TROUBLE } from '../trouble.js'
+import { theirsTrouble, UNKNOWN_TROUBLE } from '../trouble.js'
 import { callout, panel, problem, problemIn, stateBox, stateBoxIn } from '../ui.js'
 import {
   cellSaid,
@@ -57,8 +57,8 @@ function boxOf(kind, heading, line = null, action = null, steps = null) {
 }
 
 /**
- * Refusals that asking again on a clock will not change: a device that is not
- * the person's own, and a Tade too old to have the page. Each says its fix.
+ * Refusals that asking again on a clock will not change: a device refused,
+ * and a Tade too old to have the page. Each says its fix.
  */
 const FOR_GOOD = new Set(['out_of_scope', 'no_such', 'not_offered'])
 
@@ -246,7 +246,7 @@ export function machinesScreen(ctx) {
             'error',
             refused.title,
             refused.why ?? refused.fix,
-            { word: 'Ask again', run: () => void load(true) },
+            { word: 'Ask again', run: () => void load() },
             refused.steps ?? null,
           ),
     )
@@ -403,7 +403,7 @@ export function machinesScreen(ctx) {
     const got = await ctx.ask('POST', PRESS_PATH, body)
     if (gone) return
     if (got.status === 200 && Array.isArray(got.body?.rows)) answer = got.body
-    else problemIn(where, theirsTrouble(got, ctx.session()) ?? UNKNOWN_TROUBLE)
+    else problemIn(where, theirsTrouble(got) ?? UNKNOWN_TROUBLE)
     draw()
     later()
   }
@@ -413,29 +413,18 @@ export function machinesScreen(ctx) {
     timer = setTimeout(() => void load(), underWay(answer) ? SOON_MS : AGAIN_MS)
   }
 
-  // Not full access: refused unasked, but Ask again asks.
-  async function load(asked = false) {
-    const you = ctx.session()
-    if (!asked && answer === null && you != null && !fullAccessOf(you)) {
-      refused =
-        theirsTrouble({ status: 403, body: { error: 'out_of_scope' } }, you) ?? UNKNOWN_TROUBLE
-      draw()
-      return
-    }
+  async function load() {
     const got = await ctx.ask('POST', MACHINES_PATH, {})
     if (gone) return
     if (got.status === 200 && Array.isArray(got.body?.rows)) {
       answer = got.body
       refused = null
     } else if (answer === null) {
-      // Told apart by what the page knows of its own session: a Tade too old
-      // for this page, or the boxes this device lacks — never "tick full
-      // access" for a device that has it.
-      refused = theirsTrouble(got, ctx.session()) ?? UNKNOWN_TROUBLE
+      // A Tade too old for this page is told apart from the rest.
+      refused = theirsTrouble(got) ?? UNKNOWN_TROUBLE
     }
     draw()
-    // A device that is not the person's own, or a Tade without the page, is
-    // not asked again on a clock: the fix is somebody's act, and Ask again is there.
+    // A Tade without the page is not asked again on a clock: the fix is somebody's act, and Ask again is there.
     if (answer !== null || !FOR_GOOD.has(got?.body?.error)) later()
   }
 

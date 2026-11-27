@@ -11,7 +11,6 @@
 //
 // Nothing here touches the DOM.
 
-import { mayFor } from '../access.js'
 import {
   defaultsSaid,
   money,
@@ -165,15 +164,14 @@ function partsSaid(...parts) {
 /**
  * What the work cost, since when, and where most of it went.
  *
- * `value` is null where there is no figure — not granted, or nobody wrote it
- * down — and `under` then carries which (`money`'s two words). A sum over a
+ * `value` is null where there is no figure — nobody wrote it down — and
+ * `under` then says so (`money`'s two words). A sum over a
  * snapshot that left tasks out is a floor and says `≥`.
  */
 export function moneyOf(store) {
-  const granted = mayFor(store, 'tasks.spend')
   const partial = omitted(store, 'tasks') > 0
   const fold = spendFold(rowsOf(store, 'tasks'), partial)
-  const paid = money(fold, granted)
+  const paid = money(fold)
   const known = paid.said !== '—'
   const since = spendSince(store)
   const toks = tokensSaid(fold)
@@ -185,25 +183,23 @@ export function moneyOf(store) {
         .filter(Boolean)
         .join(' · ')
     : paid.why
-  const top = granted
-    ? projectsOf(store)
-        .map((row) => {
-          const spent = spendFold(tasksIn(store, row.name), row.counts.shown < row.counts.tasks)
-          const said = money(spent, granted).said
-          return {
-            key: row.name,
-            label: row.name,
-            value: spent.hasCost && spent.usd > 0 ? spent.usd : null,
-            said: `${spent.partial ? '≥' : ''}${said}`,
-            href: pathOf({ view: 'project', project: row.name }),
-            // Money is not a state: a quiet bar, never one in Tade's own amber.
-            tone: 'queued',
-          }
-        })
-        .filter((one) => one.value !== null)
-        .sort((a, b) => b.value - a.value || (a.key < b.key ? -1 : 1))
-        .slice(0, TOP)
-    : []
+  const top = projectsOf(store)
+    .map((row) => {
+      const spent = spendFold(tasksIn(store, row.name), row.counts.shown < row.counts.tasks)
+      const said = money(spent).said
+      return {
+        key: row.name,
+        label: row.name,
+        value: spent.hasCost && spent.usd > 0 ? spent.usd : null,
+        said: `${spent.partial ? '≥' : ''}${said}`,
+        href: pathOf({ view: 'project', project: row.name }),
+        // Money is not a state: a quiet bar, never one in Tade's own amber.
+        tone: 'queued',
+      }
+    })
+    .filter((one) => one.value !== null)
+    .sort((a, b) => b.value - a.value || (a.key < b.key ? -1 : 1))
+    .slice(0, TOP)
   return {
     value: known ? `${partial ? '≥' : ''}${paid.said}` : null,
     under,
@@ -222,12 +218,11 @@ export function moneyOf(store) {
  * apart. Who runs as it by default rides beside it (`defaultsSaid`), as the
  * window's Spend page marks it.
  *
- * *Not granted*, *none reported* and *cannot tell* are three dashes with three
- * words, and never a gauge at nought. An account that pays per token has no
+ * *None reported* and *cannot tell* are two dashes with two words, and never a
+ * gauge at nought. An account that pays per token has no
  * window to run out of and is not drawn.
  */
 export function gaugesOf(store, now) {
-  if (!mayFor(store, 'plans')) return [unread('not granted to this device')]
   const out = []
   const rows = plansOf(store)
   for (const row of rows) {
@@ -315,7 +310,6 @@ export function projectRowsOf(store) {
 }
 
 function linesOf(store, machine) {
-  const granted = mayFor(store, 'tasks.spend')
   return projectsOf(store)
     .sort(busiest)
     .map((row) => {
@@ -323,7 +317,7 @@ function linesOf(store, machine) {
       const fold = checksFold(tasks)
       const total = fold.pass + fold.fail + fold.unknown
       const spent = spendFold(tasks, row.counts.shown < row.counts.tasks)
-      const paid = money(spent, granted)
+      const paid = money(spent)
       return {
         name: row.name,
         machine,

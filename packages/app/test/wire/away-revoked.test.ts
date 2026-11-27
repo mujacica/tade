@@ -31,7 +31,7 @@ afterEach(closeAll)
 /** A machine with a device paired and the listener up. */
 async function ready(): Promise<Machine> {
   const one = await machine()
-  await paired(one.home, one.port, ['read'])
+  await paired(one.home, one.port)
   await one.away.open()
   return one
 }

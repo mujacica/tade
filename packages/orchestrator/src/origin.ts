@@ -64,10 +64,10 @@ import type { WorkerCapabilities } from '@tade/harnesses-core'
 /**
  * Whether a harness can run a narrowed turn at all, or why not.
  *
- * **Only a narrowed turn asks.** An owner's turn — the person's own device
- * with full access, or a machine link — is answered by every gate here as
- * the keyboard's (`narrowedArm`), so there is nothing to hold and it runs on
- * any harness. A device somebody narrowed is what this is about.
+ * **Only a narrowed turn asks.** An owner's turn — a paired phone, every one
+ * of which is the person's own, or a machine link — is answered by every gate
+ * here as the keyboard's (`narrowedArm`), so there is nothing to hold and it
+ * runs on any harness. A narrowed arm is what this is about.
  *
  * **Two declared capabilities, and a harness that lacks either serves no
  * narrowed turn.** Never a silent unrestricted run, which is the failure mode
@@ -125,9 +125,9 @@ export type Reaching =
   /** Reachable where the device was granted this. */
   | { kind: 'needs'; grant: RemoteGrant }
   /**
-   * Never from a narrowed turn, and the clause saying why. The person's own
-   * device with full access is not narrowed, so it reaches these as the
-   * keyboard does (`narrowedArm`): every clause is about a device that is not them.
+   * Never from a narrowed turn, and the clause saying why. A paired phone is
+   * the person's own and is not narrowed, so it reaches these as the keyboard
+   * does (`narrowedArm`): every clause is about words that might not be theirs.
    */
   | { kind: 'local'; because: string }
 
@@ -180,9 +180,8 @@ const READS_ELSEWHERE =
  * worth having, because it means talking to Tade adds no authority to a phone,
  * only a way to use what it has.
  *
- * **It is a narrowed device's table, and the person's own phone never reads
- * it.** A device paired with full access is them (`Arm`'s owner variant with
- * `theirs`), so `allowTool` and `allowMethod` answer its turn as the keyboard's
+ * **It is a narrowed arm's table, and the person's own phone never reads
+ * it.** Every paired phone is them (`Arm`'s owner variant with `theirs`), so `allowTool` and `allowMethod` answer its turn as the keyboard's
  * and every `local` line below is open to it — `tade_project_sync`, starting
  * work, a terminal, a setting — because the only reason each is held is that
  * the words might not be the person's. What stays out of reach from their phone

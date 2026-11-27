@@ -4,7 +4,6 @@ import { BUDGET } from '../src/page.ts'
 import { snapshotOf } from '../src/snapshot.ts'
 import {
   blocked,
-  EVERY,
   finding,
   input,
   intake,
@@ -51,7 +50,7 @@ function whole() {
   const ran = run()
   const waiting = blocked()
   return input({
-    reach: { ...reach(EVERY), answers: true },
+    reach: reach(),
     projects: [project({ title: TEXTS.project })],
     tasks: [
       task({ title: TEXTS.title, intent: TEXTS.intent, account: TEXTS.account }),

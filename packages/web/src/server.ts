@@ -59,7 +59,7 @@ import {
   sessionOf,
 } from './sessions.ts'
 import { cursorOf } from './stream.ts'
-import { type Listener, type Origin, reachOf, type Scope, sameHost } from './surface.ts'
+import { type Listener, type Origin, reachOf, sameHost } from './surface.ts'
 
 // The away view's own HTTP server: `node:http`, one handler, the table in
 // `routes.ts`, and nothing else listening.
@@ -211,8 +211,8 @@ export function webServer(opts: ServerOptions): WebServer {
       // `404`. A `405` would say "that path exists"; a `403 locked` with the
       // name of a setting would say "there is a diff route and it is called
       // this" — both to whoever is probing, who is the only one asking. The
-      // person who needs to know reads what they were granted in their own
-      // snapshot, which they already have.
+      // person who needs to know reads what is on in their own snapshot,
+      // which they already have.
       return answer(res, refuse('no_such'))
     }
 
@@ -223,7 +223,7 @@ export function webServer(opts: ServerOptions): WebServer {
     // credential.
     const host = asking.host === null ? null : hostOf(asking.host)
     // A connect page or press is read it too: off this machine's door it is
-    // the person's own device's, under its session (`Route.theirs`). **Nor
+    // a paired device's, under its session. **Nor
     // where no session was offered** (`mayBeSession`): the file only grows,
     // and a request with no cookie — or junk in one — is anybody's, as often
     // as they like; every such request is `no_session` whatever the file says.
@@ -303,15 +303,15 @@ export function webServer(opts: ServerOptions): WebServer {
     // A webhook delivery: its own door, and nothing after the guard is asked of it.
     if (found.route.rings !== undefined) return hooks.ring(found.route.rings, req, res)
     // A connect page, a press, or a source sending the browser back: no session
-    // on this machine's door, and the person's own device's anywhere else, whose
+    // on this machine's door, and a paired device's anywhere else, whose
     // page then carries its token for the presses.
     if (found.route.connects !== undefined) {
-      const theirs = verdict.device === '' ? null : (guarding.session?.csrf ?? null)
+      const csrf = verdict.device === '' ? null : (guarding.session?.csrf ?? null)
       return carryConnect(
         found.route,
         req,
         res,
-        { ...connectAt(asking.host ?? ''), csrf: theirs },
+        { ...connectAt(asking.host ?? ''), csrf },
         (body, status) => json(res, body, status),
         (refusal) => answer(res, refusal),
       )
@@ -416,7 +416,7 @@ export function webServer(opts: ServerOptions): WebServer {
         return json(res, await momentsHere(found.params, before, reachOf(device), opts))
       }
       case 'agent menu':
-        return json(res, await menuHere(found.params, reachOf(device), menuStanding(device), opts))
+        return json(res, await menuHere(found.params, reachOf(device), menuStanding(), opts))
       case 'agent changes':
         return json(res, await changesHere(found.params, reachOf(device), opts))
       case 'agent answer':
@@ -444,7 +444,7 @@ export function webServer(opts: ServerOptions): WebServer {
       case 'sign out':
         return signOut(res, verdict.origin, device, found.params.id ?? '')
       case 'connect': {
-        const said = await connectHere(req, device, {
+        const said = await connectHere(req, {
           ...connectAt(asking.host ?? ''),
           home: opts.home,
         })
@@ -682,34 +682,27 @@ export function webServer(opts: ServerOptions): WebServer {
     return json(res, answered.body ?? {})
   }
 
-  /**
-   * What every door's gate is decided against, read **at this request**: the
-   * device record was read a moment ago, and a grant narrowed a second ago
-   * counts. One function, so five doors cannot disagree about it.
-   */
-  /**
-   * What one agent's menu may offer this device: its scopes, whether acting is
-   * on now (no acting half is no act at all), and whether it is the person's
-   * own — read off the record at this request, as the act gate reads it.
-   */
-  function menuStanding(device: Device): MenuStanding {
+  /** What one agent's menu may offer: whether acting is on now (no acting half is no act at all). */
+  function menuStanding(): MenuStanding {
     const acting = opts.acting
     return {
-      scopes: device.scopes as Scope[],
       acting: acting !== undefined && opts.surface.acting && asked(() => acting.unlocked(), false),
-      theirs: reachOf(device).theirs === true,
     }
   }
 
+  /**
+   * What every door's gate is decided against, read **at this request**: the
+   * device record was read a moment ago, and one revoked a second ago counts.
+   * One function, so five doors cannot disagree about it.
+   */
   function standing(device: Device, at: At, unlocked: () => boolean) {
     return {
       receipts,
       surface: opts.surface,
       unlocked: asked(unlocked, false),
       rev: opts.readingFor(reachOf(device)).rev,
-      reach: reachOf(device),
-      scopes: device.scopes as Scope[],
       origin: at.origin,
+      clear: device.clear,
       device: device.id,
       now: now(),
       request: at.request,

@@ -3,7 +3,6 @@ import { type ConversationAsk, ConversationBody } from '@tade/core'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
-import { ownsOrTheirs } from './surface.ts'
 
 // One orchestrator conversation on every machine of the person's: the machine
 // that holds the link asks, because this machine can never call it, and each
@@ -15,7 +14,7 @@ import { ownsOrTheirs } from './surface.ts'
 // from this machine's own record under `<home>/machines/<id>/`, and answers.
 //
 // **An owner's, and only at this machine's own door** (`here` in `routes.ts`),
-// like the journal beside it — **and the person's own device too** (`theirs`):
+// like the journal beside it — **and the paired phone too**, every one being the person's own:
 // what is written is a copy in this home, which the SSH key could write, and
 // what is read is the conversation the person's phone already reads.
 //
@@ -57,11 +56,10 @@ const STARTING_AFTER = 5
 /** The route: an owner's body read once, checked, and handed to the heart. */
 export async function conversationHere(
   req: IncomingMessage,
-  device: Device,
+  _device: Device,
   conversation: WebConversation | undefined,
 ): Promise<{ body: ConversationShareAnswer } | { refusal: Refusal }> {
   if (conversation === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const parsed = ConversationBody.safeParse(got.body)

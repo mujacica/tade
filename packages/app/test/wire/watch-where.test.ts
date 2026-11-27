@@ -369,7 +369,7 @@ describe('what this machine’s projection says it watches', () => {
 
   it('carries each project’s outside watches on its row, to every device that reads the project', () => {
     const made = awayCollections(beatParts(live, world, () => ({ how: null, why: 'none' })))
-    const reach = reachOf({ id: 'aaaaaaaaaaaaaaaa', projects: null, granted: [] })
+    const reach = reachOf({ id: 'aaaaaaaaaaaaaaaa' })
     const snapshot = projector(
       { ...made, talk: null, reach, lifetime: { epoch: 'e', rev: 0, openedAt: NOW } },
       NOW,

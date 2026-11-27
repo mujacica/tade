@@ -1,11 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { appendDevice } from '../src/devices.ts'
 import { mintOwner } from '../src/owner.ts'
-import { GRANTS } from '../src/reach.ts'
 import { CSRF_HEADER } from '../src/request.ts'
 import { OWNED } from '../src/routes.ts'
-import { mint } from '../src/sessions.ts'
-import { SCOPES } from '../src/surface.ts'
 import { type Take, TakeAnswerSchema, TakeSchema } from '../src/taken.ts'
 import { ask, closeAll, pair, type Running, start } from './harness.ts'
 
@@ -81,7 +77,7 @@ describe('work handed to this machine', () => {
     expect(asked[0]?.take.check).toBe(false)
   })
 
-  it('refuses a phone, however much it was granted, and never asks the window', async () => {
+  it('answers a paired phone too, every one being the person’s own', async () => {
     const { one, asked } = await machine()
     const phone = await pair(one)
     const said = await ask(one, '/api/take', {
@@ -94,37 +90,8 @@ describe('work handed to this machine', () => {
       },
       body: JSON.stringify(TAKE),
     })
-    expect(said.status).toBe(403)
-    expect(asked).toEqual([])
-  })
-
-  it('refuses an owner a project outside what its line reads', async () => {
-    const { one, asked } = await machine()
-    // An owner's line as `mintOwner` writes it, narrowed by hand to another project.
-    const minted = mint()
-    const host = `localhost:${one.host.split(':')[1]}`
-    await appendDevice(one.home, {
-      kind: 'paired',
-      device: minted.device,
-      at: new Date().toISOString(),
-      label: 'mac',
-      digest: minted.digest,
-      host,
-      csrf: minted.csrf,
-      until: new Date(Date.now() + 3_600_000).toISOString(),
-      scopes: [...SCOPES],
-      projects: ['other'],
-      granted: [...GRANTS],
-      from: '',
-      owner: true,
-    })
-    const said = await asOwner(
-      one,
-      { device: minted.device, cookie: minted.cookie, csrf: minted.csrf, host, until: 0 },
-      TAKE,
-    )
-    expect(said.status, said.text).toBe(403)
-    expect(asked).toEqual([])
+    expect(said.status, said.text).toBe(200)
+    expect(asked).toHaveLength(1)
   })
 
   it('takes nothing it could not hand git or a shell, and nothing it does not know', async () => {

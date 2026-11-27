@@ -6,7 +6,7 @@
 // one line this page has for *it cannot tell*, so nothing a server or a network
 // in between wrote ever reaches the page. The one thing read out of a body
 // besides its kind is `needs`, and only the names this file knows (`NAMES`):
-// which boxes a device lacks, or `https`. Pure: no `document`, so every kind is
+// `https`. Pure: no `document`, so every kind is
 // a line of a test rather than something somebody has to make happen.
 //
 // **Four parts and no paragraph**: `title` says what happened, `why` its cause
@@ -14,56 +14,15 @@
 // small *how to fix this* list — where to click at the machine, the command to
 // run, or what to pair — in the order they are done; `fix` is the line a toast
 // says. Every one of them is
-// something the person does themselves: the page never says "not granted"
-// without saying which box and where it is. `ui.js`'s `problemIn` and
+// something the person does themselves. `ui.js`'s `problemIn` and
 // `stateBoxIn` draw them red, with an icon, as one component everywhere a
 // press or a read failed.
 
-/** Where every grant is ticked, in the window's own words (`AWAY_LABELS`). */
+/** Where the away view is set up and a code is shown, in the window's own words. */
 export const AWAY_PLACE = 'Settings › Away view'
 
-/** Each scope and reading grant, as the box in the window that gives it (`BOXES`, `AWAY_LABELS`). */
-const BOX_OF = {
-  answer: 'answer & steer',
-  steer: 'answer & steer',
-  agents: 'stop agents',
-  projects: 'close projects',
-  ask: 'talk to Tade',
-  talk: 'talk to Tade',
-  configure: 'change settings',
-  lanes: 'see screens',
-  settings: 'read settings',
-}
-
-/** Every scope and reading grant (`SCOPES`, `GRANTS`), held equal by `trouble-client.test.ts`. */
-export const SCOPE_NAMES = [
-  'read',
-  'answer',
-  'steer',
-  'ask',
-  'draft',
-  'agents',
-  'projects',
-  'configure',
-]
-export const GRANT_NAMES = [
-  'titles',
-  'intent',
-  'notes',
-  'findings',
-  'spend',
-  'reviews',
-  'accounts',
-  'talk',
-  'requests',
-  'material',
-  'workflows',
-  'lanes',
-  'settings',
-]
-
 /** Every name a refusal's `needs` may carry that this page will draw. */
-const NAMES = new Set([...SCOPE_NAMES, ...GRANT_NAMES, 'https'])
+const NAMES = new Set(['https'])
 
 /** The steps a new pairing is, from the machine's own screen or its shell. */
 const PAIR_STEPS = [
@@ -107,14 +66,10 @@ export const TROUBLES = {
     ],
   },
   out_of_scope: {
-    title: 'Not granted',
-    why: 'This device was not given that at the machine.',
-    fix: 'Grant it at the machine',
-    steps: [
-      `At the machine, open ${AWAY_PLACE}`,
-      'Choose this device in its devices',
-      'Tick the box it needs, or full access',
-    ],
+    title: 'Refused',
+    why: 'Tade would not do that for this device.',
+    fix: 'Pair this device again',
+    steps: PAIR_STEPS,
   },
   locked: {
     title: 'Turned off',
@@ -258,48 +213,6 @@ export function needsOf(body) {
   return needs.filter((one) => typeof one === 'string' && NAMES.has(one))
 }
 
-/**
- * The boxes in the window that give what is missing: one each where the window
- * has one, `full access` where any of it has none — or where it is everything.
- */
-export function boxesFor(needs) {
-  const missing = needs.filter((one) => one !== 'https')
-  if (missing.length === 0) return []
-  if (missing.some((one) => BOX_OF[one] === undefined)) return ['full access']
-  return [...new Set(missing.map((one) => BOX_OF[one]))]
-}
-
-/** A device, as the steps name it: its own label where the page knows it. */
-function deviceSaid(you) {
-  const label = typeof you?.label === 'string' ? you.label.trim() : ''
-  return label === '' ? 'this device' : `“${label}”`
-}
-
-/** `a`, `a and b`, `a, b and c`. */
-function listSaid(names) {
-  if (names.length <= 1) return names.join('')
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
-}
-
-/** Out of scope, with the exact boxes and where they are. */
-function notGranted(needs, you) {
-  const boxes = boxesFor(needs)
-  if (boxes.length === 0) return TROUBLES.out_of_scope
-  const ticks = listSaid(boxes)
-  // Every name it lacks where there are a few; past that the box says it.
-  const lacks = needs.length <= 3 ? listSaid(needs) : `full access (${needs.length} boxes)`
-  return {
-    title: 'Not granted',
-    why: `This device lacks ${lacks}.`,
-    fix: `Tick ${ticks} at the machine`,
-    steps: [
-      `At the machine, open ${AWAY_PLACE}`,
-      `Choose ${deviceSaid(you)} in its devices`,
-      `Tick ${ticks}; it applies at once`,
-    ],
-  }
-}
-
 /** Locked: a setting turned off, or acting over a connection that is not trusted. */
 function lockedOf(needs) {
   if (!needs.includes('https')) return TROUBLES.locked
@@ -320,62 +233,30 @@ function lockedOf(needs) {
  *
  * `answer` is `ask`'s: `status` 0 for nothing came back at all, and `body` the
  * parsed JSON or null. `where` is `pair` for pairing's words, anything else for
- * the rest. `you` is the session the page holds (`ctx.session()`), for the
- * device's own name in a step; absent, the steps say *this device*.
+ * the rest.
  */
-export function troubleOf(answer, where = '', you = null) {
+export function troubleOf(answer, where = '') {
   if (answer === null || answer === undefined) return TROUBLES.offline
   if (answer.status >= 200 && answer.status < 300) return null
   if (answer.status === 0) return TROUBLES.offline
   const kind = typeof answer.body?.error === 'string' ? answer.body.error : null
   if (kind === null) return UNKNOWN_TROUBLE
   if (where === 'pair' && Object.hasOwn(PAIRING, kind)) return PAIRING[kind]
-  if (kind === 'out_of_scope') return notGranted(needsOf(answer.body), you)
   if (kind === 'locked') return lockedOf(needsOf(answer.body))
   return Object.hasOwn(TROUBLES, kind) ? TROUBLES[kind] : UNKNOWN_TROUBLE
 }
 
-/** Whether a session has every scope and every reading grant: the person's own device. */
-export function fullAccessOf(you) {
-  const scopes = Array.isArray(you?.scopes) ? you.scopes : []
-  const reads = Array.isArray(you?.reads) ? you.reads : []
-  return (
-    SCOPE_NAMES.every((one) => scopes.includes(one)) &&
-    GRANT_NAMES.every((one) => reads.includes(one))
-  )
-}
-
-/** What a session lacks of full access, by name: the scopes, then the grants. */
-export function fullAccessLacks(you) {
-  const scopes = Array.isArray(you?.scopes) ? you.scopes : []
-  const reads = Array.isArray(you?.reads) ? you.reads : []
-  return [
-    ...SCOPE_NAMES.filter((one) => !scopes.includes(one)),
-    ...GRANT_NAMES.filter((one) => !reads.includes(one)),
-  ]
-}
-
 /**
- * A route only the person's own device is answered — the Machines page —
- * refused: told apart by what the page knows of its own session.
- *
- * `no_such` from a device with full access is a Tade too old to have the
- * route (one started before it was built answers every path it does not know
- * that way); from any other device it is the door refusing one that is not
- * theirs, which off this machine's door is a `404` on purpose — so the page
- * names the boxes it lacks, out of its own session. `out_of_scope` names them
- * out of the body. Everything else is `troubleOf`'s.
+ * A route a Tade too old to have it answers as nothing there — the Machines
+ * page, the accounts, the restart — refused. Every paired device is the
+ * person's own and is answered every such route, so `no_such` from one is a
+ * Tade started before the route was built (it answers every path it does not
+ * know that way). Everything else is `troubleOf`'s.
  */
-export function theirsTrouble(answer, you) {
+export function theirsTrouble(answer) {
   const kind = answer?.body?.error
-  if (kind === 'no_such' || kind === 'not_offered') {
-    return fullAccessOf(you) ? TOO_OLD : notGranted(fullAccessLacks(you), you)
-  }
-  if (kind === 'out_of_scope') {
-    const needs = needsOf(answer.body)
-    return notGranted(needs.length > 0 ? needs : fullAccessLacks(you), you)
-  }
-  return troubleOf(answer, '', you)
+  if (kind === 'no_such' || kind === 'not_offered') return TOO_OLD
+  return troubleOf(answer)
 }
 
 /** One line of it, for a toast or a screen reader: `Code expired · Get a new one`. */

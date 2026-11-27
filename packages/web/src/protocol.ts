@@ -18,7 +18,6 @@ import {
   type WorkflowRow,
   WorkflowRowSchema,
 } from './protocol-factory.ts'
-import { GRANTS } from './reach.ts'
 import { type Said, SaidSchema } from './said.ts'
 
 // What goes on the wire, declared as an allow-list. Nothing is inherited.
@@ -111,12 +110,8 @@ export type Collection = (typeof COLLECTIONS)[number]
 /**
  * How much of one collection is here.
  *
- * `total` is what there is inside this device's reach and `omitted` is how many
- * of them are not in `rows` — including **all** of them, which is what a
- * collection the device was not granted looks like. A count is a name-and-count
- * fact and goes out always; the rows are content and need a grant. So a phone
- * with no `notes` grant is told *there are forty-one notes* and not one word of
- * them, which is the honest shape of a read scope.
+ * `total` is what there is and `omitted` is how many of them are not in
+ * `rows`.
  */
 export const PageInfoSchema = z.strictObject({
   total: z.int().nonnegative(),
@@ -246,9 +241,9 @@ export const TaskRowSchema = z.strictObject({
   wantsYou: z.boolean(),
   question: z.boolean(),
   /**
-   * The tool's **name**, when it started waiting, and — to a device that may
-   * answer it, and to no other — the command it asks to run, paths shortened
-   * (`TaskIn.approval`), with how many of its characters were not sent.
+   * The tool's **name**, when it started waiting, and the command it asks to
+   * run, paths shortened (`TaskIn.approval`), with how many of its characters
+   * were not sent.
    */
   approval: z
     .strictObject({
@@ -452,11 +447,10 @@ export type NoteRow = z.infer<typeof NoteRowSchema>
  * A tool call's own words: a line saying which one, what it was handed, and
  * what it answered.
  *
- * **The fourth kind of value, as an agent's screen is** (`screen.ts`), and on
- * the same grant (`lanes`, `WITHHOLDS`): a call's arguments and its answer are
- * whatever a model or a tool wrote — a command, a file's contents, a page an
- * agent fetched — so they cross only to a device somebody granted an agent's
- * own bytes, and only as `cleanText` left them: every machine path, every key
+ * **The fourth kind of value, as an agent's screen is** (`screen.ts`): a
+ * call's arguments and its answer are whatever a model or a tool wrote — a
+ * command, a file's contents, a page an agent fetched — so they cross only as
+ * `cleanText` left them: every machine path, every key
  * Tade knows of, anything shaped like a credential and every character that
  * reorders or hides text taken out. Never a field called `args`, `payload` or
  * `output`, which `NEVER_A_FIELD` keeps for the raw thing.
@@ -509,8 +503,8 @@ export const CHAT_LINE_KINDS = [
  * still forbidden** (`fields.ts`): what makes a raw one dangerous is a tool
  * call's arguments, a tool's answer, a lane's bytes and a machine path, and
  * every one of those is still a name that fails a test. What is here is a
- * tool's **name**, an outcome in one word, and — only for a device granted an
- * agent's own bytes — the call itself, cleaned (`CallSchema`).
+ * tool's **name**, an outcome in one word, and the call itself, cleaned
+ * (`CallSchema`).
  */
 export const ChatRowSchema = z.strictObject({
   /** The line's own place in the conversation. Stable: a delta is keyed by it. */
@@ -535,7 +529,7 @@ export const ChatRowSchema = z.strictObject({
   tool: z.string().nullable(),
   /** `unknown` is a call that answered where the record does not say whether it worked. */
   outcome: z.enum(['running', 'ok', 'failed', 'unknown']).nullable(),
-  /** A tool line's call, under `lanes` (`CallSchema`). Null on every other line, and without it. */
+  /** A tool line's call (`CallSchema`). Null on every other line. */
   call: CallSchema.nullable(),
   streaming: z.boolean(),
   /** What a `suggestion` offers to ask, in Tade's words. Null on every other line. */
@@ -563,26 +557,25 @@ export const ChatPageSchema = z.strictObject({
   /** Whether anything was said before the first of these — held, or in the record. */
   earlier: z.boolean(),
   /**
-   * Why there are none to read: talking is off, this device was not granted
-   * the conversation, or the record further back could not be read now —
-   * which is worth asking again, and never the beginning of the conversation.
+   * Why there are none to read: talking is off, or the record further back
+   * could not be read now — which is worth asking again, and never the
+   * beginning of the conversation.
    */
-  why: z.enum(['off', 'not granted', 'unread']).nullable(),
+  why: z.enum(['off', 'unread']).nullable(),
 })
 export type ChatPage = z.infer<typeof ChatPageSchema>
 
 export const PlanRowSchema = z.strictObject({
   /**
    * `<harness>/<n>`: its place among that harness's sign-ins, by name, its own
-   * first. Never the account's name, which is `accounts`' to send, and every
-   * device that reads plans is sent this.
+   * first. Never the account's name, which is `account`'s.
    */
   id: z.string(),
   harness: z.string(),
   /**
    * What it is called: an added account's name, or the one its harness's own
    * sign-in was given (`workers.default_names`). Null for an own sign-in
-   * nobody named, and for a device not granted `accounts`.
+   * nobody named.
    */
   account: SaidSchema.nullable(),
   pays: z.enum(['plan', 'per-token']),
@@ -601,15 +594,13 @@ export const PlanRowSchema = z.strictObject({
    * Whose subscription it is, as a mark the same on every machine signed in
    * as the same (`identityOf` in `@tade/workbench`), so a page or another
    * machine draws one plan used on two machines once. Absent where nobody
-   * asked who it is, and for a device not granted `accounts`.
+   * asked who it is.
    */
   identity: z.string().max(64).optional(),
   /**
    * Who runs as it, as the window's Accounts page says: whether new agents do,
-   * and which of the projects this device reads name it as theirs. Null where
-   * the device was not granted `accounts` — which sign-in a project's agents
-   * run as is the same fact `account` is on a task — or where whoever gathered
-   * the sign-ins could not say; the page tells the two apart by its reads.
+   * and which of the projects name it as theirs. Null where whoever gathered
+   * the sign-ins could not say.
    */
   uses: z
     .strictObject({
@@ -626,8 +617,6 @@ export type PlanRow = z.infer<typeof PlanRowSchema>
 
 export const YouSchema = z.strictObject({
   device: z.string(),
-  /** What this device was granted at the machine. */
-  reads: z.array(z.enum(GRANTS)),
   /**
    * The conversation as it stands, or null where talking is turned off.
    *
@@ -911,25 +900,18 @@ export type ActivityKind = (typeof ACTIVITY_KINDS)[number]
 /**
  * Why an agent's screen is not in an answer, in a word.
  *
- * Five, and each is a different thing to do next: be granted it at the
- * machine, start an agent, wait a beat, look at the machine, or find the task
- * — which is why one word for all of them would be the page lying four times
- * out of five.
+ * Four, and each is a different thing to do next: start an agent, wait a
+ * beat, look at the machine, or find the task — which is why one word for all
+ * of them would be the page lying three times out of four.
  */
-export const SCREEN_WHY = [
-  'not granted',
-  'no agent',
-  'not read yet',
-  'could not read',
-  'not here',
-] as const
+export const SCREEN_WHY = ['no agent', 'not read yet', 'could not read', 'not here'] as const
 
 /**
- * Why an agent's conversation is not in an answer, in a word: not granted,
- * not read yet, or a record that is there and could not be read — never
- * *nothing said*, which is a conversation with no turns in it.
+ * Why an agent's conversation is not in an answer, in a word: not read yet,
+ * or a record that is there and could not be read — never *nothing said*,
+ * which is a conversation with no turns in it.
  */
-export const CONVERSATION_WHY = ['not granted', 'not read yet', 'could not read'] as const
+export const CONVERSATION_WHY = ['not read yet', 'could not read'] as const
 
 /**
  * One turn of an agent's conversation, out of its harness's own record.
@@ -937,7 +919,7 @@ export const CONVERSATION_WHY = ['not granted', 'not read yet', 'could not read'
  * Three kinds: what it was **sent** (Tade's opening, a steer — Tade's framing
  * included, because that is what the agent read), what it **replied**, and a
  * **tool** it reached for with its call. All of it the fourth kind of value,
- * cleaned as a screen is (`cleanText`), and on the screen's grant.
+ * cleaned as a screen is (`cleanText`).
  */
 export const TurnRowSchema = z.strictObject({
   /** Its place in the record, stable while the conversation grows. */
@@ -970,7 +952,7 @@ export type ActivityRow = z.infer<typeof ActivityRowSchema>
 
 /**
  * One agent, as a device looking at it is told: what it has been doing, and
- * the last rows of its own screen where this device was granted them.
+ * the last rows of its own screen.
  *
  * **Its own answer and not a collection**, because it is about one task and is
  * read only while somebody is looking at that task: forty rows of a screen on
@@ -981,7 +963,7 @@ export const AgentOutSchema = z.strictObject({
   v: z.literal(PROTOCOL_VERSION),
   /** `<project>/<task>`, as it was asked for. */
   task: z.string(),
-  /** Whether this device may read this task at all. False is everything below empty. */
+  /** Whether the task is here at all. False is everything below empty. */
   here: z.boolean(),
   /** Its newest moments, newest first. */
   activity: z.array(ActivityRowSchema),
@@ -1061,9 +1043,9 @@ export const TurnsPageSchema = z.strictObject({
   /** How many things were taken out. A count, never what. */
   taken: z.int().nonnegative(),
   /**
-   * Why there are none: a task this device does not read, a screen it was not
-   * granted, or a record that could not be read now — worth asking again.
+   * Why there are none: no such task, or a record that could not be read
+   * now — worth asking again.
    */
-  why: z.enum(['not here', 'not granted', 'unread']).nullable(),
+  why: z.enum(['not here', 'unread']).nullable(),
 })
 export type TurnsPage = z.infer<typeof TurnsPageSchema>

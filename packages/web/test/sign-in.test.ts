@@ -1,17 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { StillDocument, type StillElement, StillEvent } from '../scripts/still-dom.ts'
 import { isLogin, linkOf, SIGN_IN_PATH, signInSaid, signInSheet } from '../src/assets/sign-in.js'
-import { allowDevice, grantDevice } from '../src/devices.ts'
-import { GRANTS } from '../src/reach.ts'
 import { CSRF_HEADER } from '../src/request.ts'
 import { OWNED } from '../src/routes.ts'
 import { type SignInStanding, signInLink, type WebSigningIn } from '../src/signing-in.ts'
-import { SCOPES } from '../src/surface.ts'
 import { ask, closeAll, pair, type Running, start } from './harness.ts'
 
 // `/login` carried out from the person's own phone (`signing-in.ts`): the
-// orchestrator's sign-in run on the machine and driven from the page — theirs
-// and an owner's, never an ordinary phone's however much it was granted, one
+// orchestrator's sign-in run on the machine and driven from the page — a
+// paired phone's and an owner's, one
 // of five things asked and nothing else, and the page's sheet that asks them.
 
 afterEach(closeAll)
@@ -57,11 +54,9 @@ function post(one: Running, device: Awaited<ReturnType<typeof pair>>, body: unkn
   })
 }
 
-async function theirs(one: Running) {
-  const phone = await pair(one, { label: 'mine' })
-  await allowDevice(one.home, phone.device, SCOPES, new Date())
-  await grantDevice(one.home, phone.device, GRANTS, new Date())
-  return phone
+/** A paired phone: every one is the person's own. */
+function theirs(one: Running) {
+  return pair(one, { label: 'mine' })
 }
 
 describe('the orchestrator’s sign-in, asked from the person’s own phone', () => {
@@ -89,7 +84,7 @@ describe('the orchestrator’s sign-in, asked from the person’s own phone', ()
     ])
   })
 
-  it('takes nothing else, refuses an ordinary phone, and is the 404 of a path nobody wired', async () => {
+  it('takes nothing else, and is the 404 of a path nobody wired', async () => {
     const signing = half()
     const one = await start({}, { owned: { orchestratorSignIn: signing } })
     const mine = await theirs(one)
@@ -103,11 +98,6 @@ describe('the orchestrator’s sign-in, asked from the person’s own phone', ()
     ]) {
       expect((await post(one, mine, body)).status, JSON.stringify(body)).toBe(400)
     }
-    const phone = await pair(one)
-    await grantDevice(one.home, phone.device, GRANTS, new Date())
-    const refused = await post(one, phone, { do: 'start' })
-    expect(refused.status).toBe(403)
-    expect(JSON.parse(refused.text).error).toBe('out_of_scope')
     expect(signing.calls).toEqual([])
     const none = await start()
     expect((await post(none, await theirs(none), { do: 'look' })).status).toBe(404)
@@ -115,7 +105,6 @@ describe('the orchestrator’s sign-in, asked from the person’s own phone', ()
       method: 'POST',
       path: SIGN_IN_PATH,
       here: true,
-      theirs: true,
     })
   })
 })

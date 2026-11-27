@@ -1,10 +1,7 @@
 import type { IncomingMessage } from 'node:http'
 import { z } from 'zod'
-import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
-import { type Reach, sees } from './reach.ts'
 import { readBody } from './request.ts'
-import { ownsOrTheirs, reachOf } from './surface.ts'
 
 // One document this machine's work produced, as text, for another machine of
 // the person's to read (documents stay the truth on the
@@ -13,10 +10,9 @@ import { ownsOrTheirs, reachOf } from './surface.ts'
 //
 // **An owner's, and only at this machine's own door** (`here`): the document is
 // a file in this machine's Tade home, which whoever holds the SSH key can
-// already `cat` over the same connection — and a phone's session is refused it
-// however much it was granted, **but the person's own** (`Route.theirs`), on
-// any door, whom the person decided may do what they can. Within what the device reads: a document of a
-// project the window took back from it is the `404` of one that is not there.
+// already `cat` over the same connection — and a paired device's on any door,
+// since every one is the person's own. A document of a project the window does
+// not hold is the `404` of one that is not there.
 //
 // **Asked by what the list named it**: its task and its file's name, never a
 // path — the window looks the pair up among the documents its journal says
@@ -64,16 +60,13 @@ export type WebDocument = (
 /** The route. `document` absent is a window that did not wire it: the `404` of a path nobody built. */
 export async function documentHere(
   req: IncomingMessage,
-  device: Device,
   document: WebDocument | undefined,
 ): Promise<{ body: DocumentAnswer } | { refusal: Refusal }> {
   if (document === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const asked = DocumentAskSchema.safeParse(got.body)
   if (!asked.success) return { refusal: refuse('malformed') }
-  if (!documentReadable(asked.data, reachOf(device))) return { refusal: refuse('no_such') }
   const read = await document(asked.data)
   if (read === null) return { refusal: refuse('no_such') }
   const cut = read.text.length > DOCUMENT_MOST
@@ -87,9 +80,4 @@ export async function documentHere(
       cut,
     },
   }
-}
-
-/** Whether a device may read a document of this task: its project is one it reads. */
-export function documentReadable(ask: DocumentAsk, reach: Reach): boolean {
-  return sees(reach, ask.task.slice(0, ask.task.indexOf('/')))
 }

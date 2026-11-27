@@ -1,11 +1,8 @@
 import type { IncomingMessage } from 'node:http'
 import { type Inventory, InventorySchema } from '@tade/core'
 import { z } from 'zod'
-import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
-import { has, type Reach, sees } from './reach.ts'
 import { readBody } from './request.ts'
-import { ownsOrTheirs, reachOf } from './surface.ts'
 
 // What this machine is, for another machine of the person's that links to it
 // as an owner: which Tade it runs, how its public
@@ -18,16 +15,9 @@ import { ownsOrTheirs, reachOf } from './surface.ts'
 // for the reason its neighbours give: what makes it no wider than what already
 // was is that an owner is the SSH key (`owner.ts`), and whoever holds it can
 // already `ssh` in and run `tade status`, `tade schedules`, read the config's
-// warnings and the journal's. A phone's session is refused it however much it
-// was granted (`out_of_scope`), and the public listener answers the `404` of a
-// path nobody built — **but the person's own** (`Route.theirs`), on any door.
-// The person decided it: their
-// phone is the screen they can pull the plug on — and off this machine's door
-// it is asked a trusted origin and the passkey, as acting is.
-//
-// **Within what the device reads**: a schedule or a document of a project the
-// window took back from it is left out, and what an outside source said a
-// finding is called rides on `requests`, as it does on the projection.
+// warnings and the journal's. **And a paired device's**, on any door: every
+// one is the person's own — off this machine's door it is asked a trusted
+// origin and the passkey, as acting is.
 //
 // **Tade's own words, and nobody's path.** Everything here is a sentence this
 // machine's Tade wrote — a problem, a look's reason, a schedule's cadence — or a
@@ -196,25 +186,21 @@ export type WebMachine = () => Promise<MachineAnswer>
 /** The route. `machine` absent is a window that did not wire it: the `404` of a path nobody built. */
 export async function machineHere(
   req: IncomingMessage,
-  device: Device,
   machine: WebMachine | undefined,
 ): Promise<{ body: MachineAnswer } | { refusal: Refusal }> {
   if (machine === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   if (!z.strictObject({}).safeParse(got.body).success) return { refusal: refuse('malformed') }
-  return { body: machineFor(await machine(), reachOf(device)) }
+  return { body: machineFor(await machine()) }
 }
 
 /**
- * What one device is answered: the schedules and documents of the projects it
- * reads, a finding's title only with `requests`, each list within its bound —
+ * What a device is answered: every list within its bound —
  * the newest kept, because they arrive newest first — and every sentence cut
  * to what the other machine reads, so nothing here makes it refuse the whole.
  */
-export function machineFor(all: MachineAnswer, reach: Reach): MachineAnswer {
-  const titled = has(reach, 'requests')
+export function machineFor(all: MachineAnswer): MachineAnswer {
   const said = (text: string | null) => (text === null ? null : cut(text, 600))
   return {
     at: all.at,
@@ -234,33 +220,29 @@ export function machineFor(all: MachineAnswer, reach: Reach): MachineAnswer {
     problems: all.problems
       .slice(0, PROBLEMS_MOST)
       .map((one) => ({ ...one, said: cut(one.said, 600) })),
-    schedules: all.schedules
-      .filter((one) => sees(reach, one.project))
-      .slice(0, SCHEDULES_MOST)
-      .map((one) => ({
-        ...one,
-        name: cut(one.name, 200),
-        when: cut(one.when, 600),
-        watch:
-          one.watch === null
-            ? null
-            : {
-                id: one.watch.id,
-                looks: one.watch.looks
-                  .slice(0, LOOKS_MOST)
-                  .map((look) => ({ ...look, problem: said(look.problem), said: said(look.said) })),
-                found: one.watch.found.slice(0, FOUND_MOST).map((found) => ({
-                  ...found,
-                  key: cut(found.key, 200),
-                  title: titled && found.title !== null ? cut(found.title, 400) : null,
-                })),
-              },
-      })),
+    schedules: all.schedules.slice(0, SCHEDULES_MOST).map((one) => ({
+      ...one,
+      name: cut(one.name, 200),
+      when: cut(one.when, 600),
+      watch:
+        one.watch === null
+          ? null
+          : {
+              id: one.watch.id,
+              looks: one.watch.looks
+                .slice(0, LOOKS_MOST)
+                .map((look) => ({ ...look, problem: said(look.problem), said: said(look.said) })),
+              found: one.watch.found.slice(0, FOUND_MOST).map((found) => ({
+                ...found,
+                key: cut(found.key, 200),
+                title: found.title !== null ? cut(found.title, 400) : null,
+              })),
+            },
+    })),
     documents: all.documents
-      .filter((one) => sees(reach, one.project))
       .slice(0, DOCUMENTS_MOST)
       .map((one) => ({ ...one, name: cut(one.name, 200) })),
-    inventory: all.inventory ? inventoryFor(all.inventory, reach) : null,
+    inventory: all.inventory ? inventoryFor(all.inventory) : null,
     ...(all.orchestrator === undefined
       ? {}
       : {
@@ -275,27 +257,24 @@ export function machineFor(all: MachineAnswer, reach: Reach): MachineAnswer {
 }
 
 /**
- * The inventory as one device is told it: origin only of the projects it
- * reads, and every value within what the other machine reads — cut rather
+ * The inventory as a device is told it: every value within what the other
+ * machine reads — cut rather
  * than refused, so a long path never costs the whole answer.
  */
-function inventoryFor(all: Inventory, reach: Reach): Inventory {
+function inventoryFor(all: Inventory): Inventory {
   return {
     machine: cut(all.machine, 120),
     at: all.at,
     shell: all.shell === null ? null : cut(all.shell, 40),
     service: all.service,
-    items: all.items
-      .filter((one) => one.kind !== 'origin' || sees(reach, one.id.slice('origin:'.length)))
-      .slice(0, 400)
-      .map((one) => ({
-        ...one,
-        id: cut(one.id, 300),
-        label: cut(one.label, 300),
-        where: one.where.slice(0, 16).map((place) => cut(place, 300)),
-        said: one.said === null ? null : cut(one.said, 600),
-        variables: one.variables.slice(0, 8).map((name) => cut(name, 120)),
-      })),
+    items: all.items.slice(0, 400).map((one) => ({
+      ...one,
+      id: cut(one.id, 300),
+      label: cut(one.label, 300),
+      where: one.where.slice(0, 16).map((place) => cut(place, 300)),
+      said: one.said === null ? null : cut(one.said, 600),
+      variables: one.variables.slice(0, 8).map((name) => cut(name, 120)),
+    })),
   }
 }
 

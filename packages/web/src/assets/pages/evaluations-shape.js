@@ -6,7 +6,7 @@
 // machine's own words for it (`said`, core's `countSaid` and `precisionSaid`),
 // so the page cannot say a percentage the machine would not: counts first, a
 // rate only from five. What is missing is said as which kind of missing —
-// *not granted*, *no judge here*, *not read yet* — and never as nought.
+// *no judge here*, *not read yet* — and never as nought.
 
 import { duration } from '../figures.js'
 
@@ -42,13 +42,9 @@ export function findingsSaid(found) {
   return `${found.fired} ${found.fired === 1 ? 'finding' : 'findings'} · ${found.confirmed} confirmed · ${found.wrong} wrong · ${found.open} open`
 }
 
-/**
- * The lead: the whole of it at a glance, as stat tiles. Money only where this
- * device was granted it, and said as not granted where it was not.
- */
+/** The lead: the whole of it at a glance, as stat tiles. */
 export function leadOf(answer) {
   const total = answer?.total ?? null
-  const granted = answer?.granted ?? { spend: false, findings: false }
   return [
     {
       key: 'landed',
@@ -75,8 +71,8 @@ export function leadOf(answer) {
     {
       key: 'cost',
       label: 'Per landed agent',
-      value: granted.spend ? costSaid(total?.cost ?? null) : null,
-      under: granted.spend ? '' : 'not granted',
+      value: total ? costSaid(total.cost ?? null) : null,
+      under: '',
     },
     {
       key: 'done',
@@ -98,13 +94,13 @@ export function cardsOf(answer, by) {
     label: row.label,
     value: row.landed.count,
     said: `${row.landed.said} landed`,
-    under: underOf(row, answer.granted),
+    under: underOf(row),
   }))
 }
 
 /** Everything about a row beside how much landed, each figure in its own words. */
-export function underOf(row, granted) {
-  const cost = granted?.spend ? costSaid(row.cost) : null
+export function underOf(row) {
+  const cost = costSaid(row.cost)
   return [
     `${row.tasks} ${row.tasks === 1 ? 'agent' : 'agents'}`,
     `${row.done.said} done`,
@@ -112,7 +108,7 @@ export function underOf(row, granted) {
     row.redsHere === null ? null : `${row.redsHere} red here`,
     cost === null || cost === '—' ? null : `${cost} per landed`,
     row.toDoneMs === null ? null : `${duration(row.toDoneMs)} to done`,
-    granted?.findings ? findingsSaid(row.findings) : null,
+    findingsSaid(row.findings),
   ]
     .filter((part) => part !== null)
     .join(' · ')
@@ -120,7 +116,6 @@ export function underOf(row, granted) {
 
 /** The judge's tab: its precision overall, per question and per band. */
 export function judgeOf(answer) {
-  if (answer?.judge === 'not granted') return { state: 'not granted' }
   if (answer?.judge !== 'read' || !answer.calibration) return { state: 'none here' }
   const cal = answer.calibration
   return {
@@ -149,15 +144,15 @@ export function judgeOf(answer) {
 /**
  * The races: each with what was asked, what it has cost and who picked, and
  * its entrants in the order the facts put them — an order, never a verdict, so
- * nothing here is drawn as a winner until somebody picked one. What this
- * device was not granted is said as that.
+ * nothing here is drawn as a winner until somebody picked one. What nobody
+ * wrote down is said as that.
  */
 export function racesOf(answer) {
   return (answer?.races ?? []).map((race) => ({
     key: `${race.project}/${race.name}`,
     head: `${race.name} in ${race.project}`,
-    said: race.said === null ? 'what was asked is not granted' : `asked: ${race.said}`,
-    spent: race.spent === null ? 'cost not granted' : race.spent,
+    said: race.said === null ? 'what was asked was not written down' : `asked: ${race.said}`,
+    spent: race.spent === null ? 'cost not recorded' : race.spent,
     decided: race.won
       ? `${short(race.won.task)} picked ${race.won.by === 'orchestrator' ? 'by the orchestrator, on your word' : 'by you'}`
       : 'nobody has picked — pick in the window, or ask the orchestrator',
@@ -201,13 +196,6 @@ export function emptyOf(answer, by) {
   }
   if (by === 'judge') {
     const judge = judgeOf(answer)
-    if (judge.state === 'not granted') {
-      return boxOf(
-        'empty',
-        'Not granted to this device',
-        'What the judge said is the findings grant, given at the machine.',
-      )
-    }
     if (judge.state === 'none here') {
       return boxOf(
         'empty',

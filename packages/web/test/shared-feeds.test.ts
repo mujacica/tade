@@ -70,7 +70,7 @@ describe('sharing journals', () => {
     expect(handed).toEqual([{ body, device: made.device, label: 'mac' }])
   })
 
-  it('refuses a phone that is not the person’s own, and never asks the window', async () => {
+  it('answers a paired phone too, every one being the person’s own', async () => {
     const { one, handed } = await machine()
     const phone = await pair(one)
     const said = await ask(one, '/api/feeds/share', {
@@ -83,8 +83,8 @@ describe('sharing journals', () => {
       },
       body: JSON.stringify(fine),
     })
-    expect(said.status).toBe(403)
-    expect(handed).toEqual([])
+    expect(said.status, said.text).toBe(200)
+    expect(handed).toHaveLength(1)
   })
 
   it('reads ids, epochs, chain links and lines as text, and nothing else', async () => {
@@ -124,7 +124,6 @@ describe('sharing journals', () => {
       method: 'POST',
       path: '/api/feeds/share',
       here: true,
-      theirs: true,
     })
   })
 })

@@ -6,15 +6,6 @@
 declare module '*/assets/pages/devices-shape.js' {
   type Kind = 'phone' | 'tablet' | 'computer' | 'device'
   type Said = { words: string; more: boolean }
-  type Cell = { key: string; word: string; under: string | null; on: boolean; floor: boolean }
-  type Matrix = {
-    read: Cell[]
-    does: Cell[]
-    readOn: number
-    doOn: number
-    readSaid: string
-    doSaid: string
-  }
   type Session = {
     share: number
     said: string
@@ -39,8 +30,7 @@ declare module '*/assets/pages/devices-shape.js' {
   type You = {
     device: string
     label: string
-    reads: readonly string[]
-    scopes: readonly string[]
+    clear: boolean
     until: string
   }
   type Moment = {
@@ -52,15 +42,12 @@ declare module '*/assets/pages/devices-shape.js' {
     ago: string | null
     when: string | null
   }
-  type Recent = { granted: boolean; items: Moment[]; more: number; said: string }
+  type Recent = { items: Moment[]; more: number; said: string }
   export const DAY: number
   export const SESSION_MS: number
   export const NEW_FOR: number
   export const RECENT: number
   export const KINDS: Record<Kind, { icon: string; word: string }>
-  export const FLOOR: { key: string; word: string }
-  export const READS: { key: string; word: string }[]
-  export const DOES: { key: string; word: string; under: string }[]
   export function kindOf(label: string | null | undefined): Kind
   export function reachOf(
     hostname: string | null | undefined,
@@ -71,7 +58,9 @@ declare module '*/assets/pages/devices-shape.js' {
     under: string | null
     plain: boolean
   }
-  export function matrixOf(you: Partial<You> | null | undefined): Matrix | null
+  export function accessOf(
+    you: Partial<You> | null | undefined,
+  ): { value: string; under: string } | null
   export function daySaid(at: string | number | null | undefined, asOf: number): string | null
   export function dateSaid(at: string | number | null | undefined, asOf: number): string | null
   export function agoSaid(at: string | number | null | undefined, asOf: number): string | null
@@ -116,8 +105,6 @@ declare module '*/assets/pages/devices-shape.js' {
       chat: readonly import('../src/protocol.ts').ChatRow[] | null
       notes: readonly import('../src/protocol.ts').NoteRow[] | null
       device: string | null
-      mayTalk: boolean
-      mayNotes: boolean
     },
     asOf: number,
   ): Recent

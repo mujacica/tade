@@ -36,9 +36,9 @@ import {
 // behaviour below — the caps, the fan-out, the backpressure, the stall, the
 // revocation — is a table test over a fake sink rather than twenty sockets.
 //
-// **A ring per device, not per server.** The projection is per device
-// (`readingFor`), so two phones granted different projects are two
-// projections; one ring would replay one device's rows into the other's page.
+// **A ring per device, not per server.** Each device has a projector of its
+// own (`readingFor`), with its own revisions, so one ring would replay one
+// device's deltas into a page whose cursor is another's.
 
 /** Where a frame's bytes go. One line of it per peer, and nothing else. */
 export interface Sink {

@@ -28,7 +28,7 @@ describe('an owner device', () => {
     const { devices } = await readDevices(home)
     expect(devices).toHaveLength(1)
     expect(devices[0]).toMatchObject({ id: owner.device, owner: true, host: 'localhost:7654' })
-    expect(devices[0]?.projects).toBeNull()
+    expect(devices[0]?.clear).toBe(false)
   })
 
   it('reads and acts on the loopback listener, by the exact host it was minted for', async () => {

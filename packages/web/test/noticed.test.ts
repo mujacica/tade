@@ -15,7 +15,7 @@ import {
   type TaskNow,
   wasOf,
 } from '../src/noticed.ts'
-import type { Reach } from '../src/reach.ts'
+import { reachFor } from '../src/reach.ts'
 
 // What is worth waking a phone for, and — the half that matters more — what a
 // notification is allowed to say.
@@ -231,24 +231,8 @@ describe('what one device may be told about', () => {
       ],
     )
 
-  it('is everything, for a device that reads every project', () => {
-    const reach: Reach = { device: 'd', projects: { kind: 'every' }, granted: [] }
-    expect(changesFor(across(), reach)).toHaveLength(2)
-  })
-
-  it('is the projects it reads, and a count is still a fact about the others', () => {
-    // A phone granted one project of five must not be told — even as a count —
-    // that something in the other four wants you. The collections are built
-    // once for every device, so this is the only place that narrowing can
-    // happen.
-    const reach: Reach = { device: 'd', projects: { kind: 'listed', names: ['a'] }, granted: [] }
-    const mine = changesFor(across(), reach)
-    expect(mine.map((one) => one.task)).toEqual(['a/one'])
-  })
-
-  it('is nothing for a device granted no project at all', () => {
-    const reach: Reach = { device: 'd', projects: { kind: 'listed', names: [] }, granted: [] }
-    expect(changesFor(across(), reach)).toEqual([])
+  it('is every change: every paired device reads every project', () => {
+    expect(changesFor(across(), reachFor('d'))).toHaveLength(2)
   })
 })
 

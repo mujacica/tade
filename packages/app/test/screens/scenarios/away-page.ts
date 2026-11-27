@@ -1,21 +1,20 @@
 import { markOf, noSpend, type PlanSource, planStandings, type Spend } from '@tade/core'
-import {
-  type AgentIn,
-  type CheckRunIn,
-  type CheckTreeIn,
-  type Device,
-  GRANTS,
-  type IntakeIn,
-  type NoteIn,
-  type ProjectIn,
-  type QueueIn,
-  type Reach,
-  type RunIn,
-  type RunStepIn,
-  type SnapshotInput,
-  type SourceIn,
-  type TaskIn,
-  type WorkflowIn,
+import type {
+  AgentIn,
+  CheckRunIn,
+  CheckTreeIn,
+  Device,
+  IntakeIn,
+  NoteIn,
+  ProjectIn,
+  QueueIn,
+  Reach,
+  RunIn,
+  RunStepIn,
+  SnapshotInput,
+  SourceIn,
+  TaskIn,
+  WorkflowIn,
 } from '@tade/web'
 import type { World } from '../../../../web/scripts/still.ts'
 import { ableOn } from '../../../src/away.ts'
@@ -678,7 +677,7 @@ const STRIPE: AgentIn = {
   known: [],
 }
 
-/** A device, paired a while ago, granted every reading and both acting tiers. */
+/** A device, paired a while ago: every paired device is the person's own. */
 function device(id: string, label: string, pairedDaysAgo: number): Device {
   return {
     id,
@@ -688,9 +687,7 @@ function device(id: string, label: string, pairedDaysAgo: number): Device {
     csrf: '',
     until: NOW + 30 * 86_400_000,
     pairedAt: NOW - pairedDaysAgo * 86_400_000,
-    scopes: ['read', 'answer', 'steer', 'ask', 'agents', 'projects'],
-    projects: null,
-    granted: [...GRANTS],
+    clear: false,
     from: '127.0.0.1',
     revoked: null,
     owner: false,

@@ -22,12 +22,12 @@ import { AWAY_CONTROLS, type AwayPanel, awayPanel } from './state.ts'
 // seeing the whole list is the real mitigation against one having been minted
 // by something on this machine (`DEVICES_AND_AGENTS`).
 //
-// **Options and values, and a clause where somebody is deciding.** What a
-// grant does is one line in the foot, for the box under the pointer — the
-// moment somebody is about to press it (`help`); the whole sentences are each
-// setting's `means`, the README and `add-away-surface`. What is listening is
-// a status line in words, and the one sentence a person must not miss is one
-// clause beside Disconnect everything.
+// **Options and values, and a clause where somebody is deciding.** Every
+// paired device is the person's own, so a device's block is who it is, where
+// it came from, its passkey and Sign out — nothing to tick. The whole
+// sentences are each setting's `means`, the README and `add-away-surface`.
+// What is listening is a status line in words, and the one sentence a person
+// must not miss is one clause beside Disconnect everything.
 //
 // **Nothing cuts its own rows to fit.** The middle — the question, the code
 // and the device list — is one scrolling region: a code drawn half and a
@@ -72,25 +72,6 @@ export interface AwayView {
   devices: readonly AwayDevice[]
   /** How many streams are open now. A count, and the liveness of the page. */
   streams: number
-  /**
-   * Whether `surfaces.web.acting` is on.
-   *
-   * **What it decides is whether the per-device boxes exist at all.** A
-   * control that cannot do what it says is worse than none, and with acting
-   * off there is no route for one to reach.
-   */
-  acting: boolean
-  /** Whether `surfaces.web.orchestrator` is on, read the way `acting` is. */
-  talking: boolean
-  /** Whether `surfaces.web.settings` is on: a third flag for a third decision. */
-  configuring: boolean
-  /**
-   * What each device's control grants, by the control's prefix in
-   * `AWAY_CONTROLS`: one clause each, drawn in the foot while the pointer is
-   * on that control. Every value is drawn in the same rows, so the foot is as
-   * tall as the longest of them whatever is pointed at.
-   */
-  help: Readonly<Record<string, string>>
   /** Said under the status line when a LAN bind is on. `LAN_IS_PLAINTEXT_SHORT`. */
   lan: string
   /** Said under the status line when the public listener is up. `PUBLIC_IS_THE_INTERNET_SHORT`. */
@@ -138,29 +119,12 @@ export interface AwayDevice {
    */
   passkeyMade?: number
   /**
-   * Paired on the public name, asked for a passkey there, and with none: from
-   * there it reads and acts on nothing (`proven`), whatever its boxes say. Said
-   * on its row, because a device that was never asked looks the same otherwise.
+   * Why it reads and acts on nothing, where that is so: paired in the clear,
+   * so its credential crossed a network (`Device.clear`), or paired on the
+   * public name with no passkey made there (`proven`). Said on its row,
+   * because a device like that looks like any other otherwise.
    */
-  readsOnly?: true
-  /** What it was granted beyond names and counts, already in grant order. */
-  reads: readonly string[]
-  /** Whether a person at the machine has let it answer and steer. */
-  mayAct: boolean
-  /** Whether it was granted `ask`: free text into the conversation. */
-  mayTalk: boolean
-  /** Whether it was granted `lanes`: the last rows of agents' own screens. */
-  maySee: boolean
-  /** Whether it was granted `agents`: stopping an agent and opening it again. */
-  mayStop: boolean
-  /** Whether it was granted `projects`: closing a project and opening it again. */
-  mayClose: boolean
-  /** Whether it was granted `settings`: reading the settings, every key said as set or not. */
-  mayReadSettings: boolean
-  /** Whether it was granted `configure`: changing a setting a request is enough for. */
-  mayConfigure: boolean
-  /** Whether it has every reading grant and every scope: `full access`. */
-  full: boolean
+  readsOnly?: 'in the clear' | 'no passkey'
   /** Whether it has a live stream open now. */
   live: boolean
 }
@@ -306,7 +270,7 @@ function middleOf(
     lines.push(blank(inner))
     starts.push(lines.length)
     const chosen = panel.moved && at === panel.chosen
-    lines.push(...deviceLines(device, chosen, view, ctx, inner))
+    lines.push(...deviceLines(device, chosen, ctx, inner))
   }
   // Where the chosen device is in the whole region, so scrolling follows it:
   // an offset anchored in the rows it was drawn on would move when the code
@@ -392,18 +356,13 @@ function linkLines(url: string, ctx: PanelContext, inner: number): Line[] {
 }
 
 /**
- * The foot, which is never scrolled: what the control under the pointer
- * grants, anything that went wrong, and the clause about this machine's agents
- * beside Disconnect everything — the two things a person must not be able to
- * scroll past.
+ * The foot, which is never scrolled: anything that went wrong, and the clause
+ * about this machine's agents beside Disconnect everything — the two things a
+ * person must not be able to scroll past.
  *
  * **Disconnect everything is destructive and not what the panel is for**, so
  * it is grey until the pointer is on it and red then (`harm`), the clause
  * beside it saying why it is there at all.
- *
- * **The help keeps its rows whatever is pointed at**, as many as the longest
- * clause in `help` needs at this width: a foot that grew a row under the
- * pointer would move the box it is explaining out from under it.
  */
 function footOf(
   view: AwayView,
@@ -413,17 +372,7 @@ function footOf(
 ): Line[] {
   const { skin } = ctx
   const row = () => new Row(inner, skin, ctx.pointer)
-  const lines: Line[] = []
-  const room =
-    view.devices.length === 0
-      ? 1
-      : Math.max(1, ...Object.values(view.help).map((one) => wrap(one, inner - 3).length))
-  const pointed = helpFor(view, ctx.pointer.hover)
-  const said = pointed === null ? [] : wrap(pointed, inner - 3)
-  for (let at = 0; at < room; at += 1) {
-    const part = said[at]
-    lines.push(part === undefined ? blank(inner) : row().space().text(part, skin.hint).build())
-  }
+  const lines: Line[] = [blank(inner)]
   if (view.problem !== null) {
     lines.push(row().space().text(`▲ ${view.problem}`, skin.bad).build())
   }
@@ -444,13 +393,6 @@ function footOf(
     ),
   )
   return lines
-}
-
-/** What the control under the pointer grants, or null where it is not one of a device's. */
-function helpFor(view: AwayView, hover: Target | null): string | null {
-  if (hover?.kind !== 'control') return null
-  const found = Object.entries(view.help).find(([prefix]) => hover.id.startsWith(prefix))
-  return found === undefined ? null : found[1]
 }
 
 /**

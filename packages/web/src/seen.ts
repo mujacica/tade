@@ -5,7 +5,6 @@ import { DEVICE_NAME, type Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { type Host, hostFigures } from './protocol.ts'
 import { readBody } from './request.ts'
-import { ownsOrTheirs } from './surface.ts'
 
 // Another machine of the person's saying it is up, or saying goodbye: what its
 // window's link to this one beats with while it is open (`/api/seen`), so this
@@ -14,12 +13,11 @@ import { ownsOrTheirs } from './surface.ts'
 //
 // **What it is allowed to be**, which is a short list and mostly absences:
 //
-// 1. **An owner's, or the person's own phone's.** An owner session is another
+// 1. **An owner's, or a paired phone's.** An owner session is another
 //    machine's Tade (`owner.ts`): its word that it is up or closing is that
-//    machine's word about itself, under the label it paired with. The
-//    person's own phone may say it too (`Route.theirs`): they decided it may
-//    do what they can, and all it can say is that *it* — by its own label —
-//    is up or closing. No session can speak for another machine's name.
+//    machine's word about itself, under the label it paired with. A paired
+//    phone, the person's own, may say it too: all it can say is that *it* —
+//    by its own label — is up or closing. No session can speak for another machine's name.
 // 2. **Only on this machine's own door** (`here`), which from anywhere else is
 //    an SSH connection.
 // 3. **An age and never a moment** (`presence.ts`'s rule): `slept` is how long
@@ -65,14 +63,12 @@ export type WebSeen = (
   name: string | null,
 ) => void
 
-/** One word out of a body, for this device: what it said, or why it is refused. Pure. */
+/** One word out of a body: what it said, or why it is refused. Pure. */
 export function seenOf(
   body: unknown,
-  device: Pick<Device, 'owner' | 'scopes' | 'granted'>,
 ):
   | { ok: true; word: SeenWord; host: Host | null; name: string | null }
   | { ok: false; refusal: Refusal } {
-  if (!ownsOrTheirs(device)) return { ok: false, refusal: refuse('out_of_scope') }
   const got = SeenBody.safeParse(body)
   if (!got.success) return { ok: false, refusal: refuse('malformed') }
   if (got.data.state === 'closed') {
@@ -96,7 +92,7 @@ export async function seenHere(
   if (seen === undefined) return { refusal: refuse('no_such') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
-  const said = seenOf(got.body, device)
+  const said = seenOf(got.body)
   if (!said.ok) return { refusal: said.refusal }
   seen(device, said.word, now, said.host, said.name)
   return { body: { at: new Date(now).toISOString() } }

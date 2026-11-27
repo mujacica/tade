@@ -191,7 +191,7 @@ export function evaluationsScreen(ctx) {
       answer = got.body
       trouble = null
     } else if (answer === null) {
-      trouble = troubleOf(got, '', ctx.session?.() ?? null) ?? UNKNOWN_TROUBLE
+      trouble = troubleOf(got) ?? UNKNOWN_TROUBLE
     }
     draw()
     // Not read yet is a journal being read: asked again soon rather than in a minute.

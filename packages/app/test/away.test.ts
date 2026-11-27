@@ -316,7 +316,7 @@ describe('the queue', () => {
     const built = snapshotOf(
       {
         ...collections({ queued: [queued()], queueFacts: { ...facts(), elsewhere } }),
-        reach: { device: 'dev_1', projects: { kind: 'every' }, granted: [] },
+        reach: { device: 'dev_1' },
         lifetime: { epoch: 'e', rev: 1, openedAt: 0 },
         talk: null,
       },
@@ -359,7 +359,7 @@ describe('the conversation’s lines', () => {
     const snapshot = snapshotOf(
       {
         ...collections(),
-        reach: { device: 'dev_1', projects: { kind: 'every' }, granted: ['talk'] },
+        reach: { device: 'dev_1' },
         lifetime: { epoch: 'e', rev: 1, openedAt: 0 },
         talk: { lines, rev: 'r', busy: false, whose: '', mine: true, known: [] },
       },
@@ -388,7 +388,7 @@ describe('the whole thing is what the wire accepts', () => {
     const built = snapshotOf(
       {
         ...collections(),
-        reach: { device: 'dev_1', projects: { kind: 'every' }, granted: [] },
+        reach: { device: 'dev_1' },
         lifetime: { epoch: 'e', rev: 1, openedAt: 0 },
         // The conversation is laid over the world's folds by the window
         // (`talkFor`), so a test about the folds hands over none.

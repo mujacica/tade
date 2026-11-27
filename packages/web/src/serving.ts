@@ -24,7 +24,7 @@ import type { Streams } from './peers.ts'
 import type { WebPressThere } from './pressed-there.ts'
 import type { Pieces, WebProjectionTold } from './projection-told.ts'
 import type { WebPushing } from './pushing.ts'
-import type { Grant, Reach } from './reach.ts'
+import type { Reach } from './reach.ts'
 import type { WebReading } from './reading.ts'
 import type { WebRecords } from './records.ts'
 import type { WebRepositories } from './repositories.ts'
@@ -37,7 +37,7 @@ import type { WebNotes } from './shared-notes.ts'
 import type { WebSide } from './side.ts'
 import type { WebSigningIn } from './signing-in.ts'
 import type { WebSince } from './since.ts'
-import type { Listener, Scope, Surface } from './surface.ts'
+import type { Listener, Surface } from './surface.ts'
 import type { WebTaking } from './taken.ts'
 import type { Tickets } from './tickets.ts'
 import type { WebToolRead } from './tool-read.ts'
@@ -68,23 +68,10 @@ export interface PairingAsk {
 }
 
 /**
- * What the person at the machine answered.
- *
- * `granted` is what this device may read beyond names and counts, and
- * `projects` is which of them it may read at all — `null` for every one. Both
- * are decided at the machine, per device, and neither is a config key: a read
- * scope is a grant somebody made about one phone, and a setting would make it
- * one answer for all of them.
+ * What the person at the machine answered: let it in, or not. There is nothing
+ * to choose beyond that — every paired device is the person's own.
  */
-export type Confirmed =
-  | {
-      let: true
-      projects: readonly string[] | null
-      granted: readonly Grant[]
-      /** What it may do; `read` alone when unsaid. The origin's ceiling still holds (`scopesOn`). */
-      scopes?: readonly Scope[]
-    }
-  | { let: false; why: 'refused' | 'nobody answered' }
+export type Confirmed = { let: true } | { let: false; why: 'refused' | 'nobody answered' }
 
 /**
  * One line for the journal. The server never writes the file itself.
@@ -132,12 +119,11 @@ export interface ServerOptions {
   home: string
   surface: Surface
   /**
-   * The projection for one device's reach.
+   * The projection for one device.
    *
-   * A factory and not one reading, because **a read scope is per device**: two
-   * phones granted different projects are two projections, and filtering one
-   * after the fact is how a field that should have been withheld rides along.
-   * The window implements this and keeps a projector per reach.
+   * A factory and not one reading, because some of what is sent is about one
+   * device — its own row, what it said to Tade, what it was last sent. The
+   * window implements this and keeps a projector per device.
    */
   readingFor: (reach: Reach) => WebReading
   /**
@@ -207,8 +193,7 @@ export interface ServerOptions {
    * are: a window that was not given this serves no changing route, so a
    * crafted call is the `404` of a path nobody built. `configuring.unlocked()`
    * is read again at every change, so turning the setting off takes authority
-   * away now. Reading the settings is not this: it is `WebReading.settings`,
-   * behind a per-device grant.
+   * away now. Reading the settings is not this: it is `WebReading.settings`.
    */
   configuring?: WebConfiguring
   /**

@@ -174,7 +174,7 @@ export function signInSheet(ctx, later = setTimeout, unlater = clearTimeout, opt
         told(standing)
       }
     } else {
-      const came = afterAnswer(answer, ctx.sentence(answer), ctx.session?.() ?? null)
+      const came = afterAnswer(answer, ctx.sentence(answer))
       answerIn(said, came.said, came.trouble)
     }
     paint()

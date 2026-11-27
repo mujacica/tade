@@ -9,9 +9,8 @@ import {
   type RacesFor,
 } from './evaluations.ts'
 import type { SnapshotInput } from './input.ts'
-import { BUDGET, type Budget, type Page, pageOf, withheld } from './page.ts'
+import { BUDGET, type Budget, type Page, pageOf } from './page.ts'
 import type { AgentOut, ChatPage, Delta, NoteRow, Snapshot } from './protocol.ts'
-import { has } from './reach.ts'
 import { type Cursors, chatBefore, noteRows } from './snapshot.ts'
 import type { Cursor } from './stream.ts'
 
@@ -93,11 +92,11 @@ export interface WebReading {
   chat(before: string): ChatPage
   /**
    * One agent, for a device that has its page open: what it has been doing,
-   * and — where this device was granted `lanes` — the last rows of its screen.
+   * and the last rows of its screen.
    *
    * Its own call for the reason `notes` is, and one more: **asking is what
    * makes the window look.** A lane is read on the beat only while some device
-   * granted it keeps asking about it (`web-lanes.ts`), so an agent nobody has
+   * keeps asking about it (`web-lanes.ts`), so an agent nobody has
    * open costs nothing, and a page that stops asking stops the reading within
    * a beat or two. Synchronous like the rest: the answer is what the window
    * already holds, and the first one for an agent nobody was watching says
@@ -109,9 +108,7 @@ export interface WebReading {
    *
    * Its own call for the reason `notes` is: settings change when somebody
    * changes one, and a phone is not sent forty rows of them twice a second
-   * for a page nobody has open. Behind the device's own `settings` grant —
-   * `NOT_GRANTED` without it — and a key is never in it under any grant
-   * (`settingsFor`).
+   * for a page nobody has open. A key is never in it (`settingsFor`).
    */
   settings(): SettingsOut
   /**
@@ -211,7 +208,7 @@ export function projector(
     },
     settings(): SettingsOut {
       const held = opts.settings?.() ?? { groups: [], known: [] }
-      return settingsFor(held.groups, input.reach, held.known)
+      return settingsFor(held.groups, held.known)
     },
     evaluations(): EvaluationsOut {
       return evaluationsFor(input.reach, opts.evaluations, opts.races)
@@ -253,12 +250,9 @@ export function inScope(note: string | null, scope: string | null): boolean {
 }
 
 /**
- * The notes in one scope, newest first, inside this device's reach.
+ * The notes in one scope, newest first.
  *
- * A scope is a task id, a project name, or null for everything. Asking for one
- * in a project this device may not read answers the empty page with its real
- * count, exactly as a withheld collection does — being told *there are notes
- * here you may not read* is the answer, and nought would be a lie.
+ * A scope is a task id, a project name, or null for everything.
  *
  * Ids are made over the **whole** input and then filtered, never over the
  * filtered set: an ordinal computed after a filter would give one note two
@@ -271,10 +265,9 @@ export function notesOf(
   budget: Budget = BUDGET,
   after: string | null = null,
 ): Page<NoteRow> {
-  const rows = noteRows(input.notes, input.reach, budget).filter(
+  const rows = noteRows(input.notes, budget).filter(
     (row) => scope === undefined || inScope(row.scope, scope),
   )
-  if (!has(input.reach, 'notes')) return withheld<NoteRow>(rows.length)
   const newest = [...rows].sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
   return pageOf(newest, budget.notes, (row) => row.id, after)
 }

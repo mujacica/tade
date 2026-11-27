@@ -282,7 +282,7 @@ export async function start(
     host: '',
     epoch: '',
     server: undefined as unknown as WebServer,
-    answer: async () => ({ let: true, projects: null, granted: [] }),
+    answer: async () => ({ let: true }),
   }
   one.server = webServer({
     home,

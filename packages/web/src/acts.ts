@@ -1,6 +1,5 @@
 import { type Refusal, refuse } from './errors.ts'
-import { type Reach, sees } from './reach.ts'
-import { type Origin, type Scope, type Surface, trusted } from './surface.ts'
+import { type Origin, type Surface, trusted } from './surface.ts'
 import type { Asked } from './verbs.ts'
 
 // Everything that has to be true of an *act*, after everything that has to be
@@ -8,11 +7,11 @@ import type { Asked } from './verbs.ts'
 //
 // **Two files on purpose, and the seam is worth stating.** `guard.ts` asks what
 // every request is asked — the `Host`, the `Origin`, `Sec-Fetch-Site`, the
-// content type, the token, the session, the route's scope and, for anything
-// above `read`, a trusted origin. It has one call site and is already a table.
-// This asks the four things that are only ever about a *verb*: that the
-// capability is still unlocked, that the device may reach that project, that
-// the screen the caller tapped was not ancient, and — the one that decides
+// content type, the token, the session and, for anything above `read`, a
+// trusted origin. It has one call site and is already a table. This asks the
+// things that are only ever about a *verb*: that the capability is still
+// unlocked, that it names a project, that the screen the caller tapped was not
+// ancient, and — the one that decides
 // everything — that the act names the state it expects. Keeping them apart is
 // what lets the guard stay the one question asked of every route while the act
 // gate stays a table over verbs.
@@ -22,7 +21,7 @@ import type { Asked } from './verbs.ts'
 // somebody remembered to make.
 //
 // **The order is deliberate**, and the ones most likely to
-// be skipped are the last two. Step 5 — *the thing still exists and is still
+// be skipped are the last two. The step after them — *the thing still exists and is still
 // in the state the act assumes* — cannot be asked here at all: it is a
 // question about a file at the moment of the write, so it belongs to the
 // window's own verb (`acting.ts`), and the honest thing this file can do is
@@ -48,19 +47,20 @@ export interface Standing {
   unlocked: boolean
   /** The projection revision this device's own projection is at. */
   rev: number
-  /** What the device was granted at the machine. */
-  reach: Reach
-  /** The scopes its session carries. */
-  scopes: readonly Scope[]
   /** The origin this request came from, as the guard worked it out. */
   origin: Origin
+  /**
+   * The device paired in the clear (`Device.clear`). The guard refuses it every
+   * act route; a table whose route is `read` asks it itself (`admitPush`).
+   */
+  clear?: boolean
 }
 
 /**
  * What the gate concluded.
  *
  * `Admitted` and not `Verdict`, which is `guard.ts`'s word for the answer to a
- * different question: that one carries a session and its scopes, and two types
+ * different question: that one carries a session, and two types
  * of the same name re-exported from one package is an ambiguity the compiler
  * would make somebody resolve by guessing.
  */
@@ -74,7 +74,7 @@ export type Admitted = { ok: true } | { ok: false; refusal: Refusal; why: string
  * true since. That is the point — a gate that only ever asked at pairing is a
  * gate a person cannot close.
  */
-export function admit(asked: Asked, needs: Scope, standing: Standing, theirs = false): Admitted {
+export function admit(asked: Asked, standing: Standing): Admitted {
   // 1. The capability, read now. A person who turned it off a second ago meant
   //    it, and the route table they turned it off after is still the one the
   //    window built when it started.
@@ -82,33 +82,11 @@ export function admit(asked: Asked, needs: Scope, standing: Standing, theirs = f
     return no('locked', `${asked.verb} while acting is turned off`)
   }
 
-  // 2. The scope, again. The guard asked it of the route; asking it of the
-  //    verb is not the same question when a route's scope and a verb's can
-  //    drift — and the cost of asking twice is this line.
-  if (!standing.scopes.includes(needs)) {
-    return no('out_of_scope', `${asked.verb} needs ${needs}, device has ${said(standing.scopes)}`)
-  }
+  // 2. The project it names. Every paired device is the person's own and
+  //    reaches every project, so this is only that there is one.
+  if (asked.project === '') return no('malformed', `${asked.verb} names no project`)
 
-  // 2b. Whose device it is, for the verbs that are the person's own device's
-  //     alone (`Verb.theirs`): full access — a phone of theirs or a machine
-  //     they paired as owner — read off the record at this request
-  //     (`reachOf`), so unticking one box is an ordinary device at the next
-  //     press. No scope stands in for it.
-  if (theirs && standing.reach.theirs !== true) {
-    return no('out_of_scope', `${asked.verb} is for your own device with full access`)
-  }
-
-  // 3. The project. **The per-project boundary, and it is the read scope.** A
-  //    device granted two of five projects may act in those two and nowhere
-  //    else, and there is deliberately no second list for acting: a narrower
-  //    acting scope would be a list to keep in step with the reading one, and
-  //    the day they disagree is the day somebody acts on a project they
-  //    cannot see. Revoking a project revokes acting in it in the same act.
-  if (asked.project === '' || !sees(standing.reach, asked.project)) {
-    return no('out_of_scope', `${asked.verb} in ${asked.project || '(no project)'}`)
-  }
-
-  // 4. The origin, again — and this is the one that is *only* ever a re-check,
+  // 3. The origin, again — and this is the one that is *only* ever a re-check,
   //    because the network a device is on changes under it. The guard asked it
   //    of the route's scope; a verb that got here under a `read`-scoped route
   //    would have skipped it, and nothing may depend on a route table being
@@ -120,7 +98,7 @@ export function admit(asked: Asked, needs: Scope, standing: Standing, theirs = f
     )
   }
 
-  // 5. How old the screen was. A soft check, and the sentence says so.
+  // 4. How old the screen was. A soft check, and the sentence says so.
   if (asked.rev > standing.rev || standing.rev - asked.rev > REVISIONS_BEHIND) {
     return no('stale', `${asked.verb} against revision ${asked.rev}, which is ${standing.rev} now`)
   }
@@ -128,10 +106,6 @@ export function admit(asked: Asked, needs: Scope, standing: Standing, theirs = f
   return { ok: true }
 }
 
-function no(error: 'locked' | 'out_of_scope' | 'stale', why: string): Admitted {
+function no(error: 'locked' | 'malformed' | 'stale', why: string): Admitted {
   return { ok: false, refusal: refuse(error), why }
-}
-
-function said(scopes: readonly Scope[]): string {
-  return scopes.join(', ') || 'nothing'
 }

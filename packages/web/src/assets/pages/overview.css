@@ -178,7 +178,7 @@ its words stand level with the label of the cell beside it.
   color: var(--heading);
 }
 
-/* Which dash it is is never cut: *not granted to this device* wraps rather than trails off. */
+/* Which dash it is is never cut: *none reported* wraps rather than trails off. */
 .page-overview .ov-meter.is-unread .ov-meter-name {
   white-space: normal;
 }

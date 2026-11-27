@@ -15,7 +15,7 @@ import {
 } from '../src/assets/pages/notes-shape.js'
 import type { NoteIn } from '../src/input.ts'
 import { snapshotOf } from '../src/snapshot.ts'
-import { EVERY, input, NOW, note, reach } from './fixtures.ts'
+import { input, NOW, note, reach } from './fixtures.ts'
 
 // What the notes page draws, against **real projected rows** rather than shapes
 // a test assembled: every place, group, band and mark goes through
@@ -28,9 +28,9 @@ import { EVERY, input, NOW, note, reach } from './fixtures.ts'
 const minutes = (n: number) => NOW - n * 60_000
 const iso = (n: number) => new Date(minutes(n)).toISOString()
 
-/** The rows a device granted everything is handed, for these notes, newest first as the store gives them. */
+/** The rows a paired device is handed, for these notes, newest first as the store gives them. */
 function rows(notes: NoteIn[]) {
-  return [...snapshotOf(input({ reach: reach(EVERY), notes }), NOW).notes].reverse()
+  return [...snapshotOf(input({ reach: reach(), notes }), NOW).notes].reverse()
 }
 
 /** Somewhere to go for every project and task, or for none. */
@@ -330,17 +330,13 @@ describe('what a group holds', () => {
 
 describe('the page’s own states', () => {
   it('says nothing before the first snapshot, and that Tade cannot be reached when it cannot', () => {
-    expect(wholeOf(false, false, false, 0, 0)).toBeNull()
-    expect(wholeOf(false, true, false, 0, 0)).toMatchObject({ kind: 'error', icon: 'alert' })
+    expect(wholeOf(false, false, 0)).toBeNull()
+    expect(wholeOf(false, true, 0)).toMatchObject({ kind: 'error', icon: 'alert' })
   })
 
-  it('tells not granted from none, and says how many are there when it is not granted', () => {
-    expect(wholeOf(true, false, false, 0, 41)?.line).toBe(
-      '41 notes here. Grant this device notes at the machine to read them.',
-    )
-    expect(wholeOf(true, false, false, 0, 0)?.heading).toBe('Notes aren’t granted to this device')
-    expect(wholeOf(true, false, true, 0, 0)?.heading).toBe('Nothing written down yet')
-    expect(wholeOf(true, false, true, 3, 0)).toBeNull()
+  it('says none as none, and nothing where there are notes', () => {
+    expect(wholeOf(true, false, 0)?.heading).toBe('Nothing written down yet')
+    expect(wholeOf(true, false, 3)).toBeNull()
   })
 
   it('says the moment a page that is not live is as of, and nothing about notes elsewhere', () => {
@@ -352,15 +348,15 @@ describe('the page’s own states', () => {
     // The person: every screen shows everything it lists. Three hundred notes
     // is past what the snapshot used to carry, and every one of them is here.
     const notes = Array.from({ length: 300 }, (_, at) => said(at % 2 === 0 ? null : 'tade', at))
-    const projected = snapshotOf(input({ reach: reach(EVERY), notes }), NOW)
+    const projected = snapshotOf(input({ reach: reach(), notes }), NOW)
     expect(projected.notes).toHaveLength(300)
     expect(projected.pages.notes).toMatchObject({ total: 300, omitted: 0, next: null })
   })
 
-  it('withholds every note from a device not granted them, so the page has none to draw', () => {
+  it('carries every note to any paired device, so the page has them all to draw', () => {
     const notes = [said(null, 5), said('tade', 6)]
-    const projected = snapshotOf(input({ reach: reach([]), notes }), NOW)
-    expect(projected.notes).toEqual([])
+    const projected = snapshotOf(input({ reach: reach(), notes }), NOW)
+    expect(projected.notes).toHaveLength(2)
     expect(projected.pages.notes.total).toBe(2)
   })
 })

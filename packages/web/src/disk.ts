@@ -2,9 +2,7 @@ import type { IncomingMessage } from 'node:http'
 import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
-import { sees } from './reach.ts'
 import { readBody } from './request.ts'
-import { ownsOrTheirs, reachOf } from './surface.ts'
 
 // What is on this machine's disk in one of its projects, for another of the
 // person's machines that stands in the project and presses it: a file in its
@@ -14,11 +12,8 @@ import { ownsOrTheirs, reachOf } from './surface.ts'
 //
 // **An owner's, and only at this machine's own door** (`here` in `routes.ts`),
 // like `/api/side`, which named the files in the first place: whoever holds the
-// SSH key can already `cat` them over the same connection, and a phone's
-// session is refused it however much it was granted (`out_of_scope`) — **but
-// the person's own** (`Route.theirs`), as on every owner's route. Within what
-// the device reads: a project the window took back from it is answered as one
-// that is not open here.
+// SSH key can already `cat` them over the same connection — or a paired
+// phone, every one of which is the person's own, as on every owner's route.
 //
 // **The one owner's route that takes a path**, and so the window's half is
 // where it is confined: the path is resolved against the tree the side was
@@ -52,7 +47,7 @@ export const DISK_MOST = {
 /**
  * The most a save's body may be: a whole file of `DISK_MOST.file` characters,
  * with room for JSON's escaping of them. The one owner's route past
- * `BODY_MAX`, and read only once the device is known to be an owner's.
+ * `BODY_MAX`, and read only once the request is known to be a paired device's.
  */
 export const DISK_BODY_MAX = 4 * DISK_MOST.file
 
@@ -179,17 +174,14 @@ export type WebDisk = (ask: DiskAsk) => Promise<DiskAnswer | null>
 /** The route. `disk` absent is a window that did not wire it: the `404` of a path nobody built. */
 export async function diskHere(
   req: IncomingMessage,
-  device: Device,
+  _device: Device,
   disk: WebDisk | undefined,
 ): Promise<{ body: DiskAnswer } | { refusal: Refusal }> {
   if (disk === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req, DISK_BODY_MAX)
   if (!got.read) return { refusal: got.refusal }
   const ask = DiskAskSchema.safeParse(got.body)
   if (!ask.success) return { refusal: refuse('malformed') }
-  // A project the window took back from this device is one that is not open here.
-  if (!sees(reachOf(device), ask.data.project)) return { refusal: refuse('no_such') }
   const answer = await disk(ask.data)
   if (answer === null) return { refusal: refuse('no_such') }
   // What leaves is what the schema says may: a field nobody decided on stays here.

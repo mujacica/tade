@@ -135,9 +135,7 @@ function notesIn(home: string): NoteIn[] {
  * Everything a projection of this home would be built from, as far as files
  * can say.
  *
- * `reach` is the caller's, so a measurement can be taken of a device granted
- * everything and of one granted nothing, which are the two numbers worth
- * having.
+ * `reach` is the caller's: the device the projection is for.
  */
 export function inputFrom(home: string, reach: Reach, now: number): SnapshotInput {
   const projects: ProjectIn[] = []

@@ -3,7 +3,7 @@ import { turnsAway } from './cleaning.ts'
 import type { Places } from './command.ts'
 import { BUDGET } from './page.ts'
 import type { ChatPage, MomentsPage, TurnsPage } from './protocol.ts'
-import { has, type Reach } from './reach.ts'
+import type { Reach } from './reach.ts'
 import { inTime } from './request.ts'
 import type { ServerOptions } from './serving.ts'
 
@@ -14,12 +14,10 @@ import type { ServerOptions } from './serving.ts'
 // done can be read on the phone**, so a page scrolled to the end of what it
 // holds asks for what came before, and nothing is only in the window.
 //
-// **The conversation's own reach, asked again at the request**, before the
-// window is asked to read anything: Tade's needs the `talk` grant, as the
-// snapshot's lines do, and an agent's a task this device reads and `lanes`, as
-// its conversation does — so a device that may not read it makes the window
-// read nothing. A cursor is only ever compared or handed back to the harness
-// that made it, and one that does not look like one is answered as nothing.
+// **An agent's is asked whether the task is here first**, before the window is
+// asked to read anything, so a name that is no task's makes the window read
+// nothing. A cursor is only ever compared or handed back to the harness that
+// made it, and one that does not look like one is answered as nothing.
 
 /**
  * How long reading a conversation's record further back may take before the
@@ -75,7 +73,7 @@ export async function chatHere(
   // Never echoed back as it came: a name that is not a line's is answered as
   // the beginning, which asks the window for nothing.
   if (!LINE_ID.test(at)) return { ...reading.chat(''), earlier: false }
-  if (!has(reach, 'talk') || opts.earlier === undefined) return reading.chat(at)
+  if (opts.earlier === undefined) return reading.chat(at)
   const read = await inTime(opts.earlier.talk(at, BUDGET.chat), EARLIER_MS, false)
   const page = reading.chat(at)
   // What was held is answered all the same, and the page asks again.
@@ -91,24 +89,23 @@ export async function turnsHere(
 ): Promise<TurnsPage> {
   const task = `${params.project ?? ''}/${params.task ?? ''}`
   const here = opts.readingFor(reach).agent(task).here
-  const allowed = here && has(reach, 'lanes')
   // A cursor that is not a record's is the beginning: nothing before it.
   const asked = before !== null && CURSOR.test(before) ? before : null
-  if (!allowed) return turnsBefore(task, here, reach, null, [])
-  if (asked === null) return turnsBefore(task, here, reach, { turns: [], before: null }, [])
-  if (opts.earlier === undefined) return turnsBefore(task, here, reach, 'unread', [])
+  if (!here) return turnsBefore(task, here, null, [])
+  if (asked === null) return turnsBefore(task, here, { turns: [], before: null }, [])
+  if (opts.earlier === undefined) return turnsBefore(task, here, 'unread', [])
   const earlier = opts.earlier
   const read = await inTime<EarlierIn>(earlier.agent(task, asked), EARLIER_MS, 'unread')
-  if (read === 'unread') return turnsBefore(task, here, reach, read, [], earlier.places(task))
+  if (read === 'unread') return turnsBefore(task, here, read, [], earlier.places(task))
   const known = earlier.known()
   const places = earlier.places(task)
   // A long turn is cleaned off the window's thread first (`turnsAway`), and one
   // that could not be throws: the server says it at the machine.
   await turnsAway(read.turns, known, places)
-  return turnsBefore(task, here, reach, read, known, places)
+  return turnsBefore(task, here, read, known, places)
 }
 
-/** One agent's moments before a cursor its page holds: within reach, on no grant. */
+/** One agent's moments before a cursor its page holds. */
 export async function momentsHere(
   params: Readonly<Record<string, string>>,
   before: string | null,

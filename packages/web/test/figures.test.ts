@@ -105,16 +105,9 @@ describe('money', () => {
     expect(money(undefined).said).toBe('—')
   })
 
-  it('tells a figure nobody recorded from one this device may not read', () => {
-    // **Three dashes, not one.** A page that drew *not granted* as *not
-    // recorded* would tell somebody their work cost nothing, when what
-    // happened is that their phone was never allowed to ask.
-    expect(money(spend({ hasCost: true, usd: 4.12 }), false).said).toBe('—')
-    expect(money(spend({ hasCost: true, usd: 4.12 }), false).why).toBe('not granted')
-    expect(money(spend({ hasCost: false }), true).why).toBe('not recorded')
-    expect(money(spend({ hasCost: false }), true).why).not.toBe(
-      money(spend({ hasCost: false }), false).why,
-    )
+  it('says a figure nobody recorded as that, never as not granted', () => {
+    expect(money(spend({ hasCost: false })).why).toBe('not recorded')
+    expect(money(spend({ hasCost: true, usd: 4.12 })).why).toBe('')
   })
 
   it('is marked wherever any part of it was estimated', () => {

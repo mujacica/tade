@@ -72,7 +72,7 @@ describe('sharing notes', () => {
     expect(handed).toEqual([{ body, by: { device: made.device, from: 'mac' } }])
   })
 
-  it('refuses a phone, however much it was granted, and never asks the window', async () => {
+  it('answers a paired phone too, every one being the person’s own', async () => {
     const { one, handed } = await machine()
     const phone = await pair(one)
     const said = await ask(one, '/api/notes/share', {
@@ -85,8 +85,8 @@ describe('sharing notes', () => {
       },
       body: JSON.stringify({ from: 'phone', give: [], want: [] }),
     })
-    expect(said.status).toBe(403)
-    expect(handed).toEqual([])
+    expect(said.status, said.text).toBe(200)
+    expect(handed).toHaveLength(1)
   })
 
   it('reads lines as text, names a machine may be drawn by and digests, and nothing else', async () => {

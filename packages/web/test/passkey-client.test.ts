@@ -26,9 +26,10 @@ const NOW = Date.parse('2026-10-16T12:00:00Z')
 const HOUR = 3_600_000
 const at = (ms: number) => new Date(NOW + ms).toISOString()
 
-function you(passkey: Record<string, unknown> | null, scopes = ['read', 'steer']) {
+/** A paired device, and one paired in the clear (`clear`), which reads and never acts. */
+function you(passkey: Record<string, unknown> | null, clear = false) {
   return {
-    scopes,
+    clear,
     passkey:
       passkey === null
         ? null
@@ -49,15 +50,15 @@ describe('which bar a device is drawn', () => {
     ['nothing asked here', you({ asks: false }), null],
     ['no passkey field at all', you(null), null],
     ['the minutes after pairing', you({ makeBy: at(60_000) }), 'make'],
-    ['the minutes after pairing, reading only', you({ makeBy: at(60_000) }, ['read']), 'make'],
+    ['the minutes after pairing, paired in the clear', you({ makeBy: at(60_000) }, true), 'make'],
     ['the minutes gone, may act', you({ makeBy: null }), 'missed'],
-    ['the minutes gone, reading only', you({ makeBy: null }, ['read']), null],
+    ['the minutes gone, paired in the clear', you({ makeBy: null }, true), null],
     ['a proof still good', you({ made: true, proven: true, until: at(HOUR) }), null],
     ['a proof run out, may act', you({ made: true, until: at(-1) }), 'use'],
     // The machine's word over this page's clock, whichever way they disagree.
     ['a proof run out by the machine’s clock', you({ made: true, until: at(HOUR) }), 'use'],
     ['a proof good by the machine’s clock', you({ made: true, proven: true, until: at(-1) }), null],
-    ['a proof run out, reading only', you({ made: true, until: at(-1) }, ['read']), null],
+    ['a proof run out, paired in the clear', you({ made: true, until: at(-1) }, true), null],
   ]
   for (const [what, device, need] of rows) {
     it(`${what}: ${need ?? 'none'}`, () => {

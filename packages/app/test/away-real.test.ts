@@ -81,7 +81,7 @@ describe('what a real status says, as a phone would read it', () => {
     const snapshot = snapshotOf(
       {
         ...project(world),
-        reach: { device: 'd', projects: { kind: 'every' }, granted: [] },
+        reach: { device: 'd' },
         lifetime: { epoch: 'e', rev: 0, openedAt: 0 },
         // Not part of the world: the window lays it over (`talkFor`), and a
         // test about what the world's own folds carry hands over none.
@@ -105,7 +105,7 @@ describe('what a real status says, as a phone would read it', () => {
     const snapshot = snapshotOf(
       {
         ...project(world),
-        reach: { device: 'd', projects: { kind: 'every' }, granted: [] },
+        reach: { device: 'd' },
         lifetime: { epoch: 'e', rev: 0, openedAt: 0 },
         // Not part of the world: the window lays it over (`talkFor`), and a
         // test about what the world's own folds carry hands over none.
@@ -128,7 +128,7 @@ describe('what a real status says, as a phone would read it', () => {
     const snapshot = snapshotOf(
       {
         ...project(world),
-        reach: { device: 'd', projects: { kind: 'every' }, granted: [] },
+        reach: { device: 'd' },
         lifetime: { epoch: 'e', rev: 0, openedAt: 0 },
         // Not part of the world: the window lays it over (`talkFor`), and a
         // test about what the world's own folds carry hands over none.

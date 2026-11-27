@@ -18,7 +18,7 @@ import { NEVER_A_FIELD } from '../src/fields.ts'
 import { CACHE_PREFIX, VIEW_CACHE } from '../src/installable.ts'
 import { projector } from '../src/reading.ts'
 import { ROUTES, routeFor } from '../src/routes.ts'
-import { EVERY, input, NOW, reach } from './fixtures.ts'
+import { input, NOW, reach } from './fixtures.ts'
 
 // What may end up on a phone's disk.
 //
@@ -35,7 +35,7 @@ import { EVERY, input, NOW, reach } from './fixtures.ts'
 /** A page's store, filled from the real projection for a device granted all. */
 function held() {
   const store = emptyStore()
-  const made = projector(input({ reach: reach(EVERY) }), NOW)
+  const made = projector(input({ reach: reach() }), NOW)
   expect(applySnapshot(store, made.snapshot())).toBeNull()
   return store
 }

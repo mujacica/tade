@@ -4,7 +4,6 @@ import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
-import { ownsOrTheirs } from './surface.ts'
 
 // Another machine of the person's telling this one what it has
 // (`@tade/core`'s `inventory.ts`): which harnesses it is signed into, which
@@ -16,7 +15,7 @@ import { ownsOrTheirs } from './surface.ts'
 //
 // **An owner's, at this machine's own door** (`here`), like its neighbours: a
 // copy written into this home is what an edit to it over the same SSH already
-// is. The person's own phone (`theirs`) may tell one too, which is no more than
+// is. A paired phone may tell one too, which is no more than
 // what it may already do. It writes one file in this home, `0600`, and the
 // journal nothing: an inventory's digests are kept off it.
 
@@ -37,7 +36,6 @@ export async function inventoryToldHere(
   now: number,
 ): Promise<{ body: InventoryToldAnswer } | { refusal: Refusal }> {
   if (told === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const ask = InventoryToldBody.safeParse(got.body)

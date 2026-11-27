@@ -8,7 +8,7 @@ import { seenOf } from '../src/seen.ts'
 import { snapshotOf } from '../src/snapshot.ts'
 import { STALE_AFTER_MS } from '../src/stream.ts'
 import { WATCH_SEEN_MOST, type WatchSeenAnswer, watchSeenFor } from '../src/watch-seen.ts'
-import { EVERY, input, NOW, reach } from './fixtures.ts'
+import { input, NOW } from './fixtures.ts'
 
 // Another machine of the person's saying it is up or closing, the machines a
 // projection names, and what a watch hands back to the machine taking it.
@@ -26,28 +26,23 @@ const HOST: Host = {
 }
 
 describe('a machine saying it is up, or closing', () => {
-  it('is an owner’s word, or the person’s own phone’s, and no ordinary device’s', () => {
-    const owner = { owner: true, scopes: [], granted: [] }
-    expect(seenOf({ state: 'up' }, owner)).toEqual({
+  it('is a paired device’s word about itself', () => {
+    expect(seenOf({ state: 'up' })).toEqual({
       ok: true,
       word: { state: 'up', slept: null },
       host: null,
       name: null,
     })
-    expect(seenOf({ state: 'closed' }, owner)).toEqual({
+    expect(seenOf({ state: 'closed' })).toEqual({
       ok: true,
       word: { state: 'closed' },
       host: null,
       name: null,
     })
-    const ordinary = seenOf({ state: 'closed' }, { owner: false, scopes: ['read'], granted: [] })
-    expect(!ordinary.ok && ordinary.refusal.error).toBe('out_of_scope')
   })
 
   it('takes an age for a sleep, bounded, and nothing else', () => {
-    expect(
-      seenOf({ state: 'up', slept: 60_000 }, { owner: true, scopes: [], granted: [] }),
-    ).toEqual({
+    expect(seenOf({ state: 'up', slept: 60_000 })).toEqual({
       ok: true,
       word: { state: 'up', slept: 60_000 },
       host: null,
@@ -61,14 +56,13 @@ describe('a machine saying it is up, or closing', () => {
       { state: 'up', at: '2026-01-01' },
       null,
     ]) {
-      const read = seenOf(body, { owner: true, scopes: [], granted: [] })
+      const read = seenOf(body)
       expect(!read.ok && read.refusal.error, JSON.stringify(body)).toBe('malformed')
     }
   })
 
   it('carries the machine’s own figures, bounded, and figures that are not any cost it nothing', () => {
-    const owner = { owner: true, scopes: [], granted: [] }
-    expect(seenOf({ state: 'up', host: HOST }, owner)).toEqual({
+    expect(seenOf({ state: 'up', host: HOST })).toEqual({
       ok: true,
       word: { state: 'up', slept: null },
       host: HOST,
@@ -82,20 +76,19 @@ describe('a machine saying it is up, or closing', () => {
       'a lot',
     ]) {
       // A newer machine's shape never costs an older one its word that it is up.
-      expect(seenOf({ state: 'up', host }, owner)).toEqual({
+      expect(seenOf({ state: 'up', host })).toEqual({
         ok: true,
         word: { state: 'up', slept: null },
         host: null,
         name: null,
       })
     }
-    const closing = seenOf({ state: 'closed', host: HOST }, owner)
+    const closing = seenOf({ state: 'closed', host: HOST })
     expect(!closing.ok && closing.refusal.error).toBe('malformed')
   })
 
   it('says what the machine is called now, in a label’s grammar, and only with its word that it is up', () => {
-    const owner = { owner: true, scopes: [], granted: [] }
-    expect(seenOf({ state: 'up', name: 'laptop', host: HOST }, owner)).toEqual({
+    expect(seenOf({ state: 'up', name: 'laptop', host: HOST })).toEqual({
       ok: true,
       word: { state: 'up', slept: null },
       host: HOST,
@@ -109,14 +102,9 @@ describe('a machine saying it is up, or closing', () => {
       { state: 'up', name: 7 },
       { state: 'closed', name: 'laptop' },
     ]) {
-      const read = seenOf(body, owner)
+      const read = seenOf(body)
       expect(!read.ok && read.refusal.error, JSON.stringify(body)).toBe('malformed')
     }
-    const ordinary = seenOf(
-      { state: 'up', name: 'laptop' },
-      { owner: false, scopes: ['read'], granted: [] },
-    )
-    expect(!ordinary.ok && ordinary.refusal.error).toBe('out_of_scope')
   })
 
   it('is this machine’s door only, and a machine is lost after the slack a page gives its stream', () => {
@@ -139,7 +127,7 @@ describe('the machines a projection names', () => {
   ]
 
   it('goes out whole and strictly, to every device, and none where the window keeps none', () => {
-    const shown = snapshotOf(input({ machines, reach: reach([]) }), NOW)
+    const shown = snapshotOf(input({ machines }), NOW)
     expect(SnapshotSchema.parse(shown).machines).toEqual([
       {
         name: 'mac',
@@ -161,7 +149,6 @@ describe('the machines a projection names', () => {
     const wild = snapshotOf(
       input({
         machines: [{ ...(machines[1] as MachineIn), host: { ...HOST, load: -3 } }],
-        reach: reach([]),
       }),
       NOW,
     )
@@ -174,9 +161,9 @@ describe('the machines a projection names', () => {
   })
 
   it('carries this machine’s figures on a delta whenever they moved, and only then', () => {
-    const was = snapshotOf(input({ host: HOST, reach: reach(EVERY) }), NOW)
+    const was = snapshotOf(input({ host: HOST }), NOW)
     const looked = { ...HOST, cpu: 31, trail: { cpu: [...HOST.trail.cpu, 31], memory: [] } }
-    const is = snapshotOf(input({ host: looked, reach: reach(EVERY) }), NOW)
+    const is = snapshotOf(input({ host: looked }), NOW)
     const delta = deltaBetween(was, is)
     expect(DeltaSchema.parse(delta).host).toEqual(looked)
     expect(applyDelta(was, delta as NonNullable<typeof delta>)).toEqual(is)
@@ -190,11 +177,11 @@ describe('the machines a projection names', () => {
   })
 
   it('rides on a delta whole where it moved, and on no delta where it did not', () => {
-    const was = snapshotOf(input({ machines, reach: reach(EVERY) }), NOW)
+    const was = snapshotOf(input({ machines }), NOW)
     const moved = [
       { ...machines[0], state: 'up' as const, since: NOW } as (typeof machines)[number],
     ]
-    const is = snapshotOf(input({ machines: moved, reach: reach(EVERY) }), NOW)
+    const is = snapshotOf(input({ machines: moved }), NOW)
     const delta = deltaBetween(was, is)
     expect(delta).not.toBeNull()
     expect(DeltaSchema.parse(delta).machines).toEqual(is.machines)
@@ -213,23 +200,14 @@ describe('what a watch hands back', () => {
     more: 0,
   }
 
-  it('says nothing of a project the device does not read', () => {
-    const narrowed = watchSeenFor(
-      all,
-      { project: 'api', watch: 'github.ci' },
-      reach(EVERY, ['web']),
-    )
-    expect(narrowed).toMatchObject({ found: false, seen: [], since: null })
-    expect(watchSeenFor(all, { project: 'api', watch: 'github.ci' }, reach(EVERY))).toEqual(all)
+  it('carries what the watch found', () => {
+    expect(watchSeenFor(all)).toEqual(all)
+    expect(watchSeenFor({ ...all, found: false })).toMatchObject({ found: false, seen: [] })
   })
 
   it('carries the newest keys within its bound and counts the rest', () => {
     const many = Array.from({ length: WATCH_SEEN_MOST + 5 }, (_, at) => `k${at}`)
-    const out = watchSeenFor(
-      { ...all, seen: many },
-      { project: 'api', watch: 'github.ci' },
-      reach(EVERY),
-    )
+    const out = watchSeenFor({ ...all, seen: many })
     expect(out.seen).toHaveLength(WATCH_SEEN_MOST)
     expect(out.seen[0]).toBe('k0')
     expect(out.more).toBe(5)

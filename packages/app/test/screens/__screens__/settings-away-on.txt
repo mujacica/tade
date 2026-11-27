@@ -39,22 +39,22 @@
     │                            ▕│                                                                               █│    
     │                            ▕│  ● iPhone  connected now                                            Sign out  █│    
     │                            ▕│    phone · from your network · paired Fri 11 Sep 09:12                        █│    
-    │                            ▕│    reads     names   states   counts   titles   intent                        █│    
-    │                            ▕│    may      □ full access  □ answer & steer  □ stop agents  □ close projects  █│    
-    │                            ▕│             □ talk to Tade  □ change settings  □ see screens  □ read settings ▕│    
-    │                            ▕│                                                                               ▕│    
-    │                            ▕│                                                                               ▕│    
-    │                            ▕│ an agent on this machine could pair itself            Disconnect everything   ▕│    
-    │                            ▕│                                                                               ▕│    
-    │                            ▕│ Who can reach it            ◉ loopback     ○ lan                              ▕│    
+    │                            ▕│                                                                               █│    
+    │                            ▕│ an agent on this machine could pair itself            Disconnect everything   █│    
+    │                            ▕│                                                                               █│    
+    │                            ▕│ Who can reach it            ◉ loopback     ○ lan                              █│    
     │                            ▕│                                                                               ▕│    
     │                            ▕│ Port                        ‹   7654   ›                                      ▕│    
     │                            ▕│                                                                               ▕│    
     │                            ▕│ Trusted hostnames          none                                               ▕│    
-━   │                            ▕│                                                                               ▕│   ━
+    │                            ▕│                                                                               ▕│    
     │                            ▕│ Public name                none                                               ▕│    
+    │                            ▕│                                                                               ▕│    
+    │                            ▕│ Passkey before acting       ‹   12   ›    hours                               ▕│    
+━   │                            ▕│                                                                               ▕│   ━
+    │                            ▕│ Notification signing key   generated when it is first needed                  ▕│    
     │                            ▕│                                                                               ▕│   ▕
-    │                            ▕│ Passkey before acting       ‹   12   ›    hours                               ▕│   ▕
+    │                            ▕│ A PAIRED DEVICE MAY                                                           ▕│   ▕
     │                            ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

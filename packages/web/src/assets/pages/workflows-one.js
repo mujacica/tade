@@ -18,7 +18,6 @@
 // each decides what every future run does and stays at the machine, named
 // with its clause (`locally`).
 
-import { mayFor } from '../access.js'
 import { savingOf } from '../acts.js'
 import {
   classOn,
@@ -119,17 +118,11 @@ export function workflowScreen(where, ctx) {
       stateBoxIn(
         gone,
         had && row === null
-          ? mayFor(view.store, 'workflows')
-            ? stateOf(
-                'empty',
-                'No workflow by that name',
-                'It may have been renamed or removed at the machine. The workflows there are under Workflows.',
-              )
-            : stateOf(
-                'empty',
-                'Not granted to this device',
-                'The workflows are a grant of their own, given at the machine when a device is paired.',
-              )
+          ? stateOf(
+              'empty',
+              'No workflow by that name',
+              'It may have been renamed or removed at the machine. The workflows there are under Workflows.',
+            )
           : null,
       )
       for (const one of parts) one.node.hidden = row === null
@@ -279,8 +272,7 @@ function heroOf(ctx) {
  * **Said once, and only what the line above has not said**: one Tade ships
  * already says why in its readiness, and a published version with no draft
  * is told where a draft is opened rather than that it is not one. A device
- * that was not granted saving is told nothing, because a sentence naming a
- * scope somebody does not have is a map of what else to ask for.
+ * that cannot act is told nothing.
  */
 function savingSaid(row, standing) {
   if (standing.kind === 'yes') {

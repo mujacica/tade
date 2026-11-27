@@ -3,7 +3,6 @@ import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
-import { ownsOrTheirs } from './surface.ts'
 
 // Another machine of the person's telling this one its whole projection, so
 // this machine's page can draw it — live while that machine is up, and as of
@@ -16,7 +15,7 @@ import { ownsOrTheirs } from './surface.ts'
 // holds, because ipax can never call it.
 //
 // **An owner's, at this machine's own door** (`here`), like the feeds and the
-// notes beside it — and the person's own device's (`theirs`), as every route
+// notes beside it — and a paired phone's, as every route
 // in `OWNED` is: what is written is a copy in this home, which the SSH key
 // could write, and a phone telling one is telling this machine about itself.
 //
@@ -159,7 +158,6 @@ export async function projectionHere(
   told: { pieces: Pieces; take: WebProjectionTold } | undefined,
 ): Promise<{ body: ProjectionAnswer } | { refusal: Refusal }> {
   if (told === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const piece = Told.safeParse(got.body)

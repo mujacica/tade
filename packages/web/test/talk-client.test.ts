@@ -16,9 +16,7 @@ import {
   talkScreen,
 } from '../src/assets/talk.js'
 import type { ChatIn } from '../src/input.ts'
-import { GRANTS } from '../src/reach.ts'
 import { projector } from '../src/reading.ts'
-import { SCOPES } from '../src/surface.ts'
 import { input, NOW, reach, talk } from './fixtures.ts'
 
 // The conversation with Tade drawn as the window's strip draws it — on the
@@ -95,13 +93,10 @@ const FOUR: ChatIn[] = [
   line(3, { kind: 'reply', text: 'Successful tool calls now **show** what they returned.' }),
 ]
 
-/** A store holding these lines, as a device granted the conversation and the calls reads them. */
+/** A store holding these lines, as a paired device reads them. */
 function storeOf(lines: ChatIn[], over: Parameters<typeof talk>[0] = {}) {
   const store = emptyStore()
-  const made = projector(
-    input({ talk: talk({ lines, ...over }), reach: reach(['talk', 'lanes']) }),
-    NOW,
-  )
+  const made = projector(input({ talk: talk({ lines, ...over }), reach: reach() }), NOW)
   expect(applySnapshot(store, made.snapshot())).toBeNull()
   return store
 }
@@ -197,10 +192,7 @@ describe('a line of the conversation', () => {
   it('reads back to the first line said, with nothing saying it is elsewhere', async () => {
     // Longer than one page of the snapshot, so the rest is read as it is reached.
     const all = Array.from({ length: 300 }, (_, n) => line(n, { kind: 'tade', text: `line ${n}` }))
-    const made = projector(
-      input({ talk: talk({ lines: all }), reach: reach(['talk', 'lanes']) }),
-      NOW,
-    )
+    const made = projector(input({ talk: talk({ lines: all }), reach: reach() }), NOW)
     const store = emptyStore()
     expect(applySnapshot(store, made.snapshot())).toBeNull()
     const asked: string[] = []
@@ -292,11 +284,12 @@ describe('a line of the conversation', () => {
     )
   })
 
-  it('carries `/login` out on the person’s own phone, and sends it to the window from any other', async () => {
-    for (const [who, session, path] of [
-      ['theirs', { scopes: [...SCOPES], reads: [...GRANTS] }, SIGN_IN_PATH],
-      ['an ordinary device', { scopes: ['read'], reads: [] }, '/api/ask/ask'],
+  it('carries `/login` out on any paired device, and sends anything else to Tade', async () => {
+    for (const [who, said, path] of [
+      ['a sign-in', '/login', SIGN_IN_PATH],
+      ['a sentence', 'what now?', '/api/ask/ask'],
     ] as const) {
+      const session = { device: 'dev_7f3a9c21', label: 'iPhone' }
       const asked: string[] = []
       const screen = talkScreen({
         ...ctx,
@@ -309,7 +302,7 @@ describe('a line of the conversation', () => {
       screen.update(view(storeOf(FOUR, { mine: true })))
       doc.body.append(screen.node)
       const box = screen.node.querySelector('textarea') as StillElement & { value: string }
-      box.value = '/login'
+      box.value = said
       ;(screen.node.querySelector('.ask-send') as StillElement).click()
       await Promise.resolve()
       expect(asked, who).toEqual([path])

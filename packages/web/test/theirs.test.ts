@@ -1,25 +1,23 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { allowDevice, appendDevice, grantDevice } from '../src/devices.ts'
+import { appendDevice } from '../src/devices.ts'
 import { type Asking, allowed, type Guarding } from '../src/guard.ts'
 import { Pieces } from '../src/projection-told.ts'
-import { GRANTS } from '../src/reach.ts'
 import { CSRF_HEADER } from '../src/request.ts'
 import { CONNECTS, OWNED, ROUTES, type Route } from '../src/routes.ts'
-import { SCOPES, type Surface } from '../src/surface.ts'
+import type { Surface } from '../src/surface.ts'
 import { ask, closeAll, pair, type Running, start } from './harness.ts'
 
-// The person's own phone asks what only the SSH key's session could
-// (`Route.theirs`): every route of the owner's, presence, and the guided
-// pages that connect a source with their presses. The person decided it —
-// their phone is the screen they can pull the plug on — so a device with full
-// access that is not a machine link (`theirsOf`) is answered these on any
-// door, read off the record at the request. Every other device keeps exactly
-// what it had: on this machine's door refused (and the connect pages there
-// sessionless, as they were), anywhere else the `404` of a path nobody built.
+// A paired phone asks what only the SSH key's session could: every route of
+// the owner's, presence, and the guided pages that connect a source with their
+// presses. Every paired device is the person's own — their phone is the screen
+// they can pull the plug on — so it is answered these on any door, asked there
+// what acting asks. Nobody without a session gets anything but the `404` of a
+// path nobody built, and the connect pages on this machine's door stay
+// sessionless, as they were.
 
 afterEach(closeAll)
 
-/** The routes the person's own device is answered on any door that are asked with a body, by name. */
+/** The routes a paired device is answered on any door that are asked with a body, by name. */
 const THEIRS = [
   'presence',
   'seen',
@@ -65,24 +63,14 @@ const routeNamed = (name: string): Route => {
   return found
 }
 
-describe('which routes the person’s own device reaches from any door', () => {
+describe('which routes a paired device reaches from any door', () => {
   it('is every route only this machine’s door answered: the owner’s, presence, and the connect page and presses', () => {
-    const marked = [...ROUTES, ...OWNED, ...CONNECTS].filter((one) => one.theirs === true)
-    expect(marked.map((one) => one.name).sort()).toEqual(
+    const here = [...ROUTES, ...OWNED, ...CONNECTS].filter((one) => one.here === true)
+    expect(here.map((one) => one.name).sort()).toEqual(
       [...THEIRS, 'connect page', ...PRESSES.map((one) => one.name)].sort(),
     )
-    for (const route of marked) expect(route.here, route.name).toBe(true)
-    // Nothing that is this machine's alone is left out of it.
-    const here = [...ROUTES, ...OWNED, ...CONNECTS].filter((one) => one.here === true)
-    expect(here.filter((one) => one.theirs !== true).map((one) => one.name)).toEqual([])
     expect(PRESSES.length).toBeGreaterThan(0)
     expect(PRESSES.map((one) => one.name)).toContain('connect github make')
-  })
-
-  it('is never where a source sends the browser back, which no session asks', () => {
-    for (const route of CONNECTS.filter((one) => one.connects === 'back')) {
-      expect(route.theirs, route.name).toBeUndefined()
-    }
   })
 })
 
@@ -108,11 +96,9 @@ describe('the door, for a route that is the SSH key’s', () => {
   }
   const session = (over: Partial<NonNullable<Guarding['session']>> = {}) => ({
     device: '00112233445566aa',
-    scopes: [...SCOPES],
     host: NAME,
     csrf: 'x'.repeat(43),
     proved: NOW - HOUR,
-    theirs: true,
     ...over,
   })
   const through = (over: Partial<Asking> = {}): Asking => ({
@@ -139,7 +125,7 @@ describe('the door, for a route that is the SSH key’s', () => {
   const here = [...ROUTES, ...OWNED, ...CONNECTS].filter((one) => one.here === true)
   const ALL = [...THEIRS, 'connect page', ...PRESSES.map((one) => one.name)]
 
-  it('lets the person’s own device through from the public name, on every one of them', () => {
+  it('lets a paired device through from the public name, on every one of them', () => {
     const answered: string[] = []
     for (const route of here) {
       const verdict = allowed(through(), route, guarding())
@@ -149,17 +135,21 @@ describe('the door, for a route that is the SSH key’s', () => {
     expect(answered.sort()).toEqual([...ALL].sort())
   })
 
-  it('is the same 404 as ever for every other device, and for nobody at all', () => {
+  it('is the same 404 as ever for nobody at all', () => {
     for (const name of ALL) {
-      const route = routeNamed(name)
-      for (const [who, asked] of [
-        ['an ordinary device', session({ theirs: false })],
-        ['a device read without the mark', { ...session(), theirs: undefined }],
-        ['no session', null],
-      ] as const) {
-        const verdict = allowed(through(), route, guarding({ session: asked }))
-        expect(!verdict.ok && verdict.refusal.error, `${name}, ${who}`).toBe('no_such')
-      }
+      const verdict = allowed(through(), routeNamed(name), guarding({ session: null }))
+      expect(!verdict.ok && verdict.refusal.error, name).toBe('no_such')
+    }
+  })
+
+  it('never acts for a device paired in the clear, whatever door it asks from', () => {
+    for (const name of ALL) {
+      const verdict = allowed(
+        through(),
+        routeNamed(name),
+        guarding({ session: session({ clear: true }) }),
+      )
+      expect(!verdict.ok && verdict.refusal.error, name).toBe('locked')
     }
   })
 
@@ -257,13 +247,8 @@ describe('the door, for a route that is the SSH key’s', () => {
       }),
     )
     expect(!untrusted.ok && untrusted.refusal.error).toBe('locked')
-    for (const [who, asked] of [
-      ['an ordinary device', session({ theirs: false })],
-      ['no session', null],
-    ] as const) {
-      const verdict = allowed(opened(), CONNECT_PAGE, guarding({ session: asked }))
-      expect(!verdict.ok && verdict.refusal.error, who).toBe('no_such')
-    }
+    const nobody = allowed(opened(), CONNECT_PAGE, guarding({ session: null }))
+    expect(!nobody.ok && nobody.refusal.error).toBe('no_such')
   })
 
   it('keeps this machine’s own door sessionless, a press there carrying a ticket instead', () => {
@@ -369,29 +354,17 @@ function post(one: Running, device: Awaited<ReturnType<typeof pair>>, path: stri
   })
 }
 
-/** Give a paired device every scope and every grant: the person's own. */
-async function fullAccess(one: Running, device: string): Promise<void> {
-  await allowDevice(one.home, device, SCOPES, new Date())
-  await grantDevice(one.home, device, GRANTS, new Date())
-}
-
-describe('the person’s own device at this machine’s door', () => {
+describe('a paired device at this machine’s door', () => {
   // A phone pairs on this machine's own address in these tests, so the door
-  // lets it through and what is under test is each handler's own gate, which
-  // asks the record: a body that does not parse is `malformed` past it and
-  // `out_of_scope` before it, so no window half is ever reached.
+  // lets it through and what is under test is each handler: a body that does
+  // not parse is `malformed`, so no window half is ever reached.
 
-  it('is answered each of them past the owner’s gate, where an ordinary device is refused', async () => {
+  it('is answered each of them past the door, as an owner is', async () => {
     const { one, asked } = await wired()
     const phone = await pair(one, { label: 'mine' })
-    const other = await pair(one, { label: 'theirs too?' })
-    await fullAccess(one, phone.device)
     for (const name of THEIRS) {
-      const path = routeNamed(name).path
-      const mine = await post(one, phone, path, { bogus: 1 })
+      const mine = await post(one, phone, routeNamed(name).path, { bogus: 1 })
       expect(mine.status, `${name}: ${mine.text}`).toBe(400)
-      const ordinary = await post(one, other, path, { bogus: 1 })
-      expect(ordinary.status, name).toBe(403)
     }
     expect(asked).toEqual([])
   })
@@ -399,7 +372,6 @@ describe('the person’s own device at this machine’s door', () => {
   it('says presence and gets an attach line, as the window answers an owner', async () => {
     const { one, asked } = await wired()
     const phone = await pair(one)
-    await fullAccess(one, phone.device)
     expect((await post(one, phone, '/api/presence', { ago: 0 })).status).toBe(200)
     const line = await post(one, phone, '/api/attach', { task: 'app/fix-it' })
     expect(line.status, line.text).toBe(200)
@@ -407,25 +379,9 @@ describe('the person’s own device at this machine’s door', () => {
     expect(asked).toEqual([`presence ${phone.device}`, 'attach app/fix-it'])
   })
 
-  it('is an ordinary device again at the next request once one box is unticked', async () => {
-    const { one, asked } = await wired()
-    const phone = await pair(one)
-    await fullAccess(one, phone.device)
-    expect((await post(one, phone, '/api/presence', { ago: 0 })).status).toBe(200)
-    await grantDevice(
-      one.home,
-      phone.device,
-      GRANTS.filter((grant) => grant !== GRANTS[0]),
-      new Date(),
-    )
-    expect((await post(one, phone, '/api/presence', { ago: 0 })).status).toBe(403)
-    expect(asked).toHaveLength(1)
-  })
-
   it('is nothing at the next request once it is revoked', async () => {
     const { one, asked } = await wired()
     const phone = await pair(one)
-    await fullAccess(one, phone.device)
     expect((await post(one, phone, '/api/presence', { ago: 0 })).status).toBe(200)
     await appendDevice(one.home, {
       kind: 'revoked',

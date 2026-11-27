@@ -10,7 +10,6 @@
 // opening the page would want to hear first — and that is a choice of which
 // existing answer to show, never a new rule about when work is stuck.
 
-import { mayFor } from '../access.js'
 import { money } from '../figures.js'
 import { flowGeometry } from '../flow.js'
 import { checkMark, joined, reviewMark, stepMark } from '../glyphs.js'
@@ -521,8 +520,7 @@ export function runSays(row, view) {
     bits.push(`${row.retries} delivery ${row.retries === 1 ? 'retry' : 'retries'}`)
   if (row.stamp !== null) bits.push(`${row.stamp.name}@${row.stamp.version}`)
   // **The figure or nothing, never a dash in a list of clauses.** `money`
-  // answers with the three dashes apart — not granted, not recorded, nought —
-  // and a row's quiet line is the wrong place to say which: the run's own
+  // answers with the two apart — not recorded, nought — and a row's quiet line is the wrong place to say which: the run's own
   // screen has the room and says it there.
   const paid = paidOf(row.usd, view, row.usd !== null && row.usd > 0)
   if (paid.said !== '—') bits.push(paid.said)
@@ -539,9 +537,9 @@ export function runSays(row, view) {
  * worth saying and is left out.
  *
  * **Money is not in it.** A step's figure is beside its name where there is
- * one, and *not granted* is said once, in the run's facts (`costSaid`) —
- * the same three words under every step of a run said nothing the first
- * time did not.
+ * one, and *not recorded* is said once, in the run's facts (`costSaid`) —
+ * the same words under every step of a run said nothing the first time did
+ * not.
  */
 export function stepSays(step) {
   const bits = [`checks ${checkMark(step.checks).word}`]
@@ -554,28 +552,24 @@ export function stepSays(step) {
 /**
  * What one figure of money says, with **which** dash it is where it is one.
  *
- * `money`'s own three answers, put into the one shape a labelled fact takes:
- * the figure where there is one, and the word for the dash where there is not.
- * Not granted, not recorded and nought are three different mornings.
+ * `money`'s own answers, put into the one shape a labelled fact takes: the
+ * figure where there is one, and the word for the dash where there is not.
+ * Not recorded and nought are two different mornings.
  */
 export function costSaid(usd, view) {
   const paid = paidOf(usd, view, usd !== null)
   return paid.why === '' ? paid.said : `${paid.said} ${paid.why}`
 }
 
-/** `money`'s answer for one figure of a run, under this device's grant. */
-export function paidOf(usd, view, hasCost = usd !== null) {
-  return money({ usd: usd ?? 0, usdEstimated: 0, hasCost }, mayFor(view.store, 'runs.usd'))
+/** `money`'s answer for one figure of a run. */
+export function paidOf(usd, _view, hasCost = usd !== null) {
+  return money({ usd: usd ?? 0, usdEstimated: 0, hasCost })
 }
 
-/**
- * Why a step waits, in words — and **which** nothing it is where there are
- * none: a reason nobody gave, and one this device was not granted, are two
- * different answers to *why is this waiting*.
- */
-export function whySaid(wait, view) {
+/** Why a step waits, in words, or that nobody gave a reason. */
+export function whySaid(wait, _view) {
   if (wait.why !== null) return wait.why.words
-  return mayFor(view.store, 'runs.steps.waits.why') ? 'no reason given' : 'reason not granted'
+  return 'no reason given'
 }
 
 /**

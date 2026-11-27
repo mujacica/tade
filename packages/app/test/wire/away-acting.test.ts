@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { AWAY_CONTROLS, awayPanel } from '../../src/panels/away/state.ts'
-import type { Away } from '../../src/wire/web.ts'
 import {
   closeAll,
-  DEVICE,
   KEY,
   type Machine,
   machine,
@@ -14,8 +11,8 @@ import {
   waitFor,
 } from './away-harness.ts'
 
-// The window's own end of acting: the only door a scope widens through, and
-// one park carried out through a real listener against a real repository.
+// The window's own end of acting: one park carried out through a real
+// listener against a real repository.
 //
 // **Everything here is real but the browser**, and `away-harness.ts` says
 // exactly what is not. What this file is about is the one verb that proved the
@@ -30,10 +27,10 @@ function act(port: number, body: Record<string, unknown>) {
   return post(port, 'park', body)
 }
 
-/** A machine with a device granted `steer`, listening, with the task in view. */
+/** A machine with a device paired, listening, with the task in view. */
 async function ready(over: { acting?: boolean } = {}): Promise<Machine> {
   const one = await machine(over)
-  await paired(one.home, one.port, ['read', 'steer'])
+  await paired(one.home, one.port)
   await one.away.open()
   return one
 }
@@ -146,22 +143,6 @@ describe('one park, all the way through', () => {
     expect(answer.body.error).toBe('no_such')
   })
 
-  it('answers `403` where the device was granted only reading', async () => {
-    const one = await machine()
-    await paired(one.home, one.port, [])
-    await one.away.open()
-    const answer = await act(one.port, {
-      task: one.task,
-      parked: true,
-      was: revOf(one, one.task),
-      key: KEY,
-      rev: 0,
-    })
-    expect(answer.status).toBe(403)
-    expect(answer.body.error).toBe('out_of_scope')
-    expect(parkedIn(one.home, one.task)).toBe(false)
-  })
-
   it('has no acting route at all while the setting is off', async () => {
     const one = await ready({ acting: false })
     const answer = await act(one.port, {
@@ -243,124 +224,3 @@ describe('work that came from outside this machine', () => {
     expect(parkedIn(one.home, came.id)).toBe(false)
   })
 })
-
-describe('letting one device act, at the machine', () => {
-  it('is a keypress here, written down, and it takes effect at once', async () => {
-    const one = await machine()
-    await paired(one.home, one.port, [])
-    await one.away.open()
-    await one.away.reread()
-    const body = { task: one.task, parked: true, was: revOf(one, one.task), key: KEY, rev: 0 }
-    expect((await act(one.port, body)).status).toBe(403)
-
-    // The panel's own control, by name, the way the window presses it.
-    one.show()
-    await grant(one.away, '00112233445566aa')
-    expect(one.news.join(' ')).toContain('can act')
-    const answer = await act(one.port, { ...body, key: 'second0012345678' })
-    expect(answer.status).toBe(200)
-    expect(parkedIn(one.home, one.task)).toBe(true)
-  })
-
-  it('grants both tiers, because one control that gave the gentler is the wrong half', async () => {
-    // **A widening said out loud and asserted.** The scope matrix has two tiers,
-    // and a grant that gave only `answer` would mean a phone that can allow a
-    // command and cannot set the work aside. A control per tier is the thing
-    // to build for a narrower grant; until then the sentence beside this one
-    // names all of it, and `test/separation.test.ts` holds the sentence.
-    const one = await machine()
-    await paired(one.home, one.port, [])
-    await one.away.open()
-    await one.away.reread()
-    one.show()
-    await grant(one.away, DEVICE)
-    const device = one.away.panel()?.away?.devices[0]
-    expect(device?.mayAct).toBe(true)
-    // Both tiers, through the door each one goes through: a park is `steer`
-    // and answering an approval is `answer`.
-    one.running(one.task)
-    one.waiting(one.task, 'req-1')
-    await one.refresh()
-    const answered = await post(one.port, 'answer', {
-      task: one.task,
-      was: revOf(one, one.task),
-      key: KEY,
-      rev: 0,
-      approval: 'req-1',
-      allow: true,
-    })
-    expect(answered.status).toBe(200)
-    const parked = await act(one.port, {
-      task: one.task,
-      parked: true,
-      was: revOf(one, one.task),
-      key: 'second0012345678',
-      rev: 0,
-    })
-    expect(parked.status).toBe(200)
-  })
-
-  it('takes it back the same way, and the device is read-only again', async () => {
-    // Ticked is both tiers (`BOXES.act`): one alone is a box pressing completes.
-    const one = await machine()
-    await paired(one.home, one.port, ['read', 'answer', 'steer'])
-    await one.away.open()
-    await one.away.reread()
-    await grant(one.away, '00112233445566aa')
-    expect(one.news.join(' ')).toContain('can no longer act')
-    const answer = await act(one.port, {
-      task: one.task,
-      parked: true,
-      was: revOf(one, one.task),
-      key: KEY,
-      rev: 0,
-    })
-    expect(answer.status).toBe(403)
-    expect(answer.body.error).toBe('out_of_scope')
-  })
-
-  it('never takes reading away as a side effect of either', async () => {
-    const one = await machine()
-    await paired(one.home, one.port, [])
-    await one.away.open()
-    await one.away.reread()
-    one.show()
-    await grant(one.away, '00112233445566aa')
-    const view = one.away.panel()?.away
-    expect(view?.devices[0]?.mayAct).toBe(true)
-    const answer = await act(one.port, {
-      task: one.task,
-      parked: true,
-      was: revOf(one, one.task),
-      key: KEY,
-      rev: 0,
-    })
-    expect(answer.status).toBe(200)
-  })
-
-  it('refuses while the setting is off, rather than writing a grant that does nothing', async () => {
-    const one = await machine({ acting: false })
-    await paired(one.home, one.port, [])
-    await one.away.open()
-    await one.away.reread()
-    one.show()
-    await grant(one.away, '00112233445566aa')
-    // Said on the panel where the control was pressed, never swallowed.
-    expect(one.away.panel()?.away?.problem).toContain('“Act”')
-  })
-
-  it('says so when there is no such device', async () => {
-    const one = await machine()
-    await one.away.open()
-    one.show()
-    await grant(one.away, 'ffffffffffffffff')
-    expect(one.away.panel()?.away?.problem).toContain('not paired')
-  })
-})
-
-/** Press the panel's own grant control, the way a click reaches the subject. */
-async function grant(away: Away, device: string): Promise<void> {
-  const submit = away.submits().away
-  if (submit === undefined) throw new Error('the away panel has no submit')
-  await submit(awayPanel(), `${AWAY_CONTROLS.act}${device}`)
-}

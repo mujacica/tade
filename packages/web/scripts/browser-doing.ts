@@ -2,7 +2,7 @@ import { READY, said } from '../test/browser-plan.ts'
 import { until } from './browser-until.ts'
 
 // `doing`: what Tade is doing while it answers, in a real browser, on the
-// device `browser.ts` already granted everything.
+// device `browser.ts` already paired.
 //
 // The status line in the box's place says the call in flight with the whole of
 // what it was handed — a brief of two hundred characters is every one of them,

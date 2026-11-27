@@ -63,7 +63,7 @@ describe('a project moved to this machine', () => {
     expect(asked).toEqual([{ open: OpenSchema.parse(OPEN), device: made.device }])
   })
 
-  it('refuses a phone, however much it was granted, and never asks the window', async () => {
+  it('answers a paired phone too, every one being the person’s own', async () => {
     const { one, asked } = await machine()
     const phone = await pair(one)
     const said = await ask(one, '/api/open', {
@@ -76,8 +76,8 @@ describe('a project moved to this machine', () => {
       },
       body: JSON.stringify(OPEN),
     })
-    expect(said.status).toBe(403)
-    expect(asked).toEqual([])
+    expect(said.status, said.text).toBe(200)
+    expect(asked).toHaveLength(1)
   })
 
   it('takes a URL git reads as a URL, and nothing it could read as an option or a transport', async () => {

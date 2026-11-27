@@ -4,7 +4,6 @@ import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
-import { ownsOrTheirs } from './surface.ts'
 
 // Notes shared between this machine and another of the person's:
 // the person's words reach both orchestrators and
@@ -17,10 +16,8 @@ import { ownsOrTheirs } from './surface.ts'
 // **An owner's, and only at this machine's own door** (`here` in
 // `routes.ts`), like the carry beside it: the person's notes are written here,
 // and every agent here is told them, so only the SSH key that could already
-// append to the file may add to it. A phone's session is refused it however
-// much it was granted, and the public listener answers the `404` of a path
-// nobody built — **but the person's own** (`Route.theirs`, `theirsOf`), on any
-// door: the notes are theirs, and their phone already says one to every agent
+// append to it may add to it — **or a paired phone**, every one of which is
+// the person's own, on any door: the notes are theirs, and their phone already says one to every agent
 // here (`note`). Off this machine's door it is asked a trusted origin and the
 // passkey, as acting is.
 //
@@ -88,7 +85,6 @@ export async function shareHere(
   notes: WebNotes | undefined,
 ): Promise<{ body: NotesShareAnswer } | { refusal: Refusal }> {
   if (notes === undefined) return { refusal: refuse('no_such') }
-  if (!ownsOrTheirs(device)) return { refusal: refuse('out_of_scope') }
   const got = await readBody(req)
   if (!got.read) return { refusal: got.refusal }
   const parsed = NotesBody.safeParse(got.body)

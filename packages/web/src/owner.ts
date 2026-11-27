@@ -1,16 +1,12 @@
 import { appendDevice } from './devices.ts'
-import { GRANTS } from './reach.ts'
 import { mint, SESSION_MS } from './sessions.ts'
-import { SCOPES } from './surface.ts'
 
 // An owner device: a session `tade web pair --owner` mints over SSH, bound to
 // this machine, whose turns reach what the keyboard reaches.
 //
-// **What changed, and why it is acceptable**. A
-// turn from a paired device is narrowed (`@tade/orchestrator`'s `origin.ts`):
-// it may not start an agent, plan, schedule or create a task, because a
-// phone's session is a weaker credential than being at the keyboard. The Mac
-// driving a VPS needs to *start* work there, and everything it would do
+// **What it is, beside a phone.** A phone is the person's own, and its words
+// are theirs; a machine link's words may be another machine's model's (below).
+// The Mac driving a VPS needs to *start* work there, and everything it would do
 // through an owner session, `ssh vps` already lets it do — running `tade`
 // there and typing into its agents' terminals included. The SSH key is the
 // owner; a request that arrives through that connection can never be more
@@ -24,14 +20,14 @@ import { SCOPES } from './surface.ts'
 //    (`paired.ts`, and `test/owner.test.ts` claims both).
 // 2. **It is bound to `localhost`**, and the device list makes an owner only of
 //    a line bound to this machine's own name (`ownerOf`): one written by hand
-//    for a public name is an ordinary device.
+//    for a public name is a phone's, with a phone's words.
 // 3. **A session is bound to its host, exactly** (`sessions.ts`).
 // 4. **A public listener refuses this machine's names at the door**
 //    (`hostAllowed`), so `Host: localhost` is answerable only on the loopback
 //    listener — from outside the box, through SSH (a forward, or `ssh -W`).
 // 5. **The local reach is given only where the door says the message came in
 //    on this machine** (`thisMachine`) **and** the record says owner now
-//    (`web-asking.ts`'s `armOf`). Either alone is a device's ordinary turn.
+//    (`web-asking.ts`'s `armOf`). An owner off this machine's door is refused.
 //
 // What it does **not** change: its words are a `said` line only where the
 // machine that sent them says the person typed them there (`AskCall.typed`,
@@ -62,8 +58,7 @@ export interface Owner {
 /**
  * Mint an owner device. **`tade web pair --owner`, and nothing else.**
  *
- * Everything granted, every project, because the reach it stands for is the
- * keyboard's; the boxes in the window can still take any of it back, and the
+ * It reaches what every paired device does, the keyboard's reach; the
  * settings that turn a capability on are still the person's. `from` is where
  * the SSH connection came from, or empty for a shell here.
  */
@@ -84,9 +79,6 @@ export async function mintOwner(
     host,
     csrf: minted.csrf,
     until: new Date(until).toISOString(),
-    scopes: [...SCOPES],
-    projects: null,
-    granted: [...GRANTS],
     from: what.from,
     owner: true,
   })

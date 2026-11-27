@@ -4,7 +4,7 @@ import { blank, Row } from '../../ui.ts'
 import { widthOf } from '../../width.ts'
 import type { PanelContext } from '../context.ts'
 import type { Line } from '../frame.ts'
-import { AWAY_CONTROLS, AWAY_LABELS } from './state.ts'
+import { AWAY_CONTROLS } from './state.ts'
 import type { AwayDevice, AwayView } from './view.ts'
 
 // The two things on the away panel that are about one device: the card a
@@ -14,14 +14,11 @@ import type { AwayDevice, AwayView } from './view.ts'
 //
 // **The card is the one thing on the panel that is a question**, so it is
 // drawn as one: a frame of its own in the waiting tone, the device in its own
-// words and where it came from in plain ones, what letting it in grants as
-// pills, the time left as a bar, and the two answers as the window's own pair
+// words and where it came from in plain ones, what letting it in gives as a
+// pill, the time left as a bar, and the two answers as the window's own pair
 // — `go` and `danger` — with the key each is on drawn as a key cap beside it
 // rather than glued to the front of its word. `a let it in` on a grey block was
 // read as three words, one of them a letter nobody could place.
-
-/** What every device reads, granted or not. */
-const BASE = ['names', 'states', 'counts'] as const
 
 /** The column a block's lead word takes, so what follows lines up under it. */
 const LEAD = 9
@@ -68,10 +65,10 @@ export function askingCard(
     for (const part of wrap(from, room)) lines.push(framed(row().text(part, skin.hint).build()))
   }
 
-  // What a yes grants, said before it is pressed: everything — the owner's
-  // call, opt-out rather than opt-in (`EVERYTHING`, `wire/web-grants.ts`) —
-  // and where any of it is taken back, which is that device's own row.
-  const back = '· untick any of it in its row below'
+  // What a yes gives, said before it is pressed: everything, because every
+  // paired device is the person's own — and how it ends, which is its row's
+  // Sign out.
+  const back = '· until you sign it out'
   const gets = [
     pill('full access'),
     { width: widthOf(back), draw: (r: Row) => r.text(back, skin.hint) },
@@ -104,26 +101,20 @@ export function askingCard(
 
 /**
  * One paired device: its name and whether it is connected now, with Sign out
- * at the right; what it is and where it paired from; what it reads, as pills;
- * and what it may do, a box each, ticked where a person here granted it.
- *
- * **A box and not a coloured chip**, because a chip whose colour said which
- * way pressing it went — green for *grant*, red for *take back* — was read the
- * other way round: green as *allowed*. A ticked box says what is true in a
- * screenshot, a pipe and `NO_COLOR` alike, and pressing it does the obvious
- * thing.
+ * at the right; then what it is, where it paired from, when, and its passkey.
+ * Nothing to tick: every paired device is the person's own, and Sign out is
+ * the one thing to do about one.
  */
 export function deviceLines(
   device: AwayDevice,
   chosen: boolean,
-  view: Pick<AwayView, 'acting' | 'talking' | 'configuring'>,
   ctx: PanelContext,
   inner: number,
 ): Line[] {
   const { skin } = ctx
   const row = () => new Row(inner, skin, ctx.pointer)
   const revoke: Target = { kind: 'control', id: `${AWAY_CONTROLS.revoke}${device.id}` }
-  const out = (r: Row) => r.chip(AWAY_LABELS[AWAY_CONTROLS.revoke], revoke, 'harm').space()
+  const out = (r: Row) => r.chip('Sign out', revoke, 'harm').space()
   const head = row()
     .space()
     .text(chosen ? '›' : ' ', skin.signal)
@@ -142,8 +133,8 @@ export function deviceLines(
     lines.push(head.build(), row().right(out).build())
   }
 
-  // An owner says so before anything else about it: its reach is not a
-  // phone's, and the boxes below cannot say that on their own.
+  // An owner says so before anything else about it: it is another machine's
+  // link, not a phone.
   const kind = device.owner ? 'owner' : kindOf(device.label)
   const about = [
     kind,
@@ -153,57 +144,16 @@ export function deviceLines(
       ? device.passkeyMade !== undefined
         ? `passkey made ${ctx.date(device.passkeyMade)}, used ${ctx.date(device.passkey)}`
         : `passkey used ${ctx.date(device.passkey)}`
-      : device.readsOnly
+      : device.readsOnly === 'no passkey'
         ? 'reads only: no passkey'
         : '',
+    device.readsOnly === 'in the clear' ? 'reads only: paired in the clear' : '',
   ]
   for (const part of wrap(about.filter(Boolean).join(' · '), inner - 5)) {
     lines.push(row().space(4).text(part, skin.hint).build())
   }
 
-  // What it reads, beyond what every device does. The two reading grants that
-  // have a box of their own are said by the box, not twice.
-  const boxed: readonly string[] = ['lanes', 'settings']
-  const reads = [...BASE, ...device.reads.filter((one) => !boxed.includes(one))]
-  lines.push(...indented(flow('reads', reads.map(pill), inner - 4, ctx, 1)))
-  lines.push(...indented(flow('may', mayOf(device, view), inner - 4, ctx)))
   return lines
-}
-
-/**
- * The boxes a device's row offers, in the order a person would weigh them:
- * changing the work, then talking, then settings, then what it may see.
- *
- * **Only where the setting is on** for the four that do something: with it off
- * there is no route a grant could reach, so the box is not drawn rather than
- * drawn and refused. The two that grant reading are always drawn — nothing
- * they grant can change anything.
- */
-function mayOf(
-  device: AwayDevice,
-  view: Pick<AwayView, 'acting' | 'talking' | 'configuring'>,
-): Piece[] {
-  const boxes: [string, boolean][] = [
-    [AWAY_CONTROLS.everything, device.full],
-    ...(view.acting
-      ? ([
-          [AWAY_CONTROLS.act, device.mayAct],
-          [AWAY_CONTROLS.agents, device.mayStop],
-          [AWAY_CONTROLS.projects, device.mayClose],
-        ] as [string, boolean][])
-      : []),
-    ...(view.talking ? ([[AWAY_CONTROLS.talk, device.mayTalk]] as [string, boolean][]) : []),
-    ...(view.configuring
-      ? ([[AWAY_CONTROLS.configure, device.mayConfigure]] as [string, boolean][])
-      : []),
-    [AWAY_CONTROLS.see, device.maySee],
-    [AWAY_CONTROLS.settings, device.mayReadSettings],
-  ]
-  return boxes.map(([control, on]) => {
-    const label = AWAY_LABELS[control as keyof typeof AWAY_LABELS]
-    const target: Target = { kind: 'control', id: `${control}${device.id}` }
-    return { width: 2 + widthOf(label), draw: (r: Row) => r.check(on, label, target) }
-  })
 }
 
 /** Something laid along a line: how wide it is, and how to draw it. */
@@ -220,7 +170,7 @@ function pill(word: string): Piece {
 /**
  * A lead word and then pieces, `gap` columns apart, onto as many lines as they
  * take: a line ends before a piece that would not fit, and nothing is cut. A
- * pill is padded already, so pills sit one apart and boxes two.
+ * pill is padded already, so pills sit one apart.
  */
 function flow(
   lead: string,
@@ -248,11 +198,6 @@ function flow(
   }
   lines.push(r.build())
   return lines
-}
-
-/** Lines drawn four columns narrower, moved four in: under a device's name. */
-function indented(lines: readonly Line[]): Line[] {
-  return lines.map((line) => ({ text: `    ${line.text}`, hits: shift(line.hits, 0, 4) }))
 }
 
 /**

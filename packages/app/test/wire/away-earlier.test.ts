@@ -81,7 +81,7 @@ describe('the conversation with Tade, further back than a page holds', () => {
   it('is read out of the record the window reads its own scrollback from, to its first line', async () => {
     const asked: (string | null)[] = []
     const one = await machine({ talking: true, transcript: held(), history: record(asked) })
-    await paired(one.home, one.port, ['read'], ['talk'])
+    await paired(one.home, one.port)
     await one.away.open()
 
     const snapshot = SnapshotSchema.parse((await get(one.port, '/api/snapshot')).body)
@@ -113,20 +113,6 @@ describe('the conversation with Tade, further back than a page holds', () => {
     )
     expect(none).toMatchObject({ rows: [], earlier: false, why: null })
     expect(asked).toEqual(['4096'])
-  })
-
-  it('reads nothing out of the record for a device not granted the conversation', async () => {
-    const asked: (string | null)[] = []
-    const one = await machine({ talking: true, transcript: held(), history: record(asked) })
-    await paired(one.home, one.port, ['read'], [])
-    await one.away.open()
-    const page = ChatPageSchema.parse(
-      (await get(one.port, `/api/chat?before=${encodeURIComponent('2026-10-08T14:01:00.000Z#0')}`))
-        .body,
-    )
-    expect(page).toMatchObject({ rows: [], why: 'not granted' })
-    expect(asked).toEqual([])
-    expect(one.transcript().entries).toHaveLength(150)
   })
 })
 
@@ -162,7 +148,7 @@ describe('an agent’s conversation, further back than its page holds', () => {
     })
     root = one.root
     one.running(one.task)
-    await paired(one.home, one.port, ['read'], ['lanes'])
+    await paired(one.home, one.port)
     await one.away.open()
     // Asking is looking: the newest page is read on the beat after.
     await get(one.port, `/api/agent/${one.task}`)
@@ -200,7 +186,7 @@ describe('an agent’s timeline, further back than its newest stretch', () => {
       })
     }
     await one.refresh()
-    await paired(one.home, one.port, ['read'], [])
+    await paired(one.home, one.port)
     await one.away.open()
 
     const answer = AgentOutSchema.parse((await get(one.port, `/api/agent/${one.task}`)).body)
@@ -231,7 +217,7 @@ describe('an agent’s timeline, further back than its newest stretch', () => {
 
   it('reads nothing for a task that is not on this device', async () => {
     const one = await machine()
-    await paired(one.home, one.port, ['read'], [])
+    await paired(one.home, one.port)
     await one.away.open()
     const page = MomentsPageSchema.parse(
       (await get(one.port, '/api/agent/nobody/nothing/moments?before=99')).body,

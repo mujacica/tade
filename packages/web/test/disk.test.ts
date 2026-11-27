@@ -105,7 +105,7 @@ describe('what is on this machine’s disk in one of its projects, asked from an
     expect(said.status).toBe(404)
   })
 
-  it('refuses a phone that is not the person’s own, however much it was granted, and never asks the window', async () => {
+  it('answers a paired phone too, every one being the person’s own', async () => {
     const { one, asked } = await machine()
     const phone = await pair(one)
     const said = await ask(one, '/api/disk', {
@@ -118,8 +118,8 @@ describe('what is on this machine’s disk in one of its projects, asked from an
       },
       body: JSON.stringify({ project: 'tade', agent: null, what: 'file', path: 'a' }),
     })
-    expect(said.status).toBe(403)
-    expect(asked).toEqual([])
+    expect(said.status, said.text).toBe(200)
+    expect(asked).toHaveLength(1)
   })
 
   it('reads its ask for its shape: a file needs a path, and a path has no NUL', async () => {
@@ -210,7 +210,7 @@ describe('what is on this machine’s disk in one of its projects, asked from an
     expect(asked).toEqual([])
   })
 
-  it('refuses a write from a phone that is not the person’s own, and never asks the window', async () => {
+  it('answers a write from a paired phone too', async () => {
     const { one, asked } = await machine()
     const phone = await pair(one)
     const said = await ask(one, '/api/disk', {
@@ -223,8 +223,8 @@ describe('what is on this machine’s disk in one of its projects, asked from an
       },
       body: JSON.stringify({ project: 'tade', agent: null, what: 'pull' }),
     })
-    expect(said.status).toBe(403)
-    expect(asked).toEqual([])
+    expect(said.status, said.text).toBe(200)
+    expect(asked).toHaveLength(1)
   })
 
   it('refuses a body past even a save’s bound unread, and never asks the window', async () => {

@@ -150,13 +150,13 @@ describe('the verb table', () => {
     expect(new Map(VERBS.map((verb) => [verb.name, verb.needs]))).toEqual(
       new Map([
         ['park', 'steer'],
-        ['answer', 'answer'],
+        ['answer', 'steer'],
         ['steer', 'steer'],
         ['queue', 'steer'],
         ['done', 'steer'],
         ['note', 'steer'],
         ['context', 'steer'],
-        ['intake', 'answer'],
+        ['intake', 'steer'],
         // The lifecycle, each pair at a scope of its own that neither acting
         // tier implies: stopping an agent is a say in whether it does anything
         // at all, and closing a project changes what every surface draws.
@@ -165,9 +165,7 @@ describe('the verb table', () => {
         ['close', 'projects'],
         ['open', 'projects'],
         // The rest of an agent's own menu, at the agents scope: what may be
-        // asked of an agent beyond telling it something. The four that delete
-        // work, hand it away or change whose sign-in it runs on are the
-        // person's own device's alone besides (`theirs`, below).
+        // asked of an agent beyond telling it something.
         ['start', 'agents'],
         ['remove', 'agents'],
         ['rename', 'agents'],
@@ -178,15 +176,9 @@ describe('the verb table', () => {
         ['move', 'agents'],
       ]),
     )
-    expect(VERBS.filter((verb) => verb.theirs === true).map((verb) => verb.name)).toEqual([
-      'remove',
-      'account',
-      'harness',
-      'move',
-    ])
-    // And none of them needs `read`, which would be every paired device.
+    // And none of them is `read`, which would skip what an act is asked.
     for (const verb of VERBS) {
-      expect(['answer', 'steer', 'agents', 'projects']).toContain(verb.needs)
+      expect(['steer', 'agents', 'projects']).toContain(verb.needs)
     }
   })
 

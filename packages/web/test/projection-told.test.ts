@@ -171,8 +171,8 @@ describe('the route', () => {
     expect(handed).toEqual([])
   })
 
-  it('refuses a phone that is not the person’s own, and is the 404 of a path nobody wired', async () => {
-    const { one, handed } = await machine()
+  it('answers a paired phone too, and is the 404 of a path nobody wired', async () => {
+    const { one } = await machine()
     const phone = await pair(one)
     const said = await ask(one, '/api/projection', {
       method: 'POST',
@@ -184,13 +184,11 @@ describe('the route', () => {
       },
       body: JSON.stringify(piecesOf(whole('{}'))[0]),
     })
-    expect(said.status).toBe(403)
-    expect(handed).toEqual([])
+    expect(said.status, said.text).toBe(200)
     const none = await start()
     expect((await asOwner(none, await owner(none), piecesOf(whole('{}'))[0])).status).toBe(404)
     expect(OWNED.find((route) => route.name === 'projection')).toMatchObject({
       here: true,
-      theirs: true,
     })
   })
 })

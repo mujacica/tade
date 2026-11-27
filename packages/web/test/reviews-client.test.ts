@@ -21,7 +21,7 @@ import {
 import { applySnapshot, emptyStore, reviewsOf } from '../src/assets/store.js'
 import type { TaskIn } from '../src/input.ts'
 import { projector } from '../src/reading.ts'
-import { EVERY, input, NOW, reach, task } from './fixtures.ts'
+import { input, NOW, reach, task } from './fixtures.ts'
 
 // What the reviews page draws, against **real projected rows** rather than
 // shapes a test assembled: every hold, order, count and word goes through the
@@ -61,22 +61,22 @@ const asking = (id: string, waited: number, over: Partial<TaskIn> = {}) =>
     ...over,
   })
 
-/** The store a device granted everything holds, for these tasks. */
-function stored(tasks: TaskIn[], granted = EVERY) {
+/** The store a paired device holds, for these tasks. */
+function stored(tasks: TaskIn[]) {
   const store = emptyStore()
-  applySnapshot(store, projector(input({ reach: reach(granted), tasks }), NOW).snapshot())
+  applySnapshot(store, projector(input({ reach: reach(), tasks }), NOW).snapshot())
   return store
 }
 
 /** The page over these tasks, as the screen builds it: the store's split, then the shape. */
-function page(tasks: TaskIn[], granted = EVERY, frozen = false) {
-  const { offered: open, unoffered } = reviewsOf(stored(tasks, granted))
+function page(tasks: TaskIn[], frozen = false) {
+  const { offered: open, unoffered } = reviewsOf(stored(tasks))
   return reviewsPage(open, unoffered, NOW, frozen)
 }
 
 /** One projected row, as the store holds it. */
-function row(one: TaskIn, granted = EVERY) {
-  return stored([one], granted).rows.tasks.get(one.id)
+function row(one: TaskIn) {
+  return stored([one]).rows.tasks.get(one.id)
 }
 
 const ids = (cards: readonly { id: string }[]) => cards.map((one) => one.id)
@@ -198,14 +198,11 @@ describe('the forge', () => {
     expect(unnumbered?.said).toBe('Open the review on its forge, in a new tab')
   })
 
-  it('links nothing that is not https, and nothing this device was not sent', () => {
+  it('links nothing that is not https, and nothing where there is no link', () => {
     expect(forgeOf({ state: 'open', url: 'javascript:alert(1)' })).toBeNull()
     expect(forgeOf({ state: 'open', url: 'http://github.invalid/acme/sentry/pull/1' })).toBeNull()
     expect(forgeOf({ state: 'open', url: null })).toBeNull()
     expect(forgeOf(null)).toBeNull()
-    // The link is withheld without the grant, and the card has no press.
-    const one = reviewOf(row(offered('a/link', 1), []), NOW)
-    expect(one.forge).toBeNull()
   })
 })
 
@@ -227,10 +224,9 @@ describe('one review, as its card says it', () => {
     expect(card.holdMark.tone).toBe('t-failed')
   })
 
-  it('carries what was asked for only where the device was granted it', () => {
+  it('carries what was asked for, to every paired device', () => {
     const one = offered('a/words', 1, { title: 'Let an alert fire on a percentage' })
     expect(reviewOf(row(one), NOW).words).toBe('Let an alert fire on a percentage')
-    expect(reviewOf(row(one, []), NOW).words).toBeNull()
   })
 
   it('says no age, and labels none, for a task that never moved', () => {

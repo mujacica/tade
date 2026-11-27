@@ -4,7 +4,6 @@ import { AgentOutSchema, MomentsPageSchema } from '../src/protocol.ts'
 import { projector } from '../src/reading.ts'
 import {
   agentHeld,
-  EVERY,
   earlierActivity,
   HELD_KEY,
   input,
@@ -14,33 +13,19 @@ import {
   task,
 } from './fixtures.ts'
 
-// One agent, as a device looking at it may read it.
+// One agent, as a device looking at it reads it.
 
 const TASK = 'sentry/away-projection'
 const tasks = input().tasks
 
 describe('one agent, for one device', () => {
-  it('is a strict answer, whatever the grant', () => {
-    for (const granted of [[], EVERY]) {
-      const answer = agentOf(reach(granted), tasks, TASK, agentHeld())
-      expect(() => AgentOutSchema.parse(answer)).not.toThrow()
-    }
+  it('is a strict answer', () => {
+    const answer = agentOf(reach(), tasks, TASK, agentHeld())
+    expect(() => AgentOutSchema.parse(answer)).not.toThrow()
   })
 
-  it('withholds the screen from a device not granted it, and says that is why', () => {
-    const answer = agentOf(reach(EVERY.filter((one) => one !== 'lanes')), tasks, TASK, agentHeld())
-    expect(answer.screen).toBeNull()
-    // **Not granted, and never *no agent***: the second would be the page
-    // blaming the work for the reader's own reach.
-    expect(answer.why).toBe('not granted')
-    // Not one row of it, under any name.
-    expect(JSON.stringify(answer)).not.toContain('Reading the adapter')
-    // What it has been doing is Tade's own words and needs no grant.
-    expect(answer.activity.length).toBeGreaterThan(0)
-  })
-
-  it('gives the cleaned screen to a device granted it', () => {
-    const answer = agentOf(reach(['lanes']), tasks, TASK, agentHeld())
+  it('gives the cleaned screen', () => {
+    const answer = agentOf(reach(), tasks, TASK, agentHeld())
     expect(answer.why).toBeNull()
     expect(answer.screen?.lines).toContain('  4 files touched, the tests pass')
     expect(answer.screen?.at).toBe('2026-10-08T14:29:58.000Z')
@@ -51,22 +36,18 @@ describe('one agent, for one device', () => {
     }
   })
 
-  it('answers a task in a project this device may not read as one that is not there', () => {
-    const hidden = agentOf(reach(EVERY, ['tade']), tasks, TASK, agentHeld())
-    const missing = agentOf(reach(EVERY), tasks, 'sentry/nothing-here', agentHeld())
-    // **The same bytes but the name**, so a deep link is not a way of finding
-    // out which projects exist.
-    expect({ ...hidden, task: '' }).toEqual({ ...missing, task: '' })
-    expect(hidden).toMatchObject({ here: false, activity: [], screen: null, why: 'not here' })
+  it('answers a task that is not there as not here', () => {
+    const missing = agentOf(reach(), tasks, 'sentry/nothing-here', agentHeld())
+    expect(missing).toMatchObject({ here: false, activity: [], screen: null, why: 'not here' })
   })
 
   it('tells nothing read yet apart from nothing running', () => {
-    const working = agentOf(reach(['lanes']), tasks, TASK, null)
+    const working = agentOf(reach(), tasks, TASK, null)
     expect(working.why).toBe('not read yet')
-    const idle = agentOf(reach(['lanes']), [task({ agents: 0, lanes: 0 })], TASK, null)
+    const idle = agentOf(reach(), [task({ agents: 0, lanes: 0 })], TASK, null)
     expect(idle.why).toBe('no agent')
     const gone = agentOf(
-      reach(['lanes']),
+      reach(),
       tasks,
       TASK,
       agentHeld({ lane: { kind: 'none', why: 'could not read' } }),
@@ -155,7 +136,7 @@ describe('what Tade says about a moment', () => {
 describe('a projector answers it out of what it was handed', () => {
   it('asks the window about the agent at the moment it is asked', () => {
     const asked: string[] = []
-    const held = projector(input({ reach: reach(['lanes']) }), NOW, {
+    const held = projector(input({ reach: reach() }), NOW, {
       agent: (one) => {
         asked.push(one)
         return agentHeld()
@@ -167,7 +148,7 @@ describe('a projector answers it out of what it was handed', () => {
   })
 
   it('answers not read yet where nothing was handed over', () => {
-    const held = projector(input({ reach: reach(['lanes']) }), NOW)
+    const held = projector(input({ reach: reach() }), NOW)
     expect(held.agent(TASK).why).toBe('not read yet')
   })
 })

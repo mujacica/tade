@@ -70,9 +70,6 @@ describe('tade web', () => {
         host: '127.0.0.1:7654',
         csrf: 'x'.repeat(43),
         until: new Date(Date.now() + 86_400_000).toISOString(),
-        scopes: ['read'],
-        projects: null,
-        granted: ['notes'],
         from: '192.168.1.42',
       },
     ])
@@ -179,12 +176,14 @@ describe('tade web', () => {
     expect(after.stdout).toBe('no device is paired')
   })
 
-  it('lists devices with what each may read, and says an agent could add one', async () => {
+  it('lists devices with what each is, and says an agent could add one', async () => {
     await paired({ device: '00112233445566aa', label: 'iPhone' })
     const said = await tade('web', 'devices')
     expect(said.stdout).toContain('iPhone')
     expect(said.stdout).toContain('00112233445566aa')
-    expect(said.stdout).toContain('notes')
+    // Every paired device is the person's own: what it is, never what it may read.
+    expect(said.stdout).toContain('phone')
+    expect(said.stdout).not.toContain('names and counts')
     expect(said.stdout).toContain('2d ago')
     // Said where somebody is reading the list, because the list is the
     // mitigation: an agent on this machine can append a line to that file.
@@ -295,9 +294,11 @@ describe('tade web', () => {
       expect(drawn.stdout).toContain(LINK_IS_THE_ACCESS)
       const full = await tade('web', 'pair', '--json')
       expect((JSON.parse(full.stdout) as Record<string, unknown>).access).toBe('full')
-      const json = await tade('web', 'pair', '--json', '--read-only')
+      // Every paired device is the person's own: there is no narrower code.
+      expect((await tade('web', 'pair', '--read-only')).code).not.toBe(0)
+      const json = await tade('web', 'pair', '--json')
       const got = JSON.parse(json.stdout) as Record<string, unknown>
-      expect(got.access).toBe('read')
+      expect(got.access).toBe('full')
       expect(got.host).toBe('tade.example.com')
       expect(String(got.url)).toMatch(/^https:\/\/tade\.example\.com\/pair#t=/)
       expect(got.answering).toBe(false)
@@ -312,7 +313,9 @@ describe('tade web', () => {
         'pending',
       ])
       expect(written[0]).toMatchObject({ label: 'my phone' })
-      expect(written[4]).toMatchObject({ scopes: ['read'] })
+      // A code says where it goes and what to call it, never what it may have.
+      expect(written[4]).not.toHaveProperty('scopes')
+      expect(written[4]).not.toHaveProperty('granted')
       const devices = await tade('web', 'devices')
       expect(devices.stdout).toContain(`a code from the terminal  ${String(got.device)}  unclaimed`)
       const status = JSON.parse((await tade('web', 'status', '--json')).stdout) as {

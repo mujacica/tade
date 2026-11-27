@@ -18,30 +18,30 @@
    │  Window        ▕│     here goes to its        ▕│   
  ▾ │                ▕│     orchestrator as you at  ▕│   
    │  Away view     ▕│     its keyboard, and a     ▕│   
-   │                ▕│     device paired there and ▕│   
-   │  Intake        ▕│     granted it may send one ▕│   
-   │                ▕│     too — a full-access     ▕│   
-   │  Projects  ● 1 ▕│     device talks as you;    ▕│   
-   │                ▕│     others, never as your   ▕│   
-   │  Journal       ▕│     own words. Its Settings ▕│   
- ▸ │                ▕│     › Away view turns it    ▕│   
- ▾ │  Telemetry     ▕│     off again.              ▕│   
-   │                ▕│   claude-code               ▕│   
-   │  Shortcuts     ▕│     ● 27 days left          ▕│   
+   │                ▕│     device paired there may ▕│   
+   │  Intake        ▕│     send one too — every    ▕│   
+   │                ▕│     paired device talks as  ▕│   
+   │  Projects  ● 1 ▕│     you. Its Settings ›     ▕│   
+   │                ▕│     Away view turns it off  ▕│   
+   │  Journal       ▕│     again.                  ▕│   
+ ▸ │                ▕│   claude-code               ▕│   
+ ▾ │  Telemetry     ▕│     ● 27 days left          ▕│   
    │                ▕│   This machine’s            ▕│   
-   │  Accounts  ● 3 ▕│     projects                ▕│   
+   │  Shortcuts     ▕│     projects                ▕│   
    │                ▕│   Move projects             ▕│   
-   │▌ Remotes       ▕│     1 of 2 here is on vps   ▕│   
-   │▌               ▕│       Hide                  ▕│   
-   │  Updates       ▕│   Move checkout             ▕│   
-   │                ▕│     on vps as checkout · n… ▕│   
-   │                ▕│       Close it here…        ▕│   
-   │                ▕│   Not there yet             ▕│5. 
-   │                ▕│     search                  ▕│ds 
+   │  Accounts  ● 3 ▕│     1 of 2 here is on vps   ▕│   
    │                ▕│       Hide                  ▕│   
-   │                ▕│   search                    ▕│   
-   │                ▕│       Open it on vps        ▕│+12
+   │▌ Remotes       ▕│   Move checkout             ▕│   
+   │▌               ▕│     on vps as checkout · n… ▕│   
+   │  Updates       ▕│       Close it here…        ▕│   
+   │                ▕│   Not there yet             ▕│   
+   │                ▕│     search                  ▕│   
+   │                ▕│       Hide                  ▕│5. 
+   │                ▕│   search                    ▕│ds 
+   │                ▕│       Open it on vps        ▕│   
    │                ▕│       Carry again           ▕│   
+   │                ▕│                             ▕│+12
+   │                ▕│                             ▕│   
    │                ▕│                             ▕│   
    │                ▕│                             ▕│   
    │                ▕│                             ▕│   

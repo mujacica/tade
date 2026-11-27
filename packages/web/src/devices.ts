@@ -4,8 +4,7 @@ import { z } from 'zod'
 import { hostOf } from './guard.ts'
 import type { Keeping } from './installable.ts'
 import type { PasskeyStanding } from './passkeys.ts'
-import { GRANTS, readsOf } from './reach.ts'
-import { loopbackHost, reachOf, SCOPES } from './surface.ts'
+import { loopbackHost } from './surface.ts'
 import { type Algorithm, CREDENTIAL_ID_MOST } from './webauthn.ts'
 
 // The paired devices, in `<home>/web-devices.jsonl`: append-only, `0600`, a bad
@@ -13,9 +12,15 @@ import { type Algorithm, CREDENTIAL_ID_MOST } from './webauthn.ts'
 //
 // The same shape as `memory.jsonl` and for the same reasons: a file of lines is
 // readable by a person, survives a crash mid-write with at most one line lost,
-// and needs no migration. A device is granted, signed out or revoked by
+// and needs no migration. A device is paired, signed out or revoked by
 // appending — never by rewriting — so the file is also the record of what
 // happened to each one.
+//
+// **Every paired device is the person's own** (decided 26 Nov): a line says
+// who a device is and how long its session lasts, never what it may read or
+// do. Lines an older Tade wrote with `scopes`, `projects` and `granted` in
+// them, and its `allowed` and `granted` lines, still parse — a file must
+// still be the list of your devices — and say nothing any more.
 //
 // **What is in it, and what is not.** The digest of a session secret, never the
 // secret: `sha256` of it and nothing else, so an agent that reads this file
@@ -37,7 +42,17 @@ export function devicesPath(home: string): string {
   return join(home, DEVICES_FILE)
 }
 
-const Granted = z.array(z.enum(GRANTS))
+/**
+ * What an older Tade wrote on a `paired` or `pending` line about what a device
+ * might read and do. Read as any words, so a word this Tade no longer has
+ * (`answer`, a grant's name) cannot make a device's line fail to parse, and
+ * kept for nothing but `wasClear`.
+ */
+const Retired = {
+  scopes: z.array(z.string().max(32)).max(32).optional(),
+  projects: z.array(z.string()).nullable().optional(),
+  granted: z.array(z.string().max(32)).max(32).optional(),
+}
 
 /**
  * A device being paired.
@@ -60,12 +75,13 @@ const PairedLine = z.strictObject({
   csrf: z.string().max(120),
   /** When it stops being a session, as a moment. */
   until: z.string(),
-  /** What it may do. Narrowed by the origin it paired on and never widened. */
-  scopes: z.array(z.enum(SCOPES)),
-  /** Which projects it may read, or null for every one of them. */
-  projects: z.array(z.string()).nullable(),
-  /** What content it was granted beyond names and counts. */
-  granted: Granted,
+  /**
+   * Paired over an origin that is not trusted (`trusted`): its credential
+   * crossed a network in the clear, so it reads and never acts, whatever is
+   * turned on later (`Device.clear`).
+   */
+  clear: z.literal(true).optional(),
+  ...Retired,
   /** The address it paired from, for the device list. Metadata, bounded. */
   from: z.string().max(64),
   /**
@@ -97,9 +113,7 @@ const PendingLine = z.strictObject({
   host: z.string().max(260),
   /** What it is called, where the person at the terminal said. Empty is the phone's word. */
   label: z.string().max(120),
-  scopes: z.array(z.enum(SCOPES)),
-  projects: z.array(z.string()).nullable(),
-  granted: Granted,
+  ...Retired,
 })
 
 /**
@@ -138,49 +152,20 @@ const RenewedLine = z.strictObject({
 })
 
 /**
- * What a person at the machine says this device may do, after pairing.
- *
- * **A line of its own, and the only way a scope changes after pairing.**
- * Pairing mints every scope by default (the owner's decision: the away view is
- * the whole of Tade, opt-out rather than opt-in), and whatever is ticked or
- * unticked at the machine afterwards is a second decision, about one device,
- * and this is the record of it. A request can never write one: nothing in `routes.ts` grants anything, which is
- * *pairing and scopes are never remote* — the thing that grants
- * authority is never reachable from inside the authority it granted.
- *
- * It is **not** a config key either, for the reason the read grants are not:
- * a setting would be one answer for every phone, and this is a sentence about
- * one. `surfaces.web.acting` is the different question of whether any of them
- * may, and both have to be true.
- *
- * Narrower is written the same way, so taking it back is a line rather than a
- * rewrite — the file stays append-only and stays the record of what happened.
+ * What an older Tade wrote when somebody at the machine ticked or unticked
+ * what one device might do (`allowed`) or read (`granted`). Parsed so a file
+ * with them in it is not a file with skipped lines, and folded into nothing:
+ * every paired device is the person's own.
  */
-const AllowedLine = z.strictObject({
+const AllowedLine = z.object({
   kind: z.literal('allowed'),
   device: z.string().regex(/^[0-9a-f]{16}$/),
   at: z.string(),
-  /** What it may do now, in full. Never a delta: a list read back is the grant. */
-  scopes: z.array(z.enum(SCOPES)),
 })
-
-/**
- * What a person at the machine let this device **read** beyond names and
- * counts, in full.
- *
- * `allowed`'s twin for the other half of a device's reach: pairing writes the
- * read grants once, and a keypress at the machine is the only thing that
- * changes them afterwards — never a request, never a config key, for the
- * reason `allowed` gives. The list is the whole grant, so a narrower one is
- * the same line with less in it and the file stays the record of what
- * happened.
- */
-const GrantedLine = z.strictObject({
+const GrantedLine = z.object({
   kind: z.literal('granted'),
   device: z.string().regex(/^[0-9a-f]{16}$/),
   at: z.string(),
-  /** What it may read now, in full. Never a delta: a list read back is the grant. */
-  granted: Granted,
 })
 
 /**
@@ -274,9 +259,6 @@ export interface PendingCode {
   digest: string
   host: string
   label: string
-  scopes: readonly string[]
-  projects: readonly string[] | null
-  granted: readonly string[]
 }
 
 /** A device as the rest of the program asks about one. */
@@ -289,9 +271,14 @@ export interface Device {
   /** When this session expires, as a moment. */
   until: number
   pairedAt: number
-  scopes: readonly string[]
-  projects: readonly string[] | null
-  granted: readonly string[]
+  /**
+   * Paired in the clear: over an origin that was not trusted, so its
+   * credential crossed a network anybody on it could read. **It reads and
+   * never acts** (the guard's `locked`), whatever is trusted later — a
+   * session is bound to the host it was minted on, and that host becoming an
+   * `https` name the config trusts does not make the cookie a secret again.
+   */
+  clear: boolean
   from: string
   /** Null while it is live; Tade's own word for why once it is not. */
   revoked: string | null
@@ -347,14 +334,6 @@ export function devicesIn(text: string): {
       continue
     }
     if (parsed.kind === 'paired') {
-      // **An owner link is paired with everything, so it reads with everything
-      // there is now** — the scopes and grants of this Tade, not of the one
-      // that wrote the line. `mintOwner` is the only writer of an owner line
-      // and writes every scope and grant it knew of; a link paired before a
-      // newer one existed would otherwise stop being full access, and stop
-      // reaching what the person's own device does (`theirsOf`), the day this
-      // machine's Tade is upgraded. What somebody here unticks afterwards is an
-      // `allowed` or `granted` line below, and stands.
       const owner = ownerOf(parsed)
       devices.set(parsed.device, {
         id: parsed.device,
@@ -364,9 +343,7 @@ export function devicesIn(text: string): {
         csrf: parsed.csrf,
         until: Date.parse(parsed.until),
         pairedAt: Date.parse(parsed.at),
-        scopes: owner ? [...SCOPES] : parsed.scopes,
-        projects: parsed.projects,
-        granted: owner ? [...GRANTS] : parsed.granted,
+        clear: !owner && (parsed.clear === true || wasClear(parsed)),
         from: parsed.from,
         revoked: null,
         owner,
@@ -382,9 +359,6 @@ export function devicesIn(text: string): {
         digest: parsed.digest,
         host: parsed.host,
         label: parsed.label,
-        scopes: parsed.scopes,
-        projects: parsed.projects,
-        granted: parsed.granted,
       })
       continue
     }
@@ -400,16 +374,8 @@ export function devicesIn(text: string): {
       continue
     }
     if (parsed.kind === 'revoked') devices.set(parsed.device, { ...held, revoked: parsed.why })
-    else if (parsed.kind === 'allowed') {
-      // **`read` is kept whatever the line says**, so a grant written without
-      // it cannot take reading away by accident — widening what one device may
-      // do and signing it out are different acts, and only one of them has a
-      // control. Taking a grant back is an `allowed` line with less in it.
-      const scopes = parsed.scopes.includes('read') ? parsed.scopes : ['read', ...parsed.scopes]
-      devices.set(parsed.device, { ...held, scopes })
-    } else if (parsed.kind === 'granted') {
-      devices.set(parsed.device, { ...held, granted: parsed.granted })
-    } else if (parsed.kind === 'named') {
+    else if (parsed.kind === 'allowed' || parsed.kind === 'granted') continue
+    else if (parsed.kind === 'named') {
       devices.set(parsed.device, { ...held, label: parsed.label })
     } else if (parsed.kind === 'passkey') {
       const at = Date.parse(parsed.at)
@@ -440,6 +406,23 @@ export function ownerOf(line: { owner?: true | undefined; host: string }): boole
   return line.owner === true && name !== null && loopbackHost(name)
 }
 
+/**
+ * Whether a line an older Tade wrote says its device paired in the clear.
+ *
+ * That Tade wrote no `clear`: it wrote the scopes pairing minted, which the
+ * origin's ceiling cut to `read` alone off a trusted origin. So a line with
+ * scopes and none of them an act, for a host that is not this machine's, is
+ * read as paired in the clear — the direction that takes authority away, since
+ * a device narrowed to reading at the machine that way is one paired again in
+ * a minute, and one whose cookie crossed a network must never act.
+ */
+function wasClear(line: Paired): boolean {
+  if (line.scopes === undefined) return false
+  const name = hostOf(line.host)
+  if (name !== null && loopbackHost(name)) return false
+  return line.scopes.every((scope) => scope === 'read')
+}
+
 /** The devices in the file, or none at all where there is no file yet. */
 export async function readDevices(
   home: string,
@@ -467,51 +450,6 @@ export async function appendDevice(home: string, line: DeviceLine): Promise<void
   // gap between the two is a window in which the digests are world-readable.
   await appendFile(path, `${JSON.stringify(Line.parse(line))}\n`, { mode: 0o600 })
   await chmod(path, 0o600).catch(() => {})
-}
-
-/**
- * Let one device act, or take it back. **A person at the machine, only.**
- *
- * Here beside the file rather than in the window, so that the one rule about a
- * grant — that `read` survives it — is in the same place as the fold that
- * reads one. The scopes are written in full: a list read back out of the file
- * is the whole of what that device may do, so there is no pair of lines whose
- * order decides the answer.
- */
-export async function allowDevice(
-  home: string,
-  device: string,
-  scopes: readonly string[],
-  at: Date,
-): Promise<void> {
-  await appendDevice(home, {
-    kind: 'allowed',
-    device,
-    at: at.toISOString(),
-    scopes: z.array(z.enum(SCOPES)).parse(scopes),
-  })
-}
-
-/**
- * Let one device read more, or less. **A person at the machine, only** — the
- * same door `allowDevice` is, for the read grants rather than the scopes.
- *
- * Written in full, for `allowDevice`'s reason, and parsed against `GRANTS` on
- * the way in, so a word nothing reads cannot be written down as though it
- * granted something.
- */
-export async function grantDevice(
-  home: string,
-  device: string,
-  granted: readonly string[],
-  at: Date,
-): Promise<void> {
-  await appendDevice(home, {
-    kind: 'granted',
-    device,
-    at: at.toISOString(),
-    granted: Granted.parse(granted),
-  })
 }
 
 /**
@@ -578,9 +516,8 @@ export async function writeDevices(home: string, lines: readonly DeviceLine[]): 
  * here** because seeing every device there is, is the real mitigation against
  * one having been minted by something on this machine (`DEVICES_AND_AGENTS`).
  *
- * `scopes` is on `you` and on nothing else, and it is what the page reads to
- * know whether to draw a control at all: a device that was granted `read` and
- * nothing else is one whose buttons are absent rather than refused. What it
+ * `clear` is on `you` and on nothing else: a device paired in the clear reads
+ * and never acts, so its page draws no control rather than a refusal. What it
  * may *actually* do is still decided at the act — the setting, the origin and
  * the state are all re-asked there — so this is a drawing hint and never an
  * authority.
@@ -603,12 +540,11 @@ export function listing(
     you: {
       device: me.id,
       label: me.label,
-      reads: readsOf(reachOf(me)),
-      scopes: me.scopes,
+      clear: me.clear,
       csrf: me.csrf,
       until: new Date(me.until).toISOString(),
       // Whether acting from here asks for this device's passkey, and where it
-      // stands: a drawing hint like `scopes`, decided again at every act.
+      // stands: a drawing hint like `clear`, decided again at every act.
       passkey,
     },
     devices: devices

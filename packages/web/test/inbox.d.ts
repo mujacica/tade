@@ -65,10 +65,7 @@ declare module '*/assets/pages/inbox-shape.js' {
   export function startsSaid(would: unknown): string | null
   export function actionOf(row: unknown, known: (id: string) => boolean): Action
   export function heldTaskOf(row: unknown, known: (id: string) => boolean): string | null
-  export function chipsOf(
-    row: unknown,
-    mayWho: boolean,
-  ): { key: string; said: string; mono: boolean }[]
+  export function chipsOf(row: unknown): { key: string; said: string; mono: boolean }[]
   export function approveWhy(
     row: unknown,
     here: boolean,
@@ -93,7 +90,7 @@ declare module '*/assets/pages/inbox-shape.js' {
   export function settledSaid(n: number, open: boolean): string
   export function emptySays(sources: readonly unknown[]): string
   export function troubleOf<T extends { state: string }>(sources: readonly T[]): T | undefined
-  export function provenanceOf(row: unknown, may: boolean): Pair[]
+  export function provenanceOf(row: unknown): Pair[]
   export function factsSplit(pairs: readonly Pair[], row: unknown): { first: Pair[]; more: Pair[] }
   export function standingOfRequest(
     row: unknown,

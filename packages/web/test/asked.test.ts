@@ -9,9 +9,8 @@ import {
   type StopCall,
   type WebAsking,
 } from '../src/asking.ts'
-import { namesOnly } from '../src/reach.ts'
 import { Receipts } from '../src/receipts.ts'
-import type { Scope, Surface } from '../src/surface.ts'
+import type { Surface } from '../src/surface.ts'
 import { homeFor } from './harness.ts'
 
 // One message to Tade, end to end, with a real receipt store on disk and a
@@ -91,8 +90,6 @@ async function context(
     surface: SURFACE,
     unlocked: true,
     rev: 4,
-    reach: namesOnly('00112233445566aa'),
-    scopes: ['read', 'ask'] as readonly Scope[],
     origin: { scheme: 'http', host: '127.0.0.1', listener: 'loopback' },
     device: '00112233445566aa',
     now: Date.parse('2026-10-09T09:00:00.000Z'),
@@ -207,19 +204,6 @@ describe('a message that is refused', () => {
     expect(made.calls).toHaveLength(0)
   })
 
-  it('needs `ask`, which neither acting tier implies', async () => {
-    const made = window_()
-    for (const scopes of [['read'], ['read', 'answer'], ['read', 'answer', 'steer']] as const) {
-      const answered = await carryAsk(
-        'ask',
-        BODY,
-        await context(made.asking, { scopes }, 'ask-scope'),
-      )
-      expect(answered.refusal?.error).toBe('out_of_scope')
-    }
-    expect(made.calls).toHaveLength(0)
-  })
-
   it('is refused from an origin a credential could have been read off', async () => {
     const made = window_()
     const answered = await carryAsk(
@@ -298,14 +282,14 @@ describe('a message that is refused', () => {
     const answered = await carryAsk(
       'ask',
       BODY,
-      await context(made.asking, { scopes: ['read'] }, 'ask-audit'),
+      await context(made.asking, { unlocked: false }, 'ask-audit'),
     )
     expect(answered.did).toEqual({
       device: '00112233445566aa',
       tool: 'ask',
       task: '',
       state: 'refused',
-      why: 'out_of_scope',
+      why: 'locked',
     })
   })
 
@@ -317,16 +301,6 @@ describe('a message that is refused', () => {
 })
 
 describe('stopping the turn', () => {
-  it('needs `ask` like sending one, because it is half of being able to send', async () => {
-    const made = window_()
-    const answered = await carryAsk(
-      'stop',
-      { was: chatRev({ busy: true }), key: 'abcdefgh12345678', rev: 4 },
-      await context(made.asking, { scopes: ['read', 'steer'] }, 'stop-scope'),
-    )
-    expect(answered.refusal?.error).toBe('out_of_scope')
-  })
-
   it('answers nothing in flight with a `404` rather than a quiet success', async () => {
     const made = window_({ stop: () => Promise.reject(new NotThere('nothing is in flight')) })
     const answered = await carryAsk(
@@ -354,15 +328,13 @@ describe('the gate, over the cross-product', () => {
   const read = readAsk(BODY)
   const saying = read.ok ? read.saying : null
 
-  it('refuses unless every one of the four is true', () => {
+  it('refuses unless every one of the three is true', () => {
     expect(saying).not.toBeNull()
     if (saying === null) return
     const standing = {
       surface: SURFACE,
       unlocked: true,
       rev: 4,
-      reach: namesOnly('00112233445566aa'),
-      scopes: ['read', 'ask'] as readonly Scope[],
       origin: { scheme: 'http', host: '127.0.0.1', listener: 'loopback' } as const,
     }
     expect(admitAsk(saying, standing).ok).toBe(true)
@@ -370,7 +342,6 @@ describe('the gate, over the cross-product', () => {
     expect(admitAsk(saying, { ...standing, surface: { ...SURFACE, talking: false } }).ok).toBe(
       false,
     )
-    expect(admitAsk(saying, { ...standing, scopes: ['read'] }).ok).toBe(false)
     expect(
       admitAsk(saying, {
         ...standing,

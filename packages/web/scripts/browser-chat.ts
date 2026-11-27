@@ -5,7 +5,7 @@ import { until } from './browser-until.ts'
 
 // The conversation with Tade read as a chat, in a real browser.
 //
-// **On the device `browser.ts` already granted everything**, never a new one:
+// **On a device `browser.ts` already paired**, never a new one:
 // the server lets one address pair five times in ten minutes and the harness
 // spends all five.
 //

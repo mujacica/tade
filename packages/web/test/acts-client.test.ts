@@ -22,7 +22,6 @@ import {
   settingsSaid,
   shownOf,
   standingOf,
-  THEIRS,
   wordsFor,
 } from '../src/assets/acts.js'
 import { draftStore, reasonFor, saidOn, whoSaid } from '../src/assets/talk.js'
@@ -63,9 +62,9 @@ const ROW = {
   ],
 }
 
-const BOTH = { answer: true, steer: true }
+const BOTH = { steer: true }
 
-describe('the scope each verb needs, written twice', () => {
+describe('what kind of act each verb is, written twice', () => {
   it('agrees with the verb table, verb for verb', () => {
     // **Both directions.** A verb the page knows and the table does not is a
     // control that is always refused; a verb the table has and the page does
@@ -85,12 +84,6 @@ describe('the scope each verb needs, written twice', () => {
         .sort(),
     )
     expect(SHOWN.filter((verb) => MENU_SHOWN.includes(verb))).toEqual([])
-    // Whose device a verb is for alone, written twice like its scope.
-    expect([...THEIRS].sort()).toEqual(
-      VERBS.filter((verb) => verb.theirs === true)
-        .map((verb) => verb.name)
-        .sort(),
-    )
     expect([...PROJECT_SHOWN].sort()).toEqual(
       VERBS.filter((verb) => verb.on === 'project')
         .map((verb) => verb.name)
@@ -148,104 +141,45 @@ describe('the scope each verb needs, written twice', () => {
 })
 
 describe('what this device may draw', () => {
-  it('reads the scopes off its own session, and nothing off a row', () => {
-    expect(actsOf({ scopes: ['read', 'steer'] })).toEqual({
-      answer: false,
+  it('may ask for everything on a paired device, and nothing off a row', () => {
+    // Every paired device is the person's own.
+    const all = {
       steer: true,
-      ask: false,
-      draft: false,
-      agents: false,
-      projects: false,
-      configure: false,
-    })
-    expect(actsOf({ scopes: ['read', 'answer'] })).toEqual({
-      answer: true,
-      steer: false,
-      ask: false,
-      draft: false,
-      agents: false,
-      projects: false,
-      configure: false,
-    })
-    expect(actsOf({ scopes: ['read', 'answer', 'steer'] })).toEqual({
-      ...BOTH,
-      ask: false,
-      draft: false,
-      agents: false,
-      projects: false,
-      configure: false,
-    })
-    // **A third scope, and neither tier implies it.** A device granted both
-    // acting tiers has been granted eight bounded verbs; talking to a model
-    // that holds tools is a separate grant with a separate control.
-    expect(actsOf({ scopes: ['read', 'ask'] })).toEqual({
-      answer: false,
-      steer: false,
       ask: true,
-      draft: false,
-      agents: false,
-      projects: false,
-      configure: false,
-    })
-    // **And a fourth, implied by nothing and implying nothing.** Saving a
-    // field of a draft workflow writes a file every future run would be
-    // stamped from once somebody at the machine publishes it, so it is its own
-    // grant with its own control — and a device granted it has not been
-    // granted either acting tier or a word to the model.
-    expect(actsOf({ scopes: ['read', 'draft'] })).toEqual({
-      answer: false,
-      steer: false,
-      ask: false,
       draft: true,
-      agents: false,
-      projects: false,
-      configure: false,
-    })
-    // **And the eighth, implied by nothing and implying nothing**: changing a
-    // setting. A device granted every other scope has been granted nothing
-    // about the config, and one granted this has been granted nothing else.
-    expect(
-      actsOf({ scopes: ['read', 'answer', 'steer', 'ask', 'draft', 'agents', 'projects'] })
-        .configure,
-    ).toBe(false)
-    expect(actsOf({ scopes: ['read', 'configure'] })).toEqual({
-      answer: false,
-      steer: false,
-      ask: false,
-      draft: false,
-      agents: false,
-      projects: false,
+      agents: true,
+      projects: true,
       configure: true,
-    })
+    }
+    expect(actsOf({ device: 'dev_7f3a9c21' })).toEqual(all)
+    expect(actsOf({ device: 'dev_7f3a9c21', clear: false })).toEqual(all)
   })
 
-  it('draws nothing for a session that is not there, or carries nothing', () => {
-    // Every shape a session can be missing in, because a default of *may* here
-    // would be a control present and refused on every row of a read-only
-    // phone.
-    for (const session of [null, undefined, {}, { scopes: null }, { scopes: 'steer' }]) {
-      expect(actsOf(session), JSON.stringify(session)).toEqual({
-        answer: false,
-        steer: false,
-        ask: false,
-        draft: false,
-        agents: false,
-        projects: false,
-        configure: false,
-      })
+  it('draws nothing for a session that is not there, or one paired in the clear', () => {
+    // A device paired over plain HTTP reads and never acts, so a control drawn
+    // for it would be present and refused on every row.
+    const none = {
+      steer: false,
+      ask: false,
+      draft: false,
+      agents: false,
+      projects: false,
+      configure: false,
+    }
+    for (const session of [null, undefined, { device: 'dev_7f3a9c21', clear: true }]) {
+      expect(actsOf(session), JSON.stringify(session)).toEqual(none)
     }
   })
 })
 
 describe('whether one control is drawn, and what is said instead', () => {
-  it('says nothing at all about a verb this device was not granted', () => {
-    // **`off` draws no reason**, which is the one of the three that is about
-    // somebody else: a sentence naming a scope this device does not have is a
-    // map of what else there is to ask for.
-    const only = { answer: true, steer: false }
-    expect(standingOf('steer', ROW, only)).toEqual({ kind: 'off', why: '' })
-    expect(standingOf('note', ROW, only)).toEqual({ kind: 'off', why: '' })
-    expect(standingOf('answer', ROW, only).kind).toBe('yes')
+  it('says nothing at all about a verb on a device that cannot act', () => {
+    // **`off` draws no reason**: a device paired in the clear reads and never
+    // acts, and every control on it is absent.
+    const none = actsOf({ device: 'dev_7f3a9c21', clear: true })
+    expect(standingOf('steer', ROW, none)).toEqual({ kind: 'off', why: '' })
+    expect(standingOf('note', ROW, none)).toEqual({ kind: 'off', why: '' })
+    expect(standingOf('answer', ROW, none)).toEqual({ kind: 'off', why: '' })
   })
 
   it('draws the row’s own reason where the thing cannot be done', () => {
@@ -436,12 +370,12 @@ describe('which presses ask again first', () => {
 })
 
 describe('the lifecycle, on a phone', () => {
-  const LIFE = { answer: false, steer: false, agents: true, projects: true }
+  const LIFE = { steer: false, agents: true, projects: true }
 
-  it('draws nothing for a device not granted the scope, whatever the row says', () => {
-    // Both acting tiers and nothing else: neither implies `agents` or
-    // `projects`, so the controls are absent and so are their reasons.
-    for (const one of controlsFor(task(), BOTH).filter((each) =>
+  it('draws nothing for a device that cannot act, whatever the row says', () => {
+    // Paired in the clear: the controls are absent and so are their reasons.
+    const none = actsOf({ device: 'dev_7f3a9c21', clear: true })
+    for (const one of controlsFor(task(), none).filter((each) =>
       ['stop', 'reopen'].includes(each.verb),
     )) {
       expect(one.kind, one.verb).toBe('off')
@@ -453,7 +387,7 @@ describe('the lifecycle, on a phone', () => {
       can: [{ verb: 'close', how: 'now' }],
       cannot: [{ verb: 'open', why: 'it is open' }],
     }
-    for (const one of controlsFor(project, BOTH, PROJECT_SHOWN))
+    for (const one of controlsFor(project, none, PROJECT_SHOWN))
       expect(one.kind, one.verb).toBe('off')
   })
 
@@ -565,12 +499,12 @@ describe('the row the projection actually produces', () => {
 describe('the conversation screen', () => {
   it('says why there is no box, and says a different thing for each reason', () => {
     // Three absences and three sentences, because what to do about each is
-    // different: turn a setting on, be granted it, or wait. A page that said
+    // different: turn a setting on, pair again over https, or wait. A page that said
     // *you cannot do that* to all three would send somebody to the wrong
     // place twice out of three times.
     expect(reasonFor(null)).toContain('not turned on for this machine')
     expect(reasonFor({ mine: false, busy: false, rev: 'b0', whose: null })).toContain(
-      'not granted talking to Tade',
+      'reads and never sends',
     )
     expect(reasonFor({ mine: true, busy: true, rev: 'b1', whose: 'you' })).toBe(
       'Tade is answering the person at the machine.',
@@ -660,7 +594,7 @@ describe('the settings, as the page draws them', () => {
     expect(SETTINGS.map((route) => route.path)).toEqual([CHANGE_PATH])
   })
 
-  it('draws no control and no reason for a device not granted configure', () => {
+  it('draws no control and no reason for a device that cannot act', () => {
     expect(settingStanding(OPEN, { configure: false })).toEqual({ kind: 'off', why: '' })
     expect(settingStanding(OPEN, null)).toEqual({ kind: 'off', why: '' })
     expect(settingStanding(KEYED, {})).toEqual({ kind: 'off', why: '' })
@@ -700,15 +634,8 @@ describe('the settings, as the page draws them', () => {
     expect(shownOf({ ...OPEN, shown: '', fallback: '' })).toBe('nothing set')
   })
 
-  it('says not granted and nothing here as two different things', () => {
-    expect(settingsSaid({ granted: false, groups: [], withheld: 0 })).toBe(
-      'not granted to this device',
-    )
-    expect(settingsSaid({ granted: true, groups: [], withheld: 3 })).toBe(
-      'nothing here this device may read',
-    )
-    expect(settingsSaid({ granted: true, groups: [{ id: 'a', title: 'A', settings: [] }] })).toBe(
-      '',
-    )
+  it('says nothing here, and nothing at all where there are settings', () => {
+    expect(settingsSaid({ groups: [] })).toBe('no settings here')
+    expect(settingsSaid({ groups: [{ id: 'a', title: 'A', settings: [] }] })).toBe('')
   })
 })

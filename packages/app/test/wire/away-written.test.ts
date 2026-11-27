@@ -1,5 +1,5 @@
 import { request } from 'node:http'
-import { GRANTS, SCOPES, writeCode } from '@tade/web'
+import { writeCode } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import { closeAll, machine } from './away-harness.ts'
 
@@ -15,11 +15,7 @@ describe('letting a device in with a code the terminal wrote', () => {
     const one = await machine()
     await one.away.open()
     const host = `localhost:${one.port}`
-    const code = await writeCode(
-      one.home,
-      { host, label: '', scopes: [...SCOPES], projects: null, granted: [...GRANTS] },
-      Date.now(),
-    )
+    const code = await writeCode(one.home, { host, label: '' }, Date.now())
     expect(await claimOn(one.port, host, code.secret)).toBe(201)
     await until(() => one.away.inputs().devices === 1)
     expect(one.news.join(' ')).toContain(

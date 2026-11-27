@@ -60,10 +60,9 @@ import { type WatchSeenAnswer, watchSeenHere } from './watch-seen.ts'
 // work it hands this machine to start here (`taken.ts`), a press on another
 // machine's row put in its outbox (`pressed-there.ts`), and
 // a project it is moving here, opened (`opened.ts`). One door in `server.ts` for all of them (`OWNED_DOOR`),
-// because each is the SSH key's word and nothing an ordinary phone's session
-// is ever answered — but the person's own phone, on every one of them
-// (`Route.theirs`, `ownsOrTheirs` in each handler), because they decided it
-// may do what they can.
+// because each is the SSH key's word — and a paired phone's, on every one of
+// them, because every paired device is the person's own and may do what they
+// can.
 //
 // And through the same door, one word **any** device may say, because it is
 // the same kind of word as the first — a device's own about the person holding
@@ -180,7 +179,7 @@ export async function carryOwned(
   | { refusal: Refusal }
 > {
   if (route === 'carry') return carryHere(req, device, opts.carrying, res)
-  if (route === 'attach') return attachHere(req, device, opts.attaching)
+  if (route === 'attach') return attachHere(req, opts.attaching)
   if (route === 'since') return sinceHereFor(req, device, now, opts.since)
   if (route === 'share notes') return shareHere(req, device, opts.notes)
   if (route === 'share feeds') return feedsHere(req, device, opts.feeds)
@@ -188,11 +187,11 @@ export async function carryOwned(
   if (route === 'acts') return actHere(req, device, opts.acts)
   if (route === 'acts outbox') return outboxHere(req, device, opts.acts)
   if (route === 'press there') return pressThereHere(req, device, opts.pressThere)
-  if (route === 'repositories') return repositoriesHere(req, device, opts.repositories)
+  if (route === 'repositories') return repositoriesHere(req, opts.repositories)
   if (route === 'side') return sideHere(req, device, opts.side)
   if (route === 'disk') return diskHere(req, device, opts.disk)
-  if (route === 'machine') return machineHere(req, device, opts.machine)
-  if (route === 'machines') return machinesHere(req, device, opts.machines)
+  if (route === 'machine') return machineHere(req, opts.machine)
+  if (route === 'machines') return machinesHere(req, opts.machines)
   if (route === 'machines press') return machinesPressHere(req, device, opts.machines)
   if (route === 'restart') return restartHere(req, device, opts.restarting)
   if (route === 'orchestrator restart') {
@@ -203,12 +202,12 @@ export async function carryOwned(
   if (route === 'accounts sign-in') return accountSignInHere(req, device, opts.accounts)
   if (route === 'inventory') return inventoryToldHere(req, device, opts.inventoryTold, now)
   if (route === 'projection') return projectionHere(req, device, opts.projectionTold)
-  if (route === 'watch seen') return watchSeenHere(req, device, opts.watchSeen)
+  if (route === 'watch seen') return watchSeenHere(req, opts.watchSeen)
   if (route === 'duties') return dutiesHere(req, device, opts.duties)
   if (route === 'seen') return seenHere(req, device, now, opts.seen)
-  if (route === 'document') return documentHere(req, device, opts.document)
+  if (route === 'document') return documentHere(req, opts.document)
   if (route === 'tool') return toolHere(req, device, opts.tool)
-  if (route === 'records') return recordsHere(req, device, opts.records)
+  if (route === 'records') return recordsHere(req, opts.records)
   if (route === 'take') return takeHere(req, device, opts.taking)
   if (route === 'open') return openHere(req, device, opts.opening)
   if (route === 'looking') return carryLooking(req, device, now, opts.looking)

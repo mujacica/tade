@@ -74,7 +74,7 @@ export function awayGroup(config: Config, keptBy: string | null = null): Setting
   return {
     id: 'away',
     title: 'Away view',
-    about: `One page, served from this machine, to a device you pair by scanning the code this page shows once it is on, or by opening its link. It shows what is working, what is queued, what is stopped and what it cost; anything a device may change beyond that is granted per device, at this machine. ${AWAY_IS_WHILE_OPEN}${always} Off by default and everything under it on, so turning it on is the one click — and ${DEVICES_SEEN_BY_AGENTS}, which is why the device list shows every device there is.`,
+    about: `One page, served from this machine, to a device you pair by scanning the code this page shows once it is on, or by opening its link. It shows what is working, what is queued, what is stopped and what it cost, and every device you pair is yours: it can do from there what you can here. ${AWAY_IS_WHILE_OPEN}${always} Off by default and everything under it on, so turning it on is the one click — and ${DEVICES_SEEN_BY_AGENTS}, which is why the device list shows every device there is.`,
     keywords: [
       'away',
       'web',
@@ -209,14 +209,13 @@ export function awayGroup(config: Config, keptBy: string | null = null): Setting
         // `bind` is one: reading from the sofa and changing work from anywhere
         // are different things to want, and a control that granted both at
         // once would be a yes to a question nobody was asked. Still not
-        // enough on its own — a device needs the scope you grant it in the
-        // away panel, and the request needs this machine or an https host you
-        // named — which is why the sentence says what acting can never reach
+        // enough on its own — the request needs this machine or an https host
+        // you named — which is why the sentence says what acting can never reach
         // rather than leaving it to be inferred.
         title: 'Act',
         section: DEVICE_MAY,
-        short: `answer, steer and queue, once granted per device; ${ACTING_IS_NOT_YOU_SHORT}`,
-        means: `on: a device you have granted it can answer an approval, tell an agent something, change what is queued, mark work finished, write a note, add to what a task is told, and approve a request a grant here already allowed — and, granted those too, stop or reopen an agent and close or reopen a project; off: there is no route to do any of it. ${ACTING_IS_NOT_YOU}`,
+        short: `answer, steer and queue; ${ACTING_IS_NOT_YOU_SHORT}`,
+        means: `on: a paired device can answer an approval, tell an agent something, change what is queued, mark work finished, write a note, add to what a task is told, approve a request a grant here already allowed, run its agents and close or reopen a project; off: there is no route to do any of it. ${ACTING_IS_NOT_YOU}`,
         value: String(web.acting),
         fallback: 'true',
         type: { kind: 'flag' },
@@ -233,13 +232,11 @@ export function awayGroup(config: Config, keptBy: string | null = null): Setting
         // with Acting. Acting's verbs each name a target and the state they
         // expect; this hands free text to a model that holds tools, which is
         // the difference between answering a question and being able to ask
-        // for anything. The sentence says what the narrowing is rather than
-        // promising the model behaves, because a paragraph in a prompt is
-        // information and this is the control somebody decides on.
+        // for anything.
         title: 'Talk to Tade',
         section: DEVICE_MAY,
-        short: `send it a message, once granted; ${TALKING_IS_NOT_YOU_SHORT}`,
-        means: `on: a device you have granted it can send a message into the same conversation you type into, and is answered in words; off: there is no route to send one. ${TALKING_IS_NOT_YOU}`,
+        short: `send it a message; ${TALKING_IS_NOT_YOU_SHORT}`,
+        means: `on: a paired device can send a message into the same conversation you type into, and is answered in words; off: there is no route to send one. ${TALKING_IS_NOT_YOU}`,
         value: String(web.orchestrator),
         fallback: 'true',
         type: { kind: 'flag' },
@@ -259,7 +256,7 @@ export function awayGroup(config: Config, keptBy: string | null = null): Setting
         title: 'Save draft workflows',
         section: DEVICE_MAY,
         short: `fill in a drafted workflow a field at a time; ${DRAFTS_ARE_NOT_PUBLISHED_SHORT}`,
-        means: `on: a device you have granted it can fill in one field at a time of a workflow that is already drafted; off: there is no route to save one. ${DRAFTS_ARE_NOT_PUBLISHED}`,
+        means: `on: a paired device can fill in one field at a time of a workflow that is already drafted; off: there is no route to save one. ${DRAFTS_ARE_NOT_PUBLISHED}`,
         value: String(web.drafts),
         fallback: 'true',
         type: { kind: 'flag' },
@@ -276,8 +273,8 @@ export function awayGroup(config: Config, keptBy: string | null = null): Setting
         // harmless ones* is the word a comfortable version would keep.
         title: 'Change settings',
         section: DEVICE_MAY,
-        short: `once granted per device; ${SETTINGS_FROM_AWAY_SHORT}`,
-        means: `on: a device you have granted it can change the few settings an ordinary request is enough for, and your own full-access device any setting; off: there is no route to change one. ${SETTINGS_FROM_AWAY}`,
+        short: SETTINGS_FROM_AWAY_SHORT,
+        means: `on: a paired device can change any setting; off: there is no route to change one. ${SETTINGS_FROM_AWAY}`,
         value: String(web.settings),
         fallback: 'true',
         type: { kind: 'flag' },

@@ -75,8 +75,8 @@ describe('a device at the door', () => {
   it('says who, from where in words, that a yes grants everything, and how long is left', () => {
     const text = said({ asking })
     expect(text).toMatch(/iPhone\s+from your network · 192\.168\.1\.42/)
-    // Everything, opt-out: said before the press, with where it is taken back.
-    expect(text).toMatch(/will get\s+\(full access\)\s+· untick any of it in its row below/)
+    // Everything, said before the press, with how it ends.
+    expect(text).toMatch(/will get\s+\(full access\)\s+· until you sign it out/)
     // A bar to read from across the room, and a figure to read without colour.
     expect(text).toMatch(/█+░+ 47s left/)
   })
@@ -120,25 +120,38 @@ describe('a device at the door', () => {
 })
 
 describe('a paired device', () => {
-  it('is a box per grant, each pressing the control for that grant on that device', () => {
-    const hits = drawn({ acting: true, talking: true, configuring: true }, { height: 80 }).panel
-      .hits
-    for (const control of [
-      AWAY_CONTROLS.act,
-      AWAY_CONTROLS.agents,
-      AWAY_CONTROLS.projects,
-      AWAY_CONTROLS.talk,
-      AWAY_CONTROLS.configure,
-      AWAY_CONTROLS.see,
-      AWAY_CONTROLS.settings,
-      AWAY_CONTROLS.revoke,
-    ]) {
-      const id = `${control}00112233445566aa`
-      expect(
-        hits.some((hit) => hit.target.kind === 'control' && hit.target.id === id),
-        id,
-      ).toBe(true)
-    }
+  it('has Sign out and nothing to tick, because every paired device is the person’s own', () => {
+    const hits = drawn({}, { height: 80 }).panel.hits
+    const ids = hits.flatMap((hit) => (hit.target.kind === 'control' ? [hit.target.id] : []))
+    expect(ids).toContain(`${AWAY_CONTROLS.revoke}00112233445566aa`)
+    expect(ids.filter((id) => id.endsWith('00112233445566aa'))).toEqual([
+      `${AWAY_CONTROLS.revoke}00112233445566aa`,
+    ])
+  })
+
+  it('says a machine link and a phone paired in the clear for what they are', () => {
+    const text = said(
+      {
+        ticket: null,
+        code: [],
+        devices: [
+          { id: 'a', label: 'studio', from: 'over SSH', owner: true, pairedAt: 0, live: false },
+          {
+            id: 'b',
+            label: 'kitchen',
+            from: 'your network',
+            pairedAt: 0,
+            readsOnly: 'in the clear',
+            live: false,
+          },
+        ],
+      },
+      { height: 64 },
+    )
+      .replace(/[│╭╮╰╯─]/g, ' ')
+      .replace(/\s+/g, ' ')
+    expect(text).toMatch(/owner · over SSH/)
+    expect(text).toContain('reads only: paired in the clear')
   })
 
   it('says whether it is connected now, in words and not only in colour', () => {

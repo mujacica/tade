@@ -11,32 +11,21 @@ import type { From, Outcome } from './acting.ts'
 // a paragraph, which is exactly the generic "run this" shape that file exists
 // not to have.
 //
-// So it is its own interface, its own route, its own setting
-// (`surfaces.web.orchestrator`) and its own scope (`ask`) — and **`acting` does
-// not imply it**. A device granted both tiers of acting has been granted eight
-// bounded things; it has not been granted free text to a model that holds
-// tools, and a control that gave both at once would be a yes to a question
-// nobody was asked.
+// So it is its own interface, its own route and its own setting
+// (`surfaces.web.orchestrator`).
 //
-// ## What makes it safe, said here because this is where somebody looks
+// ## Whose words they are
 //
-// Not the sentence Tade prepends to the turn. Three things, none of which is
-// in this package:
+// Every paired device is the person's own (decided 26 Nov), so a phone's turn
+// runs under the owner arm (`@tade/core`'s `Arm`, `theirs`): it reaches what the
+// keyboard reaches and what is typed on it is a `said` line. A machine link's
+// words may be another machine's model's, so they are `said` only where that
+// machine says the person typed them (`AskCall.typed`). Either way **one turn
+// at a time**: a message sent while anything is in flight is refused rather
+// than steered into the turn that is running, because a harness delivers a
+// mid-turn prompt *into* that turn.
 //
-// 1. **The turn runs under an arm** (`@tade/core`'s `Arm`): the device, the
-//    projects it may reach, and what it was granted. It is an argument carried
-//    into the harness's own gate and into the `ToolHost`, not a line of
-//    prose.
-// 2. **Two closed tables** (`@tade/orchestrator`'s `origin.ts`): which of
-//    Tade's own tools a remote turn may call, and what each call may do with
-//    the parameters it carries. Everything unnamed is refused, and the
-//    harness's own tools — a shell, a file write — are refused as a class.
-// 3. **One turn at a time.** A message sent while anything is in flight is
-//    refused rather than steered into the turn that is running, because a
-//    harness delivers a mid-turn prompt *into* that turn and a stranger's
-//    words inside the person's question would be inside the person's arm.
-//
-// What this package owes is the door: the scope, the setting read at the turn,
+// What this package owes is the door: the setting read at the turn,
 // the trusted origin re-asked, the idempotency, and the audit line. The same
 // things `acted.ts` owes for a verb, which is why the two files read alike.
 
@@ -80,8 +69,8 @@ export interface StopCall {
  * what a paired device may ever do to the conversation.
  *
  * **There is no method here that reads it.** The conversation is read through
- * the projection like everything else — a collection with a budget, behind the
- * `talk` grant, with tool *names* and never their arguments — so there is no
+ * the projection like everything else — a collection with a budget, with
+ * every line path-elided — so there is no
  * shape in this interface that could answer with a transcript, and no handler
  * that does any work.
  */
@@ -100,8 +89,8 @@ export interface WebAsking {
    * `here` is whether the message came in on this machine — the loopback
    * listener and a loopback `Host` (`thisMachine`) — as the door found it, and
    * never anything the body said. An owner device's turn reaches what the
-   * keyboard does only where it is true; anywhere else it is narrowed like any
-   * other device's (`owner.ts` has why it cannot be false for one in practice).
+   * keyboard does only where it is true; anywhere else it is refused
+   * (`owner.ts` has why it cannot be false for one in practice).
    */
   ask(call: AskCall, from: From, here: boolean): Promise<Outcome>
   stop(call: StopCall, from: From): Promise<Outcome>

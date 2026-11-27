@@ -2,18 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { applyDelta, deltaBetween, revise, same, tick } from '../src/delta.ts'
 import { measureDelta, measureOf } from '../src/measure.ts'
 import { snapshotOf } from '../src/snapshot.ts'
-import { EVERY, input, NOW, reach, task } from './fixtures.ts'
+import { input, NOW, reach, task } from './fixtures.ts'
 
 const at = (ms: number) => NOW + ms
 
 describe('a beat on which only the clock moved', () => {
   it('sends nothing at all', () => {
-    const one = input({ reach: reach(EVERY) })
+    const one = input({ reach: reach() })
     expect(deltaBetween(snapshotOf(one, NOW), snapshotOf(one, at(2_000)))).toBeNull()
   })
 
   it('does not advance the revision either', () => {
-    const one = input({ reach: reach(EVERY) })
+    const one = input({ reach: reach() })
     const first = revise(null, one, NOW)
     expect(first.rev).toBe(12)
     const next = revise(first.snapshot, one, at(2_000))
@@ -24,7 +24,7 @@ describe('a beat on which only the clock moved', () => {
   it('stays quiet over sixty beats of nothing happening', () => {
     // Paced by the beat and not by a sleep: what is being counted is deltas
     // per beat, so the beats are the clock.
-    const one = input({ reach: reach(EVERY) })
+    const one = input({ reach: reach() })
     let held = revise(null, one, NOW).snapshot
     let sent = 0
     for (let beat = 1; beat <= 60; beat += 1) {
@@ -44,7 +44,7 @@ describe('a beat on which only the clock moved', () => {
       task({ id: `sentry/t${String(n).padStart(3, '0')}`, project: 'sentry' }),
     )
     const whole = snapshotOf(
-      input({ reach: reach(EVERY), tasks: many }),
+      input({ reach: reach(), tasks: many }),
       NOW,
       {},
       {
@@ -77,7 +77,7 @@ describe('a beat on which only the clock moved', () => {
     // A threshold says the same thing only for as long as nobody changes the
     // fixture, and the one that was here was calibrated against a fixture
     // with a single warning in it.
-    const few = tick(snapshotOf(input({ reach: reach(EVERY) }), NOW), at(2_000))
+    const few = tick(snapshotOf(input({ reach: reach() }), NOW), at(2_000))
     expect(ticked.bytes).toBe(measureDelta(few).bytes)
     expect(measureOf(whole).bytes).toBeGreaterThan(50 * ticked.bytes)
     // And bounded, because the freshness is on every frame: the only part of
@@ -89,11 +89,11 @@ describe('a beat on which only the clock moved', () => {
 })
 
 describe('what changed', () => {
-  const was = snapshotOf(input({ reach: reach(EVERY) }), NOW)
+  const was = snapshotOf(input({ reach: reach() }), NOW)
 
   it('is the changed fields of a row the client already has', () => {
     const moved = input({
-      reach: reach(EVERY),
+      reach: reach(),
       tasks: [
         task({ state: 'review', reason: { kind: 'clause', said: '2 commits, tests unknown' } }),
       ],
@@ -116,7 +116,7 @@ describe('what changed', () => {
 
   it('is the whole of a row the client has never seen', () => {
     const after = snapshotOf(
-      input({ reach: reach(EVERY), tasks: [...input().tasks, task({ id: 'tade/new' })] }),
+      input({ reach: reach(), tasks: [...input().tasks, task({ id: 'tade/new' })] }),
       NOW,
     )
     const delta = deltaBetween(was, after)
@@ -128,7 +128,7 @@ describe('what changed', () => {
   it('names a row that has gone, so the client can forget it', () => {
     const after = snapshotOf(
       input({
-        reach: reach(EVERY),
+        reach: reach(),
         tasks: input().tasks.filter((one) => one.id !== 'tade/window'),
       }),
       NOW,
@@ -138,17 +138,12 @@ describe('what changed', () => {
   })
 
   it('carries a page whose counts moved', () => {
-    const after = snapshotOf(input({ reach: reach(EVERY), notes: [] }), NOW)
+    const after = snapshotOf(input({ reach: reach(), notes: [] }), NOW)
     expect(deltaBetween(was, after)?.pages?.notes?.total).toBe(0)
   })
 
-  it('carries a change to what the device may read', () => {
-    const after = snapshotOf(input({ reach: reach(['notes']) }), NOW)
-    expect(deltaBetween(was, after)?.you?.reads).toEqual(['notes'])
-  })
-
   it('carries a new epoch rather than dropping it, though a client re-snapshots on one', () => {
-    const one = input({ reach: reach(EVERY) })
+    const one = input({ reach: reach() })
     const after = snapshotOf(
       { ...one, lifetime: { ...one.lifetime, epoch: 'b2c3d4e5-0000-4000-8000-000000000000' } },
       NOW,
@@ -162,14 +157,14 @@ describe('applying a delta', () => {
   // here rather than only in the browser.
   it('gives back exactly the projection it was diffed from', () => {
     const steps = [
-      input({ reach: reach(EVERY) }),
-      input({ reach: reach(EVERY), tasks: [...input().tasks, task({ id: 'tade/new' })] }),
+      input({ reach: reach() }),
+      input({ reach: reach(), tasks: [...input().tasks, task({ id: 'tade/new' })] }),
       input({
-        reach: reach(EVERY),
+        reach: reach(),
         tasks: [task({ state: 'merged', reason: { kind: 'clause', said: 'review merged' } })],
       }),
-      input({ reach: reach(['notes']), notes: [] }),
-      input({ reach: reach(EVERY), projects: [], tasks: [], queue: [], findings: [], plans: [] }),
+      input({ reach: reach(), notes: [] }),
+      input({ reach: reach(), projects: [], tasks: [], queue: [], findings: [], plans: [] }),
     ]
     let held = snapshotOf(steps[0]!, NOW)
     for (const [n, step] of steps.slice(1).entries()) {
@@ -191,7 +186,7 @@ describe('applying a delta', () => {
 
 describe('the revision', () => {
   it('starts where the server says and advances only on a change', () => {
-    const one = input({ reach: reach(EVERY) })
+    const one = input({ reach: reach() })
     const first = revise(null, one, NOW)
     expect(first.kind).toBe('first')
     expect(first.snapshot.fresh.rev).toBe(12)
@@ -208,7 +203,7 @@ describe('the revision', () => {
     // can point at different content after a restart while still looking
     // valid. Nothing here reads either, which is why the away view is immune
     // to both — and this is the test that says so out loud.
-    const one = input({ reach: reach(EVERY) })
+    const one = input({ reach: reach() })
     const held = revise(null, one, NOW).snapshot
     const after = revise(held, { ...one, notes: [] }, at(2_000))
     expect(after.rev).toBe(13)
