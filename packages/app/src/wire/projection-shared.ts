@@ -252,6 +252,7 @@ export class ProjectionShared {
   private readonly told = new Map<string, Told>()
   /** What was last said of a telling that failed, per machine, so it is said once. */
   private readonly failed = new Map<string, string>()
+  /** Whether a projection too big to send has been said, until a whole one fits again. */
   private tooLarge = false
 
   constructor(deps: ProjectionSharedDeps) {
@@ -305,6 +306,10 @@ export class ProjectionShared {
       one.at = this.deps.now() + QUIET_MS - TELL_EVERY_MS
       return
     }
+    // A whole that cuts is a projection that fits again, so outgrowing the
+    // limit a second time is said again. A change that cuts says nothing of
+    // the whole: another machine may still be owed one that does not fit.
+    if (told.kind === 'whole') this.tooLarge = false
     try {
       for (const piece of pieces) {
         const answer = await link.request(name, DOOR, piece)

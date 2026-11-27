@@ -220,6 +220,31 @@ describe('the Mac telling ipax, over the link', () => {
     expect(said).toHaveLength(1)
     expect(link.asked).toEqual([])
   })
+
+  it('says it again when a projection that fit once more outgrows the limit a second time', async () => {
+    const held = new ProjectionsHeld({ home: home(), now: () => 0, say: () => {} })
+    const link = linkTo(held)
+    let own = snap(4, [`x${'x'.repeat(2_600_000)}`])
+    const said: string[] = []
+    const clock = { now: 10_000 }
+    const shared = new ProjectionShared({
+      own: () => own,
+      now: () => clock.now,
+      say: (one) => said.push(one),
+    })
+    const beatUntil = (what: string, ok: () => boolean) =>
+      until(what, () => {
+        clock.now += TELL_EVERY_MS
+        shared.beat(['ipax'], link.reach)
+        return ok()
+      })
+    await beatUntil('the first too-large line', () => said.length === 1)
+    own = snap(5, ['small'])
+    await beatUntil('the small one kept', () => tasksOf(held).includes('small'))
+    own = snap(6, ['small', `y${'y'.repeat(2_600_000)}`])
+    await beatUntil('the second too-large line', () => said.length === 2)
+    expect(said[1]).toMatch(/more than one may send; the heaviest of it: tasks /)
+  })
 })
 
 describe('what ipax keeps of the Mac', () => {
