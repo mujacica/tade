@@ -320,7 +320,7 @@ const vpsCards = cardsOf({
   answer: EvaluationsAnswerSchema.parse(
     JSON.parse(
       JSON.stringify(
-        evaluationsFor({ device: 'mac' }, (projects) =>
+        evaluationsFor((projects) =>
           evaluationsFrom(vpsJournal, {
             since: 0,
             projects,

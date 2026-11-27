@@ -9,10 +9,8 @@ import {
 import {
   type ChatIn,
   chatRev,
-  type Device,
   Moved,
   NotThere,
-  reachOf,
   type SinceAnswer,
   sinceAnswerOf,
   type TalkIn,
@@ -99,11 +97,11 @@ export class FarTalk {
   }
 
   /** The window's half of `/api/since`: the real fold over this journal. */
-  since(device: Device, cut: number, now: number): SinceAnswer {
+  since(cut: number, now: number): SinceAnswer {
     this.cuts.push(cut)
     const since = presentBefore(this.journal, cut)
     const here = since === null ? null : sinceHere(this.journal, since, now)
-    return sinceAnswerOf(here, this.waiting, reachOf(device))
+    return sinceAnswerOf(here, this.waiting)
   }
 
   /** What an owner may say to it, by the window's own rules. */

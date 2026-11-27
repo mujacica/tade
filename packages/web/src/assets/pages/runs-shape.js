@@ -99,8 +99,7 @@ export function partsOf(steps) {
 /**
  * What a run is wearing, loudest first: a step that wants somebody, then one
  * that failed, then one at work; finished only when every step is; and the
- * quiet answers last. A run with no step this device may read says *that*,
- * never *finished* — nought of nought is not done.
+ * quiet answers last.
  */
 export const STANDINGS = {
   wants: { glyph: '◆', word: 'wants you', tone: 't-wants', group: 'needs' },
@@ -109,12 +108,10 @@ export const STANDINGS = {
   review: { glyph: '✓', word: 'in review', tone: 't-done', group: 'going' },
   waiting: { glyph: '○', word: 'waiting', tone: 't-quiet', group: 'going' },
   finished: { glyph: '✓', word: 'finished', tone: 't-done', group: 'finished' },
-  unseen: { glyph: '◌', word: 'not readable here', tone: 't-quiet', group: 'unseen' },
 }
 
 /** Which of `STANDINGS` a run wears. */
 export function standingOf(run) {
-  if (run.steps.length === 0) return 'unseen'
   const parts = new Set(run.steps.map(partOf))
   for (const loud of ['wants', 'failed', 'working']) if (parts.has(loud)) return loud
   if (run.total > 0 && run.finished === run.total) return 'finished'
@@ -131,14 +128,13 @@ export function runMark(run) {
 
 /**
  * The page's groups, in the order they are drawn: what wants a person, what
- * is under way, what is done, and what this device cannot see into. A group
- * with nothing in it is not drawn at all.
+ * is under way and what is done. A group with nothing in it is not drawn at
+ * all.
  */
 export const GROUPS = [
   { key: 'needs', heading: 'NEEDS YOU' },
   { key: 'going', heading: 'UNDER WAY' },
   { key: 'finished', heading: 'FINISHED' },
-  { key: 'unseen', heading: 'OUT OF REACH' },
 ]
 
 /** The runs, each in its group, the order inside a group kept as it came. */
@@ -151,7 +147,7 @@ export function groupsOf(runs) {
 /**
  * The numbers the page leads with, over every run on it: how many are under
  * way, how many are finished, how many want somebody — and every step, as
- * parts. Runs nobody here can see into are counted as runs and add no step.
+ * parts.
  */
 export function overallOf(runs) {
   const standing = runs.map(standingOf)
@@ -162,7 +158,6 @@ export function overallOf(runs) {
     needs: count('needs'),
     going: count('going'),
     finished: count('finished'),
-    unseen: count('unseen'),
     steps: steps.length,
     done: steps.filter((step) => step.finished).length,
     parts: partsOf(steps),

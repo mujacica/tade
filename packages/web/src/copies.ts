@@ -1,6 +1,5 @@
 import { deltaBetween } from './delta.ts'
 import { type Delta, PROTOCOL_VERSION, type Snapshot } from './protocol.ts'
-import type { Reach } from './reach.ts'
 import { type Cursor, type Frame, sseFrame } from './stream.ts'
 
 // Every other machine's projection, as a door passes it on to a page.
@@ -61,7 +60,7 @@ export type CopyFrame =
  * one of which is the person's own, and not another machine's link, which is
  * an owner device.
  */
-export function copiesFor(_reach: Reach, owner: boolean): boolean {
+export function copiesFor(owner: boolean): boolean {
   return !owner
 }
 

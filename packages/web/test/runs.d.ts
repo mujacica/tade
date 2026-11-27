@@ -45,7 +45,6 @@ declare module '*/assets/pages/runs-shape.js' {
     needs: number
     going: number
     finished: number
-    unseen: number
     steps: number
     done: number
     parts: Part[]

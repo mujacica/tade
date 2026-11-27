@@ -1,5 +1,5 @@
 import { EVALUATION_EVENTS, pricesFrom, spendFrom, type TadeEvent } from '@tade/core'
-import { type EvaluationsOut, evaluationsFor, type Reach } from '@tade/web'
+import { type EvaluationsOut, evaluationsFor } from '@tade/web'
 import { type EvalsView, evalsView } from '../evaluations.ts'
 import type { Frame } from '../frame.ts'
 import { evaluationsPanel } from '../panels/evaluations/state.ts'
@@ -116,9 +116,8 @@ export function evaluationsNow(
  * The away view's answer for one device: folded over every project, every
  * range there is (`evaluationsFor`). Every paired device reads all of it.
  */
-export function evaluationsAnswer(wire: Wiring, reach: Reach): EvaluationsOut {
+export function evaluationsAnswer(wire: Wiring): EvaluationsOut {
   return evaluationsFor(
-    reach,
     () => evaluationsNow(wire, 'all')?.evaluations ?? null,
     () => racesHeld(wire, usdByTask(wire)),
   )

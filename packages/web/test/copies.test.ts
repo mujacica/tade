@@ -26,8 +26,8 @@ function snapshot(over: { rev?: number; epoch?: string; title?: string } = {}): 
 
 describe('who is sent the copies', () => {
   it('is every paired phone, and never another machine’s link', () => {
-    expect(copiesFor(reach(), false)).toBe(true)
-    expect(copiesFor(reach(), true)).toBe(false)
+    expect(copiesFor(false)).toBe(true)
+    expect(copiesFor(true)).toBe(false)
   })
 })
 

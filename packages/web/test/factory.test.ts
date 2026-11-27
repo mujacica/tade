@@ -172,7 +172,7 @@ describe('one door', () => {
 
 describe('one run', () => {
   it('parses, and carries the layers, the waits and the retries', () => {
-    const row = runRow(run(), reach(), BUDGET)
+    const row = runRow(run(), BUDGET)
     expect(RunRowSchema.parse(row)).toEqual(row)
     expect(row.layers).toBe(2)
     expect(row.steps[1]?.waits[0]?.task).toBe('sentry/github-1402-reproduce')
@@ -196,7 +196,7 @@ describe('one run', () => {
     expect(row().steps[1]?.usd).toBe(0)
   })
 
-  const row = () => runRow(run(), reach(), BUDGET)
+  const row = () => runRow(run(), BUDGET)
 })
 
 describe('a run’s checks, as one answer', () => {

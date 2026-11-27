@@ -1,7 +1,6 @@
 import { type AttentionSettings, inQuietHours, type TaskState } from '@tade/core'
 import { hostOf } from './guard.ts'
 import type { TaskIn } from './input.ts'
-import type { Reach } from './reach.ts'
 import { loopbackHost } from './surface.ts'
 
 // What is worth waking a phone for, what it is allowed to say, and everything
@@ -209,7 +208,7 @@ function done(task: TaskWas): boolean {
  * The changes one device may be told about: every one, since every paired
  * device is the person's own and reads every project.
  */
-export function changesFor(changes: readonly Change[], _reach: Reach): Change[] {
+export function changesFor(changes: readonly Change[]): Change[] {
   return [...changes]
 }
 

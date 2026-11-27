@@ -1,6 +1,5 @@
 import type { IncomingMessage } from 'node:http'
 import { type DutiesAnswer, type DutiesAsk, DutiesBody } from '@tade/core'
-import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
 
@@ -23,7 +22,6 @@ export type WebDuties = (ask: DutiesAsk) => Promise<DutiesAnswer>
 /** The route. `duties` absent is a window that did not wire it: the `404` of a path nobody built. */
 export async function dutiesHere(
   req: IncomingMessage,
-  _device: Device,
   duties: WebDuties | undefined,
 ): Promise<{ body: DutiesAnswer } | { refusal: Refusal }> {
   if (duties === undefined) return { refusal: refuse('no_such') }

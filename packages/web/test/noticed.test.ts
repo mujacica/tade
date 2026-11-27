@@ -15,7 +15,6 @@ import {
   type TaskNow,
   wasOf,
 } from '../src/noticed.ts'
-import { reachFor } from '../src/reach.ts'
 
 // What is worth waking a phone for, and — the half that matters more — what a
 // notification is allowed to say.
@@ -232,7 +231,7 @@ describe('what one device may be told about', () => {
     )
 
   it('is every change: every paired device reads every project', () => {
-    expect(changesFor(across(), reachFor('d'))).toHaveLength(2)
+    expect(changesFor(across())).toHaveLength(2)
   })
 })
 

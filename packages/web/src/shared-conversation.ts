@@ -1,6 +1,5 @@
 import type { IncomingMessage } from 'node:http'
 import { type ConversationAsk, ConversationBody } from '@tade/core'
-import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
 
@@ -56,7 +55,6 @@ const STARTING_AFTER = 5
 /** The route: an owner's body read once, checked, and handed to the heart. */
 export async function conversationHere(
   req: IncomingMessage,
-  _device: Device,
   conversation: WebConversation | undefined,
 ): Promise<{ body: ConversationShareAnswer } | { refusal: Refusal }> {
   if (conversation === undefined) return { refusal: refuse('no_such') }

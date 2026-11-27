@@ -35,7 +35,7 @@ import {
 import type { RunIn, WorkflowIn } from '../src/factory.ts'
 import { runRow, workflowRow } from '../src/factory.ts'
 import { BUDGET } from '../src/page.ts'
-import { reach, run, workflow } from './fixtures.ts'
+import { run, workflow } from './fixtures.ts'
 
 // What the workflows page draws, against **real projected rows** rather than
 // shapes a test assembled: every count, order, word and coordinate the two
@@ -47,7 +47,7 @@ import { reach, run, workflow } from './fixtures.ts'
 const row = (over: Partial<WorkflowIn> = {}) => workflowRow(workflow(over), BUDGET)
 
 /** A run as the page is handed it. */
-const ran = (over: Partial<RunIn> = {}) => runRow(run(over), reach(), BUDGET)
+const ran = (over: Partial<RunIn> = {}) => runRow(run(over), BUDGET)
 
 /** A run stamped from `name@version`, every step finished or not. */
 const stamped = (name: string, version: number, finished: boolean, id = `${name}-${version}`) => {

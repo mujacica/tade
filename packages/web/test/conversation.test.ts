@@ -213,7 +213,7 @@ describe('the conversation with Tade, on the snapshot', () => {
 
 describe('an agent’s conversation, on its own answer', () => {
   it('is cleaned, markup kept as text', () => {
-    const answer = agentOf(reach(), tasks, TASK, agentHeld())
+    const answer = agentOf(tasks, TASK, agentHeld())
     expect(() => AgentOutSchema.parse(answer)).not.toThrow()
     expect(answer.unread).toBeNull()
     const turns = answer.conversation?.turns ?? []
@@ -228,9 +228,9 @@ describe('an agent’s conversation, on its own answer', () => {
   })
 
   it('is sent with no turns to a page that already holds that revision', () => {
-    const answer = agentOf(reach(), tasks, TASK, agentHeld(), undefined, '7')
+    const answer = agentOf(tasks, TASK, agentHeld(), undefined, '7')
     expect(answer.conversation).toEqual({ rev: '7', turns: null, before: '2048', taken: 0 })
-    const moved = agentOf(reach(), tasks, TASK, agentHeld(), undefined, '6')
+    const moved = agentOf(tasks, TASK, agentHeld(), undefined, '6')
     expect(moved.conversation?.turns?.length).toBe(4)
   })
 
@@ -241,17 +241,15 @@ describe('an agent’s conversation, on its own answer', () => {
   })
 
   it('tells not read yet and could not read apart from nothing said', () => {
-    const none = agentOf(reach(), tasks, TASK, agentHeld({ conversation: undefined }))
+    const none = agentOf(tasks, TASK, agentHeld({ conversation: undefined }))
     expect(none).toMatchObject({ conversation: null, unread: 'not read yet' })
     const broken = agentOf(
-      reach(),
       tasks,
       TASK,
       agentHeld({ conversation: { kind: 'none', why: 'could not read' } }),
     )
     expect(broken).toMatchObject({ conversation: null, unread: 'could not read' })
     const quiet = agentOf(
-      reach(),
       tasks,
       TASK,
       agentHeld({ conversation: { kind: 'read', turns: [], before: null, rev: '1' } }),

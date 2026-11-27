@@ -41,7 +41,6 @@ import type {
   TaskRow,
 } from './protocol.ts'
 import { hostFigures, PROTOCOL_VERSION } from './protocol.ts'
-import type { Reach } from './reach.ts'
 
 // The projection. One pure function of what it is handed and the moment.
 //
@@ -336,12 +335,7 @@ export function chatRows(lines: readonly ChatIn[]): ChatRow[] {
  * what came before the oldest line it holds whether or not that line is still
  * held here — nothing is skipped and nothing starts over.
  */
-export function chatBefore(
-  talk: TalkIn | null,
-  _reach: Reach,
-  before: string,
-  budget: Budget = BUDGET,
-): ChatPage {
+export function chatBefore(talk: TalkIn | null, before: string, budget: Budget = BUDGET): ChatPage {
   if (talk === null) return { v: PROTOCOL_VERSION, rows: [], earlier: false, why: 'off' }
   const older = chatRows(talk.lines.filter((line) => line.id < before)).sort((a, b) =>
     byText(a.id, b.id),
@@ -674,7 +668,7 @@ export function snapshotOf(
       .map((one) => intakeRow(one, budget))
       .sort((a, b) => byText(a.item, b.item)),
     sources: sourcePage.rows.map((one) => sourceRow(one)),
-    runs: runPage.rows.map((one) => runRow(one, reach, budget)),
+    runs: runPage.rows.map((one) => runRow(one, budget)),
     workflows: workflowPage.rows.map((one) => workflowRow(one, budget)),
     machines: machineRows(input.machines ?? []),
     host: input.host ?? null,

@@ -29,7 +29,7 @@ import {
 import type { RunIn, RunStepIn } from '../src/factory.ts'
 import { runRow } from '../src/factory.ts'
 import { BUDGET } from '../src/page.ts'
-import { reach, run } from './fixtures.ts'
+import { run } from './fixtures.ts'
 
 // What the runs page draws, against **real projected rows** rather than shapes
 // a test assembled: every count, order, word and coordinate the two screens
@@ -73,7 +73,7 @@ const step = (over: Partial<RunStepIn> = {}): RunStepIn => ({
 })
 
 /** A run as the page is handed it: projected for a paired device. */
-const row = (over: Partial<RunIn> = {}) => runRow(run(over), reach(), BUDGET)
+const row = (over: Partial<RunIn> = {}) => runRow(run(over), BUDGET)
 
 /**
  * The run the redesign was drawn against: six steps across three projects,
@@ -204,7 +204,6 @@ describe('which way a run stands', () => {
       ['ship'],
       ['quiet'],
       ['done'],
-      [],
     ])
   })
 
@@ -388,7 +387,7 @@ describe('the map', () => {
   })
 
   it('is nothing for a run with no step to draw', () => {
-    expect(mapOf(runRow(run({ ...SHIP(), steps: [] }), reach(), BUDGET))).toMatchObject({
+    expect(mapOf(runRow(run({ ...SHIP(), steps: [] }), BUDGET))).toMatchObject({
       dots: [],
       width: 0,
       height: 0,

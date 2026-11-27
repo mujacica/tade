@@ -20,12 +20,12 @@ const tasks = input().tasks
 
 describe('one agent, for one device', () => {
   it('is a strict answer', () => {
-    const answer = agentOf(reach(), tasks, TASK, agentHeld())
+    const answer = agentOf(tasks, TASK, agentHeld())
     expect(() => AgentOutSchema.parse(answer)).not.toThrow()
   })
 
   it('gives the cleaned screen', () => {
-    const answer = agentOf(reach(), tasks, TASK, agentHeld())
+    const answer = agentOf(tasks, TASK, agentHeld())
     expect(answer.why).toBeNull()
     expect(answer.screen?.lines).toContain('  4 files touched, the tests pass')
     expect(answer.screen?.at).toBe('2026-10-08T14:29:58.000Z')
@@ -37,26 +37,21 @@ describe('one agent, for one device', () => {
   })
 
   it('answers a task that is not there as not here', () => {
-    const missing = agentOf(reach(), tasks, 'sentry/nothing-here', agentHeld())
+    const missing = agentOf(tasks, 'sentry/nothing-here', agentHeld())
     expect(missing).toMatchObject({ here: false, activity: [], screen: null, why: 'not here' })
   })
 
   it('tells nothing read yet apart from nothing running', () => {
-    const working = agentOf(reach(), tasks, TASK, null)
+    const working = agentOf(tasks, TASK, null)
     expect(working.why).toBe('not read yet')
-    const idle = agentOf(reach(), [task({ agents: 0, lanes: 0 })], TASK, null)
+    const idle = agentOf([task({ agents: 0, lanes: 0 })], TASK, null)
     expect(idle.why).toBe('no agent')
-    const gone = agentOf(
-      reach(),
-      tasks,
-      TASK,
-      agentHeld({ lane: { kind: 'none', why: 'could not read' } }),
-    )
+    const gone = agentOf(tasks, TASK, agentHeld({ lane: { kind: 'none', why: 'could not read' } }))
     expect(gone.why).toBe('could not read')
   })
 
   it('carries as much activity as the budget allows, and where the moments before are read from', () => {
-    const answer = agentOf(reach(), tasks, TASK, agentHeld(), {
+    const answer = agentOf(tasks, TASK, agentHeld(), {
       lines: 10,
       width: 80,
       activity: 2,
@@ -64,8 +59,8 @@ describe('one agent, for one device', () => {
     expect(answer.activity.map((one) => one.id)).toEqual(['107', '106'])
     // The number of the last one looked at: the moments before it are read by it.
     expect(answer.earlier).toBe('106')
-    expect(agentOf(reach(), tasks, TASK, agentHeld()).earlier).toBe('100')
-    expect(agentOf(reach(), tasks, TASK, agentHeld({ earlier: null })).earlier).toBeNull()
+    expect(agentOf(tasks, TASK, agentHeld()).earlier).toBe('100')
+    expect(agentOf(tasks, TASK, agentHeld({ earlier: null })).earlier).toBeNull()
   })
 })
 
@@ -127,7 +122,7 @@ describe('what Tade says about a moment', () => {
   })
 
   it('leaves out a moment there is nothing honest to say about', () => {
-    const answer = agentOf(reach(), tasks, TASK, agentHeld())
+    const answer = agentOf(tasks, TASK, agentHeld())
     expect(answer.activity.map((one) => one.said)).not.toContain('is not-a-state')
     expect(JSON.stringify(answer.activity)).not.toContain('testperson')
   })

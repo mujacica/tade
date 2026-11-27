@@ -3,7 +3,6 @@ import type { SinceHere, SinceItem } from '@tade/core'
 import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
-import type { Reach } from './reach.ts'
 import { readBody } from './request.ts'
 
 // "Since you were here": the card another machine of the person's draws once,
@@ -74,11 +73,7 @@ const NONE = { rows: [], more: 0 }
  * `here` is null where this machine has never counted the person present,
  * which is a first link and has nothing to catch up on.
  */
-export function sinceAnswerOf(
-  here: SinceHere | null,
-  waiting: readonly SinceItem[],
-  _reach: Reach,
-): SinceAnswer {
+export function sinceAnswerOf(here: SinceHere | null, waiting: readonly SinceItem[]): SinceAnswer {
   if (here === null) {
     return {
       since: null,

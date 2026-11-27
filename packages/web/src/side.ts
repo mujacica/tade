@@ -1,7 +1,6 @@
 import type { IncomingMessage } from 'node:http'
 import { DONE_RULES, INBOX_STATES, LOOK_TROUBLES, TaskState } from '@tade/core'
 import { z } from 'zod'
-import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
 
@@ -424,7 +423,6 @@ export type WebSide = (ask: SideAsk) => Promise<SideAnswer | null>
 /** The route. `side` absent is a window that did not wire it: the `404` of a path nobody built. */
 export async function sideHere(
   req: IncomingMessage,
-  _device: Device,
   side: WebSide | undefined,
 ): Promise<{ body: SideAnswer } | { refusal: Refusal }> {
   if (side === undefined) return { refusal: refuse('no_such') }

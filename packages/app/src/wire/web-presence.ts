@@ -8,7 +8,7 @@ import {
   type SinceItem,
   sinceHere,
 } from '@tade/core'
-import { reachOf, sinceAnswerOf, type WebSince } from '@tade/web'
+import { sinceAnswerOf, type WebSince } from '@tade/web'
 import type { Wiring } from './context.ts'
 
 // The person at another of their screens, as this machine counts them: what an
@@ -96,7 +96,7 @@ export class Presences {
 
   /** The card: folded over this machine's journal from the last moment it counted them present before `cut`. */
   since(): WebSince {
-    return async (device, cut) => {
+    return async (_device, cut) => {
       const events = await this.wire.opts.client.log.read({ types: SINCE_READS })
       const since = presentBefore(events, cut)
       const here =
@@ -106,7 +106,7 @@ export class Presences {
               prices: pricesFrom(this.wire.opts.config.prices),
               accounts: this.wire.opts.config.accounts,
             })
-      return sinceAnswerOf(here, this.waiting(), reachOf(device))
+      return sinceAnswerOf(here, this.waiting())
     }
   }
 

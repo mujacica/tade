@@ -380,7 +380,7 @@ describe('an agent’s screen, which is nobody’s words', () => {
   const TASK = 'sentry/away-projection'
 
   it('carries no path, no id and no credential', () => {
-    const answer = agentOf(reach(), input().tasks, TASK, agentHeld())
+    const answer = agentOf(input().tasks, TASK, agentHeld())
     expect(answer.screen?.lines.length).toBeGreaterThan(0)
     const guilty: string[] = []
     for (const found of stringsIn(answer)) {
@@ -394,6 +394,6 @@ describe('an agent’s screen, which is nobody’s words', () => {
     // `output` and `transcript` stay forbidden: a screen crosses as `lines`
     // on a `screen` that says how much was taken out, which is a different
     // thing from a lane's bytes under the name a harness reaches for.
-    expect(forbidden(keysIn(agentOf(reach(), input().tasks, TASK, agentHeld())))).toEqual([])
+    expect(forbidden(keysIn(agentOf(input().tasks, TASK, agentHeld())))).toEqual([])
   })
 })

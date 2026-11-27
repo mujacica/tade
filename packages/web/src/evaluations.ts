@@ -19,7 +19,6 @@ import {
   worthSaid,
 } from '@tade/core'
 import { z } from 'zod'
-import type { Reach } from './reach.ts'
 
 // The scorecards: which harness, model, persona
 // and template lands work, and the judge's own calibration.
@@ -133,11 +132,7 @@ export type RacesFor = (projects: ReadonlySet<string> | null) => readonly Race[]
 export type EvaluationsFor = (projects: ReadonlySet<string> | null) => Evaluations | null
 
 /** The answer for one device. */
-export function evaluationsFor(
-  _reach: Reach,
-  fold: EvaluationsFor | undefined,
-  races?: RacesFor,
-): EvaluationsOut {
+export function evaluationsFor(fold: EvaluationsFor | undefined, races?: RacesFor): EvaluationsOut {
   // Every paired device reads every project, so the folds are over all of them.
   const raced = racesOut(races?.(null) ?? [])
   const evals = fold?.(null) ?? null

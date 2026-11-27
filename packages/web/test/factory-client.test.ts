@@ -38,7 +38,7 @@ const view = () => ({
   may: {},
 })
 
-const rowFor = () => runRow(run(), reach(), BUDGET)
+const rowFor = () => runRow(run(), BUDGET)
 
 describe('one run, in a line', () => {
   it('says what is happening, what it was stamped from and what it cost', () => {
@@ -56,16 +56,14 @@ describe('one run, in a line', () => {
     const whole = run({
       steps: run().steps.map((step) => ({ ...step, finished: true, active: false })),
     })
-    expect(runSays(runRow(whole, reach(), BUDGET), view())).toContain('every step finished')
+    expect(runSays(runRow(whole, BUDGET), view())).toContain('every step finished')
   })
 
   it('names what is working, where something is', () => {
     const going = run({
       steps: run().steps.map((step, at) => ({ ...step, active: at === 0, finished: false })),
     })
-    expect(runSays(runRow(going, reach(), BUDGET), view())).toContain(
-      'github-1402-reproduce working',
-    )
+    expect(runSays(runRow(going, BUDGET), view())).toContain('github-1402-reproduce working')
   })
 })
 

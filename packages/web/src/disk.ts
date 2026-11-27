@@ -1,6 +1,5 @@
 import type { IncomingMessage } from 'node:http'
 import { z } from 'zod'
-import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
 
@@ -174,7 +173,6 @@ export type WebDisk = (ask: DiskAsk) => Promise<DiskAnswer | null>
 /** The route. `disk` absent is a window that did not wire it: the `404` of a path nobody built. */
 export async function diskHere(
   req: IncomingMessage,
-  _device: Device,
   disk: WebDisk | undefined,
 ): Promise<{ body: DiskAnswer } | { refusal: Refusal }> {
   if (disk === undefined) return { refusal: refuse('no_such') }

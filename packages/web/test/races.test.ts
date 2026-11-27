@@ -2,7 +2,6 @@ import { type RacerFacts, racesIn, wonFrom } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { emptyOf, racesOf } from '../src/assets/pages/evaluations-shape.js'
 import { evaluationsFor } from '../src/evaluations.ts'
-import { reach } from './fixtures.ts'
 
 // The races on the away view's Evaluations page, against a real answer: the
 // machine's fold through `evaluationsFor`, per device. What was asked is
@@ -41,7 +40,7 @@ const races = () => racesIn(entrants)
 
 describe('the races, as a device reads them', () => {
   it('carries every figure, in the order the facts put them', () => {
-    const [race] = evaluationsFor(reach(), undefined, races).races
+    const [race] = evaluationsFor(undefined, races).races
     expect(race?.said).toBe('add a dark mode')
     expect(race?.spent).toBe('≥ $0.50 so far')
     expect(race?.racers.map((one) => [one.task, one.place, one.usd])).toEqual([
@@ -65,7 +64,7 @@ describe('the races, as a device reads them', () => {
         detail: { race: 'dark', project: 'shop', by: 'orchestrator', why: 'kept to the ask' },
       },
     ])
-    const answer = evaluationsFor(reach(), undefined, () => racesIn(entrants, won))
+    const answer = evaluationsFor(undefined, () => racesIn(entrants, won))
     const [race] = racesOf(answer)
     expect(race?.head).toBe('dark in shop')
     expect(race?.said).toBe('asked: add a dark mode')
@@ -79,7 +78,7 @@ describe('the races, as a device reads them', () => {
     expect(emptyOf(answer, 'races')).toBeNull()
     expect(
       emptyOf(
-        evaluationsFor(reach(), undefined, () => []),
+        evaluationsFor(undefined, () => []),
         'races',
       )?.title,
     ).toBe('No race yet')

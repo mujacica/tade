@@ -325,7 +325,7 @@ describe('the facts about it', () => {
 describe('its timeline', () => {
   /** What the agent's own answer carries, through the real projection. */
   function answerOf(activity: ActivityIn[], earlier: string | null = null) {
-    return agentOf(reach(), [task()], 'sentry/away-projection', agentHeld({ activity, earlier }))
+    return agentOf([task()], 'sentry/away-projection', agentHeld({ activity, earlier }))
   }
 
   let made = 0

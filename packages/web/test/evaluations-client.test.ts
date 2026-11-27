@@ -9,7 +9,6 @@ import {
   mergedSaid,
 } from '../src/assets/pages/evaluations-shape.js'
 import { evaluationsFor } from '../src/evaluations.ts'
-import { reach } from './fixtures.ts'
 
 // What the Evaluations page draws, against **a real answer**: the machine's
 // fold, per device, through `evaluationsFor` — so this holds that the page says
@@ -49,7 +48,7 @@ const journal: TadeEvent[] = ['a', 'b', 'c', 'd', 'e', 'f'].flatMap((name, at) =
 ])
 
 const answer = (findings = true) =>
-  evaluationsFor(reach(), (projects) =>
+  evaluationsFor((projects) =>
     evaluationsFrom(journal, {
       since: 0,
       projects,
@@ -116,7 +115,7 @@ describe('the Evaluations page', () => {
   it('says which nothing it is: not read yet, or no judge here', () => {
     expect(
       emptyOf(
-        evaluationsFor(reach(), () => null),
+        evaluationsFor(() => null),
         'harness',
       )?.kind,
     ).toBe('loading')

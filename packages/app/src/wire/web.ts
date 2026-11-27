@@ -907,18 +907,8 @@ export class Away implements Subject {
         return held.notes(scope, after)
       },
       agent: (task, seen = null) => {
-        // **This request's reach, not the projector's.** The device list is
-        // read at every request and a projector catches up on a beat, so a
-        // grant taken back a second ago is already gone here — and the
-        // collections are the ones this beat built, memoised, never a look.
-        const answer = agentOf(
-          reach,
-          this.collections().tasks,
-          task,
-          this.agentIn(task),
-          AGENT,
-          seen,
-        )
+        // The collections are the ones this beat built, memoised, never a look.
+        const answer = agentOf(this.collections().tasks, task, this.agentIn(task), AGENT, seen)
         // **Asking is looking**: a device asking about a task that is here
         // makes the window read its screen, and a crafted name for a task
         // that is not costs nothing.
@@ -928,11 +918,11 @@ export class Away implements Subject {
         return answer
       },
       // **The conversation as it is now**, not as of the beat: what a look back
-      // just read out of the record (`earlier`) is in it, under this request's reach.
-      chat: (before) => chatBefore(this.talkNow(), reach, before),
+      // just read out of the record (`earlier`) is in it.
+      chat: (before) => chatBefore(this.talkNow(), before),
       // What the window already holds.
       settings: () => settingsFor(this.deps.settings.rows(), knownHere(this.wire, this.config())),
-      evaluations: () => evaluationsAnswer(this.wire, reach),
+      evaluations: () => evaluationsAnswer(this.wire),
     }
   }
 

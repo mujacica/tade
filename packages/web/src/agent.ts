@@ -13,7 +13,6 @@ import type {
   TurnsPage,
 } from './protocol.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
-import type { Reach } from './reach.ts'
 import { cleanScreen, SCREEN, type ScreenBudget } from './screen.ts'
 
 // One agent, as a device that is looking at it may read it.
@@ -194,7 +193,6 @@ export function activitySaid(one: Omit<ActivityIn, 'id'>): string | null {
  * answered as *not read yet* rather than as an empty screen.
  */
 export function agentOf(
-  _reach: Reach,
   tasks: readonly TaskIn[],
   task: string,
   held: AgentIn | null,

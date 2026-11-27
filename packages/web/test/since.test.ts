@@ -2,7 +2,6 @@ import { noSpend, type SinceHere } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Device } from '../src/devices.ts'
 import { mintOwner } from '../src/owner.ts'
-import { reachFor } from '../src/reach.ts'
 import { CSRF_HEADER } from '../src/request.ts'
 import { OWNED } from '../src/routes.ts'
 import { SINCE_BACK_MOST_MS, SINCE_MOST, SinceAnswerSchema, sinceAnswerOf } from '../src/since.ts'
@@ -15,7 +14,6 @@ import { ask, closeAll, pair, type Running, start } from './harness.ts'
 afterEach(closeAll)
 
 const NOW = Date.UTC(2026, 9, 17, 9, 0)
-const EVERY = reachFor('d1')
 const item = (task: string, minute: number, said = 'its agent said so') => ({
   task,
   at: NOW - minute * 60_000,
@@ -34,7 +32,7 @@ const here = (over: Partial<SinceHere> = {}): SinceHere => ({
 describe('the card', () => {
   it('carries each list newest first, cut at its bound with what was left counted', () => {
     const finished = Array.from({ length: SINCE_MOST + 3 }, (_, n) => item(`vps/t${n}`, n))
-    const card = sinceAnswerOf(here({ finished }), [], EVERY)
+    const card = sinceAnswerOf(here({ finished }), [])
     expect(SinceAnswerSchema.parse(card)).toEqual(card)
     expect(card.finished.rows.map((one) => one.task)).toEqual(
       finished.slice(0, SINCE_MOST).map((one) => one.task),
@@ -45,8 +43,8 @@ describe('the card', () => {
 
   it('says what was spent, and nothing where nothing was', () => {
     const spent = { ...noSpend(), usd: 1.5, tokens: 900, hasCost: true }
-    expect(sinceAnswerOf(here(), [], EVERY).spend).toBeNull()
-    expect(sinceAnswerOf(here({ spend: spent }), [], EVERY).spend).toEqual({
+    expect(sinceAnswerOf(here(), []).spend).toBeNull()
+    expect(sinceAnswerOf(here({ spend: spent }), []).spend).toEqual({
       usd: 1.5,
       tokens: 900,
       hasCost: true,
@@ -54,7 +52,7 @@ describe('the card', () => {
   })
 
   it('has nothing to catch up on where nobody was ever counted present, and still says what waits', () => {
-    const card = sinceAnswerOf(null, [item('vps/asks', 1, 'wants an answer')], EVERY)
+    const card = sinceAnswerOf(null, [item('vps/asks', 1, 'wants an answer')])
     expect(card.since).toBeNull()
     expect(card.finished.rows).toEqual([])
     expect(card.waiting.rows.map((one) => one.task)).toEqual(['vps/asks'])
@@ -68,9 +66,9 @@ async function machine(now: number) {
     {},
     {
       now: () => now,
-      since: async (device: Device, cut: number) => {
+      since: async (_device: Device, cut: number) => {
         cuts.push(cut)
-        return sinceAnswerOf(here({ finished: [item('far/done', 5)] }), [], reachFor(device.id))
+        return sinceAnswerOf(here({ finished: [item('far/done', 5)] }), [])
       },
     },
   )

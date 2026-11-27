@@ -201,17 +201,17 @@ export function projector(
       return notesOf(input, scope, budget, after)
     },
     chat(before: string): ChatPage {
-      return chatBefore(input.talk, input.reach, before, budget)
+      return chatBefore(input.talk, before, budget)
     },
     agent(task: string, seen: string | null = null): AgentOut {
-      return agentOf(input.reach, input.tasks, task, opts.agent?.(task) ?? null, AGENT, seen)
+      return agentOf(input.tasks, task, opts.agent?.(task) ?? null, AGENT, seen)
     },
     settings(): SettingsOut {
       const held = opts.settings?.() ?? { groups: [], known: [] }
       return settingsFor(held.groups, held.known)
     },
     evaluations(): EvaluationsOut {
-      return evaluationsFor(input.reach, opts.evaluations, opts.races)
+      return evaluationsFor(opts.evaluations, opts.races)
     },
     beat(next: SnapshotInput, at: number): Delta | null {
       input = next

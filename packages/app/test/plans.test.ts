@@ -1,4 +1,4 @@
-import { BUDGET, type RunIn, type RunStepIn, reachOf, runRow } from '@tade/web'
+import { BUDGET, type RunIn, type RunStepIn, runRow } from '@tade/web'
 import { describe, expect, it } from 'vitest'
 import * as page from '../../web/src/assets/pages/runs-shape.js'
 import { runsIn } from '../src/away-factory.ts'
@@ -144,13 +144,13 @@ describe("the window's plans are the away page's", () => {
     expect(PARTS.map((one) => [one.key, one.label, one.always])).toEqual(
       page.PARTS.map((one) => [one.key, one.label, one.always]),
     )
-    // Out of reach is a device's: a window reads every project, and a plan
-    // with no steps left is the one way it has none.
-    expect(GROUPS.map((one) => one.key)).toEqual(page.GROUPS.map((one) => one.key))
-    expect(GROUPS.slice(0, 3)).toEqual(page.GROUPS.slice(0, 3))
+    // A plan with no steps left is the window's alone: every run a device is
+    // sent has a step, since every paired device reads every project.
+    expect(GROUPS.slice(0, 3)).toEqual(page.GROUPS)
     for (const [key, one] of Object.entries(STANDINGS)) {
+      if (key === 'unseen') continue
       expect(one.group).toBe(page.STANDINGS[key]?.group)
-      if (key !== 'unseen') expect(one.word).toBe(page.STANDINGS[key]?.word)
+      expect(one.word).toBe(page.STANDINGS[key]?.word)
     }
   })
 
@@ -197,7 +197,8 @@ describe("the window's plans are the away page's", () => {
     }
     const all = overallOf(ROWS)
     const theirs = page.overallOf(ROWS)
-    expect({ ...all, plans: undefined }).toEqual({
+    expect(all.unseen).toBe(0)
+    expect({ ...all, plans: undefined, unseen: undefined }).toEqual({
       ...theirs,
       runs: undefined,
       plans: undefined,
@@ -216,7 +217,7 @@ describe("the window's plans are the away page's", () => {
         a.run.localeCompare(b.run),
     )
     const theirs = page.groupsOf(sorted)
-    expect(groups.map((one) => [one.key, one.plans.map((plan) => plan.run)])).toEqual(
+    expect(groups.slice(0, 3).map((one) => [one.key, one.plans.map((plan) => plan.run)])).toEqual(
       theirs.map((one) => [one.key, one.runs.map((plan: PlanRow) => plan.run)]),
     )
     expect(groups.map((one) => one.plans.map((plan) => plan.run))).toEqual([
@@ -228,9 +229,8 @@ describe("the window's plans are the away page's", () => {
   })
 
   it('rolls a plan up as `runRow` does for a device that reads everything', () => {
-    const every = reachOf({ id: 'dev' })
     for (const [i, one] of [CHECKOUT, RELEASE, SLOW, REVIEWING].entries()) {
-      const theirs = runRow(one, every, BUDGET)
+      const theirs = runRow(one, BUDGET)
       const mine = ROWS[i]
       expect(mine && [mine.finished, mine.total, mine.checks]).toEqual([
         theirs.finished,

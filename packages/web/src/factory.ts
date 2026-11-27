@@ -22,7 +22,6 @@ import type {
   WorkflowStep,
   Would,
 } from './protocol-factory.ts'
-import type { Reach } from './reach.ts'
 
 // The factory floor, projected: what was handed to this machine, the doors it
 // came through, what a run of a workflow is doing, and the workflows.
@@ -418,7 +417,7 @@ export function sourceRow(one: SourceIn): SourceRow {
  * not a check that passed), and `finished` counts what the journal says rather
  * than what a state happens to be.
  */
-export function runRow(one: RunIn, _reach: Reach, budget: Budget): RunRow {
+export function runRow(one: RunIn, budget: Budget): RunRow {
   const rows = one.steps.map((step) => runStep(step, budget))
   const usd = rows.reduce((total, step) => total + (step.usd ?? 0), 0)
   return {
