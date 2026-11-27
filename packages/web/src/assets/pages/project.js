@@ -82,7 +82,8 @@ import {
 
 export function projectScreen(where, ctx) {
   const live = ctx !== undefined && ctx !== null
-  // Not another machine's (`thereCtx`), whose outbox takes of these only its queue's hold.
+  // Not another machine's (`thereCtx`), whose outbox takes of these only its queue's hold
+  // and a card's park and tell.
   const here = live && ctx.machine === undefined
   const node = el('div')
   const bar = pageBar(where.project, { name: true, back: { text: 'Overview', href: '/' } })
@@ -245,7 +246,7 @@ export function projectScreen(where, ctx) {
         wantList,
         wants.rows,
         (task) => task.id,
-        () => createWant(here ? ctx : null),
+        () => createWant(ctx),
         (one, task) => fillWant(one, task, view),
       )
       failed.node.hidden = broke.length === 0
@@ -254,7 +255,7 @@ export function projectScreen(where, ctx) {
         failList,
         broke,
         (task) => task.id,
-        () => createWant(here ? ctx : null),
+        () => createWant(ctx),
         (one, task) => fillWant(one, task, view),
       )
 

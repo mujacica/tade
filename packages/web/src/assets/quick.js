@@ -22,6 +22,7 @@ import { keyOf } from './controls.js'
 import { classOn, el, felt, into, textIn } from './dom.js'
 import { icon } from './icons.js'
 import { taskPath } from './routes.js'
+import { THERE_VERBS } from './there.js'
 import { answerIn, command, commandIn } from './ui.js'
 
 /** The verbs a card offers a press for, in the order they are drawn. */
@@ -111,7 +112,9 @@ export function quickActs(ctx, opts = {}) {
       const standing = new Map(
         controlsFor(task, acts, [...QUICK, 'steer']).map((one) => [one.verb, one.kind]),
       )
-      const yes = (verb) => standing.get(verb) === 'yes'
+      // Another machine's card (`thereCtx`): only what its outbox takes.
+      const yes = (verb) =>
+        standing.get(verb) === 'yes' && (ctx.machine === undefined || THERE_VERBS.includes(verb))
       allow.hidden = !yes('answer')
       deny.hidden = !yes('answer')
       done.hidden = !yes('done')

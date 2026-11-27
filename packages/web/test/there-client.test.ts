@@ -273,9 +273,8 @@ describe('a press on another machine’s project', () => {
     })
     const resume = press(doc)
     expect(resume?.textContent).toBe('Resume this queue')
-    // Its close and open are this machine's own screen's, and so is a card's answer.
+    // Its close and open are this machine's own screen's.
     expect(doc.querySelectorAll('.pj-foot button')).toEqual([])
-    expect(doc.querySelectorAll('.pj-want-acts')).toEqual([])
     resume?.click()
     await new Promise((done) => setTimeout(done, 0))
     expect(asked).toHaveLength(1)
@@ -288,6 +287,24 @@ describe('a press on another machine’s project', () => {
     })
     const said = resume?.parentElement?.parentElement?.querySelector('[role="status"]')
     expect(said?.textContent).toBe('resumed there')
+  })
+
+  it('draws on a card wanting you only the presses that machine’s outbox takes, and carries them there', async () => {
+    const { ctx, asked } = door()
+    const { doc } = drawn({ view: 'project', project: 'tade' }, 'up', thereCtx(ctx, 'mac'), {
+      may: { acts: { steer: true, answer: true, done: true } },
+    })
+    const card = doc.querySelector('.pj-want-acts')
+    expect(card?.hidden).toBe(false)
+    const shown = card?.querySelectorAll('button, a').filter((one) => !one.hidden)
+    // Set aside and Tell; its answer and done are that machine's own screen's.
+    expect(shown?.map((one) => one.textContent)).toEqual(['Set aside', 'Tell'])
+    expect(shown?.[1]?.getAttribute('href')).toBe('/m/mac/t/tade/one')
+    shown?.[0]?.click()
+    await new Promise((done) => setTimeout(done, 0))
+    expect(asked.map((one) => one.body)).toMatchObject([
+      { machine: 'mac', verb: 'park', task: 'tade/one', parked: true },
+    ])
   })
 
   it('is not drawn where nothing is queued, or for a device that may not act', () => {
