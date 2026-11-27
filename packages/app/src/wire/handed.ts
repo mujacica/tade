@@ -4,6 +4,7 @@ import { withTranscript } from '../model.ts'
 import { tadeDid } from '../transcript.ts'
 import { type Wiring, why } from './context.ts'
 import { offerLeftovers } from './leftovers.ts'
+import { knownHere } from './web-lanes.ts'
 
 // A document handed over, told to the orchestrator now (`eventTell`).
 //
@@ -24,7 +25,9 @@ export function tellNow(wire: Wiring, orchestrator: Tellable, event: TadeEvent):
   // An agent that could not reach Tade is said on screen too, mended or not:
   // it is the one thing that went wrong without a word for four hours.
   if (event.type === 'agent_unheard') sayUnheard(wire, event)
-  const told = eventTell(event, wire.live?.queueFacts().events ?? [])
+  const told = eventTell(event, wire.live?.queueFacts().events ?? [], () =>
+    knownHere(wire, wire.opts.config),
+  )
   if (told) tellOrKeep(wire, orchestrator, told)
   else if (event.type === 'leftovers_reported') offerLeftovers(wire, orchestrator, event)
   else return false

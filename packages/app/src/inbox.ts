@@ -255,7 +255,15 @@ export function eventNews(
  * finishes the run somebody already answered is said to have finished on that
  * answer rather than put to the person a second time.
  */
-export function eventTell(event: TadeEvent, journal: readonly TadeEvent[]): string | null {
+export function eventTell(
+  event: TadeEvent,
+  journal: readonly TadeEvent[],
+  /**
+   * Every key Tade knows of here (`knownHere`), asked only for a lane's
+   * yes/no that says what it asks: a key not shaped like one is still taken out.
+   */
+  known: () => readonly string[] = () => [],
+): string | null {
   if (!event.task) return null
   // Not mended, so it needs somebody now: an agent working on that can report
   // nothing, finish nothing and run no check, and looks busy while it does.
@@ -267,7 +275,7 @@ export function eventTell(event: TadeEvent, journal: readonly TadeEvent[]): stri
   // presses a key there, and looks exactly like one thinking meanwhile.
   if (event.type === 'permission_request' && event.detail.prompt === 'lane') {
     const asked = typeof event.detail.asked === 'string' ? event.detail.asked.trim() : ''
-    const what = asked ? ` (${withoutCredentials(asked, [])})` : ''
+    const what = asked ? ` (${withoutCredentials(asked, known())})` : ''
     return `${event.task} is waiting on a yes/no in its lane${what}, which Tade did not answer by rule. Tell the person: it stops until they answer it there.`
   }
   const path = typeof event.detail.produces === 'string' ? event.detail.produces.trim() : ''

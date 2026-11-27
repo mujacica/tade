@@ -486,4 +486,17 @@ describe('a harness’s own permission prompt', () => {
       eventTell(event({ type: 'permission_request', detail: { requestId: 'q' } }), []),
     ).toBeNull()
   })
+
+  it('takes a key the window knows of out of what the lane asks, whatever its shape', () => {
+    const key = 'plainlookingvalue42'
+    const waiting = event({
+      type: 'permission_request',
+      urgency: 'blocking',
+      detail: { prompt: 'lane', asked: `Allow Bash: ./deploy ${key} eu?` },
+    })
+    expect(eventTell(waiting, [])).toContain(key)
+    const said = eventTell(waiting, [], () => [key])
+    expect(said).not.toContain(key)
+    expect(said).toContain('app/refunds is waiting on a yes/no in its lane (Allow Bash: ./deploy')
+  })
 })
