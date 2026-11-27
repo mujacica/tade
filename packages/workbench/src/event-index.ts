@@ -23,6 +23,8 @@ interface Database {
   exec(sql: string): void
   prepare(sql: string): Statement
   transaction<T extends (...args: never[]) => unknown>(fn: T): T
+  /** Whether a transaction is open, which SQLite may already have rolled back on an error. */
+  readonly inTransaction: boolean
   close(): void
 }
 
@@ -123,15 +125,26 @@ export class EventIndex {
    * leaves a log as big as the database beside it (88 MB on that machine),
    * which nothing reads again and which stays on the disk while the window is
    * open.
+   *
+   * Each event is inserted as it arrives and let go, so a journal read
+   * straight off the disk is never held whole: on 26 Nov the Mac's was
+   * 762 MB, and a rebuild handed it as one array, then copied, held all of it
+   * twice before the first row went in. The transaction is opened by hand
+   * because it spans the reads, and nothing else touches this connection
+   * until the rebuild resolves — the log that owns it is not made until then.
    */
-  rebuild(events: Iterable<TadeEvent>): void {
-    const run = this.db.transaction((list: TadeEvent[]) => {
+  async rebuild(events: Iterable<TadeEvent> | AsyncIterable<TadeEvent>): Promise<void> {
+    this.db.exec('BEGIN')
+    try {
       this.db.exec(DROP_INDEXES)
       this.db.exec('DELETE FROM events')
-      for (const e of list) this.insert(e)
+      for await (const e of events) this.insert(e)
       this.db.exec(CREATE_INDEXES)
-    })
-    run([...events])
+      this.db.exec('COMMIT')
+    } catch (cause) {
+      if (this.db.inTransaction) this.db.exec('ROLLBACK')
+      throw cause
+    }
     this.db.exec('PRAGMA wal_checkpoint(TRUNCATE);')
   }
 

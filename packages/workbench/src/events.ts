@@ -146,7 +146,7 @@ export class EventLog {
     let unindexed: string | null = null
     if (index && indexPath) {
       try {
-        if (!agrees(index, compacted, tail)) index.rebuild(await readMatching(opts.path, {}))
+        if (!agrees(index, compacted, tail)) await index.rebuild(parsed(opts.path))
       } catch {
         // An index that could not be brought into line is thrown away with its
         // write-ahead log — a database file beside a log that is not its own is
@@ -157,7 +157,7 @@ export class EventLog {
         await forgetIndex(indexPath)
         index = EventIndex.open(indexPath)
         try {
-          index?.rebuild(await readMatching(opts.path, {}))
+          await index?.rebuild(parsed(opts.path))
         } catch (cause) {
           index?.close()
           index = null
@@ -614,6 +614,14 @@ export async function readJournalSince(
   } finally {
     await handle.close().catch(() => {})
   }
+}
+
+/**
+ * Every parseable event of a journal, one at a time, for an index built from
+ * it as it is read rather than from the whole file held in memory first.
+ */
+async function* parsed(path: string): AsyncGenerator<TadeEvent> {
+  for await (const e of iterate(path)) if (e !== null) yield e
 }
 
 /** Yields every parseable event, and `null` for each unparseable line. */

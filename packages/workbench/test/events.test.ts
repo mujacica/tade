@@ -300,7 +300,7 @@ describe('EventIndex', () => {
     index.close()
   })
 
-  it('builds the indexes after the rows when it is built again, and ends with all three', () => {
+  it('builds the indexes after the rows when it is built again, and ends with all three', async () => {
     const p = paths()
     const index = EventIndex.open(p.indexPath)!
     const events: TadeEvent[] = Array.from({ length: 200 }, (_, i) => ({
@@ -310,7 +310,7 @@ describe('EventIndex', () => {
     index.insertMany(events.slice(0, 50))
     // What was there before is not what is there after: exactly the events
     // handed over, answering as an index built row by row would.
-    index.rebuild(events.slice(100))
+    await index.rebuild(events.slice(100))
     expect(index.count()).toBe(100)
     // The write-ahead log a build leaves is emptied rather than kept beside
     // the database for as long as the window is open: 88 MB of it, after a
@@ -336,6 +336,46 @@ describe('EventIndex', () => {
       .map((row) => row.name)
     db.close()
     expect(names).toEqual(['events_rank', 'events_task', 'events_type'])
+  })
+
+  it('takes each event in as it is read, so a journal it is built from is never held whole', async () => {
+    // On 26 Nov the Mac's journal was 762 MB, and an open whose index
+    // disagreed read all of it into one array before the first row went in.
+    const p = paths()
+    const index = EventIndex.open(p.indexPath)!
+    const seen: number[] = []
+    async function* read(): AsyncGenerator<TadeEvent> {
+      for (let seq = 1; seq <= 50; seq++) {
+        // Every event handed over before this one is already a row.
+        seen.push(index.count())
+        await Promise.resolve()
+        yield event('routine', seq)
+      }
+    }
+    await index.rebuild(read())
+    expect(seen).toEqual(Array.from({ length: 50 }, (_, i) => i))
+    expect(index.count()).toBe(50)
+    expect(index.maxSeq()).toBe(50)
+    index.close()
+  })
+
+  it('is left as it was when the journal cannot be read to the end', async () => {
+    const p = paths()
+    const index = EventIndex.open(p.indexPath)!
+    const before = Array.from({ length: 10 }, (_, i) => event('notable', i + 1))
+    index.insertMany(before)
+    async function* torn(): AsyncGenerator<TadeEvent> {
+      yield event('routine', 100)
+      yield event('routine', 101)
+      throw new Error('the disk went away')
+    }
+    await expect(index.rebuild(torn())).rejects.toThrow('the disk went away')
+    expect(index.count()).toBe(10)
+    expect(index.query({})).toEqual(before)
+    // And it still takes a rebuild after: no transaction was left open.
+    await index.rebuild(before.slice(0, 3))
+    expect(index.count()).toBe(3)
+    index.close()
   })
 
   it('forgets only the rows it is told, by number and by the word each was written as', () => {
