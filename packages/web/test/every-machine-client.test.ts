@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { StillDocument } from '../scripts/still-dom.ts'
+import { agentsScreen } from '../src/assets/agents.js'
 import { chipsOf, drawsOf, HERE, pickedIn, reviewsOnce } from '../src/assets/machines.js'
 import { queueScreen } from '../src/assets/pages/queue.js'
 import { reviewsScreen } from '../src/assets/pages/reviews.js'
@@ -230,5 +231,47 @@ describe('the side', () => {
     const hrefs = (there?.querySelectorAll('a[href]') ?? []).map((one) => one.getAttribute('href'))
     expect(hrefs).toContain('/m/mac/p/tade')
     for (const href of hrefs) if (href !== '/') expect(href).toMatch(/^\/m\/mac\//)
+  })
+})
+
+describe('the Agents page', () => {
+  /** The links to an agent a person can see, as the page draws them. */
+  const agentHrefs = (doc: StillDocument) =>
+    doc
+      .querySelectorAll('.agent-list > li > a')
+      .filter((one) => one.closest('[hidden]') === null)
+      .map((one) => one.getAttribute('href') ?? '')
+
+  it('has the machine chips, and draws only the agents of the machine they pick', () => {
+    const doc = page()
+    const screen = agentsScreen(null)
+    doc.body.append(screen.node)
+    const store = storeOf(true)
+    screen.update(viewOf(store))
+    expect(doc.querySelector('.machine-chips')?.hidden).toBe(false)
+    expect(agentHrefs(doc)).toEqual(['/t/tade/one', '/m/mac/t/tade/two'])
+    expect(doc.querySelector('.there-line')?.hidden).toBe(false)
+    expect(doc.querySelector('.figure')?.textContent).toBe('2')
+
+    pick(doc, 'mac')
+    screen.update(viewOf(store))
+    expect(agentHrefs(doc)).toEqual(['/m/mac/t/tade/two'])
+    expect(doc.querySelector('.there-line')?.hidden).toBe(true)
+    expect(doc.querySelector('.figure')?.textContent).toBe('1')
+
+    pick(doc, 'This machine')
+    screen.update(viewOf(store))
+    expect(agentHrefs(doc)).toEqual(['/t/tade/one'])
+    expect(doc.querySelector('section.elsewhere')).toBeNull()
+  })
+
+  it('draws no chips and no line where only this machine is', () => {
+    const doc = page()
+    const screen = agentsScreen(null)
+    doc.body.append(screen.node)
+    screen.update(viewOf(storeOf(false)))
+    expect(doc.querySelector('.machine-chips')?.hidden).toBe(true)
+    expect(doc.querySelector('.there-line')?.hidden).toBe(true)
+    expect(agentHrefs(doc)).toEqual(['/t/tade/one'])
   })
 })
