@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import {
   type Answer,
   type AskRequest,
@@ -123,6 +124,54 @@ function latestKey(options: JevOptions): string {
   return `${options.url ?? JEV_URL}\u0000${options.key ?? ''}`
 }
 
+/**
+ * The name the version is kept under past this run: the address and the key,
+ * hashed, so a file somebody reads holds no credential and two keys keep two
+ * versions.
+ */
+function keptUnder(options: JevOptions): string {
+  return createHash('sha256').update(latestKey(options)).digest('hex').slice(0, 16)
+}
+
+/**
+ * The version that last answered, from this run or — after a restart, when
+ * this run has none — from where it was kept (`JudgeOptions.kept`), or why
+ * there is none to fall back to beyond nothing having answered.
+ */
+async function lastAnswered(
+  options: JevOptions,
+): Promise<{ version: string | null; problem: string | null }> {
+  const here = workedFor(options).get(latestKey(options))
+  if (here) return { version: here, problem: null }
+  if (!options.kept) return { version: null, problem: null }
+  try {
+    const kept = await options.kept.read(keptUnder(options))
+    if (kept) workedFor(options).set(latestKey(options), kept)
+    return { version: kept, problem: null }
+  } catch (err) {
+    // Read only when the list could not be, so this is said in the one error
+    // that follows — the one that has no version to ask with.
+    return { version: null, problem: `the kept one could not be read: ${message(err)}` }
+  }
+}
+
+/**
+ * Keeps `version` past this run. A write that fails throws out of the ask:
+ * Tade's home that cannot be written is trouble somebody has to hear about,
+ * and the record of the same reading would fail beside it anyway.
+ */
+async function keep(options: JevOptions, version: string | null, said: string): Promise<void> {
+  if (!options.kept) return
+  try {
+    await options.kept.write(keptUnder(options), version)
+  } catch (err) {
+    throw new Error(`${said}: ${message(err)}`, { cause: err })
+  }
+}
+
+/** TypeSafe answered its list of versions with none at all. */
+class NothingListed extends Error {}
+
 function workedFor(options: JevOptions): Map<string, string> {
   const call = options.fetch ?? globalThis.fetch
   const kept = worked.get(call) ?? new Map<string, string>()
@@ -146,24 +195,26 @@ function latestFor(options: JevOptions): Promise<string> {
     .then((listed) => {
       const found = newestOf(listed)
       if (found !== null) return found
-      throw new Error(
-        listed.length === 0
-          ? 'it listed none'
-          : `none of the versions it lists (${listed.join(', ')}) reads as a version`,
-      )
+      if (listed.length === 0) throw new NothingListed('TypeSafe lists no versions for this key')
+      throw new Error(`none of the versions it lists (${listed.join(', ')}) reads as a version`)
     })
-    .catch((err: unknown) => {
+    .catch(async (err: unknown) => {
       // A key it refused is refused for the ask too, and is said as that.
       if (err instanceof JudgeError && err.cannotAnswer) throw err
       // A listing that could not be read — slow, down, or empty — falls back
       // to the version that last answered, and that is kept as the answer, so
       // the asks behind this one do not each wait out a listing that hangs.
-      const before = workedFor(options).get(key)
-      if (before) return before
+      const before = await lastAnswered(options)
+      if (before.version) return before.version
       // Nothing to fall back to: one loud error for the whole look rather than
       // a refusal per batch, and asked again by the next look, never kept.
+      const why =
+        err instanceof NothingListed
+          ? err.message
+          : `TypeSafe's list of versions could not be read (${message(err)})`
+      const unkeptSaid = before.problem ? ` (${before.problem})` : ''
       throw new JudgeError(
-        `Jev has no version to ask with: TypeSafe's list of versions could not be read (${message(err)}) and no version has answered here yet, so nothing was asked. It is listed again on the next look; pinning one in extensions.jev.model asks that one without listing`,
+        `Jev has no version to ask with: ${why} and no version that answered here is kept to fall back to${unkeptSaid}, so nothing was asked. It is listed again on the next look; pinning one in extensions.jev.model asks that one without listing`,
         { retryable: true, cannotAnswer: true },
       )
     })
@@ -182,15 +233,24 @@ export function forgetLatest(options: JevOptions): void {
   latest.get(options.fetch ?? globalThis.fetch)?.delete(latestKey(options))
 }
 
-/** The version that answered, kept for the next time listing fails. */
-function answeredUnder(options: JevOptions, version: string): void {
-  workedFor(options).set(latestKey(options), version)
+/**
+ * The version that answered, kept for the next time listing fails — in this
+ * run, and past it where there is somewhere to keep it, written only when it
+ * changed rather than once per ask.
+ */
+async function answeredUnder(options: JevOptions, version: string): Promise<void> {
+  const here = workedFor(options)
+  if (here.get(latestKey(options)) === version) return
+  await keep(options, version, `${version} answered but could not be kept for after a restart`)
+  here.set(latestKey(options), version)
 }
 
-/** A version TypeSafe refused is not one to fall back to. */
-function refusedUnder(options: JevOptions, version: string): void {
-  const kept = workedFor(options)
-  if (kept.get(latestKey(options)) === version) kept.delete(latestKey(options))
+/** A version TypeSafe refused is not one to fall back to, here or after a restart. */
+async function refusedUnder(options: JevOptions, version: string): Promise<void> {
+  const here = workedFor(options)
+  if (here.get(latestKey(options)) !== version) return
+  here.delete(latestKey(options))
+  await keep(options, null, `${version} was refused but could not be forgotten`)
 }
 
 /** Waits for `pending`, or for `signal` to abort — whichever is first. */
@@ -243,7 +303,12 @@ export class JevJudge implements Judge {
     try {
       const versions = await jevVersions(this.opts)
       const wanted = pinnedOf(this.opts)
-      if (versions.length === 0) return null
+      // A pin is asked without listing, so an empty list costs it nothing.
+      if (versions.length === 0) {
+        return wanted === null
+          ? 'the key works, but TypeSafe lists no versions for this key, so there is none to ask: pin one in extensions.jev.model'
+          : null
+      }
       if (wanted === null) {
         return newestOf(versions) === null
           ? `the key works, but none of the versions it lists (${versions.join(', ')}) reads as a version`
@@ -289,7 +354,7 @@ export class JevJudge implements Judge {
       // The latest moved under us — retired between asks. Listed again, once,
       // and where the list still names the one refused, that refusal stands.
       forgetLatest(this.opts)
-      refusedUnder(this.opts, model)
+      await refusedUnder(this.opts, model)
       const again = await until(latestFor(this.opts), request.signal)
       if (again === model) throw first
       model = again
@@ -320,7 +385,7 @@ export class JevJudge implements Judge {
       answers[question.id] = understood(question, answer)
     }
     // Only a whole answer makes a version one to fall back to.
-    if (!pinned) answeredUnder(this.opts, model)
+    if (!pinned) await answeredUnder(this.opts, model)
     const tokens =
       typeof read.usage?.input_tokens === 'number' ? Number(read.usage.input_tokens) : null
     return {
@@ -520,12 +585,33 @@ export async function jevVersions(options: JevOptions): Promise<string[]> {
     signal: AbortSignal.timeout(options.timeoutMs ?? 10_000),
   })
   if (!response.ok) throw await refusal(response)
-  const body = (await response.json().catch(() => null)) as {
-    data?: { id?: unknown }[]
-    models?: { id?: unknown }[]
-  } | null
-  const listed = body?.data ?? body?.models ?? []
-  return listed.map((one) => String(one?.id ?? '')).filter(Boolean)
+  const body = (await response.json().catch(() => null)) as Record<string, unknown> | null
+  // What they answer has moved under us once already: `{ data: [{ id }] }`
+  // became `{ models: [{ name, description, release_date }] }`, every entry
+  // read as nameless, and the list read as empty — so every ask had no version
+  // and nothing was asked for a night. An entry may be a name on its own, or
+  // carry it as `id` or `name`.
+  const listed = [body?.data, body?.models, body?.versions].find(Array.isArray) ?? []
+  const ids = listed.map(versionIn).filter((one): one is string => one !== null)
+  if (listed.length > 0 && ids.length === 0) {
+    // Entries with no name Tade can read are not an empty list, and saying
+    // "it listed none" about them sends whoever reads it the wrong way.
+    throw new Error(
+      `it listed ${listed.length} but named none in a way Tade reads (${JSON.stringify(listed[0]).slice(0, 120)})`,
+    )
+  }
+  return ids
+}
+
+/** The version one entry of the list names, or null where it names none. */
+function versionIn(entry: unknown): string | null {
+  if (typeof entry === 'string') return entry.trim() || null
+  if (!entry || typeof entry !== 'object') return null
+  const { id, name } = entry as { id?: unknown; name?: unknown }
+  for (const said of [id, name]) {
+    if (typeof said === 'string' && said.trim() !== '') return said.trim()
+  }
+  return null
 }
 
 /** A Jev judge, for the registry. */

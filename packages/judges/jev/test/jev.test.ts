@@ -1,4 +1,4 @@
-import { JudgeError } from '@tade/judges-core'
+import { JudgeError, type KeptVersion } from '@tade/judges-core'
 import { testJudge } from '@tade/judges-core/conformance'
 import { describe, expect, it } from 'vitest'
 import { forgetLatest, JevJudge, jevVersions, newestOf, pinnedOf } from '../src/index.ts'
@@ -482,5 +482,121 @@ describe('never asking without a version', () => {
     expect(failed?.cannotAnswer).toBe(true)
     expect(failed?.message).toMatch(/no version to ask with/)
     expect(seen).toEqual(['jev-1.13.0', 'jev-1.13.0'])
+  })
+})
+
+/** A `KeptVersion` in memory, standing for a file that outlives one run. */
+function keptAcross(): KeptVersion & { all: Map<string, string> } {
+  const all = new Map<string, string>()
+  return {
+    all,
+    read: async (under) => all.get(under) ?? null,
+    write: async (under, version) => {
+      if (version === null) all.delete(under)
+      else all.set(under, version)
+    },
+  }
+}
+
+describe('what TypeSafe lists, and what outlives a restart', () => {
+  it('reads the list as TypeSafe answers it now: names under models, with nothing called id', async () => {
+    // What /v1/models answered on 27 Nov 2026, with the descriptions cut short.
+    const now = (async () =>
+      Response.json({
+        models: [
+          { name: 'jev-latest', description: 'The latest iteration', release_date: '2026-10-22' },
+          { name: 'jev-preview', description: 'Preview the next', release_date: '2026-10-14' },
+        ],
+      })) as unknown as typeof fetch
+    expect(await jevVersions({ key: 'k', fetch: now })).toEqual(['jev-latest', 'jev-preview'])
+    expect(newestOf(await jevVersions({ key: 'k', fetch: now }))).toBe('jev-latest')
+  })
+
+  it('says entries it cannot read the names of as that, never as a list of none', async () => {
+    const nameless = (async () =>
+      Response.json({ models: [{ title: 'jev-latest' }] })) as unknown as typeof fetch
+    await expect(jevVersions({ key: 'k', fetch: nameless })).rejects.toThrow(
+      /listed 1 but named none.*title/,
+    )
+  })
+
+  it('asks the version that answered before a restart when the list after it cannot be read', async () => {
+    const kept = keptAcross()
+    const state: { versions: 'lists' | 'fails' | 'hangs' } = { versions: 'lists' }
+    const before = listing(state)
+    await new JevJudge({ key: 'k', fetch: before.fetch, kept, retries: 0, retryMs: 0 }).ask({
+      state: 'x',
+      questions: one,
+    })
+    expect([...kept.all.values()]).toEqual(['jev-1.14.0'])
+    // Kept under a hash, never under the key.
+    expect([...kept.all.keys()]).toEqual([expect.stringMatching(/^[0-9a-f]{16}$/)])
+    // A restart is a fetch nothing has been asked through yet.
+    const seen: (string | null)[] = []
+    const after = listing({ versions: 'fails' }, seen)
+    const judge = new JevJudge({ key: 'k', fetch: after.fetch, kept, retries: 0, retryMs: 0 })
+    expect((await judge.ask({ state: 'y', questions: one })).version).toBe('jev-1.14.0')
+    expect(seen).toEqual(['jev-1.14.0'])
+  })
+
+  it('forgets the kept version once TypeSafe says it does not have it', async () => {
+    const kept = keptAcross()
+    const state = { listed: ['jev-1.13.0'], has: ['jev-1.13.0'] }
+    const fetch = versioned(state)
+    const judge = new JevJudge({ key: 'k', fetch, kept, retries: 0, retryMs: 0 })
+    await judge.ask({ state: 'x', questions: one })
+    expect([...kept.all.values()]).toEqual(['jev-1.13.0'])
+    state.has = []
+    await judge.ask({ state: 'x', questions: one }).catch(() => null)
+    expect(kept.all.size).toBe(0)
+  })
+
+  it('says a version it could not keep, and a kept one it could not read', async () => {
+    const broken: KeptVersion = {
+      read: async () => {
+        throw new Error('version.json is not what Tade wrote')
+      },
+      write: async () => {
+        throw new Error('EACCES: permission denied')
+      },
+    }
+    await expect(
+      new JevJudge({ key: 'k', fetch: listing({ versions: 'lists' }).fetch, kept: broken }).ask({
+        state: 'x',
+        questions: one,
+      }),
+    ).rejects.toThrow(/jev-1\.14\.0 answered but could not be kept.*EACCES/)
+    const failed = await new JevJudge({
+      key: 'k',
+      fetch: listing({ versions: 'fails' }).fetch,
+      kept: broken,
+      retries: 0,
+    })
+      .ask({ state: 'y', questions: one })
+      .then(() => null)
+      .catch((err: unknown) => err as JudgeError)
+    expect(failed?.cannotAnswer).toBe(true)
+    expect(failed?.message).toMatch(
+      /no version to ask with.*504.*the kept one could not be read: version\.json is not what/,
+    )
+  })
+
+  it('says plainly that this key lists no versions, and where a person pins one', async () => {
+    const empty = (async (input: string | URL | Request) =>
+      String(input).endsWith('/v1/models')
+        ? Response.json({ models: [] })
+        : new Response('never asked', { status: 500 })) as typeof fetch
+    const failed = await new JevJudge({ key: 'k', fetch: empty, retries: 0, retryMs: 0 })
+      .ask({ state: 'x', questions: one })
+      .then(() => null)
+      .catch((err: unknown) => err as JudgeError)
+    expect(failed?.cannotAnswer).toBe(true)
+    expect(failed?.message).toMatch(
+      /^Jev has no version to ask with: TypeSafe lists no versions for this key .*extensions\.jev\.model/,
+    )
+    expect(await new JevJudge({ key: 'k', fetch: empty }).verify()).toMatch(
+      /lists no versions for this key.*extensions\.jev\.model/,
+    )
+    expect(await new JevJudge({ key: 'k', model: 'jev-1.14.0', fetch: empty }).verify()).toBeNull()
   })
 })

@@ -184,6 +184,23 @@ export interface JudgeOptions {
   timeoutMs?: number
   /** How long to wait before asking again, where asking again is worth it. */
   retryMs?: number
+  /**
+   * Where the version that last answered is kept past this run, so a judge
+   * that cannot learn which versions there are just after a restart still has
+   * one to ask with. Unset keeps it in memory only.
+   */
+  kept?: KeptVersion
+}
+
+/**
+ * One small thing a judge keeps across runs: the version that last answered,
+ * under a name the judge chooses (never its credential). Nothing kept reads as
+ * null; a store that cannot be read or written throws, and the judge says so.
+ */
+export interface KeptVersion {
+  read(under: string): Promise<string | null>
+  /** `null` forgets it: a version the provider has since said it does not have. */
+  write(under: string, version: string | null): Promise<void>
 }
 
 export type MakeJudge = (options: JudgeOptions) => Judge

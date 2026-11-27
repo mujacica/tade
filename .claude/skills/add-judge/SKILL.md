@@ -99,6 +99,10 @@ Everything below is one rule read at different distances: **a judge answers, it 
   version made every ask a 400 and the review watch read as though it found nothing — so an
   unset or empty `extensions.jev.model` asks the provider's `latest` alias, or the newest version
   it lists (`newestOf`), resolved per run and again when an ask is told its version is unknown.
+  Where the list cannot be read, or lists none, it asks the last version that answered, kept past a
+  restart in `<home>/jev/version.json` (`JudgeOptions.kept`, `keptIn`), and forgotten once refused.
+  `jevVersions` reads an entry's name as `id` or `name`: when TypeSafe moved to `models[].name`, a
+  parser reading only `id` saw an empty list and Jev asked nothing for a night.
   A person may still pin one, and a pin that is gone is a judge that cannot answer, never swapped.
   Thresholds are tuned against one version, so every `Judgement.version` is what answered, the
   precision table and `jev_findings` count by it (`byVersion`), and a change is said once

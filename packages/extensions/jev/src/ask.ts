@@ -1,6 +1,7 @@
 import { type ExtensionContext, type ProjectRef, string } from '@tade/extensions-core'
 import type { Judge, Judgement, Question } from '@tade/judges-core'
 import { makeJudge } from '@tade/workbench/judges'
+import { keptIn } from './kept.ts'
 import { ACT, BUDGET, REPORT } from './questions.ts'
 
 // Who answers, what it may look at, and what one look may spend.
@@ -62,6 +63,7 @@ export function judgeFor(ctx: ExtensionContext): Judge {
     ...(typeof ctx.settings.url === 'string' ? { url: ctx.settings.url } : {}),
     ...(typeof ctx.settings.model === 'string' ? { model: ctx.settings.model } : {}),
     fetch: ctx.fetch,
+    kept: keptIn(ctx.home),
   })
 }
 
