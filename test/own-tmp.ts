@@ -41,6 +41,13 @@ import { basename, dirname, join } from 'node:path'
 //   A server still running when the root goes would run on with no socket for
 //   anything to reach it by, so each one under the root is stopped first
 //   (`stopServersUnder`) and named, since a test should have stopped it.
+// - **And so is every other process still naming the root** (`stopNaming`).
+//   A test's `sshd` and the ssh masters its link started run detached, so a
+//   worker that never reached its `afterAll` leaves them to pid 1, and a check
+//   waiting on `until [ -e <root>/…/go ]` waits forever once the root has
+//   gone: two `sshd`s and an ssh master were found under pid 1 an hour after
+//   their suite and its root had gone. What names a path
+//   under the root has nothing left to do there once the run has ended.
 // - **And Tade's runtime folder** (`TADE_RUNTIME_DIR`, `runtimeDir`), where a
 //   home's sockets go. On Linux that is `XDG_RUNTIME_DIR` otherwise, outside
 //   the root, and `systemctl --user` reads that one to find the user's
@@ -197,6 +204,9 @@ export async function sweepRoots(
       // A tmux server the killed run left would run on with no socket.
       const stopped = stopServersUnder(root)
       if (stopped.length > 0) say(`\n${serversSaid(stopped)}\n`)
+      // And an sshd, an ssh master or a shell loop would run on with no folder.
+      const ended = stopNaming(root)
+      if (ended.length > 0) say(`\n${namingSaid(ended)}\n`)
       await rm(root, { recursive: true, force: true, maxRetries: 3 })
       removed.push(root)
     } catch (err) {
@@ -490,6 +500,12 @@ export async function ownTmp(opts: {
       } catch (err) {
         say(`\nCould not look for tmux servers under ${root}: ${String(err)}\n`)
       }
+      try {
+        const ended = stopNaming(root)
+        if (ended.length > 0) say(`\n${namingSaid(ended)}\n`)
+      } catch (err) {
+        say(`\nCould not look for processes still using ${root}: ${String(err)}\n`)
+      }
       kept = removeRoot(root)
     }
     return kept
@@ -658,6 +674,73 @@ export function serversSaid(stopped: readonly Stopped[]): string {
     `This suite stopped ${servers} its tests left running, which would have run on with no socket once its temp root went:`,
     ...rows,
     'A test that starts a tmux server has to kill it when it is done. The sessions say which test it was.',
+  ].join('\n')
+}
+
+/** A process `stopNaming` ended: its pid and its command line. */
+export interface Ended {
+  pid: number
+  command: string
+}
+
+/**
+ * End every process whose command line names `root` or a path under it, and
+ * answer which. Synchronous, because a signal's handler has no later. This
+ * process and the `ps` that listed them are never among them.
+ */
+export function stopNaming(root: string): Ended[] {
+  const roots = new Set([root])
+  try {
+    roots.add(realpathSync(root))
+  } catch {
+    // Gone already: only the name it was given can be in a command line.
+  }
+  const listed = spawnSync('ps', ['-A', '-ww', '-o', 'pid=,command='], {
+    encoding: 'utf8',
+    timeout: TMUX_MS,
+    maxBuffer: 64 * 1024 * 1024,
+  })
+  if (listed.status !== 0) {
+    throw new Error(`ps could not list processes: ${listed.error?.message ?? listed.stderr}`)
+  }
+  const ended: Ended[] = []
+  for (const line of listed.stdout.split('\n')) {
+    const at = /^\s*(\d+)\s+(.*)$/.exec(line)
+    if (!at) continue
+    const pid = Number(at[1])
+    const command = at[2] ?? ''
+    if (pid === process.pid || pid === listed.pid) continue
+    if (![...roots].some((one) => names(command, one))) continue
+    try {
+      process.kill(pid, 'SIGKILL')
+      ended.push({ pid, command })
+    } catch {
+      // Ended by itself since the listing, or not ours to end.
+    }
+  }
+  return ended
+}
+
+/** Whether `command` names `path` itself or something under it, not a longer name it begins. */
+function names(command: string, path: string): boolean {
+  for (let at = command.indexOf(path); at !== -1; at = command.indexOf(path, at + 1)) {
+    const next = command[at + path.length]
+    if (next === undefined || next === '/' || /\s/.test(next)) return true
+  }
+  return false
+}
+
+/** The processes that had to be ended, by command line, which says which test started each. */
+export function namingSaid(ended: readonly Ended[]): string {
+  const most = 5
+  const rows = ended.slice(0, most).map(({ pid, command }) => `  ${pid} ${command.slice(0, 200)}`)
+  const more = ended.length > most ? [`  and ${ended.length - most} more`] : []
+  const processes = ended.length === 1 ? 'a process' : `${ended.length} processes`
+  return [
+    `This suite ended ${processes} its tests left running in its temp root, which would have run on once the root went:`,
+    ...rows,
+    ...more,
+    'A test that starts a server, an ssh master or a loop has to end it when it is done. The command line says which test it was.',
   ].join('\n')
 }
 

@@ -20,12 +20,14 @@ import {
   leftSaid,
   MADE_ENV,
   madeHere,
+  namingSaid,
   OWNER,
   ownTmp,
   prefixOf,
   ROOT,
   STALE_MS,
   serversSaid,
+  stopNaming,
   stopServersUnder,
   sweepRoots,
 } from './own-tmp.ts'
@@ -193,6 +195,58 @@ describe('a run ended before its teardown takes its root away as it goes', () =>
     expect(serversSaid([{ socket: 'left', sessions: ['conf-abc12345'] }])).toContain(
       'tmux -L left: conf-abc12345',
     )
+  })
+
+  it('ending every process still naming it, as a waiting loop or a test’s sshd would', async () => {
+    const root = tmp('tade-base-')
+    // Detached, as an sshd and an ssh master are: nothing ends it with its parent.
+    const waiting = (at: string) => {
+      const child = spawn('sh', ['-c', `until [ -e ${at}/go ]; do sleep 0.05; done`], {
+        detached: true,
+        stdio: 'ignore',
+      })
+      return { child, exited: new Promise<void>((done) => child.once('exit', () => done())) }
+    }
+    const left = waiting(join(root, 'marks'))
+    // A longer name that begins with the root's is somebody else's.
+    const beside = waiting(`${root}x`)
+    try {
+      expect(stopNaming(root).map(({ pid }) => pid)).toEqual([left.child.pid])
+      await left.exited
+      expect(running(beside.child.pid ?? 0)).toBe(true)
+      expect(stopNaming(root)).toEqual([])
+      expect(namingSaid([{ pid: 7, command: 'sshd -f /tmp/r/sshd_config' }])).toContain(
+        '  7 sshd -f /tmp/r/sshd_config',
+      )
+    } finally {
+      beside.child.kill('SIGKILL')
+      left.child.kill('SIGKILL')
+    }
+    await beside.exited
+  })
+
+  it('ending a process naming it before the root goes, and saying so', async () => {
+    const said: string[] = []
+    const own = await ownTmp({
+      env: {},
+      guard: false,
+      base: tmp('tade-base-'),
+      watch: [],
+      say: (line) => said.push(line),
+    })
+    const child = spawn('sh', ['-c', `until [ -e ${own.root}/go ]; do sleep 0.05; done`], {
+      detached: true,
+      stdio: 'ignore',
+    })
+    const exited = new Promise<void>((done) => child.once('exit', () => done()))
+    try {
+      own.abandon()
+      await exited
+      expect(existsSync(own.root)).toBe(false)
+      expect(said.join('')).toContain(`${child.pid} sh -c until [ -e ${own.root}/go ]`)
+    } finally {
+      child.kill('SIGKILL')
+    }
   })
 })
 
