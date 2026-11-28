@@ -1,9 +1,9 @@
 import type { RunIn, RunStepIn } from '@tade/web'
 import { focusTask, initialState, showPlans, withProjects, withTasks } from '../../../src/model.ts'
 import { searchPanel } from '../../../src/panels/search/state.ts'
+import { planRowsOf } from '../../../src/plan-rows.ts'
 import type { PlanRow } from '../../../src/plans.ts'
 import { planEntries, searchResults } from '../../../src/search.ts'
-import { planRowsOf } from '../../../src/wire/plans.ts'
 import { base, frame, NOW, type Scenario, tasks, utcClock } from './fixtures.ts'
 
 // The Plans screen: every plan — what wants you first, then what is moving and

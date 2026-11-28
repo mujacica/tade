@@ -1,4 +1,4 @@
-import { type RacerFacts, racesIn, wonFrom } from '@tade/core'
+import { type RacerFacts, racesIn, wonFrom } from '@tade/core/pure'
 import { racePanel } from '../../../src/panels/race/state.ts'
 import { base, frame, NOW, type Scenario } from './fixtures.ts'
 

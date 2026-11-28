@@ -6,7 +6,7 @@ import {
   THINKING_LEVELS,
   type ThinkingLevel,
 } from './config.ts'
-import { GIVE_WAY_DEFAULT, GIVE_WAY_MAX, GIVE_WAY_MEANS } from './priority.ts'
+import { GIVE_WAY_DEFAULT, GIVE_WAY_MAX, GIVE_WAY_MEANS } from './give-way.ts'
 import { PUSH_BY_DEFAULT, PUSH_MODES, pushDefault } from './project.ts'
 import { machineNameByDefault } from './remotes.ts'
 import { KEYS_AND_AGENTS, SEEN_BY_AGENTS } from './secrets.ts'

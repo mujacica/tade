@@ -1,4 +1,4 @@
-import { IDLE_REASON, noRuntime } from '@tade/core'
+import { IDLE_REASON, noRuntime } from '@tade/core/pure'
 import {
   focusTask,
   initialState,

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { TadeEvent } from './events.ts'
-import { MACHINE_ID } from './feeds.ts'
+import { MACHINE_ID } from './feed-lines.ts'
 
 // What a machine has, by name: which harness is signed in and until when,
 // which keys it holds and where each comes from, which environment keys its

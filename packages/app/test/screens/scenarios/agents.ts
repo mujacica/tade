@@ -1,4 +1,4 @@
-import { IDLE_REASON } from '@tade/core'
+import { IDLE_REASON } from '@tade/core/pure'
 import type { ActionsView, ListRowView } from '../../../src/frame.ts'
 import {
   type AppState,

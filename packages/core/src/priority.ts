@@ -1,4 +1,7 @@
+import { GIVE_WAY_DEFAULT, GIVE_WAY_MAX, GIVE_WAY_MEANS } from './give-way.ts'
 import { resolveCommand, stringEnv } from './which.ts'
+
+export { GIVE_WAY_DEFAULT, GIVE_WAY_MAX, GIVE_WAY_MEANS }
 
 // Who the machine should prefer when there is not enough machine to go round.
 //
@@ -88,24 +91,6 @@ const QOS_ARGS = ['-c', 'utility'] as const
 const IONICE_ARGS = ['-c', '2', '-n', '7'] as const
 
 /**
- * As far as `nice` goes without privilege, and as far as this will ever ask.
- *
- * POSIX nice runs 0 to 19 for lowering, and 19 is "only when nothing else
- * wants the machine" — which is a real answer for a long check suite and the
- * wrong one for an agent you are waiting on. The schema stops at it; what to
- * actually use is the person's, and the research's starting point is 5.
- */
-export const GIVE_WAY_MAX = 19
-
-/**
- * What a config that says nothing gives way by. Halfway down, and well clear
- * of 19: with the QoS clamp doing the work on a Mac, the number is mostly
- * Linux's, where 10 below the window weighs 110 to its 1024 on a contended
- * core (CFS) — the window first, and an agent still making progress.
- */
-export const GIVE_WAY_DEFAULT = 10
-
-/**
  * What Tade started, for the one question of whether it gives way.
  *
  * The lane kinds, plus the two things that are started without a lane. Spelled
@@ -152,10 +137,6 @@ export type Started =
  * without being asked.
  */
 const GIVES_WAY: ReadonlySet<Started> = new Set<Started>(['agent', 'checks', 'tests'])
-
-/** What `nice` here means, in the one sentence read wherever somebody is deciding. */
-export const GIVE_WAY_MEANS =
-  'agents and check runs are started below the window — nice, plus a utility QoS clamp on macOS and best-effort ionice on Linux — so the window and its own git and ps stay quick while the machine is busy; 0 is off, and it applies to the next one started'
 
 /**
  * Why nothing gives way here, where something was asked to and cannot.

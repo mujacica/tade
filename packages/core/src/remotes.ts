@@ -154,8 +154,13 @@ export const MachineName = z
  * messages. A name is what the person gave a machine (`ipax` is a remote's) or
  * this; `test/hostname.test.ts` fails where the host name reaches anything Tade
  * publishes.
+ *
+ * The platform is read only where there is a `process`: the Settings page's
+ * rows are made with this, and a browser draws that page too.
  */
-export function machineNameByDefault(platform: string = process.platform): string {
+export function machineNameByDefault(
+  platform: string = typeof process === 'undefined' ? '' : process.platform,
+): string {
   return platform === 'darwin' || platform === 'win32' ? 'laptop' : 'server'
 }
 

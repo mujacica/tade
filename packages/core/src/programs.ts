@@ -171,8 +171,11 @@ export const TADE_PROGRAMS: readonly RequiredProgram[] = [
     versionArgs: ['--version'],
     // The one that is running, never whatever else on PATH answers to the
     // name: Tade is running on this file, so reporting a different Node
-    // — or none — would be a lie about the thing doing the reporting.
-    at: process.execPath,
+    // — or none — would be a lie about the thing doing the reporting. Read
+    // only where there is a `process`: this module is in `pure.ts`, so a
+    // browser loads it with the window's drawing, and a bare `process` here
+    // threw as the page imported it, before anything was drawn.
+    at: typeof process === 'undefined' ? undefined : process.execPath,
     // The extensions in ~/.tade/extensions are loaded as `.ts`, by Node's own
     // type stripping. Debian's and Ubuntu's nodejs package is built without
     // it; Node from nodejs.org or a version manager is not.

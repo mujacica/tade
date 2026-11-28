@@ -214,7 +214,8 @@ export function draw(state: AppState, given: Frame, last: LastFrame | null = nul
     levels: extra.levels ?? state.levels,
     openRows: extra.openRows ?? [],
     browsing: extra.browsing ?? null,
-    homeDir: extra.homeDir ?? process.env.HOME ?? '',
+    // A browser draws this too, and has no `process` (`scripts/browser-goldens.ts`).
+    homeDir: extra.homeDir ?? (typeof process === 'undefined' ? '' : (process.env.HOME ?? '')),
     entries: extra.entries ?? [],
     talkKey: extra.talkKey ?? (frame.voice?.keys ?? ['ctrl', 'space']).join('+'),
     talkMode: extra.talkMode ?? 'hold',

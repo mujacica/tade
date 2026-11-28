@@ -1,4 +1,5 @@
-import { IDLE_REASON, noRuntime, type TadeEvent } from '@tade/core'
+import type { TadeEvent } from '@tade/core'
+import { IDLE_REASON, noRuntime } from '@tade/core/pure'
 import type { ActionsView, CheckView, CommitView, Frame } from '../../../src/frame.ts'
 import {
   type AppState,

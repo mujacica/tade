@@ -1,4 +1,4 @@
-import { noRuntime, type PlanSource, planStandings } from '@tade/core'
+import { noRuntime, type PlanSource, planStandings } from '@tade/core/pure'
 import { spendPanel } from '../../../src/panels/spend/state.ts'
 import { spendView } from '../../../src/spend.ts'
 import { base, frame, NOW, ran, type Scenario, usage } from './fixtures.ts'

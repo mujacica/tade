@@ -1,4 +1,4 @@
-import { IDLE_REASON } from '@tade/core'
+import { IDLE_REASON } from '@tade/core/pure'
 import type { Frame } from '../../../src/frame.ts'
 import {
   goElsewhere,

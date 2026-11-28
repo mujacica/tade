@@ -1,8 +1,8 @@
 import type { Workspace } from '@tade/core'
-import { type RunIn, rollup } from '@tade/web'
 import { runsIn } from '../away-factory.ts'
 import type { Frame } from '../frame.ts'
 import { showPlans } from '../model.ts'
+import { planRowsOf } from '../plan-rows.ts'
 import type { PlanRow } from '../plans.ts'
 import type { Actions, Subject, Wiring } from './context.ts'
 import { type RunFrom, runTasks, startsOf } from './web-beat.ts'
@@ -22,6 +22,8 @@ import { type RunFrom, runTasks, startsOf } from './web-beat.ts'
 // look it was made from (`Live.revision` and the world) and made again only
 // when either moved — never per frame, and the array handed to the frame is
 // the same one until then, which is what lets the last frame keep a region.
+
+export { planRowsOf }
 
 export interface PlansDeps {
   /** Which request each effort came from, and what it was stamped from: the inbox's fold. */
@@ -91,32 +93,4 @@ export class Plans implements Subject {
     this.wire.put(showPlans(this.wire.state, effort))
     this.wire.draw()
   }
-}
-
-/**
- * The plans as the screen reads them: each run with the rollups `runRow` makes
- * for a device that may read everything — how many steps finished, the checks
- * with `unknown` beating `pass` — and its cost, null where no step has a
- * figure yet rather than a nought nobody recorded.
- */
-export function planRowsOf(runs: readonly RunIn[]): PlanRow[] {
-  return runs.map((run): PlanRow => {
-    const usd = run.steps.reduce<number | null>(
-      (total, step) => (step.usd === null ? total : (total ?? 0) + step.usd),
-      null,
-    )
-    return {
-      run: run.run,
-      projects: run.projects,
-      steps: run.steps,
-      finished: run.steps.filter((step) => step.finished).length,
-      total: run.steps.length,
-      from: run.from,
-      stamp: run.stamp,
-      retries: run.retries,
-      // **`unknown` beats `pass`**: a check nobody ran is not one that passed.
-      checks: rollup(run.steps),
-      usd,
-    }
-  })
 }
