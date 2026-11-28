@@ -583,8 +583,8 @@ declare module '*/assets/trouble.js' {
 declare module '*/assets/pages/overview-figures.js' {
   /**
    * The overview's figures: pure folds over the store, so a test holds every
-   * count and word the tiles and the two lists say. How they are drawn is the
-   * browser's to check.
+   * count and word the tiles, the agents and the queue say. How they are drawn
+   * is the browser's to check.
    */
   type Dots = { dots: { tone: string; hollow: boolean }[]; more: number }
   type Tile = { n: number; under: string; dots: Dots }
@@ -595,7 +595,33 @@ declare module '*/assets/pages/overview-figures.js' {
     now: number,
   ): { working: Tile; wants: Tile; queue: Tile; finished: Tile }
   export function waitingOf(store: Record<string, any>): { machine: string; task: any }[]
-  export function workingOf(store: Record<string, any>): { machine: string; task: any }[]
+  type Counts = { n: number; by: Record<string, number>; said: string }
+  type ProjectAgents = {
+    project: string
+    counts: Counts
+    active: any[]
+    resting: any[]
+    restingSaid: string
+  }
+  type MachineAgents = {
+    machine: string
+    up: boolean
+    state: string
+    counts: Counts
+    projects: ProjectAgents[]
+  }
+  export const KINDS: readonly string[]
+  export const KIND_WORDS: Record<string, string>
+  export const RESTING: ReadonlySet<string>
+  export function kindOf(task: Record<string, any>): string
+  export function countsOf(tasks: readonly Record<string, any>[]): Counts
+  export function sinceAt(task: Record<string, any>): number | null
+  export function agentsOf(store: Record<string, any>): MachineAgents[]
+  export function everyAgentCounted(machines: readonly MachineAgents[]): Counts
+  export function queueOf(
+    store: Record<string, any>,
+  ): { machine: string; row: Record<string, any>; task: Record<string, any> | null }[]
+  export function partsSaid(...parts: [number, string, string?][]): string
   export function dotsOf(
     parts: readonly { n: number; tone: string; hollow?: boolean }[],
     most?: number,

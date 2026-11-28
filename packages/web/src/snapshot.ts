@@ -184,6 +184,18 @@ function taskRow(task: TaskIn, budget: Budget): TaskRow {
     lane: task.lane,
     createdAt: ISO(task.createdAt),
     movedAt: ISO_OR(task.movedAt),
+    since: ISO_OR(task.since ?? null),
+    doing:
+      task.doing === null || task.doing === undefined
+        ? null
+        : {
+            tool: task.doing.tool,
+            // Already through `commandOut` in the window, and a line long at most
+            // (`aboutToolCall`).
+            about: task.doing.about,
+            at: ISO(task.doing.at),
+            ok: task.doing.ok,
+          },
     title: said(task.title),
     intent: said(task.intent),
     branch: SOME(task.branch),

@@ -98,8 +98,9 @@ export const PAGE_REEL = {
     'The away view’s overview on a laptop and then a phone, the page itself drawing the same ' +
     'morning as the window: the machines up or down in the header, four tiles — working, ' +
     'waiting on you, queued and finished today — the agent waiting on `npm i stripe@15` with ' +
-    'Allow and Deny, the agents working one line each, and the conversation with Tade beside ' +
-    'them on the laptop and under them on the phone.',
+    'Allow and Deny, every agent by machine and project with its state, what it is doing and ' +
+    'its model, and the conversation with Tade beside them on the laptop and under them on the ' +
+    'phone.',
   width: 1280,
   height: 800,
   /** Where a phone would type it, which is where `tade web` says it listens. */

@@ -49,6 +49,7 @@ import { FleetWaits } from '@tade/workbench/fleet-waits'
 import { livenessTableFrom } from '@tade/workbench/lane-liveness'
 import type { PendingApproval } from '@tade/workbench/workers'
 import { aboutRoot } from './away-lifecycle.ts'
+import { StateSince } from './away-since.ts'
 import {
   branchesIn,
   ChangesHeld,
@@ -259,6 +260,8 @@ export class Live {
    * today, and a time filter would drop the start it is measured from.
    */
   private readonly runtime = new RuntimeFold()
+  /** When each agent's state began, out of the same whole-journal lines (`StateSince`). */
+  private readonly began = new StateSince()
   /** Which tasks have finished, from the whole journal: the last 500 events forget. */
   private finished = new Map<string, Finished>()
   /** Whose agent is owed closing, from the whole journal: `close_when_done`'s to read. */
@@ -361,7 +364,10 @@ export class Live {
     this.finished = finishedFrom(read.told)
     this.closes = closeFactsFrom(read.told)
     this.worked = workedFrom(read.told)
-    for (const event of read.runs) this.runtime.add(event)
+    for (const event of read.runs) {
+      this.runtime.add(event)
+      this.began.add(event)
+    }
     for (const event of read.queue) {
       if (SCHEDULE_LINES.includes(event.type)) this.schedules.add(event)
       else this.queueEvents.push(event)
@@ -915,6 +921,11 @@ export class Live {
     return this.usage
   }
 
+  /** When a task's agent last began a state, out of the journal, or null (`StateSince`). */
+  stateSince(task: string): number | null {
+    return this.began.of(task)
+  }
+
   /** How long every run there has been took, for the Spend page to ask of its own ranges. */
   get runs(): RuntimeFold {
     return this.runtime
@@ -1282,7 +1293,10 @@ export class Live {
     this.revisions++
     this.journal.push(event)
     this.usage.add(event)
-    if ((RUNTIME_READS as readonly string[]).includes(event.type)) this.runtime.add(event)
+    if ((RUNTIME_READS as readonly string[]).includes(event.type)) {
+      this.runtime.add(event)
+      this.began.add(event)
+    }
     if (event.task && event.type === 'task_done') {
       for (const [task, done] of finishedFrom([event])) this.finished.set(task, done)
     }

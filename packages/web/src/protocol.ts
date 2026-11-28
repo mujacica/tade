@@ -276,6 +276,27 @@ export const TaskRowSchema = z.strictObject({
   createdAt: z.string(),
   /** A moment, never an elapsed figure: see `tick` in `delta.ts`. */
   movedAt: z.string().nullable(),
+  /**
+   * When its agent began the state it is in (`TaskIn.since`), or null where
+   * nothing says. Optional because another machine's copy from an older Tade
+   * has no such field: absent is *not said*, drawn as its last move instead.
+   */
+  since: z.string().nullable().optional(),
+  /**
+   * What its agent is doing now: the newest tool call the window saw, its
+   * name and what it was about as `commandOut` lets it out, when, and whether
+   * it worked (null while it runs). Null where the window saw none; optional
+   * for `since`'s reason.
+   */
+  doing: z
+    .strictObject({
+      tool: z.string(),
+      about: z.string(),
+      at: z.string(),
+      ok: z.boolean().nullable(),
+    })
+    .nullable()
+    .optional(),
   title: SaidSchema.nullable(),
   intent: SaidSchema.nullable(),
   /** A branch name is not a path. Null where it has none. */

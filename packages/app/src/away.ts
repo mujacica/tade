@@ -29,6 +29,7 @@ import type {
   Cannot,
   ChatIn,
   CheckTreeIn,
+  DoingIn,
   FindingIn,
   How,
   IntakeIn,
@@ -98,6 +99,10 @@ export interface TaskExtra {
   steering: Steering
   /** How many times an agent was started on it, out of `run_started` (`startsOf`). */
   starts: number
+  /** When its agent began the state it is in (`sinceOf`), or null where nothing says. */
+  since?: number | null
+  /** Its agent's newest tool call the window saw, cleaned as a command is (`doingFrom`). */
+  doing?: DoingIn | null
 }
 
 /**
@@ -355,6 +360,8 @@ export function taskIn(task: Task, extra: TaskExtra, pending: number): TaskIn {
     parked: task.parked === true,
     createdAt: moment(task.created) ?? 0,
     movedAt: movedAt(task),
+    since: extra.since ?? null,
+    doing: extra.doing ?? null,
     title: task.title ?? '',
     intent: task.intent_spoken,
     branch: task.branch,

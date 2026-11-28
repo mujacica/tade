@@ -162,10 +162,11 @@ export const AXE = `${SETTLED}.then(() => axe.run({ runOnly: { type: 'tag',
 
 /**
  * Focus a row of the agents working and select its name, and say which row,
- * what was selected and what the row says.
+ * what was selected and what the row says. Only the working ones: the
+ * overview's agents are every agent, and the delta moves the working.
  */
 export const HOLD = `(() => {
-  const rows = [...document.querySelectorAll('main .ov-agents li > a')]
+  const rows = [...document.querySelectorAll('main .ov-agents li > a[data-state="working"]')]
   const one = rows[1] || rows[0]
   if (!one) return { key: '', words: '', said: '' }
   one.focus()

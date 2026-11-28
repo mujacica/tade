@@ -159,6 +159,14 @@ export type ReasonIn =
   | { kind: 'approval'; tool: string; also: number }
 
 /** One task, as the window holds it. */
+/** One tool call an agent made, as a row carries it (`TaskIn.doing`). */
+export interface DoingIn {
+  tool: string
+  about: string
+  at: number
+  ok: boolean | null
+}
+
 export interface TaskIn {
   /** `<project>/<task>`. The stable id, and the only id on the wire. Metadata. */
   id: string
@@ -204,6 +212,21 @@ export interface TaskIn {
    * corrected.
    */
   movedAt: number | null
+  /**
+   * When its agent began the state it is in — its turn, its turn ending, its
+   * run going, an approval, the journal saying it is finished — out of the
+   * journal (`StateSince` in the window), or null where nothing says. A
+   * moment, for `movedAt`'s reason. Absent is null.
+   */
+  since?: number | null
+  /**
+   * The newest tool call the window saw its agent make, while it watched: the
+   * tool's name, what it was about only as `commandOut` lets a command out
+   * (paths shortened, credentials taken out — empty where the window could
+   * not clean it), when, and whether it worked (null while it runs). Kept in
+   * the window's memory, never the journal (`Doings`). Absent is null.
+   */
+  doing?: DoingIn | null
   /** AUTHORED: what the work is called. Empty for nothing said. */
   title: string
   /** AUTHORED, verbatim: `intent_spoken`. Empty for nothing said. */

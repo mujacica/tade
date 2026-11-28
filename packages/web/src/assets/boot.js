@@ -683,22 +683,23 @@ async function start() {
     return
   }
   // **Unreachable is not signed out**, and the difference is the whole of what
-  // a kept view is for: a `0` is a machine that did not answer, and if this
-  // device kept a few counts they are what it last knew. Timestamped, with
-  // nothing on it that can be pressed.
-  if (mine.status === 0) {
+  // a kept view is for: anything but a `401` or `403` is a machine that did
+  // not answer as itself (`outsideOf`) — nothing, or a proxy's `502` while
+  // Tade restarts behind it — and if this device kept a few counts they are
+  // what it last knew. Timestamped, with nothing on it that can be pressed;
+  // with none kept, the same screen without them.
+  if (outsideOf(mine.status) === 'unreachable') {
     held.lastView = await readView()
-    if (held.lastView !== null) {
-      // **No beat, like the pairing screen it stands in for.** There is
-      // nothing to refresh into: the numbers are a record, the screen patches
-      // nothing, and a timer that repainted an unchanging page every five
-      // seconds would be a phone kept awake for nothing. The way out of this
-      // screen is a reload, and the screen says so.
-      outside = { standing: outsideOf(mine.status), view: 'lastSeen' }
-      draw({ view: 'lastSeen' })
-      void install()
-      return
-    }
+    // **No beat, like the pairing screen it stands in for.** There is nothing
+    // to refresh into: the numbers are a record and the screen patches
+    // nothing. What runs is the one question — does the machine answer yet —
+    // on the stream's own backoff, and an answer is a reload into whichever
+    // screen it calls for (`askAgain`).
+    outside = { standing: 'unreachable', view: 'lastSeen' }
+    draw({ view: 'lastSeen' })
+    askAgain(0)
+    void install()
+    return
   }
   // No session: the pairing screen, whatever path was asked for. Replacing the
   // address rather than keeping it, so a reload after pairing lands on a real
@@ -707,6 +708,25 @@ async function start() {
   draw({ view: 'pair' })
   if (location.pathname !== '/pair') history.replaceState(null, '', '/pair')
   void install()
+}
+
+/**
+ * Ask the machine again whether it answers, on the stream's backoff
+ * (`backoffAt`), while it does not: the first answer that is Tade's own — a
+ * session, or a `401`/`403` saying pair first — reloads the page into that
+ * screen, which is a boot from the start rather than a second set of
+ * listeners on this one.
+ */
+function askAgain(tried) {
+  setTimeout(async () => {
+    // `ask` never throws: no answer is a `0`, which is asked again like a `502`.
+    const mine = await ask('GET', '/api/devices')
+    if (mine.status === 200 || outsideOf(mine.status) === 'unpaired') {
+      globalThis.location.reload()
+      return
+    }
+    askAgain(tried + 1)
+  }, backoffAt(tried))
 }
 
 /**

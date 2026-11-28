@@ -167,6 +167,14 @@ describe('a page with no session', () => {
     expect(outsideOf(0)).toBe('unreachable')
   })
 
+  // A paired phone was sent to the pairing screen by Caddy's 502 while
+  // `tade serve` restarted behind it: only Tade's own refusal is *not paired*.
+  it('is unreachable on every answer that is not Tade refusing this device', () => {
+    for (const status of [500, 502, 503, 504, 404, 429]) {
+      expect(outsideOf(status), String(status)).toBe('unreachable')
+    }
+  })
+
   it('says it is not paired, and never that it is reconnecting', () => {
     const closed = connectionOf({ open: false, lastAt: NOW, ended: null }, NOW)
     const parts = partsOf(outsideOf(401), closed, '—', NOW)

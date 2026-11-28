@@ -64,15 +64,20 @@ export function standingOf(connection, tries = 0) {
 }
 
 /**
- * How a page with **no session** stands: `unpaired` where the machine answered
- * and said this device is not let in, `unreachable` where it did not answer.
+ * How a page with **no session** stands: `unpaired` where Tade itself answered
+ * and said this device is not let in — a `401` or a `403`, and nothing else —
+ * and `unreachable` for every other answer, which is not Tade's word about
+ * this device: no answer at all (`0`), or the proxy in front saying Tade is
+ * not behind it (Caddy's `502` while `tade serve` restarts), or any other.
+ * Drawn as *not paired*, a restart sent a phone that was paired to a pairing
+ * screen with nothing to scan.
  *
  * Never `reconnecting`, which is a stream retrying — and a page with no session
  * opens no stream, so drawing it was a page that looked like a broken
  * connection when the one thing to do was scan the code at the machine.
  */
 export function outsideOf(status) {
-  return status === 0 ? 'unreachable' : 'unpaired'
+  return status === 401 || status === 403 ? 'unpaired' : 'unreachable'
 }
 
 /**

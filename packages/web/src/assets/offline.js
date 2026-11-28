@@ -168,6 +168,12 @@ export function lastSeenScreen(view, now) {
     'What this device was last told — not what is happening now — and nothing here can be acted on. Tade answers only while its window is open on the machine.',
     'clock',
   )
+  // Nothing kept is nothing to show: a count this device was never told is
+  // not a nought, so with no record the screen is the trouble and its press.
+  if (typeof view.savedAt !== 'number') {
+    into(node, head, trouble, when)
+    return { node, update() {} }
+  }
   into(node, head, trouble, when, last)
   const tiles = el('div', { class: 'tiles' })
   for (const [said, n] of [

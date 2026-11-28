@@ -3,12 +3,16 @@ import { StillDocument, type StillElement } from '../scripts/still-dom.ts'
 import { actsOf } from '../src/assets/acts.js'
 import { nowScreen } from '../src/assets/pages/overview.js'
 import {
+  agentsOf,
+  countsOf,
   DOTS,
   dotsOf,
+  everyAgentCounted,
+  kindOf,
+  queueOf,
   sameDay,
   tilesOf,
   waitingOf,
-  workingOf,
 } from '../src/assets/pages/overview-figures.js'
 import { applyCopy, applySnapshot, emptyStore } from '../src/assets/store.js'
 import { PROTOCOL_VERSION } from '../src/protocol.ts'
@@ -16,8 +20,8 @@ import { projector } from '../src/reading.ts'
 import { blocked, input, NOW, queued, reach, task } from './fixtures.ts'
 
 // The overview (§10 T5 of the Duo plan): the four tiles, the agents waiting on
-// you with their answers, the agents working one line each, and the
-// conversation — held here with no browser.
+// you with their answers, every agent by machine and project with what it is
+// doing, the queue, and the conversation — held here with no browser.
 //
 // **What this cannot see is how any of it looks**, which is the browser
 // harness's (`scripts/browser-duo.ts`, at the full view's sizes). What it can
@@ -31,6 +35,13 @@ function held(over = {}) {
   const made = projector(input({ reach: reach(), ...over }), NOW)
   expect(applySnapshot(store, made.snapshot())).toBeNull()
   return store
+}
+
+/** The item at `index`, or a failure saying there is none. */
+function at<T>(list: readonly T[], index: number): T {
+  const one = list[index]
+  if (one === undefined) throw new Error(`nothing at ${index} of ${list.length}`)
+  return one
 }
 
 /** Another machine's copy, held by `store`, and that machine seen up or not. */
@@ -188,13 +199,96 @@ describe('the two lists', () => {
       'mac|sentry/blocked',
     ])
   })
+})
 
-  it('works with what deriveState said is working, the longest at it first', () => {
-    const early = task({ id: 'sentry/early', movedAt: NOW - 60 * 60 * 1000 })
-    const late = task({ id: 'sentry/late', movedAt: NOW - 60 * 1000 })
-    const done = task({ id: 'sentry/done', state: 'review', finished: true })
-    const store = held({ tasks: [late, done, early] })
-    expect(workingOf(store).map((one) => one.task.id)).toEqual(['sentry/early', 'sentry/late'])
+describe('every agent, by machine and project', () => {
+  const done = task({ id: 'sentry/done', state: 'review', finished: true, mark: 'done' })
+  const stopped = task({ id: 'sentry/stopped', state: 'review', mark: 'stopped', lane: 'stopped' })
+  const idle = task({ id: 'tade/idle', project: 'tade', state: 'blocked', mark: 'idle' })
+  const early = task({ id: 'sentry/early', movedAt: NOW - 60 * 60 * 1000 })
+  const late = task({ id: 'sentry/late', movedAt: NOW - 60 * 1000 })
+
+  it('counts each mark the window drew, and says it leaving out what is nought', () => {
+    const store = held({ tasks: [early, late, blocked(), done, stopped, idle], queue: [] })
+    const counts = countsOf([...store.rows.tasks.values()])
+    expect(counts.n).toBe(6)
+    expect(counts.said).toBe('1 waiting on you · 2 working · 1 idle · 1 stopped · 1 finished')
+    expect(countsOf([]).said).toBe('')
+  })
+
+  it('reads the window’s mark, and the state only for a row from a window before it', () => {
+    expect(kindOf({ mark: 'idle', state: 'blocked' })).toBe('idle')
+    expect(kindOf({ state: 'blocked' })).toBe('needs-you')
+    expect(kindOf({ state: 'review', finished: true })).toBe('done')
+    expect(kindOf({ state: 'queued' })).toBe('stopped')
+  })
+
+  it('groups by machine and project, the ones to look at the longest first, the resting folded', () => {
+    const store = held({ tasks: [late, done, early, stopped, idle], queue: [] })
+    const here = at(agentsOf(store), 0)
+    expect(here.machine).toBe('')
+    expect(here.counts.said).toBe('2 working · 1 idle · 1 stopped · 1 finished')
+    expect(here.projects.map((one) => one.project)).toEqual(['sentry', 'tade'])
+    const sentry = at(here.projects, 0)
+    expect(sentry.active.map((one) => one.id)).toEqual(['sentry/early', 'sentry/late'])
+    expect(sentry.resting.map((one) => one.id).sort()).toEqual(['sentry/done', 'sentry/stopped'])
+    expect(sentry.restingSaid).toBe('1 stopped · 1 finished')
+    expect(sentry.counts.said).toBe('2 working · 1 stopped · 1 finished')
+  })
+
+  it('draws every machine whose copy it holds, one that is not up as of its last word', () => {
+    const store = withCopy(held({ tasks: [early], queue: [] }), 'mac', [blocked()])
+    withCopy(store, 'box', [late], 'closed')
+    const machines = agentsOf(store)
+    expect(machines.map((one) => [one.machine, one.up])).toEqual([
+      ['', true],
+      ['box', false],
+      ['mac', true],
+    ])
+    expect(at(machines, 1).state).toMatch(/^closed /)
+    expect(at(machines, 2).counts.said).toBe('1 waiting on you')
+    expect(everyAgentCounted(machines).n).toBe(3)
+  })
+
+  it('leaves queued work to the queue', () => {
+    const waiting = task({ id: 'sentry/later', state: 'queued', mark: 'stopped' })
+    const here = at(agentsOf(held({ tasks: [early, waiting], queue: [] })), 0)
+    expect(here.counts.n).toBe(1)
+  })
+})
+
+describe('the queue', () => {
+  it('puts what starts next first, then what waits for a time, for others, or is held', () => {
+    const store = held({
+      tasks: [task({ id: 'sentry/b', state: 'queued', mark: 'stopped' })],
+      queue: [
+        queued({
+          task: 'sentry/h',
+          state: { kind: 'held', on: null, because: 'its plan was refused', changed: null, by: [] },
+        }),
+        queued(),
+        queued({ task: 'sentry/b', state: { kind: 'ready' }, waitsOn: [] }),
+      ],
+    })
+    const rows = queueOf(store)
+    expect(rows.map((one) => one.row.task)).toEqual([
+      'sentry/b',
+      'sentry/away-auth-server',
+      'sentry/h',
+    ])
+    expect(at(rows, 0).task?.id).toBe('sentry/b')
+    expect(at(rows, 1).task).toBeNull()
+  })
+
+  it('holds every machine’s queued work, marked with its machine', () => {
+    const store = withCopy(held({ queue: [] }), 'mac', [])
+    const there = projector(input({ reach: reach(), tasks: [], queue: [queued()] }), NOW).snapshot()
+    expect(
+      applyCopy(store, { v: PROTOCOL_VERSION, machine: 'mac', kind: 'whole', snapshot: there }),
+    ).toBeNull()
+    expect(queueOf(store).map((one) => `${one.machine}|${one.row.task}`)).toEqual([
+      'mac|sentry/away-auth-server',
+    ])
   })
 })
 
@@ -247,19 +341,19 @@ function drawn(store: ReturnType<typeof emptyStore>) {
 }
 
 describe('the overview, drawn', () => {
-  it('is the tiles, the agents waiting on you, the agents working and Tade, and nothing else', () => {
+  it('is the tiles, the agents waiting on you, every agent, the queue and Tade, and nothing else', () => {
     const node = drawn(held())
     const headings = (node.querySelectorAll('h2') as StillElement[]).map((one) => one.textContent)
-    expect(headings).toEqual(['WAITING ON YOU', 'WORKING', 'TADE'])
+    expect(headings).toEqual(['WAITING ON YOU', 'AGENTS', 'QUEUE', 'TADE'])
     expect(node.querySelectorAll('.ov-tile')).toHaveLength(4)
     expect(node.querySelector('.talk textarea')).not.toBeNull()
   })
 
   it('opens every agent in the full view, another machine’s with its machine in front', () => {
     const node = drawn(withCopy(held(), 'mac', [blocked()]))
-    const hrefs = (node.querySelectorAll('.ov-want-link, .ov-agent > a') as StillElement[]).map(
-      (one) => one.getAttribute('href'),
-    )
+    const hrefs = (
+      node.querySelectorAll('.ov-want-link, .ov-agent > a, .ov-queued > a') as StillElement[]
+    ).map((one) => one.getAttribute('href'))
     expect(hrefs.length).toBeGreaterThan(2)
     for (const href of hrefs) expect(href).toMatch(/^\/draw\/\?agent=/)
     expect(hrefs).toContain(`/draw/?agent=${encodeURIComponent('@mac\u001fsentry/blocked')}`)
@@ -283,10 +377,70 @@ describe('the overview, drawn', () => {
     expect(node.querySelectorAll('.ov-want')).toHaveLength(0)
   })
 
-  it('says no agent is working, in words, where none is', () => {
-    const node = drawn(held({ tasks: [blocked()] }))
-    const idle = node.querySelector('#working .empty') as StillElement
-    expect(idle.hidden).toBe(false)
-    expect(idle.textContent).toBe('No agent is working')
+  it('draws an agent’s state and why, since when, what it is doing now, and what it runs on', () => {
+    const one = task({
+      since: NOW - 12 * 60 * 1000,
+      doing: { tool: 'Bash', about: 'pnpm test ./packages/web', at: NOW - 4_000, ok: null },
+    })
+    const node = drawn(held({ tasks: [one], queue: [] }))
+    const row = node.querySelector('.ov-agent') as StillElement
+    const text = (selector: string) => (row.querySelector(selector) as StillElement).textContent
+    expect(text('.ov-agent-name')).toBe('away-projection')
+    expect(text('.ov-agent-age')).toBe('12m')
+    expect(row.querySelector('.ov-agent-age')?.getAttribute('aria-label')).toBe('working for 12m')
+    expect(text('.ov-state-word')).toBe('working')
+    expect(text('.ov-state-why')).toBe('4 files touched')
+    expect(text('.ov-doing-tool')).toBe('Bash')
+    expect(text('.ov-doing-about')).toBe('pnpm test ./packages/web')
+    expect(text('.ov-doing-age')).toBe('running · 4s ago')
+    expect(text('.ov-agent-ran')).toBe('claude-code · claude-opus-5')
+    expect(node.querySelector('.ov-machine-name')?.textContent).toBe('This machine')
+    expect(node.querySelector('.ov-project-name')?.textContent).toBe('sentry')
+  })
+
+  it('says what it does not know as a dash, and draws no doing line for an agent seen doing nothing', () => {
+    const node = drawn(held({ tasks: [task({ harness: '', model: '' })], queue: [] }))
+    const row = node.querySelector('.ov-agent') as StillElement
+    expect((row.querySelector('.ov-agent-doing') as StillElement).hidden).toBe(true)
+    expect(row.querySelector('.ov-agent-ran')?.textContent).toBe('— · —')
+  })
+
+  it('folds what is resting under its count, and keeps it open across a delta', () => {
+    const done = task({ id: 'sentry/done', state: 'review', finished: true, mark: 'done' })
+    const screen = nowScreen(ctx)
+    const view = (store: ReturnType<typeof emptyStore>) => ({
+      store,
+      standing: 'live',
+      asOf: NOW,
+      frozen: false,
+      now: NOW,
+      where: { view: 'now' },
+      may: { acts: actsOf({ device: 'phone', clear: false }) },
+    })
+    screen.update(view(held({ tasks: [task(), done], queue: [] })))
+    const node = screen.node as unknown as StillElement
+    const rest = node.querySelector('.ov-rest') as StillElement
+    expect(rest.hidden).toBe(false)
+    expect(rest.querySelector('.ov-rest-said')?.textContent).toBe('1 finished')
+    rest.setAttribute('open', '')
+    screen.update(view(held({ tasks: [task(), done], queue: [] })))
+    expect(node.querySelector('.ov-rest')).toBe(rest)
+    expect(rest.getAttribute('open')).toBe('')
+  })
+
+  it('draws the queue in its own words, and says nothing is queued where nothing is', () => {
+    const node = drawn(held({ tasks: [task()] }))
+    const row = node.querySelector('.ov-queued') as StillElement
+    expect(row.querySelector('.ov-queued-said')?.textContent).toBe('after sentry/away-projection')
+    expect(row.querySelector('.ov-queued-why')?.textContent).toMatch(/^sentry\/away-projection: /)
+    const empty = drawn(held({ tasks: [task()], queue: [] }))
+    expect((empty.querySelector('#queue .empty') as StillElement).hidden).toBe(false)
+  })
+
+  it('says no agent is on any machine, in words, where none is', () => {
+    const node = drawn(held({ tasks: [], queue: [] }))
+    const none = node.querySelector('#agents .empty') as StillElement
+    expect(none.hidden).toBe(false)
+    expect(none.textContent).toBe('No agent on any machine')
   })
 })

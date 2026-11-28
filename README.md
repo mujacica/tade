@@ -155,12 +155,13 @@ given the ones that concern their work.
 
 ## A remote control on your phone
 
-Pair a phone by scanning a code: one overview of every machine — which are up, what is working,
-what waits on you with its answers on the card, what is queued and what finished today — and the
-conversation with Tade beside it. Tap an agent and it opens in the full view. Every device you pair
+Pair a phone by scanning a code: one overview of every machine — which are up, every agent by
+machine and project with what it is doing now and for how long, what waits on you with its answers
+on the card, what is queued and why it waits, and what finished today — and the conversation with
+Tade beside it. Tap an agent and it opens in the full view. Every device you pair
 is yours and can do whatever you can at the machine; **Sign out** or `tade web revoke` takes it back.
 
-![Tade's away view on a laptop and then a phone: the machines, four tiles, an agent waiting with Allow and Deny, the agents working and the conversation with Tade](https://raw.githubusercontent.com/mujacica/tade/main/images/away-page.svg)
+![Tade's away view on a laptop and then a phone: the machines, four tiles, an agent waiting with Allow and Deny, every agent with what it is doing and the conversation with Tade](https://raw.githubusercontent.com/mujacica/tade/main/images/away-page.svg)
 
 Turn the phone sideways and it is the window itself — **Full view**, drawn by the phone from the
 state the machine sends, at its own size: taps are clicks, swipes scroll, and a key row has the

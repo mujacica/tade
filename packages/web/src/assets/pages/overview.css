@@ -2,8 +2,8 @@
 
 /*
 The one screen (§10 T5 of the Duo plan), top to bottom: the four tiles, the
-agents waiting on you with their answers, the agents working one line each,
-then the conversation with Tade.
+agents waiting on you with their answers, every agent by machine and project,
+the queue, then the conversation with Tade.
 
 **One column on the small screen upright, two from 34rem.** The Duo's small
 screen upright is 382px in a Safari tab (466 as a Home Screen app) and a slab
@@ -231,22 +231,128 @@ ago at the end, why under the name, and its answers under that.
   background: color-mix(in srgb, var(--green) 14%, transparent);
 }
 
-/* ── working ───────────────────────────────────────────────────────────────── */
+/* ── every agent, by machine and project ───────────────────────────────────── */
+
+/* Every agent counted, under the heading: the one line that answers "how many of each". */
+.page-overview .ov-sum {
+  margin-block: calc(var(--s2) * -1) var(--s3);
+  color: var(--body);
+  font-size: var(--step--1);
+}
+
+.page-overview .ov-machines {
+  display: grid;
+  gap: var(--stack);
+}
+
+/* A machine: its name and whether it is up on one line, its counts under them. */
+.page-overview .ov-machine-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--s2);
+  margin-block-end: var(--s2);
+}
+
+.page-overview .ov-machine-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--bright);
+  font-size: var(--step-1);
+  font-weight: var(--w-strong);
+}
+
+.page-overview .ov-machine-state {
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+.page-overview .ov-machine-counts {
+  flex-basis: 100%;
+  color: var(--body);
+  font-size: var(--step--1);
+}
+
+/*
+A machine that is not up is drawn as of its last word: its state says so in
+words and in the tone of what wants looking at, and its rows stay full
+contrast — a dimmed row is one the eye skips and axe refuses.
+*/
+.page-overview .ov-machine.is-down .ov-machine-name {
+  color: var(--body);
+}
+
+.page-overview .ov-projects {
+  display: grid;
+  gap: var(--s3);
+}
+
+/* A project: its name and counts as the panel's head, its agents under it. */
+.page-overview .ov-project-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--s2);
+  padding: var(--s2) var(--inset);
+  border-block-end: var(--border);
+}
+
+/* An `h4`, which the base sheet's heading reset (`h1`–`h3`) leaves with the browser's margins. */
+.page-overview .ov-project-name {
+  margin: 0;
+  line-height: var(--lead-tight);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--bright);
+  font-size: var(--step-0);
+  font-weight: var(--w-strong);
+}
+
+.page-overview .ov-project-counts {
+  min-width: 0;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
 
 .page-overview .ov-agents:empty {
   display: none;
 }
 
+/* What is resting — stopped, parked, finished — under its count, one press to open. */
+.page-overview .ov-rest-said {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding-inline: var(--inset);
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+  cursor: pointer;
+}
+
+.page-overview .ov-rest[open] > .ov-rest-said {
+  border-block-end: var(--border);
+}
+
+.page-overview .ov-agents:not(:empty) + .ov-rest > .ov-rest-said {
+  border-block-start: var(--border);
+}
+
 /*
-One line each: the agent's mark, its name and where it is, its state, and how
-long since it moved at the end. The line wraps where a name is long rather
-than cutting it; the age stays at the end of the first line.
+An agent: its mark, its name and how long it has been in its state on the
+first line; its state and why; what it is doing now; what it runs on. Every
+line wraps rather than cutting, so a long command or reason is read whole on
+the small screen.
 */
 .page-overview .ov-agent > a {
   display: grid;
-  grid-template-columns: 1.5rem minmax(0, 1fr) auto auto;
-  grid-template-areas: "mark name state age";
-  gap: 0 var(--s3);
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    "mark name age"
+    ". state state"
+    ". doing doing"
+    ". ran ran";
+  gap: 2px var(--s3);
   align-items: baseline;
   min-height: var(--tap);
   padding: var(--s2) var(--inset);
@@ -266,37 +372,15 @@ than cutting it; the age stays at the end of the first line.
   grid-area: mark;
 }
 
-/* Its name, then where it is after it on the same line, wrapping under it where it is long. */
-.page-overview .ov-agent-who {
-  grid-area: name;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 var(--s2);
-  min-width: 0;
-}
-
 .page-overview .ov-agent-name {
+  grid-area: name;
   min-width: 0;
   overflow-wrap: anywhere;
   font-weight: var(--w-strong);
 }
 
-.page-overview .ov-agent-project {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: var(--heading);
-  font-size: var(--step--1);
-}
-
-.page-overview .ov-agent-state {
-  grid-area: state;
-  color: var(--green);
-  font-size: var(--step--1);
-}
-
-.page-overview .ov-agent > a.stalled .ov-agent-state {
-  color: var(--amber);
+.page-overview .ov-agent > a.stalled .ov-agent-name {
+  color: var(--pressed);
 }
 
 .page-overview .ov-agent-age {
@@ -306,6 +390,135 @@ than cutting it; the age stays at the end of the first line.
   font-size: var(--step--1);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.page-overview .ov-agent-state {
+  grid-area: state;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--body);
+  font-size: var(--step--1);
+}
+
+.page-overview .ov-state-word {
+  font-weight: var(--w-label);
+}
+
+.page-overview .ov-state-why:not(:empty)::before {
+  content: " · ";
+  color: var(--heading);
+}
+
+.page-overview .ov-agent-doing {
+  grid-area: doing;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--body);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+}
+
+.page-overview .ov-doing-tool {
+  color: var(--bright);
+  font-weight: var(--w-label);
+}
+
+.page-overview .ov-agent-doing.is-failed .ov-doing-tool {
+  color: var(--red);
+}
+
+.page-overview .ov-doing-about:not(:empty)::before {
+  content: " ";
+}
+
+.page-overview .ov-doing-age {
+  color: var(--heading);
+  white-space: nowrap;
+}
+
+.page-overview .ov-doing-age:not(:empty)::before {
+  content: " · ";
+}
+
+.page-overview .ov-agent-ran {
+  grid-area: ran;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--heading);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+}
+
+/* ── the queue ─────────────────────────────────────────────────────────────── */
+
+.page-overview .ov-queue:empty {
+  display: none;
+}
+
+/* Queued work: where it stands, its name and where, and what it waits on, why. */
+.page-overview .ov-queued > a {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  grid-template-areas:
+    "mark who"
+    ". said"
+    ". why";
+  gap: 2px var(--s3);
+  align-items: baseline;
+  min-height: var(--tap);
+  padding: var(--s2) var(--inset);
+  color: var(--bright);
+  text-decoration: none;
+}
+
+.page-overview .ov-queued > a:hover {
+  background: var(--surface);
+}
+
+.page-overview .ov-queued + .ov-queued > a {
+  border-block-start: var(--border);
+}
+
+.page-overview .ov-queued-mark {
+  grid-area: mark;
+}
+
+.page-overview .ov-queued-who {
+  grid-area: who;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--s2);
+  min-width: 0;
+}
+
+.page-overview .ov-queued-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: var(--w-strong);
+}
+
+.page-overview .ov-queued-where {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--heading);
+  font-size: var(--step--1);
+}
+
+.page-overview .ov-queued-said {
+  grid-area: said;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+.page-overview .ov-queued-why {
+  grid-area: why;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--body);
+  font-size: var(--step--1);
 }
 
 /* ── Tade ──────────────────────────────────────────────────────────────────── */

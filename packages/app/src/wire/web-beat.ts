@@ -24,6 +24,7 @@ import { type Offer, offer, type WorkerCapabilities } from '@tade/harnesses-core
 import {
   type CheckTreeIn,
   commandOut,
+  type DoingIn,
   type IntakeIn,
   type SnapshotInput,
   type SourceIn,
@@ -42,6 +43,7 @@ import {
 } from '../away.ts'
 import { type RunTask, runsIn } from '../away-factory.ts'
 import { projectLines } from '../away-lifecycle.ts'
+import { sinceOf } from '../away-since.ts'
 import type { ActionsView, NoteShown } from '../frame.ts'
 import type { Transcript } from '../transcript.ts'
 import type { Wiring } from './context.ts'
@@ -221,6 +223,8 @@ export function partsFrom(
       tasks: live.tasks,
       marks: new Map(wire.state.panes.map((pane) => [pane.task, markOf(pane)])),
       commandOf: commandsFrom(wire),
+      ...(live.stateSince ? { stateSince: (task: string) => live.stateSince?.(task) ?? null } : {}),
+      doing: doingsOf(wire),
       titles: titlesOf(wire.opts.config),
       plans: planStandings(wire.opts.client.planUsage(), wire.now()),
       machineUpSince: kept.upSince,
@@ -240,6 +244,41 @@ export function partsFrom(
     (task) => steeringFor(wire.opts.client, task),
     kept.factory,
   )
+}
+
+/**
+ * Each task's agent's newest tool call, as the window watched it happen
+ * (`WorkerSupervisor.doingByTask`, kept in memory and never the journal):
+ * where a task has had more than one run, the newest call of any. Raw — what
+ * it was about is cleaned in `beatParts`, by the rule an approval's command
+ * goes out by. A client with no supervisor (a test's) answers none.
+ */
+export function doingsOf(wire: Wiring): ReadonlyMap<string, RawDoing> {
+  const out = new Map<string, RawDoing>()
+  const workers = (wire.opts.client as { workers?: { doingByTask?: () => readonly DoneBy[] } })
+    .workers
+  if (typeof workers?.doingByTask !== 'function') return out
+  for (const agent of workers.doingByTask()) {
+    const last = agent.did.at(-1)
+    if (last === undefined) continue
+    const had = out.get(agent.task)
+    if (had === undefined || last.at > had.at) out.set(agent.task, last)
+  }
+  return out
+}
+
+/** One tool call as the supervisor keeps it: `about` is still the agent's own words. */
+export interface RawDoing {
+  at: number
+  tool: string
+  about: string
+  ok: boolean | null
+}
+
+/** What `doingByTask` answers, as far as `doingsOf` reads it. */
+interface DoneBy {
+  task: string
+  did: readonly RawDoing[]
 }
 
 /**
@@ -354,6 +393,14 @@ export function beatParts(
         // tools ask, so no surface offers what another hides.
         steering: steering(task.id),
         starts: starts.get(task.id) ?? 0,
+        since: sinceOf(
+          live.stateSince?.(task.id) ?? null,
+          approval?.at ?? null,
+          queueFacts.finished.get(task.id)?.at ?? null,
+        ),
+        doing: doingOut(live.doing?.get(task.id), (about) =>
+          live.commandOf ? live.commandOf(about, task.worktree) : '',
+        ),
       })
     }
   }
@@ -415,6 +462,8 @@ export interface Held {
   tasks: readonly { task: string; waiting?: boolean }[]
   /** What each watch did: whose newest look left it to another machine (`watchingIn`). */
   watchedOf(schedule: string): Watched
+  /** When a task's agent last began a state, out of the whole journal (`StateSince`). */
+  stateSince?(task: string): number | null
 }
 
 /**
@@ -445,9 +494,14 @@ export interface Beatable {
   marks?: ReadonlyMap<string, AgentMark>
   /**
    * An approval's command as it may leave the machine, from the summary and
-   * where its task works (`commandsFrom`). Absent, no command crosses at all.
+   * where its task works (`commandsFrom`). Absent, no command crosses at all —
+   * nor what a tool call was about (`doing`).
    */
   commandOf?: (summary: string, work: string) => string
+  /** When each task's agent last began a state, out of the whole journal (`StateSince`). */
+  stateSince?: (task: string) => number | null
+  /** Each task's agent's newest tool call the window watched, raw (`doingsOf`). */
+  doing?: ReadonlyMap<string, RawDoing>
   machineUpSince: number | null
   /** When `spendToday`'s fold starts, which is the period every figure covers. */
   spendSince: number | null
@@ -554,4 +608,17 @@ export function runTasks(
     }
   }
   return tasks
+}
+
+/**
+ * A tool call as a row carries it: its name, and what it was about only as
+ * `commandOut` lets a command out — paths shortened, credentials taken out —
+ * or nothing at all where the window has no way to clean it.
+ */
+export function doingOut(
+  raw: RawDoing | undefined,
+  clean: (about: string) => string,
+): DoingIn | null {
+  if (raw === undefined) return null
+  return { tool: raw.tool, about: raw.about === '' ? '' : clean(raw.about), at: raw.at, ok: raw.ok }
 }
