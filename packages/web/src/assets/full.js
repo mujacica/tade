@@ -155,7 +155,9 @@ function keyOf() {
 }
 
 function openStream() {
-  const source = new EventSource('/api/stream')
+  // The window and nothing else: this page reads no snapshot or delta, so the
+  // stream sends none (`windowOnlyOf`).
+  const source = new EventSource('/api/stream?only=window')
   held.source = source
   source.addEventListener('open', () => {
     held.tries = 0

@@ -117,6 +117,19 @@ export function cursorOf(id: string | null | undefined): Cursor | null {
   return { epoch, rev: Number(rev) }
 }
 
+/**
+ * Whether a stream's address asks for the window and nothing else
+ * (`?only=window`): the full view's (`assets/full.js`), which draws the window
+ * itself and reads none of the projection's frames — so it is sent no
+ * snapshot, delta, resync or copy, and opening it builds no projection.
+ * Anything else, or nothing, is the whole stream, which is always correct.
+ */
+export function windowOnlyOf(url: string): boolean {
+  const at = url.indexOf('?')
+  if (at === -1) return false
+  return new URLSearchParams(url.slice(at + 1)).get('only') === 'window'
+}
+
 /** The `id:` a frame carries, which is the cursor a client will send back. */
 export function idFor(epoch: string, rev: number): string {
   return `${epoch}:${rev}`

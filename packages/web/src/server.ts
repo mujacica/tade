@@ -55,7 +55,7 @@ import {
   renewedCookie,
   sessionOf,
 } from './sessions.ts'
-import { cursorOf } from './stream.ts'
+import { cursorOf, windowOnlyOf } from './stream.ts'
 import { type Listener, type Origin, reachOf, sameHost } from './surface.ts'
 import { carryLook, carryWindow } from './windowed.ts'
 
@@ -503,6 +503,7 @@ export function webServer(opts: ServerOptions): WebServer {
       snapshot: () => reading.snapshot(),
       copies: (held) => reading.copies?.(held) ?? [],
       held: copiesHeldOf(req.url ?? '/'),
+      windowOnly: windowOnlyOf(req.url ?? '/'),
       rev: reading.rev,
       now: now(),
     })

@@ -216,6 +216,19 @@ describe('what arrives while it is open', () => {
     live.close()
   })
 
+  it('sends the full view’s stream the window and no projection', async () => {
+    const streams = new Streams()
+    const { one, cookie, device } = await paired({ streams })
+    const live = await listen(one, '/api/stream?only=window', { cookie })
+    // The opening is written before anything else could be, so a window frame
+    // arriving first means no snapshot was ever going to.
+    streams.push(device, moved(9), Date.now())
+    streams.window(device, { kind: 'whole' }, Date.now())
+    await live.until('window')
+    expect(live.events()).toEqual(['window'])
+    live.close()
+  })
+
   it('ends with `revoked` when the device signs itself out', async () => {
     const streams = new Streams()
     const { one, cookie, csrf, device } = await paired({ streams })

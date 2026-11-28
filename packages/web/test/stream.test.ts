@@ -17,6 +17,7 @@ import {
   STREAM_OPENING,
   snapshotFrame,
   sseFrame,
+  windowOnlyOf,
 } from '../src/stream.ts'
 import { input, NOW, task } from './fixtures.ts'
 
@@ -55,6 +56,24 @@ describe('a cursor off the wire', () => {
       `${EPOCH}:12\nevent: delta`,
     ]) {
       expect(cursorOf(said), String(said)).toBeNull()
+    }
+  })
+})
+
+describe('a stream that asks for the window alone', () => {
+  it('is the full view’s address, and nothing else is', () => {
+    expect(windowOnlyOf('/api/stream?only=window')).toBe(true)
+    expect(windowOnlyOf(`/api/stream?held=${EPOCH}:4:ipax&only=window`)).toBe(true)
+    // Anything that is not exactly that is the whole stream, which is always correct.
+    for (const url of [
+      '/api/stream',
+      '/api/stream?',
+      '/api/stream?only=Window',
+      '/api/stream?only=window2',
+      '/api/stream?only',
+      '/api/stream?held=only=window',
+    ]) {
+      expect(windowOnlyOf(url), url).toBe(false)
     }
   })
 })

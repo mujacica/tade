@@ -89,6 +89,13 @@ export interface OpenRequest {
   /** Which revision of each copy the page says it holds (`copiesHeldOf`), so one it has is not sent again. */
   held?: ReadonlyMap<string, Cursor>
   /**
+   * Whether the page asked for the window and nothing else (`windowOnlyOf`):
+   * the full view, which reads none of the projection's frames. Such a stream
+   * is sent no snapshot, delta, resync or copy — `snapshot` is never called for
+   * it — and everything else a stream is told.
+   */
+  windowOnly?: boolean
+  /**
    * The revision this device's projection has reached.
    *
    * The window's, out of its own projector, and **not** read off the ring: a
@@ -216,12 +223,15 @@ export class Streams {
       snapshot: req.snapshot,
       copies: req.copies ?? (() => []),
       held: req.held ?? null,
+      projection: req.windowOnly !== true,
     })
     this.peers.push(held)
     held.send(STREAM_OPENING, req.now)
     // A page that opens after the code changed is told too: it is the one
     // most likely to be the new screen asking for the new route.
     if (this.restart !== null) held.send(this.restart, req.now)
+    // The full view: its frames are the window's (`window`), sent as they come.
+    if (!held.projection) return { kind: 'open', peer: held }
 
     const resume = resumeFrom(req.cursor, this.epoch, req.rev, ring.held)
     if (resume.kind === 'replay') {
@@ -259,7 +269,7 @@ export class Streams {
   pushCopies(devices: ReadonlySet<string>, frames: readonly string[], now: number): void {
     if (this.stopping || frames.length === 0) return
     for (const peer of this.peers) {
-      if (!devices.has(peer.device)) continue
+      if (!devices.has(peer.device) || !peer.projection) continue
       for (const frame of frames) peer.send(frame, now)
     }
   }
@@ -276,7 +286,7 @@ export class Streams {
     this.ringFor(device).add(delta)
     const text = sseFrame(deltaFrame(this.epoch, delta))
     for (const peer of this.peers) {
-      if (peer.device !== device) continue
+      if (peer.device !== device || !peer.projection) continue
       peer.send(text, now)
     }
   }
@@ -442,6 +452,8 @@ interface Whole {
   snapshot: () => Snapshot
   copies: (held: ReadonlyMap<string, Cursor> | null) => readonly string[]
   held: ReadonlyMap<string, Cursor> | null
+  /** Whether it is sent the projection at all, which the full view's stream is not. */
+  projection: boolean
 }
 
 class Held implements Peer {
@@ -458,6 +470,8 @@ class Held implements Peer {
   private owed = false
   /** What it is sent whole: the door's projection, and the other machines' copies. */
   private readonly whole: Whole
+  /** Whether it is sent the projection's frames, which the full view's stream is not. */
+  readonly projection: boolean
 
   constructor(device: string, until: number, sink: Sink, now: number, whole: Whole) {
     this.device = device
@@ -465,6 +479,7 @@ class Held implements Peer {
     this.sink = sink
     this.wroteAt = now
     this.whole = whole
+    this.projection = whole.projection
   }
 
   /**
@@ -524,6 +539,9 @@ class Held implements Peer {
   catchUp(now: number): void {
     if (!this.owed || !this.open || overBudget(this.pending)) return
     this.owed = false
+    // What the full view's stream dropped is `window` frames, which it
+    // recovers by itself: the next one that does not apply makes it look again.
+    if (!this.projection) return
     this.send(
       sseFrame({
         event: 'resync',

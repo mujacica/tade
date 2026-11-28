@@ -549,3 +549,97 @@ describe('the other machines’ copies', () => {
     expect(asked).toEqual([held, null])
   })
 })
+
+describe('the full view’s stream, which asks for the window alone', () => {
+  const COPY = 'event: machine\ndata: {"machine":"ipax"}\n\n'
+  const DEVICE = 'aaaa0000bbbb1111'
+
+  function full(live: Streams, cursor: { epoch: string; rev: number } | null = null) {
+    const sink = fake()
+    let built = 0
+    let copied = 0
+    const opened = live.open({
+      device: DEVICE,
+      until: NOW + 86_400_000,
+      cursor,
+      sink,
+      snapshot: () => {
+        built += 1
+        return snapshotOf()
+      },
+      copies: () => {
+        copied += 1
+        return [COPY]
+      },
+      windowOnly: true,
+      rev: 3,
+      now: NOW,
+    })
+    return { sink, opened, built: () => built, copied: () => copied }
+  }
+
+  it('opens with no snapshot and no copy, and builds no projection to send one', () => {
+    const live = streams()
+    const page = full(live)
+    expect(page.opened.kind).toBe('open')
+    expect(events(page.sink)).toEqual([])
+    expect(page.sink.wrote[0]?.startsWith('retry: 2000')).toBe(true)
+    expect(page.built()).toBe(0)
+    expect(page.copied()).toBe(0)
+  })
+
+  it('is sent no resync for a cursor the ring cannot answer', () => {
+    const page = full(streams(), { epoch: EPOCH, rev: 1 })
+    expect(events(page.sink)).toEqual([])
+  })
+
+  it('is sent the window, and none of the deltas or copies the overview of the same device is', () => {
+    const live = streams()
+    const overview = open(live, { device: DEVICE })
+    const page = full(live)
+    live.push(DEVICE, delta(1), NOW)
+    live.pushCopies(new Set([DEVICE]), [COPY], NOW)
+    live.window(DEVICE, { kind: 'whole' }, NOW)
+    expect(events(page.sink)).toEqual(['window'])
+    expect(events(overview.sink)).toEqual(['snapshot', 'delta', 'machine', 'window'])
+  })
+
+  it('still feeds the ring, so the overview reopening later replays what it missed', () => {
+    const live = streams()
+    full(live)
+    live.push(DEVICE, delta(4), NOW)
+    const { sink } = open(live, { device: DEVICE, cursor: { epoch: EPOCH, rev: 3 }, rev: 4 })
+    expect(events(sink)).toEqual(['delta'])
+  })
+
+  it('is still told everything else a stream is told', () => {
+    const live = streams()
+    live.restartAll()
+    const page = full(live)
+    live.reloadAll()
+    live.revoke(DEVICE)
+    expect(events(page.sink)).toEqual(['restart', 'reload', 'revoked'])
+    expect(page.sink.ended).toBe(true)
+  })
+
+  it('owes no resync or snapshot after it fell behind, since it reads neither', () => {
+    const live = streams()
+    const page = full(live)
+    if (page.opened.kind !== 'open') throw new Error('it should have opened')
+    page.sink.keeping = false
+    for (let one = 0; one < 200; one++) live.window(DEVICE, { kind: 'change', one }, NOW)
+    page.sink.keeping = true
+    live.drained(page.opened.peer, NOW)
+    expect(events(page.sink).filter((name) => name !== 'window')).toEqual([])
+    expect(page.built()).toBe(0)
+    // And it is written to again once it keeps up.
+    live.window(DEVICE, { kind: 'whole' }, NOW)
+    expect(page.sink.wrote.at(-1)).toContain('"whole"')
+  })
+
+  it('counts as listening, so the strip still says somebody is reading', () => {
+    const live = streams()
+    full(live)
+    expect(live.listening()).toEqual([DEVICE])
+  })
+})
