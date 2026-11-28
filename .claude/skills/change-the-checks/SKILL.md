@@ -76,7 +76,8 @@ and that record.
 - **A check that cannot run *here* keeps its row, with a `skip`, and is `required: false`.** The
   reading says which those are — a step interpolating `${{ … }}`, a step or job behind an `if:` only
   CI can answer, a job with `services:` or `container:`, a step whose `working-directory` an earlier
-  action made (a second checkout's `path:`), is missing here or is outside the checkout — and they are drawn apart rather than
+  action made (a second checkout's `path:`), is missing here or is outside the checkout, a step after
+  a `download-artifact` action (it reads what another job made) — and they are drawn apart rather than
   dropped, because a page that hides them is a page that quietly claims CI's coverage. Out of
   `required` because a rollup is what a run *here* adds up to: one `${{ secrets.… }}` step left
   required would leave every commit `unknown` for ever. The `skip` is the **bare reason** and never
@@ -244,7 +245,10 @@ and that record.
   reads their own by declaration (`Runner.words`). Branch on `capabilities` — `containers`,
   `services`, `matrix`, `secrets`, `cancel`, `fidelity` — never on `runner.id`.
 - **A matrix is one check, run once, here.** The reading must never turn a 2×OS matrix into two
-  checks. The caveat that a local run is the commands CI runs and never CI's matrix is true under
+  checks. So an `env:` value that is nothing but a key the job's `strategy.matrix` states
+  (`VITEST_SHARD: ${{ matrix.shard }}/4`) is the row this run does not have, not a runner-only step
+  (`runnerEnv`) — unless the step's command names the variable; that is how Tade's own CI shards
+  `tests` and the step still reads as the whole suite. The caveat that a local run is the commands CI runs and never CI's matrix is true under
   every row, so it is a clause on the heading — `ActionsView.notes`, put there by `live.ts` and
   drawn once above the rollup — and never a footnote under each row.
 

@@ -337,6 +337,165 @@ describe('reading a gate workflow', () => {
     expect(byId.get('tests')?.skip).toBeUndefined()
   })
 
+  it('reads a step whose env only says which row of the matrix it is as the check it is', async () => {
+    // Tade's own suite is sharded this way: the job's env says which shard,
+    // and the step run here, with no row of the matrix, is the whole suite.
+    const read = await readWorkflows(
+      repoWith({
+        '.github/workflows/ci.yml': [
+          'on: [pull_request]',
+          'jobs:',
+          '  tests:',
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: GitHub's own syntax
+          '    runs-on: ${{ matrix.os }}',
+          '    strategy:',
+          '      matrix:',
+          '        os: [ubuntu-latest, macos-latest]',
+          '        shard: [1, 2, 3, 4]',
+          '        include:',
+          '          - os: ubuntu-latest',
+          '            label: linux',
+          '    env:',
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: GitHub's own syntax
+          '      VITEST_SHARD: ${{ matrix.shard }}/4',
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: GitHub's own syntax
+          '      LABEL: ${{ matrix.label }}-${{ matrix.os }}',
+          '    steps:',
+          '      - name: tests',
+          '        run: node scripts/coverage.ts',
+          '      - name: by label',
+          '        env:',
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: GitHub's own syntax
+          '          ROW: ${{ matrix.os }}',
+          '        run: pnpm test',
+          '',
+        ].join('\n'),
+      }),
+    )
+    // One check, not eight: a matrix is run once, here.
+    expect(read?.checks.map((check) => check.id)).toEqual(['tests', 'by-label'])
+    for (const check of read?.checks ?? []) {
+      expect(check.required).toBe(true)
+      expect(check.skip).toBeUndefined()
+    }
+  })
+
+  it('leaves a matrix env to the runner where it is anything more than a row of the matrix', async () => {
+    // `${{ … }}` spelled out of pieces, so no line here reads as a template.
+    const gh = (expression: string): string => `$${'{{'} ${expression} }}`
+    const cases: [label: string, env: string, run: string][] = [
+      // A command that names the variable reads the row's value itself.
+      ['named', `SHARD: ${gh('matrix.shard')}/4`, 'vitest --shard=$SHARD'],
+      ['braced', `SHARD: ${gh('matrix.shard')}`, `vitest --shard=$${'{'}SHARD}/4`],
+      // A key the matrix does not state.
+      ['missing key', `NODE: ${gh('matrix.node')}`, 'pnpm test'],
+      // The matrix value inside an expression, or beside a secret.
+      ['expression', `SHARD: ${gh("matrix.shard == 1 && 'a' || 'b'")}`, 'pnpm test'],
+      ['beside a secret', `KEY: ${gh('matrix.shard')}-${gh('secrets.KEY')}`, 'pnpm test'],
+    ]
+    for (const [label, env, run] of cases) {
+      const read = await readWorkflows(
+        repoWith({
+          '.github/workflows/ci.yml': [
+            'on: [pull_request]',
+            'jobs:',
+            '  tests:',
+            '    strategy:',
+            '      matrix:',
+            '        shard: [1, 2, 3, 4]',
+            '    env:',
+            `      ${env}`,
+            '    steps:',
+            '      - name: tests',
+            `        run: ${run}`,
+            '',
+          ].join('\n'),
+        }),
+      )
+      expect(read?.checks[0]?.skip, label).toContain('only the runner knows')
+      expect(read?.checks[0]?.required, label).toBe(false)
+    }
+    // A matrix that is itself an expression states no keys at all.
+    const computed = await readWorkflows(
+      repoWith({
+        '.github/workflows/ci.yml': [
+          'on: [pull_request]',
+          'jobs:',
+          '  tests:',
+          '    strategy:',
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: GitHub's own syntax
+          '      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}',
+          '    env:',
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: GitHub's own syntax
+          '      SHARD: ${{ matrix.shard }}',
+          '    steps:',
+          '      - name: tests',
+          '        run: pnpm test',
+          '',
+        ].join('\n'),
+      }),
+    )
+    expect(computed?.checks[0]?.skip).toContain('only the runner knows')
+    // And no workflow-level env has a matrix to answer from.
+    const top = await readWorkflows(
+      repoWith({
+        '.github/workflows/ci.yml': [
+          'on: [pull_request]',
+          'env:',
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: GitHub's own syntax
+          '  SHARD: ${{ matrix.shard }}',
+          'jobs:',
+          '  tests:',
+          '    strategy:',
+          '      matrix:',
+          '        shard: [1, 2]',
+          '    steps:',
+          '      - name: tests',
+          '        run: pnpm test',
+          '',
+        ].join('\n'),
+      }),
+    )
+    expect(top?.checks[0]?.skip).toContain('only the runner knows')
+  })
+
+  it('skips every step after an artifact is downloaded, since it reads what another job made', async () => {
+    const read = await readWorkflows(
+      repoWith({
+        '.github/workflows/ci.yml': [
+          'on: [pull_request]',
+          'jobs:',
+          '  coverage:',
+          '    needs: tests',
+          '    steps:',
+          '      - uses: actions/checkout@v5',
+          '      - name: before',
+          '        run: pnpm lint',
+          '      - uses: actions/download-artifact@v4',
+          '        with:',
+          '          path: .vitest-reports',
+          '      - name: merge',
+          '        run: node scripts/coverage.ts --merge .vitest-reports',
+          '      - name: after',
+          '        run: pnpm report',
+          '',
+        ].join('\n'),
+      }),
+    )
+    const byId = new Map((read?.checks ?? []).map((check) => [check.id, check]))
+    expect(byId.get('before')?.skip).toBeUndefined()
+    expect(byId.get('before')?.required).toBe(true)
+    for (const id of ['merge', 'after']) {
+      expect(byId.get(id)?.skip, id).toBe(
+        'it reads what the action actions/download-artifact@v4 brought from another job',
+      )
+      expect(byId.get(id)?.required, id).toBe(false)
+    }
+    expect(read?.unread).toContain(
+      '.github/workflows/ci.yml › coverage is the action actions/download-artifact@v4, which only the runner can run',
+    )
+  })
+
   it('runs a step in the folder it says, and skips one whose folder is not here to run in', async () => {
     const read = await readWorkflows(
       repoWith({

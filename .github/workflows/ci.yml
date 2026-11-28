@@ -55,6 +55,39 @@ jobs:
           node-version: "22"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: format
+        run: pnpm exec biome ci .
+      - name: types
+        run: pnpm exec tsc -p tsconfig.json
+
+  # The suite, a quarter per machine and four per OS, each quarter written as a
+  # blob that `coverage` below merges and holds to the floors.
+  #
+  # The shard is said in the job's `env:` and never in the step's `run:`. Tade
+  # reads the `tests` step as this project's local `tests` check, and a `run:`
+  # with `${{ … }}` in it is one only the runner can run — written there, the
+  # gate on every laptop would quietly become a skip. An `env:` whose value is
+  # nothing but a row of this job's own matrix is read as the row the local
+  # run does not have (`runnerEnv` in packages/checks/core/src/ci.ts), and with
+  # `VITEST_SHARD` unset `scripts/coverage.ts` runs the whole suite, floors and
+  # all, as it always has. The 4 in it is the length of `shard` below.
+  tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        shard: [1, 2, 3, 4]
+    env:
+      VITEST_SHARD: ${{ matrix.shard }}/4
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       # The tmux driver's conformance suite is not one that may be skipped: a
       # driver nobody proved can drive a lane is a driver nobody should ship.
       # Ubuntu runners have tmux already; macOS runners have none, and without
@@ -70,14 +103,11 @@ jobs:
         run: |
           command -v restic >/dev/null || if command -v brew >/dev/null; then brew install restic; else sudo apt-get update && sudo apt-get install -y restic; fi
           restic version
-      - name: format
-        run: pnpm exec biome ci .
-      - name: types
-        run: pnpm exec tsc -p tsconfig.json
       # The suite, and then the coverage floors — `scripts/coverage.ts` runs
       # vitest and holds what it measured to a floor per package. Measuring
       # costs nothing worth naming (111.6s against 111.8s), so there is no
-      # version of the suite that is the one where we also look.
+      # version of the suite that is the one where we also look. Here it is
+      # one shard, and the floors wait for the merge.
       #
       # It gets the machine to itself here because a CI step always does, and
       # for the same reason `checks_run` gives it the machine locally: the
@@ -92,3 +122,41 @@ jobs:
       - name: tests
         timeout-minutes: 40
         run: pnpm exec node scripts/coverage.ts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: blob-${{ matrix.os }}-${{ matrix.shard }}
+          path: .vitest-reports/
+          retention-days: 1
+          if-no-files-found: error
+
+  # The four quarters merged, per OS — each runner's coverage held to the
+  # floors on its own, as before the split, since a floor met only by the
+  # union of both would hide one OS falling under it — with every file's
+  # duration printed, slowest first, so the files a shard can never be
+  # shorter than are named.
+  #
+  # Not a local check: every step after the download reads what another job
+  # made, and the reading says so and draws it as one that cannot run here.
+  # Locally the `tests` step above is the whole of it.
+  coverage:
+    needs: tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: blob-${{ matrix.os }}-*
+          path: .vitest-reports
+          merge-multiple: true
+      - name: coverage
+        run: pnpm exec node scripts/coverage.ts --merge .vitest-reports

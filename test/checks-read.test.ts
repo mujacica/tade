@@ -38,8 +38,29 @@ describe("Tade's own checks", () => {
       'format',
       'types',
       'tests',
+      'coverage',
       'related',
     ])
+  })
+
+  it('run the whole suite here though CI splits it into shards', async () => {
+    // The trap sharding sets: written into the step's `run:`, the shard would
+    // make `tests` a step only the runner can run, and the gate on every
+    // laptop a skip. It is in the job's `env:`, as a row of the job's own
+    // matrix, so the step reads as the whole suite — and the job that merges
+    // the shards reads what another job made, so it is never run here.
+    const read = await readChecks({ name: 'tade', root })
+    const byId = new Map(read.checks.map((check) => [check.id, check]))
+    expect(byId.get('tests')).toMatchObject({
+      run: 'pnpm exec node scripts/coverage.ts',
+      required: true,
+      minutes: 40,
+    })
+    expect(byId.get('tests')?.skip).toBeUndefined()
+    expect(byId.get('coverage')?.required).toBe(false)
+    expect(byId.get('coverage')?.skip).toMatch(
+      /^it reads what the action actions\/download-artifact@[0-9a-f]{40} brought from another job$/,
+    )
   })
 
   it('have a related run that is the quick look and never the full one', async () => {
@@ -55,6 +76,7 @@ describe("Tade's own checks", () => {
       'format',
       'types',
       'tests',
+      'coverage',
     ])
     expect(planFor(read.checks, { related: true }).map((check) => check.id)).toEqual([
       'pre-commit',
@@ -74,7 +96,10 @@ describe("Tade's own checks", () => {
       .split('&&')
       .map((one) => one.trim())
       .map((one) => (one.startsWith('pnpm exec ') ? one : `pnpm exec ${one}`))
-    const fromCi = read.checks.filter((check) => check.from?.startsWith('.github'))
+    // What runs here, that is: CI's merge of its shards is drawn and never run.
+    const fromCi = read.checks.filter(
+      (check) => check.from?.startsWith('.github') && check.skip === undefined,
+    )
     expect(fromCi.map((check) => check.run)).toEqual(gate)
   })
 

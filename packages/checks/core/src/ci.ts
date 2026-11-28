@@ -20,6 +20,7 @@ import type { Check } from './port.ts'
 //   ${{ … }} in a run:                   it needs what only the runner knows
 //   no run:                              it is somebody's action
 //   working-directory: an action's path  it needs what only the runner made
+//   after actions/download-artifact      it reads what another job made
 //
 // So the rule is a conjunction of declared facts, and the design principle
 // underneath it is one sentence:
@@ -191,7 +192,8 @@ export async function readWorkflows(root: string): Promise<Reading | null> {
     const before = checks.length
     const event = eventOf(raw?.on ?? raw?.true)
     // Every job sees the workflow's own `env:`, as every step sees its job's.
-    const envNeedsRunner = /\$\{\{/.test(JSON.stringify(raw?.env ?? ''))
+    // No matrix is in scope at the top of a workflow, so none is answered.
+    const envNeedsRunner = runnerEnv(raw?.env, new Set()).needs
     await readJobs(
       root,
       asObject(raw?.jobs),
@@ -244,6 +246,8 @@ async function readJobs(
     }
     // These are checks the job really runs; what they need is what this machine
     // has not got. So they keep their rows and say so, rather than vanishing.
+    const matrix = matrixKeysOf(job)
+    const jobEnv = runnerEnv(job?.env, matrix)
     const cannot = job?.services
       ? 'its job needs service containers, which only CI has'
       : job?.container
@@ -263,7 +267,7 @@ async function readJobs(
       cannot,
       // Every step sees its job's `env:` and is bounded by its job's
       // timeout, so both are read as if each step had said them.
-      workflowEnvNeedsRunner || /\$\{\{/.test(JSON.stringify(job?.env ?? '')),
+      { needs: workflowEnvNeedsRunner || jobEnv.needs, rows: jobEnv.rows, matrix },
       minutesOf(job, DEFAULT_MINUTES),
     )
   }
@@ -279,13 +283,16 @@ async function readSteps(
   unread: string[],
   taken: Set<string>,
   jobCannot: string | null,
-  jobEnvNeedsRunner: boolean,
+  jobEnv: { needs: boolean; rows: readonly string[]; matrix: ReadonlySet<string> },
   jobMinutes: number,
 ): Promise<void> {
   // The folders an earlier action in this job made — a second repository
   // checked out beside this one, an artifact downloaded — which this checkout
   // does not have, or has only as whatever a run here last left in them.
   const made: { path: string; by: string }[] = []
+  // An artifact another job of the run uploaded, once one is downloaded: every
+  // step after it may be reading it, and this checkout has nothing of it.
+  let fetched: string | null = null
   for (const entry of steps) {
     const step = asObject(entry)
     const name = typeof step?.name === 'string' ? step.name.trim() : ''
@@ -305,6 +312,7 @@ async function readSteps(
       if (uses) {
         unread.push(`${said} is the action ${uses}, which only the runner can run`)
         for (const path of pathsOf(asObject(step?.with)?.path)) made.push({ path, by: uses })
+        if (DOWNLOADS_ARTIFACT.test(uses)) fetched ??= uses
       }
       continue
     }
@@ -314,17 +322,23 @@ async function readSteps(
     }
     const own = step?.['working-directory']
     const dir = typeof own === 'string' && own.trim() ? own.trim() : jobDir
+    const stepEnv = runnerEnv(step?.env, jobEnv.matrix)
+    const runnerOnly =
+      jobEnv.needs ||
+      stepEnv.needs ||
+      /\$\{\{/.test(run) ||
+      /\$\{\{/.test(dir ?? '') ||
+      [...jobEnv.rows, ...stepEnv.rows].some((variable) => names(run, variable))
     const cannot =
       jobCannot ??
-      (jobEnvNeedsRunner ||
-      /\$\{\{/.test(run) ||
-      /\$\{\{/.test(JSON.stringify(step?.env ?? '')) ||
-      /\$\{\{/.test(dir ?? '')
+      (runnerOnly
         ? 'it uses something only the runner knows'
-        : ((dir ? await placeOf(root, dir, made) : null) ??
-          (when === null
-            ? `it runs only when \`${conditionText(step?.if)}\`, which only CI can answer`
-            : null)))
+        : fetched
+          ? `it reads what the action ${fetched} brought from another job`
+          : ((dir ? await placeOf(root, dir, made) : null) ??
+            (when === null
+              ? `it runs only when \`${conditionText(step?.if)}\`, which only CI can answer`
+              : null)))
     const cwd = dir && !/\$\{\{/.test(dir) ? inside(dir) : null
     checks.push({
       id: idFor(name, run, taken),
@@ -602,6 +616,71 @@ async function placeOf(
     }
   }
   return `it runs in ${at}, which is not in this checkout`
+}
+
+// A matrix is one check, run once, here — `runs-on: ${{ matrix.os }}` has
+// always been read that way, and a run here is the run with no row of the
+// matrix at all. So an `env:` value that interpolates nothing but the job's own
+// `matrix.<key>` is a variable a row sets and this run does not have, the same
+// as it does not have the job's literal `env:` (a check read from CI is handed
+// none of it). That is what lets a job be split into shards by its `env:` and
+// still be read as the check it is: Tade's own `tests` runs the whole suite
+// with `VITEST_SHARD` unset (`scripts/coverage.ts`).
+//
+// Two conditions keep it narrow. The key has to be one the job's
+// `strategy.matrix` states as a literal, so `${{ fromJSON(…) }}` or a key it
+// does not have stays the runner's; and a command that names the variable
+// (`$SHARD`, `${SHARD}`) is reading the row's value in the command itself, so
+// that step stays the runner's too. Anything else inside `${{ }}` — a secret,
+// `github.…`, an expression around the matrix value — stays the runner's.
+
+/** `actions/download-artifact`, or anybody's fork of it. */
+const DOWNLOADS_ARTIFACT = /(^|\/)download-artifact@/
+
+/** The keys a job's `strategy.matrix` states as literals, `include:` rows' keys among them. */
+function matrixKeysOf(job: Record<string, unknown> | null): Set<string> {
+  const keys = new Set<string>()
+  const matrix = asObject(asObject(job?.strategy)?.matrix)
+  if (!matrix) return keys
+  for (const [key, value] of Object.entries(matrix)) {
+    if (key === 'exclude') continue
+    if (key === 'include') {
+      for (const row of Array.isArray(value) ? value : []) {
+        for (const name of Object.keys(asObject(row) ?? {})) keys.add(name)
+      }
+      continue
+    }
+    if (Array.isArray(value)) keys.add(key)
+  }
+  return keys
+}
+
+/**
+ * What an `env:` needs of the runner: `needs` where any value interpolates
+ * anything but one of `matrix`'s keys, and `rows`, the variables whose values
+ * are set by a row of that matrix and so are unset here.
+ */
+function runnerEnv(env: unknown, matrix: ReadonlySet<string>): { needs: boolean; rows: string[] } {
+  const raw = asObject(env)
+  if (!raw) return { needs: /\$\{\{/.test(JSON.stringify(env ?? '')), rows: [] }
+  const rows: string[] = []
+  let needs = false
+  for (const [name, value] of Object.entries(raw)) {
+    const text = typeof value === 'string' ? value : JSON.stringify(value ?? '')
+    if (!/\$\{\{/.test(text)) continue
+    const rest = text.replace(/\$\{\{\s*matrix\.([A-Za-z_][\w-]*)\s*\}\}/g, (whole, key: string) =>
+      matrix.has(key) ? '' : whole,
+    )
+    if (/\$\{\{/.test(rest)) needs = true
+    else rows.push(name)
+  }
+  return { needs, rows }
+}
+
+/** Whether a shell command names this variable, `$NAME` or `${NAME…}`. */
+function names(run: string, variable: string): boolean {
+  const escaped = variable.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`\\$\\{?${escaped}(?!\\w)`).test(run)
 }
 
 function minutesOf(step: Record<string, unknown> | null, fallback: number): number {
