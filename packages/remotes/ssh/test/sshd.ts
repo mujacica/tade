@@ -39,6 +39,22 @@ function shortTmp(): string {
   return tmp.length <= SHORT || !existsSync('/tmp') ? tmp : '/tmp'
 }
 
+/**
+ * sshd under a shell that ends it when its stdin closes: when `stop` closes
+ * it, and when the worker that started it dies without reaching its
+ * `afterAll`, which closes it too. sshd runs detached, so before this a worker
+ * that died left its listener to pid 1, still running an hour after its suite.
+ * The connections go first: each one's `sshd-session` calls setsid, so
+ * signalling the listener's group never reached them, and an ssh master
+ * riding one ran on with it. Once its connection drops, the master exits too.
+ */
+const WATCHED = [
+  'exec 3<&0',
+  '"$@" & pid=$!',
+  '( read -r _ <&3; pkill -TERM -P "$pid" 2>/dev/null; kill "$pid" 2>/dev/null ) &',
+  'wait "$pid"',
+].join('\n')
+
 /** A port nothing is listening on, a moment ago. */
 async function freePort(): Promise<number> {
   return new Promise((done, failed) => {
@@ -126,15 +142,26 @@ export async function startSshd(opts: { met?: boolean } = {}): Promise<Sshd | st
     ].join('\n'),
   )
   const said: string[] = []
-  const child: ChildProcess = spawn(sshd, ['-D', '-e', '-f', join(dir, 'sshd_config')], {
-    stdio: ['ignore', 'ignore', 'pipe'],
-    detached: true,
-  })
+  const child: ChildProcess = spawn(
+    '/bin/sh',
+    ['-c', WATCHED, 'sshd', sshd, '-D', '-e', '-f', join(dir, 'sshd_config')],
+    { stdio: ['pipe', 'ignore', 'pipe'], detached: true },
+  )
   child.stderr?.on('data', (chunk: Buffer) => said.push(chunk.toString()))
+  const exited = new Promise<void>((done) => {
+    if (child.exitCode !== null || child.signalCode !== null) done()
+    else child.once('exit', () => done())
+  })
   const stop = async () => {
-    if (child.exitCode === null && child.pid !== undefined) {
+    // Closing the pipe is what ends it, as a worker that dies closes it too.
+    child.stdin?.end()
+    const gone = await Promise.race([
+      exited.then(() => true),
+      new Promise<boolean>((done) => setTimeout(() => done(false), 5_000)),
+    ])
+    if (!gone && child.pid !== undefined) {
       try {
-        process.kill(-child.pid, 'SIGTERM')
+        process.kill(-child.pid, 'SIGKILL')
       } catch {
         // Gone already.
       }
