@@ -82,9 +82,18 @@ describe('the shape of the table', () => {
     expect(worker[0]?.path.split('/').length).toBe(2)
   })
 
-  it('has exactly one route that owns everything under it, and it is the files', () => {
+  it('has only the files owning everything under them: the assets and the drawing code', () => {
+    // Everything under a prefix is Tade's own source, the same for everybody:
+    // the page's assets, and the window's drawing a browser draws the full
+    // view with (`/draw`). Each is public, read-only and a GET, and anything
+    // it draws comes from a route that needs a session.
     const under = ROUTES.filter((route) => route.under === true)
-    expect(under.map((route) => route.path)).toEqual(['/assets'])
+    expect(under.map((route) => route.path)).toEqual(['/assets', '/draw'])
+    for (const route of under) {
+      expect(route.method, route.name).toBe('GET')
+      expect(route.public, route.name).toBe(true)
+      expect(route.mutates, route.name).toBe(false)
+    }
   })
 
   it('needs no more than `read` for anything in this phase', () => {
