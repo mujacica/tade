@@ -32,6 +32,7 @@ import {
   Tickets,
   type ToolReadAnswer,
   type WatchSeenAnswer,
+  type WebAway,
   type WebConnecting,
   type WebDisk,
   type WebReading,
@@ -173,6 +174,12 @@ export interface FarEnd {
   /** How many times an owner has asked it to look at its records. */
   readonly recordsAsked: number
   /**
+   * What its window answers an owner's tab on the AWAY VIEW panel
+   * (`/api/away`): a test sets it — the window's own half, over this home —
+   * before anything asks; null, a window that throws when asked.
+   */
+  away: WebAway | null
+  /**
    * What its window knows of connecting GitHub there (`/api/connect`): a test
    * sets it before anything asks; null, a window that cannot say.
    */
@@ -285,6 +292,7 @@ class Far implements FarEnd {
   readonly inventories: { machine: string; device: string }[] = []
   records: RecordsAnswer | null = null
   recordsAsked = 0
+  away: WebAway | null = null
   connecting: WebConnecting | null = null
   evaluations: Evaluations | null = null
   intake: IntakeIn[] = []
@@ -492,6 +500,10 @@ class Far implements FarEnd {
             cannot: 'it has no public name',
           }
         )
+      },
+      awayThere: async (asked, device) => {
+        if (this.away === null) throw new Error('the far end was given no away view to answer')
+        return this.away(asked, device)
       },
       opening: async (open, device) => {
         this.opened.push({ open, device })

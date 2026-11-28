@@ -110,6 +110,8 @@ export function deviceLines(
   chosen: boolean,
   ctx: PanelContext,
   inner: number,
+  /** Whether Sign out can be carried out: not on a machine whose link is down. */
+  signOut = true,
 ): Line[] {
   const { skin } = ctx
   const row = () => new Row(inner, skin, ctx.pointer)
@@ -126,13 +128,21 @@ export function deviceLines(
   const lines: Line[] = []
   // **Sign out is never what gets cut**: where the name leaves it no room, it
   // takes a line of its own rather than being dropped with the right group.
+  if (!signOut) return [head.build(), ...aboutLines(device, ctx, inner)]
   const one = head.right(out).build()
   if (one.hits.some((hit) => sameTarget(hit.target, revoke))) {
     lines.push(one)
   } else {
     lines.push(head.build(), row().right(out).build())
   }
+  return [...lines, ...aboutLines(device, ctx, inner)]
+}
 
+/** What a device is, where it paired from, when, and its passkey: the line under its name. */
+function aboutLines(device: AwayDevice, ctx: PanelContext, inner: number): Line[] {
+  const { skin } = ctx
+  const row = () => new Row(inner, skin, ctx.pointer)
+  const lines: Line[] = []
   // An owner says so before anything else about it: it is another machine's
   // link, not a phone.
   const kind = device.owner ? 'owner' : kindOf(device.label)

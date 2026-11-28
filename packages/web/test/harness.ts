@@ -229,6 +229,7 @@ export async function start(
       | 'records'
       | 'taking'
       | 'opening'
+      | 'awayThere'
       | 'pressThere'
       | 'carrying'
       | 'answers'

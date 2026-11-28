@@ -244,6 +244,8 @@ export function draw(state: AppState, given: Frame, last: LastFrame | null = nul
     intake: extra.intake ?? null,
     workflow: extra.workflow ?? null,
     away: extra.away ?? null,
+    awayTabs: extra.awayTabs ?? [],
+    awayThere: extra.awayThere ?? null,
     domain: extra.domain ?? null,
     connect: extra.connect ?? null,
   })

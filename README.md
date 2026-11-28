@@ -163,6 +163,12 @@ is yours and can do whatever you can at the machine; **Sign out** or `tade web r
 
 ![Tade's away view on a laptop and then a phone: the machines, four tiles, an agent waiting with Allow and Deny, every agent with what it is doing and the conversation with Tade](https://raw.githubusercontent.com/mujacica/tade/main/images/away-page.svg)
 
+`away 2/2 up` in the strip counts the machines your phone can reach, and opens the **AWAY VIEW**
+panel: a tab per machine — this Mac's, then each linked server's public one — with its code, its
+devices and **Sign out**, each done by that machine.
+
+![The AWAY VIEW panel on ipax's tab: on at its public name, the code ipax wrote with its https link, and the devices paired there](https://raw.githubusercontent.com/mujacica/tade/main/images/away-machines.svg)
+
 Turn the phone sideways and it is the window itself — **Full view**, drawn by the phone from the
 state the machine sends, at its own size: taps are clicks, swipes scroll, and a key row has the
 keys a phone lacks. Upright is the overview; the switch in the header changes either, and the phone

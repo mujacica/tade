@@ -4,8 +4,8 @@ import {
   PUBLIC_IS_THE_INTERNET_SHORT,
 } from '@tade/core'
 import { blocksFor, codeFor } from '@tade/web'
-import { AWAY_CONTROLS, awayPanel } from '../../../src/panels/away/state.ts'
-import type { AwayView } from '../../../src/panels/away/view.ts'
+import { AWAY_CONTROLS, awayPanel, onTab } from '../../../src/panels/away/state.ts'
+import type { AwayTab, AwayView } from '../../../src/panels/away/view.ts'
 import { base, frame, type Scenario, utcDate } from './fixtures.ts'
 
 // The away view, as the window shows it.
@@ -62,6 +62,58 @@ function view(over: Partial<AwayView> = {}): AwayView {
     ...over,
   }
 }
+
+/** The public link a code ipax wrote carries: its public name, never `localhost`. */
+const IPAX_URL = 'https://tade.mujacic.com/pair#t=Hn4sQw9ZkVb2LcR7xPt3mYa'
+
+/** The other machines' tabs: ipax up, vps down. */
+const TABS: readonly AwayTab[] = [
+  { name: 'ipax', on: true },
+  { name: 'vps', on: false },
+]
+
+/** ipax's away view as its tab draws it: what ipax answered, over a link that is up. */
+function ipax(over: Partial<AwayView> = {}): AwayView {
+  const code = codeFor(IPAX_URL)
+  return view({
+    machine: 'ipax',
+    bound: ['127.0.0.1:7654'],
+    reachable: ['tade.mujacic.com'],
+    ticket: { url: IPAX_URL, secondsLeft: 287 },
+    code: code === null ? [] : blocksFor(code),
+    public: {
+      name: 'tade.mujacic.com',
+      up: true,
+      lines: [{ said: 'certificate good until 14 Feb 2027', loud: false }],
+    },
+    devices: [
+      {
+        id: '00112233445566dd',
+        label: 'iPhone',
+        from: 'outside your network',
+        pairedAt: Date.parse('2026-11-02T08:20:00.000Z'),
+        passkey: Date.parse('2026-11-27T22:10:00.000Z'),
+        passkeyMade: Date.parse('2026-11-02T08:21:00.000Z'),
+        live: true,
+      },
+      {
+        id: '00112233445566ee',
+        label: 'studio',
+        from: 'over SSH',
+        owner: true,
+        pairedAt: Date.parse('2026-10-20T10:00:00.000Z'),
+        live: true,
+      },
+    ],
+    streams: 2,
+    agents: DEVICES_SEEN_BY_AGENTS.replace('this machine', 'ipax'),
+    there: { name: 'ipax', linked: true, up: true, asOf: utcNow, asking: false, said: null },
+    ...over,
+  })
+}
+
+/** A moment the scenarios' clock reads as now. */
+const utcNow = Date.parse('2026-11-28T09:00:00.000Z')
 
 export const AWAY_SCREENS: Scenario[] = [
   {
@@ -205,6 +257,74 @@ export const AWAY_SCREENS: Scenario[] = [
               live: false,
             },
           ],
+        }),
+      },
+    }),
+  },
+  {
+    name: 'away-tabs-this-mac',
+    about:
+      'With other machines linked, a tab per machine along the top — this Mac first, then each ' +
+      'linked one in the order the config names them — with ● where its away view is up and ○ ' +
+      'where it is not. This Mac’s tab is the panel as it always was.',
+    state: { ...base(), panel: awayPanel() },
+    frame: frame({
+      date: utcDate,
+      remote: LISTENING,
+      panel: { away: view({ ticket: null, code: [] }), awayTabs: TABS },
+    }),
+  },
+  {
+    name: 'away-on-another-machine',
+    about:
+      'ipax’s tab: its away view as ipax answered over the link — on, reached at its public ' +
+      'name with its certificate, the code ipax wrote as `tade web pair` writes one carrying ' +
+      'the public https link and not localhost, how long it is good for, and the devices paired ' +
+      'there with Sign out on each. Every press on this tab is done by ipax.',
+    state: { ...base(), panel: onTab(awayPanel(), 'ipax') },
+    frame: frame({
+      date: utcDate,
+      remote: LISTENING,
+      panel: { away: view(), awayTabs: TABS, awayThere: ipax() },
+    }),
+  },
+  {
+    name: 'away-another-machine-down',
+    about:
+      'A machine whose link is down: said as that, with when it last answered and the way to ' +
+      'connect it — Settings › Remotes — and the devices it listed then. No code can be made ' +
+      'and Disconnect everything waits, because nothing reaches it to do either.',
+    state: { ...base(), panel: onTab(awayPanel(), 'vps') },
+    frame: frame({
+      date: utcDate,
+      remote: LISTENING,
+      panel: {
+        away: view(),
+        awayTabs: TABS,
+        awayThere: ipax({
+          machine: 'vps',
+          ticket: null,
+          code: [],
+          public: null,
+          devices: [
+            {
+              id: '00112233445566ff',
+              label: 'iPad',
+              from: 'Tailscale',
+              pairedAt: Date.parse('2026-11-12T19:05:00.000Z'),
+              live: false,
+            },
+          ],
+          streams: 0,
+          agents: DEVICES_SEEN_BY_AGENTS.replace('this machine', 'vps'),
+          there: {
+            name: 'vps',
+            linked: true,
+            up: false,
+            asOf: Date.parse('2026-11-28T06:42:00.000Z'),
+            asking: false,
+            said: 'no answer over ssh',
+          },
         }),
       },
     }),

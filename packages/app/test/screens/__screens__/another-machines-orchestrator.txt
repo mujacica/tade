@@ -31,4 +31,4 @@
 ───────────────────────────────────────────────────────────────────────────────────────────────────────  enter sends · shift+enter new line · ↑ ctrl+r history ─
  ▏                                                                                                                                                              
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute     Keep awake                        remote off │ claude-opus-5 ▾ · openrouter │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 
+   Extensions     Settings     Mute     Keep awake                       away 0/3 up │ claude-opus-5 ▾ · openrouter │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

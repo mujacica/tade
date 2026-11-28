@@ -227,6 +227,8 @@ export interface MachineAbout {
   /** The commit its checkout started on (`MachineAnswer.checkout`); null for an install or an older Tade. */
   commit: string | null
   public: { name: string; up: boolean; health: readonly { said: string; loud: boolean }[] } | null
+  /** Whether its away view listens, and its devices paired and connected; absent from an older Tade. */
+  away?: { on: boolean; paired: number; connected: number }
   problems: readonly { from: string; at: number | null; said: string }[]
   schedules: readonly ScheduleThere[]
   documents: readonly DocumentThere[]
@@ -688,6 +690,7 @@ export function aboutOf(
               loud: one.loud,
             })),
           },
+    ...(answer.away === undefined ? {} : { away: answer.away }),
     problems: answer.problems.map((one) => ({
       from: one.from,
       at: when(one.at),

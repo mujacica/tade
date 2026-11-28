@@ -57,6 +57,7 @@ import { drawing } from './drawing.ts'
 import { evaluationsAnswer } from './evaluations.ts'
 import { seenName } from './machines-seen.ts'
 import { armingFor, seenFrom } from './web-asking.ts'
+import { awayThereFrom } from './web-away-there.ts'
 import { type AwayHeld, nothingYet, partsFrom, talkFor, upSinceOf } from './web-beat.ts'
 import { carryingFor } from './web-carry.ts'
 import { CheckRecords } from './web-checks.ts'
@@ -403,6 +404,14 @@ export class Away implements Subject {
         heard: (source) => this.wire.live?.heardFrom(source) ?? { verified: null, refused: null },
         now: () => this.wire.now(),
         ...(this.deps.linear && { linear: this.deps.linear }),
+      }),
+      // This machine's away view, for a tab of another machine's AWAY VIEW panel.
+      awayThere: awayThereFrom({
+        home: this.wire.opts.home,
+        facts: () => this.panelFacts(),
+        sessions: () => this.sessions(),
+        tickets: this.tickets,
+        log: (line) => this.log(line),
       }),
       tickets: this.tickets,
       streams: this.streams,

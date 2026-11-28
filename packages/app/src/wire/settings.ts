@@ -28,6 +28,7 @@ import type { Frame } from '../frame.ts'
 import { checkTalkKey } from '../keys.ts'
 import { withTranscript } from '../model.ts'
 import { LOOK_AGAIN } from '../panels/settings/domain.ts'
+import { REMOTES } from '../panels/settings/remotes.ts'
 import {
   actsOf,
   DONE,
@@ -200,6 +201,10 @@ export class Settings implements Subject {
       // The strip's `remote off`: the switch that turns the away view on is here.
       'away-settings': async () => {
         await this.open('away')
+      },
+      // Another machine's tab on the AWAY VIEW panel, not linked or down: links are made and dialled here.
+      'remotes-settings': async () => {
+        await this.open(REMOTES)
       },
     }
   }

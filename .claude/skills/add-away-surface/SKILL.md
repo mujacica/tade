@@ -122,7 +122,8 @@ which are about another *machine*, never a device.
 | the listener's lifetime, the beat, the pairing panel | `packages/app/src/wire/web.ts` — `follow` brings it up, down, or up again as a setting it was built from changes (`web-follow.ts`, `builtFrom`). It is the heart's (`heart.ts`): opened by `Heart.begin` and beaten on its beat, so `tade serve` listens and sends notifications with no screen, and only its pairing panel and `Copy` are a face's |
 | what the window hands it | `packages/app/src/away.ts` — pure: `Workspace` in, the collections out |
 | what the panel draws | `packages/app/src/panels/away/{state,view,cards}.ts`, with six goldens in `test/screens/scenarios/away.ts` — and the Away page of Settings draws the same lines under its switch (`awayLines`, `codeShownOn`), never a second copy. A status line in words, a device at the door as a card **above** the code (under it, twenty rows of code scrolled it out of sight), the code and link, the devices and the controls. A device is its name, where it came from (`whereFrom`'s words, never only an address), its passkey and a revoke — nothing to tick, because every device is the person's own |
-| the strip's `remote off` / `remote 2` chip | `Away.facts` (`Frame.remote`, off the listener and its streams, never the config), drawn in `view/foot.ts`. The beat draws when the streams open differ from what the last **frame** drew, not the last beat: a page that opens and closes between two beats is otherwise left on screen |
+| **another machine's away view on a tab of the panel**: a look, a code written, a device signed out, every one — done by that machine | `OWNED`'s `away` (`POST /api/away`, `here`), `src/away-there.ts` (the bodies, `AwayAnswerSchema`, `AWAY_ITSELF`); that machine's half `packages/app/src/wire/web-away-there.ts` (its panel's own facts, `tade web pair`'s `writeCode`, `revokeOne`/`revokeEvery`, a `web_did` a press, never the link); the asking side `wire/remote-away.ts` (`RemoteAways`, owned by `Remotes`: asked only while its tab is in front, the link held in memory until that machine says it is claimed or gone); the panel marked `AwayPanel.there`, so a press there is carried out by `submitsThere` alone |
+| the strip's `away on` / `away 2/3 up` chip | `awaySaid` in `view/foot.ts`: this machine's listener (`Away.facts`, `Frame.remote`, never the config) and each linked machine's `awayOn` (`machines.ts`, from `/api/machine`'s `away`) — how many of the person's machines a phone can reach now. The beat draws when the streams open differ from what the last **frame** drew, not the last beat: a page that opens and closes between two beats is otherwise left on screen |
 | the terminal's end of it | `packages/cli/src/commands/web.ts` |
 
 ## The rules that break things quietly
@@ -422,8 +423,13 @@ which are about another *machine*, never a device.
   remote act recorded as `you` would make `historyFrom` count it as the person's own doing, and
   a sentence to a model is not a mitigation, because a model can be talked out of one.
 - **A device is let in at the machine and nowhere else.** Pairing is a code only this machine shows
-  or a shell here writes; there is no route, no orchestrator tool and no config key that pairs one,
-  because the thing that grants authority is never reachable from inside the authority it granted.
+  or a shell here writes; there is no orchestrator tool and no config key that pairs one, because
+  the thing that grants authority is never reachable from inside the authority it granted. **The
+  one route is the owner's `away`** (`away-there.ts`): it writes the code `tade web pair` writes,
+  which the SSH key it stands for can already run here — and a paired phone may press it too,
+  because the person decided their phone may do what they can (28 Nov: a tab per machine on the
+  window's AWAY VIEW panel). It is a `web_did` a press, and the link goes back once and is kept
+  nowhere here.
   **There is nothing to grant afterwards**: a device is the person's own from the pairing on, and
   the one act on it is revoking it. Never bring back a per-device list of what one may read or do —
   §10 T1 removed it, and its lines in an old `web-devices.jsonl` (`allowed`, `granted`, a `paired`
@@ -827,7 +833,7 @@ correct (it scrolls) and moved every settings golden.
 
 ## What is not built, and must not arrive because a route was convenient
 
-Nothing pairs a device or grants anything, **nothing publishes a workflow or a persona,
+Nothing pairs a device but the owner's `away` route above, nothing grants anything, **nothing publishes a workflow or a persona,
 nothing makes, renames or deletes a draft, and nothing touches a published version** — which never
 changes once it is out, so a run that points at `name@3` goes on pointing at it. Nothing turns a
 source on, nothing tells a new agent anything (`steer` is a message into a conversation that is

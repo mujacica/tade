@@ -205,6 +205,8 @@ export interface PanelInputs {
   devices?: number
   /** Whether a device is at the away panel's door, waiting for a yes or a no. */
   asking?: boolean
+  /** The other machines with a tab on the away panel, in order; none, and it has no tabs. */
+  awayMachines?: readonly string[]
   /**
    * The line the open panel's body was drawn from in the last frame
    * (`Reach.at`): what was on screen when the key was pressed, for a panel

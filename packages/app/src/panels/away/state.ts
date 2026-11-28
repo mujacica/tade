@@ -40,6 +40,13 @@ export interface AwayPanel {
   /** Why the last key did nothing: a yes or a no to a device that was out of view. */
   said: string | null
   busy: false
+  /**
+   * The machine whose tab is in front, by its `remotes.<name>`; absent is this
+   * machine's own. **A panel marked `there` is carried out by the remotes'
+   * `submitsThere` alone**, so a press on another machine's tab is that
+   * machine's act over its link and can never reach this machine's away view.
+   */
+  there?: string
 }
 
 export function awayPanel(): AwayPanel {
@@ -100,7 +107,31 @@ export const AWAY_CONTROLS = {
   all: 'away-revoke-all',
   /** One device, by its id: `away-revoke:<id>`. */
   revoke: 'away-revoke:',
+  /** A machine's tab, by its `remotes.<name>`: `away-tab:ipax`, and `away-tab:` for this machine. */
+  tab: 'away-tab:',
 } as const
+
+/**
+ * The panel on one machine's tab: the same panel, scrolled to its top, with
+ * nothing chosen — the devices under the next tab are another list. Empty is
+ * this machine's own.
+ */
+export function onTab(panel: AwayPanel, machine: string): AwayPanel {
+  const { there: _was, ...rest } = panel
+  const fresh = { ...rest, scroll: 0, chosen: 0, moved: false, following: false, said: null }
+  return machine === '' ? fresh : { ...fresh, there: machine }
+}
+
+/**
+ * The tab `by` steps from the one in front, round the ends: this machine
+ * first, then every other in the order the config names them. A machine no
+ * longer in the list counts as this one.
+ */
+export function tabBy(panel: AwayPanel, machines: readonly string[], by: number): string {
+  const tabs = ['', ...machines]
+  const at = Math.max(0, tabs.indexOf(panel.there ?? ''))
+  return tabs[(((at + by) % tabs.length) + tabs.length) % tabs.length] ?? ''
+}
 
 /**
  * A key, while the panel has the keyboard.
@@ -136,9 +167,21 @@ export function awayKey(
     asking?: boolean
     drawnFrom?: number
     bindings?: Readonly<Record<string, string>>
+    /** The other machines with a tab, in order (`awayMachines`); none is this machine's alone. */
+    awayMachines?: readonly string[]
   } = {},
 ): PanelOutcome {
   const bindings = inputs.bindings ?? {}
+  // Tab walks the machines, as it walks the tabs of every other panel with tabs.
+  const machines = inputs.awayMachines ?? []
+  if ((key === 'tab' || key === 'shift+tab') && machines.length > 0) {
+    return stay(onTab(panel, tabBy(panel, machines, key === 'tab' ? 1 : -1)))
+  }
+  // Another machine's door is answered at that machine, never by this window's
+  // keys: the card these answer is this machine's.
+  const yesNo =
+    key !== undefined && (key === (bindings.approve ?? 'a') || key === (bindings.deny ?? 'd'))
+  if (yesNo && panel.there !== undefined) return stay({ ...panel, said: BEHIND_THE_PANEL })
   const answer = (choice: string): PanelOutcome =>
     inputs.asking === true && inputs.drawnFrom !== 0
       ? stay({ ...panel, said: ASKING_OUT_OF_VIEW })
@@ -162,6 +205,10 @@ export function awayKey(
 
 export function awayClick(panel: AwayPanel, control: string): PanelOutcome {
   if (control === 'close') return close
+  // Which tab is in front is the panel's own, and asks nothing of anybody.
+  if (control.startsWith(AWAY_CONTROLS.tab)) {
+    return stay(onTab(panel, control.slice(AWAY_CONTROLS.tab.length)))
+  }
   // Everything else is carried out by the subject that owns the server, and
   // **the panel stays open while it happens**: a device list you have just
   // disconnected everything from is the list that proves it, and a panel that

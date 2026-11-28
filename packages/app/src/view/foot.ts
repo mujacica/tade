@@ -12,6 +12,7 @@ import {
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, sameTarget, shift, type Target } from '../hits.ts'
 import { linkedRow } from '../links.ts'
+import { awayOn } from '../machines.ts'
 import {
   type AppState,
   activeTerminal,
@@ -549,7 +550,8 @@ export function renderFoot(
   // step: a figure that grows a few columns — the machine's resources — must
   // not take the one control said nowhere else down with it, and the figure is
   // said again in its extension's own view.
-  const on = frame.remote?.on === true
+  const away = awaySaid(frame)
+  const on = away?.on === true
   const shed: Array<keyof typeof full> = [
     ...(on ? [] : (['remote'] as const)),
     'account',
@@ -594,16 +596,15 @@ export function renderFoot(
       r.text(chip.said, lit(press, chip.tone === 'busy' ? skin.busy : skin.waiting), press)
       owe()
     }
-    // The away view, as the listener has it and not as the config wishes:
-    // `remote off` in the grey of a quiet status, or the devices with a page
-    // open on it in the green of something live. Pressed, it goes where pairing
-    // is — the panel with the code while something listens, the switch in
-    // Settings while nothing does. Before anything looked, no chip: off is a claim.
-    if (show.remote && frame.remote) {
-      const { on, devices } = frame.remote
-      const away: Target = { kind: 'action', name: on ? '/away' : 'away-settings' }
+    // The away view, as the listeners have it and not as the config wishes
+    // (`awaySaid`). Pressed, it goes where pairing is — the panel with its tab
+    // per machine while anything listens or another machine is linked, the
+    // switch in Settings while nothing does. Before anything looked, no chip:
+    // off is a claim.
+    if (show.remote && away !== null) {
+      const press: Target = { kind: 'action', name: away.panel ? '/away' : 'away-settings' }
       pay(r)
-      r.text(on ? `remote ${devices}` : 'remote off', lit(away, on ? skin.done : skin.hint), away)
+      r.text(away.said, lit(press, away.on ? skin.done : skin.hint), press)
       owe()
     }
     if (show.model && thinker !== undefined) {
@@ -794,4 +795,23 @@ function seams(skin: Skin) {
     },
     owing: () => owed !== null,
   }
+}
+
+/**
+ * What the strip's away chip says: **how many of the person's machines can be
+ * reached from their phone now** — `away 2/2 up` — because that is what the
+ * chip is looked at for, and what the panel it opens has a tab per machine
+ * of. With no other machine linked it is this one's alone, `away on` or
+ * `away off`. It used to be `remote 0`, the count of pages open on this
+ * machine, which read as *no remotes* to the person who had one up: a page
+ * open is the least of what it can say, and the panel lists each device.
+ * Null before anything looked.
+ */
+export function awaySaid(frame: Frame): { said: string; on: boolean; panel: boolean } | null {
+  if (!frame.remote) return null
+  const here = frame.remote.on
+  const others = frame.machines?.remotes ?? []
+  if (others.length === 0) return { said: here ? 'away on' : 'away off', on: here, panel: here }
+  const up = (here ? 1 : 0) + others.filter((one) => awayOn(one) === true).length
+  return { said: `away ${up}/${others.length + 1} up`, on: up > 0, panel: true }
 }

@@ -12,7 +12,7 @@ import type { Skin } from '../skin.ts'
 import type { SpendView } from '../spend.ts'
 import type { Drawn, Pointer } from '../ui.ts'
 import type { ViewedFile } from '../viewer.ts'
-import type { AwayView } from './away/view.ts'
+import type { AwayTab, AwayView } from './away/view.ts'
 import { away } from './away/view.ts'
 import type { ChatsView } from './chats/state.ts'
 import { chats } from './chats/view.ts'
@@ -274,6 +274,13 @@ export interface PanelContext {
    * is what `--safe` and a test with no away wiring look like.
    */
   away: AwayView | null
+  /**
+   * Every other machine's tab on the away panel, in the order the config
+   * names them; none where no other machine is linked, and the panel has no tabs.
+   */
+  awayTabs?: readonly AwayTab[]
+  /** The away view of the machine whose tab is in front, where that is another machine's. */
+  awayThere?: AwayView | null
   /** The records the public name needs, drawn under its row in Settings; null where nothing looks. */
   domain: DomainView | null
   /**

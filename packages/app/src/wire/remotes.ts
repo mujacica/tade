@@ -57,6 +57,7 @@ import {
   remoteActions,
   type WaitingNoteShown,
 } from '../panels/settings/remotes.ts'
+import type { Panel } from '../panels.ts'
 import type { Ui } from '../screen.ts'
 import { showTalk, talkTab } from '../talk-tab.ts'
 import { remoteStanding } from '../view/standing.ts'
@@ -92,6 +93,7 @@ import type { Places } from './placing.ts'
 import type { ProjectDoor } from './project-moves.ts'
 import { ProjectionShared } from './projection-shared.ts'
 import { type RemoteAgentDeps, RemoteAgents, type ThereDoor } from './remote-agent.ts'
+import { RemoteAways } from './remote-away.ts'
 import { RemoteMachines } from './remote-machine.ts'
 import { closeThere, remoteProjectItems } from './remote-project.ts'
 import { type RemoteReads, remoteReads } from './remote-reads.ts'
@@ -178,6 +180,8 @@ export interface RemotesDeps {
   >
   /** Whether Settings is open, so its Remotes page is drawn. */
   settingsOpen: () => boolean
+  /** The panel open now, for the AWAY VIEW panel's tabs; absent, none ever is. */
+  panel?: () => Panel | null
   /** What this machine is called in a sentence: `this Mac`. */
   here: string
   /** Stand in a project on another machine. */
@@ -273,6 +277,8 @@ export class Remotes implements Subject {
   private moves: Moves | null = null
   /** This machine's projection, told every machine it links to (`projection-shared.ts`). */
   private projection: ProjectionShared | null = null
+  /** Each machine's away view, on its tab of the AWAY VIEW panel (`remote-away.ts`). */
+  private aways: RemoteAways | null = null
 
   constructor(deps: RemotesDeps) {
     this.deps = deps
@@ -419,9 +425,9 @@ export class Remotes implements Subject {
     return this.agents?.prompts() ?? {}
   }
 
-  /** The panels that are another machine's, carried out there (`remote-disk.ts`). */
+  /** The panels that are another machine's, carried out there (`remote-disk.ts`, `remote-away.ts`). */
   submitsThere(): Submits {
-    return this.agents?.submitsThere() ?? {}
+    return { ...this.agents?.submitsThere(), ...this.aways?.submitsThere() }
   }
 
   promptsThere(): Prompts {
@@ -496,6 +502,12 @@ export class Remotes implements Subject {
   /** Hand it what asks each machine what it is, which reaches the links through it. */
   withMachines(make: (remotes: Remotes) => RemoteMachines): this {
     this.about = make(this)
+    return this
+  }
+
+  /** Hand it what shows each machine's away view on its tab, which reaches the links through it. */
+  withAways(make: (remotes: Remotes) => RemoteAways): this {
+    this.aways = make(this)
     return this
   }
 
@@ -677,12 +689,33 @@ export class Remotes implements Subject {
     return skew
   }
 
-  /** What the Remotes page draws, while Settings is open. */
+  /**
+   * What the Remotes page draws, while Settings is open — and the AWAY VIEW
+   * panel's tabs, one per machine, with the away view of the one in front
+   * where that is another machine's.
+   */
   panel(): Frame['panel'] {
+    const shown = this.deps.panel?.()
+    if (shown?.kind === 'away' && this.aways !== null) {
+      const machines = this.machines().remotes
+      const there = shown.there
+      if (there !== undefined) this.aways.looking(there)
+      const machine = machines.find((one) => one.name === there) ?? null
+      return {
+        awayTabs: this.aways.tabs(machines),
+        ...(there !== undefined &&
+          machine !== null && {
+            awayThere: this.aways.view(there, machine),
+          }),
+      }
+    }
     return this.deps.settingsOpen() ? { remotes: this.shown() } : {}
   }
 
   inputs() {
+    if (this.deps.panel?.()?.kind === 'away') {
+      return { awayMachines: this.machines().remotes.map((one) => one.name) }
+    }
     return this.deps.settingsOpen() ? { remoteActions: remoteActions(this.shown()) } : {}
   }
 
@@ -889,6 +922,9 @@ export class Remotes implements Subject {
     this.projection?.beat([...this.holder.keys()], (name) => this.reachFor(name))
     void this.mirrors?.beat([...this.holder.keys()])
     this.about?.beat([...this.holder.keys()])
+    // The away view of the machine whose tab is in front, while it is.
+    const shown = this.deps.panel?.()
+    if (shown?.kind === 'away' && shown.there !== undefined) this.aways?.looking(shown.there)
     this.lookAtCommits(now)
     this.sayBehind()
     this.agents?.beat()
@@ -959,6 +995,7 @@ export class Remotes implements Subject {
       this.feeds?.forget(name)
       this.mirrors?.forget(name)
       this.about?.forget(name)
+      this.aways?.forget(name)
       void this.links.get(kind)?.close(name)
     }
     for (const [name, config] of Object.entries(remotes)) {
@@ -1096,6 +1133,11 @@ export function remotesFor(
     } & NonNullable<ReturnType<NonNullable<RemoteAgentDeps['files']>>>
     /** Something put on the clipboard, said in the strip: a path or a branch there, copied. */
     copy?: (text: string) => Promise<void>
+    /**
+     * Something put on the clipboard and said nowhere: another machine's
+     * pairing link, which is a credential. False where it would not go.
+     */
+    copyQuietly?: (text: string) => Promise<boolean>
     /** The record of which machines are up (`machines-seen.ts`), which a link's moves are written to. */
     seen?: (held: Held) => void
     /** This machine's own figures, said to every remote with its word that it is up. */
@@ -1167,6 +1209,7 @@ export function remotesFor(
       },
     },
     settingsOpen: () => wire.state.panel?.kind === 'settings',
+    panel: () => wire.state.panel,
     here: MACHINE,
     go: (place) => {
       wire.put(goElsewhere(wire.state, place))
@@ -1241,6 +1284,13 @@ export function remotesFor(
           sameAs: (project) => remotes.mirrored()?.sameAs(project) ?? [],
           say,
           told,
+        }),
+    )
+    .withAways(
+      (remotes) =>
+        new RemoteAways(wire, {
+          reach: (name) => remotes.reachFor(name),
+          ...(subjects.copyQuietly && { copy: subjects.copyQuietly }),
         }),
     )
     .withMachines(

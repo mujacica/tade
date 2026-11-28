@@ -53,6 +53,15 @@ export function ownedFor(
         return shown === null ? null : { name: shown.name, up: shown.up, health: [...shown.lines] }
       },
       problem: () => away().problem,
+      away: () => {
+        const facts = away()
+        const paired = facts.devices.filter((one) => one.revoked === null)
+        return {
+          on: facts.listening,
+          paired: paired.length,
+          connected: paired.filter((one) => facts.live.has(one.id)).length,
+        }
+      },
       ...(inventory && { inventory: () => inventory.latest() }),
       ...(orchestrator && { orchestrator }),
     }),

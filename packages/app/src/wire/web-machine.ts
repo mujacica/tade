@@ -66,6 +66,8 @@ export interface AwayStanding {
   inventory?(): Inventory | null
   /** How the orchestrator here stands (`FleetConversation.standing`); absent, nothing is said of it. */
   orchestrator?(): OrchestratorStanding
+  /** Whether the away view listens, and its devices paired and connected; absent, nothing is said of it. */
+  away?(): NonNullable<MachineAnswer['away']>
 }
 
 /** The window's `WebMachine`: what this machine is, now. */
@@ -121,6 +123,7 @@ export function machineFrom(wire: Wiring, away: AwayStanding): WebMachine {
       // The last look, never one started for this answer: nothing here waits on a child.
       inventory: away.inventory?.() ?? null,
       ...(away.orchestrator && { orchestrator: away.orchestrator() }),
+      ...(away.away && { away: away.away() }),
     }
   }
 }

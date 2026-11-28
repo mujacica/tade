@@ -174,6 +174,18 @@ export const MachineAnswerSchema = z.object({
   inventory: InventorySchema.nullable().optional(),
   /** How its orchestrator stands; absent from an older Tade, which says nothing of it. */
   orchestrator: OrchestratorStandingSchema.optional(),
+  /**
+   * How its away view stands, for the strip's count of machines whose away
+   * view is up and the tab each has on the AWAY VIEW panel: whether it
+   * listens, and its devices paired and connected now. Absent from an older Tade.
+   */
+  away: z
+    .object({
+      on: z.boolean(),
+      paired: z.int().nonnegative(),
+      connected: z.int().nonnegative(),
+    })
+    .optional(),
 })
 export type MachineAnswer = z.infer<typeof MachineAnswerSchema>
 export type ScheduleHere = MachineAnswer['schedules'][number]
@@ -253,6 +265,7 @@ export function machineFor(all: MachineAnswer): MachineAnswer {
             model: all.orchestrator.model === null ? null : cut(all.orchestrator.model, 200),
           },
         }),
+    ...(all.away === undefined ? {} : { away: all.away }),
   }
 }
 

@@ -339,7 +339,9 @@ describe('the owner’s table', () => {
     // and work another machine hands this one, the one route that makes work
     // (`taken.ts`); and a project it moves here, cloned and opened
     // (`opened.ts`); and a source's guided page and a press on it, for a
-    // browser that cannot reach this machine's own door (`connected.ts`) — named
+    // browser that cannot reach this machine's own door (`connected.ts`); and
+    // its away view for another machine's tab, a code written as `tade web
+    // pair` writes one and a device signed out (`away-there.ts`) — named
     // here, by path, so another cannot join them without this line changing.
     // What keeps them no wider than what already was is who may use them: an
     // owner, which is the SSH key, on the one door that key reaches, or a
@@ -373,6 +375,7 @@ describe('the owner’s table', () => {
       'POST /api/take',
       'POST /api/open',
       'POST /api/connect',
+      'POST /api/away',
     ])
     for (const route of OWNED) {
       expect(route.here, route.path).toBe(true)

@@ -41,7 +41,20 @@ export async function carryLink(
   tickets: Pick<Tickets, 'outstanding'>,
   deps: { copy(text: string): Promise<boolean> },
 ): Promise<void> {
-  const url = tickets.outstanding(wire.now())[0]?.url
+  await carryPairingLink(wire, control, tickets.outstanding(wire.now())[0]?.url, deps)
+}
+
+/**
+ * Open a pairing link, or copy it: this machine's own, or the one another
+ * machine wrote for its tab (`remote-away.ts`), read where it is held at the
+ * press. Undefined is a code that ran out.
+ */
+export async function carryPairingLink(
+  wire: Wiring,
+  control: string,
+  url: string | undefined,
+  deps: { copy(text: string): Promise<boolean> },
+): Promise<void> {
   if (url === undefined) throw new Error('That code has run out: press New code for another.')
   if (control === AWAY_CONTROLS.open) {
     const opener = openerForLink(url)

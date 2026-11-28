@@ -2,6 +2,7 @@ import type { IncomingMessage } from 'node:http'
 import type { DutiesAnswer } from '@tade/core'
 import { type AccountsAnswer, accountsHere } from './accounts.ts'
 import { type AttachAnswer, attachHere } from './attached.ts'
+import { type AwayAnswer, awayThereHere } from './away-there.ts'
 import { type Answering, type CarryAnswer, carryHere } from './carried.ts'
 import type { Device } from './devices.ts'
 import { type DiskAnswer, diskHere } from './disk.ts'
@@ -93,6 +94,7 @@ export const OWNED_DOOR: ReadonlySet<string> = new Set([
   'records',
   'take',
   'open',
+  'away',
 ])
 
 export async function carryOwned(
@@ -130,6 +132,7 @@ export async function carryOwned(
     | 'records'
     | 'taking'
     | 'opening'
+    | 'awayThere'
   >,
   res: Answering,
 ): Promise<
@@ -162,6 +165,7 @@ export async function carryOwned(
         | RecordsAnswer
         | TakeAnswer
         | OpenAnswer
+        | AwayAnswer
     }
   | { refusal: Refusal }
 > {
@@ -194,6 +198,7 @@ export async function carryOwned(
   if (route === 'records') return recordsHere(req, opts.records)
   if (route === 'take') return takeHere(req, device, opts.taking)
   if (route === 'open') return openHere(req, device, opts.opening)
+  if (route === 'away') return awayThereHere(req, device.id, opts.awayThere)
   if (route === 'looking') return carryLooking(req, device, now, opts.looking)
   return carryPresence(req, device, now, opts.present)
 }

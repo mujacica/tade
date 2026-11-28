@@ -7,8 +7,7 @@ import { COOKIE, freePort, paired } from './away-harness.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
 
 // The away view's chip in the strip at the foot, the whole way through: what
-// it says is read off the listener and the streams open on it, a phone opening
-// the page is drawn within a beat with nothing else moving, and pressing it goes
+// it says is read off the listener, whoever has the page open, and pressing it goes
 // where pairing is — the switch while nothing listens, the code while it does.
 //
 // **Loopback, on a port the machine said was free**, as every away test is.
@@ -70,30 +69,27 @@ describe('the away view, in the strip', () => {
     streams.push(req)
   }
 
-  it('says remote off while nothing listens, and opens the switch in Settings', async () => {
+  it('says away off while nothing listens, and opens the switch in Settings', async () => {
     await opened(await freePort(), false)
-    await until('the chip', footSays('remote off'))
-    const chip = find('remote off')
+    await until('the chip', footSays('away off'))
+    const chip = find('away off')
     click(chip.col + 1, chip.row)
     await until('the away page', footSays('Serve the away view'))
   })
 
-  it('counts a phone opening the page, and opens the pairing panel', async () => {
+  it('says away on while it listens, whoever is reading, and opens the pairing panel', async () => {
     const port = await freePort()
     await paired(home, port)
     await opened(port, true)
-    // Listening, and nobody reading yet: a count it made, not an unknown.
-    await until('the listener', footSays('remote 0'))
+    // Listening is what it says, never the config: nobody reading is still on.
+    await until('the listener', footSays('away on'))
+    // A phone with the page open is the panel's to list, and moves nothing here.
     listen(port)
-    // Drawn by the beat that saw it, with nothing else on screen moving.
-    await until('the phone', footSays('remote 1'))
-    expect(screenOf(terminal.written).join('\n')).not.toContain('remote off')
-    const chip = find('remote 1')
+    expect(screenOf(terminal.written).join('\n')).not.toContain('away off')
+    const chip = find('away on')
     click(chip.col + 1, chip.row)
     await until('the pairing panel', footSays('AWAY VIEW'))
-    expect(footSays('remote 1')()).toBe(true)
-    // And a page closed is a page closed, within a beat.
+    expect(footSays('away on')()).toBe(true)
     for (const one of streams.splice(0)) one.destroy()
-    await until('the phone gone', footSays('remote 0'))
   })
 })

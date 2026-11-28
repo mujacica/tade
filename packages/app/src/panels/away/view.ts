@@ -1,8 +1,9 @@
 import type { Health } from '@tade/core'
+import { printable } from '@tade/core/pure'
 import { sameTarget, type Target } from '../../hits.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
 import type { PanelContext } from '../context.ts'
-import { bodyRows, type Line, panelSize } from '../frame.ts'
+import { bodyRows, type Line, panelSize, tabRow } from '../frame.ts'
 import { askingCard, deviceLines, left, wrap } from './cards.ts'
 import { AWAY_CONTROLS, type AwayPanel, awayPanel } from './state.ts'
 
@@ -86,6 +87,36 @@ export interface AwayView {
   agents: string
   /** What could not be done, in Tade's own words. */
   problem: string | null
+  /**
+   * Another machine's away view, drawn on its tab: what this window knows of
+   * its link and its last answer. Absent is this machine's own, where every
+   * fact above is this machine's at this moment.
+   */
+  there?: AwayThere
+}
+
+/** How another machine's tab stands, beside what its away view last answered. */
+export interface AwayThere {
+  /** Its `remotes.<name>`, which is what it is called on its tab and in every sentence. */
+  name: string
+  /** Whether a link here reaches it at all — a machine no link is open to is not linked. */
+  linked: boolean
+  /** Whether that link is up now. */
+  up: boolean
+  /** When it last answered, in this machine's clock; null before it ever has. */
+  asOf: number | null
+  /** An ask is under way. */
+  asking: boolean
+  /** Why there is no answer to draw, or why the last press did nothing: Tade's words or that machine's. */
+  said: string | null
+}
+
+/** A machine's tab along the top of the panel: whether its away view is up, where anything says. */
+export interface AwayTab {
+  /** Its `remotes.<name>`; the first tab, this machine's, is drawn first and is not one of these. */
+  name: string
+  /** Whether its away view is up: listening, over a link that is up. Null where nothing says. */
+  on: boolean | null
 }
 
 export interface AwayDevice {
@@ -134,21 +165,33 @@ const WIDEST = 74
 
 export function away(panel: AwayPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const view = ctx.away
   const { width, inner, rows: room } = panelSize(ctx, { max: WIDEST })
   const row = () => new Row(inner, skin, ctx.pointer)
+  // A tab per machine, this one first, wherever another machine is linked —
+  // and none where none is, so a window with one machine draws what it did.
+  const tabs = tabsOf(panel, ctx, inner)
+  const view =
+    panel.there === undefined
+      ? ctx.away
+      : ctx.awayThere?.there?.name === panel.there
+        ? ctx.awayThere
+        : null
 
   if (view === null) {
+    const said =
+      panel.there === undefined
+        ? 'The away view is not wired up here.'
+        : `${panel.there} is no longer one of the machines here.`
     return box(
       'AWAY VIEW',
-      [blank(inner), row().space().text('The away view is not wired up here.', skin.hint).build()],
+      [...tabs, blank(inner), row().space().text(said, skin.hint).build()],
       width,
       skin,
       { corner: 'esc' },
     )
   }
 
-  const head = headOf(view, ctx, inner, true)
+  const head = [...tabs, ...headOf(view, ctx, inner, true)]
   const foot = footOf(view, ctx, inner, panel.said)
   const middle = middleOf(panel, view, ctx, inner, true)
   const space = Math.max(1, room - head.length - foot.length)
@@ -187,6 +230,59 @@ export function awayLines(view: AwayView, ctx: PanelContext, inner: number): Lin
 }
 
 /**
+ * The machines along the top, this one first: `●` where its away view is up,
+ * `○` where it is not, and `·` where nothing says. Nothing where no other
+ * machine is linked.
+ */
+function tabsOf(panel: AwayPanel, ctx: PanelContext, inner: number): Line[] {
+  const others = ctx.awayTabs ?? []
+  if (others.length === 0) return []
+  const mark = (on: boolean | null) => (on === null ? '·' : on ? '●' : '○')
+  const here = ctx.away
+  const options = [
+    {
+      id: '',
+      label: `${mark(here === null ? null : here.listening)} ${here?.machine ?? 'this machine'}`,
+    },
+    ...others.map((one) => ({ id: one.name, label: `${mark(one.on)} ${printable(one.name)}` })),
+  ]
+  const make = () => new Row(inner, ctx.skin, ctx.pointer)
+  const chosen = panel.there ?? ''
+  return [blank(inner), ...tabRow(make, ctx.skin, 'on', options, chosen, TAB_CONTROL, inner)]
+}
+
+/** The tab row's control, without the colon `tabRow` puts before each id. */
+const TAB_CONTROL = AWAY_CONTROLS.tab.slice(0, -1)
+
+/**
+ * Another machine's status, where its link or its answer is what there is to
+ * say: not linked, down, being asked, or why it did not answer — each with the
+ * way to it, Settings › Remotes, where links are made and dialled. Null where
+ * it answered over a link that is up, and the status is its away view's own.
+ */
+function thereStatus(view: AwayView, ctx: PanelContext): Said | null {
+  const there = view.there
+  if (there === undefined) return null
+  const { skin } = ctx
+  const asOf = there.asOf === null ? '' : ` · as of ${ctx.date(there.asOf)}`
+  if (!there.linked) return { said: `○ ${there.name} is not linked here`, tone: skin.hint }
+  if (!there.up) {
+    return {
+      said: `○ ${there.name} is down${there.said ? `: ${there.said}` : ''}${asOf}`,
+      tone: skin.waiting,
+    }
+  }
+  if (there.asOf !== null) return null
+  if (there.said !== null) return { said: `▲ ${there.said}`, tone: skin.bad }
+  return { said: `… asking ${there.name}`, tone: skin.hint }
+}
+
+/** Whether a machine's tab is drawn from an answer over a link that is up: what may be pressed. */
+function thereUp(view: AwayView): boolean {
+  return view.there === undefined || (view.there.up && view.there.asOf !== null)
+}
+
+/**
  * What is on, and who could reach it, in words — with the port at the right.
  * Always drawn, and always first.
  *
@@ -198,9 +294,23 @@ function headOf(view: AwayView, ctx: PanelContext, inner: number, panel: boolean
   const { skin } = ctx
   const row = () => new Row(inner, skin, ctx.pointer)
   const lines: Line[] = [blank(inner)]
+  const remotes: Target = { kind: 'action', name: 'remotes-settings' }
+  const link = thereStatus(view, ctx)
+  if (link !== null) {
+    // Its link, not its away view, is what there is to say — with the way to
+    // connect it, where it is not up: Settings › Remotes.
+    const up = view.there?.up === true
+    const go = (r: Row) => r.button('Settings › Remotes', remotes).space()
+    lines.push(...(up ? said(row, inner, link) : withControl(row, inner, link, go, remotes)))
+    lines.push(blank(inner))
+    return lines
+  }
   const settings: Target = { kind: 'action', name: 'away-settings' }
   const status = { said: state(view), tone: tone(view, skin) }
-  if (!view.listening) {
+  if (!view.listening && view.there !== undefined) {
+    // Turned on there, at that machine: its Settings are its own.
+    lines.push(...said(row, inner, status))
+  } else if (!view.listening) {
     const go = (r: Row) => r.button('Settings › Away view', settings).space()
     lines.push(
       ...(panel ? withControl(row, inner, status, go, settings) : said(row, inner, status)),
@@ -253,7 +363,9 @@ function middleOf(
   if (view.asking !== null) lines.push(...askingCard(view.asking, ctx, inner, keys), blank(inner))
   // Off, there is nothing to pair with and the status line has said so; the
   // devices still follow, because the list is the mitigation either way.
-  if (view.listening) lines.push(...pairingOf(view, ctx, inner), blank(inner))
+  if (view.listening && thereUp(view)) lines.push(...pairingOf(view, ctx, inner), blank(inner))
+  // A machine that never answered has no devices to list, rather than none.
+  if (view.there !== undefined && view.there.asOf === null) return { lines, chosen: null }
 
   const live = view.devices.filter((one) => one.live).length
   const count =
@@ -270,7 +382,7 @@ function middleOf(
     lines.push(blank(inner))
     starts.push(lines.length)
     const chosen = panel.moved && at === panel.chosen
-    lines.push(...deviceLines(device, chosen, ctx, inner))
+    lines.push(...deviceLines(device, chosen, ctx, inner, thereUp(view)))
   }
   // Where the chosen device is in the whole region, so scrolling follows it:
   // an offset anchored in the rows it was drawn on would move when the code
@@ -298,6 +410,12 @@ function pairingOf(view: AwayView, ctx: PanelContext, inner: number): Line[] {
     ]
   }
   const lines: Line[] = [heading.right((r) => r.chip('New code', code).space()).build()]
+  // Another machine's code is written there only on a press: it is the one
+  // `tade web pair` writes, and opening it lets a device in with nobody asked.
+  if (view.ticket === null && view.there !== undefined) {
+    const what = `New code writes one on ${view.there.name} that pairs whoever opens it first`
+    return [...lines, ...said(row, inner, { said: what, tone: skin.hint })]
+  }
   // No row between the heading and the code: the code carries its own quiet
   // zone, and a row of ours on top of it is three empty rows.
   if (view.ticket === null) return lines
@@ -388,7 +506,13 @@ function footOf(
       inner,
       { said: view.agents, tone: skin.hint },
       (r) =>
-        r.button('Disconnect everything', all, view.devices.length === 0 ? 'off' : 'harm').space(),
+        r
+          .button(
+            'Disconnect everything',
+            all,
+            view.devices.length === 0 || !thereUp(view) ? 'off' : 'harm',
+          )
+          .space(),
       all,
     ),
   )
@@ -426,6 +550,8 @@ function said(row: () => Row, inner: number, text: Said): Line[] {
 function state(view: AwayView): string {
   if (!view.listening) return '○ Off — nothing is listening'
   if (view.bind === 'lan') return '● On — anyone on your network can reach it'
+  // Its public name is said on the line under this one, with who that lets in.
+  if (view.public?.up === true) return `● On — ${view.machine} and its public name reach it`
   return `● On — only ${view.machine} can reach it`
 }
 

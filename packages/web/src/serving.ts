@@ -6,6 +6,7 @@ import type { WebMenus } from './agent-menu.ts'
 import type { WebAnswers } from './answered.ts'
 import type { WebAsking } from './asking.ts'
 import type { WebAttaching } from './attached.ts'
+import type { WebAway } from './away-there.ts'
 import type { WebCarrying } from './carried.ts'
 import type { WebConnecting } from './connected.ts'
 import type { WebDisk } from './disk.ts'
@@ -354,6 +355,12 @@ export interface ServerOptions {
    * Absent, the route is the `404` of a path nobody wired.
    */
   records?: WebRecords
+  /**
+   * This machine's away view for a tab of an owner's AWAY VIEW panel on
+   * another machine: a look, a code written, a device signed out
+   * (`away-there.ts`). Absent, the route is the `404` of a path nobody wired.
+   */
+  awayThere?: WebAway
   /**
    * Work an owner's window on another machine hands this one, made queued
    * work here (`taken.ts`). Absent, the route is the `404` of a path nobody wired.

@@ -796,6 +796,18 @@ export const OWNED: readonly Route[] = [
     mutates: true,
     here: true,
   },
+  // This machine's away view, for a tab of another machine's AWAY VIEW panel
+  // (`away-there.ts`): a look, a code written as `tade web pair` writes one, a
+  // device signed out, every one — what the SSH key already does here with
+  // `tade web pair`, `tade web devices` and `tade web revoke`.
+  {
+    method: 'POST',
+    path: '/api/away',
+    name: 'away',
+    needs: 'read',
+    mutates: true,
+    here: true,
+  },
 ]
 
 /**

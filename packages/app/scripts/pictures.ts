@@ -321,6 +321,15 @@ export const PICTURES: readonly Picture[] = [
       'gave its agents. Standing in tade on the VPS, the side lists its agents, its queued work and ' +
       'its schedules as rows of this machine, and the pane says where it is and how it stands.',
   },
+  {
+    file: 'away-machines.svg',
+    scenario: 'away-on-another-machine',
+    crop: 'panel',
+    about:
+      'The AWAY VIEW panel with a tab per machine — this Mac, ipax and vps — on ipax’s: on, and ' +
+      'reached at its public name with its certificate, the code ipax wrote carrying its public ' +
+      'https link, and the devices paired there, each with Sign out.',
+  },
 ]
 
 function scenarioNamed(name: string): Scenario {

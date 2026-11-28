@@ -125,7 +125,7 @@ export type AwayFace = Pick<AwayDeps, 'copy' | 'reloadStops' | 'reloadAll' | 'wi
  * Absent with no screen, where the links go on without them.
  */
 export type RemotesFace = Partial<
-  Pick<Parameters<typeof remotesFor>[1], 'screens' | 'files' | 'copy'>
+  Pick<Parameters<typeof remotesFor>[1], 'screens' | 'files' | 'copy' | 'copyQuietly'>
 >
 
 /** What a face adds to the heart. */

@@ -254,7 +254,7 @@ describe('a project on another machine, drawn as one here', () => {
     const ours = draw(here.state, here.frame)
     const theirs = draw(there.state, there.frame)
     // Below the tabs, nothing differs: not a section, not a count, not a control.
-    expect(theirs.rows.slice(1)).toEqual(ours.rows.slice(1))
+    expect(between(theirs.rows)).toEqual(between(ours.rows))
     const text = theirs.rows.join('\n')
     for (const heading of [
       'AGENTS',
@@ -291,8 +291,8 @@ describe('a project on another machine, drawn as one here', () => {
     const here = local()
     const none = { ...here, state: { ...here.state, focused: null } as AppState }
     const there = await throughTheLink(none, { machine: 'ipax', project: 'checkout' })
-    expect(draw(there.state, there.frame).rows.slice(1)).toEqual(
-      draw(none.state, none.frame).rows.slice(1),
+    expect(between(draw(there.state, there.frame).rows)).toEqual(
+      between(draw(none.state, none.frame).rows),
     )
   }, 30_000)
 
@@ -310,7 +310,7 @@ describe('a project on another machine, drawn as one here', () => {
     }
     const seen = await throughTheLink(ours, place, { actions: true })
     const theirs = draw(seen.state, seen.frame)
-    expect(theirs.rows.slice(1)).toEqual(draw(ours.state, ours.frame).rows.slice(1))
+    expect(between(theirs.rows)).toEqual(between(draw(ours.state, ours.frame).rows))
     const text = theirs.rows.join('\n')
     expect(text).toContain('keep the old webhook shape working for a release')
     // Its Run checks is that machine's.
@@ -372,3 +372,13 @@ describe('a project on another machine, drawn as one here', () => {
     expect(there.join('\n')).toContain('export const two = 2')
   }, 30_000)
 })
+
+/**
+ * The rows between the tabs and the strip's last row: what the project there
+ * and the project here are drawn as. Both ends are the window's own, and say
+ * what a window linked to one more machine says differently — its tabs, and
+ * how many machines' away views are up (`awaySaid`).
+ */
+function between(rows: readonly string[]): readonly string[] {
+  return rows.slice(1, -1)
+}

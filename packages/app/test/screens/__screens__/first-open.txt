@@ -31,4 +31,4 @@
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute     Keep awake                   remote off │ claude-opus-5 ▾ · openrouter │ high ▾ 
+   Extensions     Settings     Mute     Keep awake                     away off │ claude-opus-5 ▾ · openrouter │ high ▾ 

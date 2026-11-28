@@ -1,0 +1,34 @@
+ ▄▀   T A D E      checkout !⠋   ×  ≡   search ✓    infra      +    ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+ ▌ ! stripe-v15   880k tok   █│                                                                                         
+ ▌   wants you to approve…   █│                                                                                         
+                       ╭─ AWAY VIEW ────────────────────────────────────────────────────── esc ─╮                       
+   ⠋ refunds         $0│                                                                        │                       
+     working           │ on    ● this Mac    ● ipax    ○ vps                                    │                       
+                       │                                                                        │                       
+ ▸ SMART QUEUE         │ ○ vps is down: no answer over ssh · as of Sat 28 Nov 06:42             │                       
+ ▸ SCHEDULES           │                                                   Settings › Remotes   │                       
+ ▸ INTAKE              │                                                                        │                       
+ ▾ CHANGES  3        vs│ DEVICES  1 paired                                                      │                       
+  M package.json       │                                                                        │                       
+  A …/webhooks.test.ts │  ○ iPad  not connected                                                 │                       
+  M src/webhooks.ts   +│    tablet · from Tailscale · paired Thu 12 Nov 19:05                   │                       
+                       │                                                                        │                       
+ ▾ FILES               │ an agent on vps could pair itself              Disconnect everything   │                       
+   ▾ src/              ╰────────────────────────────────────────────────────────────────────────╯                       
+       webhooks.test.ts      ▕│  │   Allow once     Deny                                        │                       
+       webhooks.ts           ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+   ▸ test/                   ▕│                                                                                         
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ↑     ↓   ━
+                                                                                                                        
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     Keep awake           away on │ claude-opus-5 ▾ │ high ▾ │ 2h 5m │ $1.40 today ▾ 

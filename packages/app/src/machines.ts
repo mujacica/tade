@@ -829,6 +829,17 @@ export function machineMark(machine: Machine): string {
 }
 
 /**
+ * Whether its away view is up: listening, over a link that is up — what it
+ * last said it is (`/api/machine`'s `away`), or for an older Tade that says
+ * nothing of it, whether its public name answers. Null where neither says.
+ */
+export function awayOn(machine: Machine): boolean | null {
+  if (machine.link !== 'live') return false
+  const about = machine.detail.about
+  return about?.away?.on ?? about?.public?.up ?? null
+}
+
+/**
  * How long ago an agent there last moved: from now while the link is up, and
  * from the moment it was last heard from while it is not — a row of ages that
  * kept counting with nothing behind them would be guessing.

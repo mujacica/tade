@@ -539,6 +539,8 @@ export interface Frame {
       | 'updates'
       | 'updatesBusy'
       | 'remotes'
+      | 'awayTabs'
+      | 'awayThere'
       | 'inventories'
       | 'lanesSurvive'
       | 'configPath'

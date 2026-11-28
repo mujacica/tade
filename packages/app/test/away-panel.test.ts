@@ -634,3 +634,172 @@ describe('on the Away page of Settings', () => {
     expect(awayView({ ...facts, listening: false }).public).toBeNull()
   })
 })
+
+describe('a tab per machine', () => {
+  const TABS = [
+    { name: 'ipax', on: true },
+    { name: 'vps', on: false },
+  ]
+  /** ipax's tab, as the remotes hand it over: what ipax answered, over a link that is up or not. */
+  const there = (over: Partial<AwayView> = {}, up = true): AwayView =>
+    view({
+      machine: 'ipax',
+      ticket: null,
+      code: [],
+      there: { name: 'ipax', linked: true, up, asOf: 0, asking: false, said: null },
+      ...over,
+    })
+  const drawnOn = (
+    panel: AwayPanel,
+    extra: { awayTabs?: typeof TABS; awayThere?: AwayView | null },
+    size: Size = {},
+  ) => {
+    const ctx = {
+      width: size.width ?? 120,
+      height: size.height ?? 34,
+      skin: skinFor({}, false),
+      pointer: { hover: null, pressed: null },
+      date: (at: number) => new Date(at).toISOString(),
+      bindings: {},
+      away: view(),
+      ...extra,
+    } as unknown as PanelContext
+    return drawPanel(panel, ctx).panel
+  }
+  const text = (one: { rows: string[] }) =>
+    one.rows.map((row) => stripTerminalSequences(row)).join('\n')
+  const ipaxTab = (): AwayPanel => {
+    const next = awayClick(awayPanel(), `${AWAY_CONTROLS.tab}ipax`).panel
+    if (next?.kind !== 'away') throw new Error('the panel stays open')
+    return next
+  }
+
+  it('draws none with no other machine linked, so a window of one machine draws what it did', () => {
+    expect(text(drawnOn(awayPanel(), {}))).not.toContain('this Mac    ')
+    expect(said()).toBe(text(drawnOn(awayPanel(), { awayTabs: [] })))
+  })
+
+  it('draws this machine first, then each other, with whether its away view is up', () => {
+    const shown = text(drawnOn(awayPanel(), { awayTabs: TABS }))
+    expect(shown).toMatch(/on +\[ ● this Mac \] +● ipax +○ vps/)
+    const hits = drawnOn(awayPanel(), { awayTabs: TABS }).hits
+    for (const id of ['', 'ipax', 'vps']) {
+      expect(hits.some((hit) => sameTarget(hit.target, control(`${AWAY_CONTROLS.tab}${id}`)))).toBe(
+        true,
+      )
+    }
+  })
+
+  it('goes to a tab on a press, scrolled to its top with nothing chosen, and asks nobody', () => {
+    const walked = onTheLast(4)
+    const out = awayClick({ ...walked, scroll: 9 }, `${AWAY_CONTROLS.tab}ipax`)
+    expect(out.submit).toBe(false)
+    expect(out.panel).toEqual({ ...awayPanel(), there: 'ipax' })
+    const back = awayClick(ipaxTab(), AWAY_CONTROLS.tab).panel
+    expect(back).toEqual(awayPanel())
+    expect(back).not.toHaveProperty('there')
+  })
+
+  it('walks the tabs on tab and shift+tab, round the ends, and not at all with none', () => {
+    const machines = ['ipax', 'vps']
+    const step = (panel: AwayPanel, key: string) => {
+      const next = awayKey(panel, key, { awayMachines: machines }).panel
+      if (next?.kind !== 'away') throw new Error('the panel stays open')
+      return next
+    }
+    expect(step(awayPanel(), 'tab').there).toBe('ipax')
+    expect(step(step(awayPanel(), 'tab'), 'tab').there).toBe('vps')
+    expect(step(step(step(awayPanel(), 'tab'), 'tab'), 'tab').there).toBeUndefined()
+    expect(step(awayPanel(), 'shift+tab').there).toBe('vps')
+    expect(awayKey(awayPanel(), 'tab', {}).panel).toEqual(awayPanel())
+  })
+
+  it('answers no door with the window’s own yes and no on another machine’s tab', () => {
+    for (const key of ['a', 'd']) {
+      const out = awayKey(ipaxTab(), key, { awayMachines: ['ipax'] })
+      expect(out.submit).toBe(false)
+      expect(out.panel).toMatchObject({ there: 'ipax', said: expect.any(String) })
+    }
+  })
+
+  it('draws another machine’s tab from what it answered, with its own controls and New code', () => {
+    const one = drawnOn(ipaxTab(), { awayTabs: TABS, awayThere: there() })
+    const shown = text(one)
+    expect(shown).toContain('● On — only ipax can reach it')
+    expect(shown).toContain('New code writes one on ipax that pairs whoever opens it first')
+    expect(shown).toContain('Sign out')
+    for (const id of [
+      AWAY_CONTROLS.code,
+      AWAY_CONTROLS.all,
+      `${AWAY_CONTROLS.revoke}00112233445566aa`,
+    ]) {
+      expect(one.hits.some((hit) => sameTarget(hit.target, control(id)))).toBe(true)
+    }
+  })
+
+  it('says a machine that is down, as of when, with the way to connect it — and offers nothing it cannot carry out', () => {
+    const one = drawnOn(ipaxTab(), {
+      awayTabs: TABS,
+      awayThere: there(
+        {
+          there: {
+            name: 'ipax',
+            linked: true,
+            up: false,
+            asOf: 0,
+            asking: false,
+            said: 'no answer',
+          },
+        },
+        false,
+      ),
+    })
+    const shown = text(one)
+    expect(shown).toContain('○ ipax is down: no answer · as of 1970-01-01T00:00:00.000Z')
+    expect(shown).toContain('Settings › Remotes')
+    expect(shown).toContain('iPhone')
+    expect(shown).not.toContain('PAIR A DEVICE')
+    expect(shown).not.toContain('Sign out')
+    const press = (id: string) => one.hits.some((hit) => sameTarget(hit.target, control(id)))
+    expect(press(AWAY_CONTROLS.code)).toBe(false)
+    expect(
+      one.hits.some((hit) => sameTarget(hit.target, { kind: 'action', name: 'remotes-settings' })),
+    ).toBe(true)
+  })
+
+  it('says a machine not linked, and one being asked, rather than drawing it as nothing paired', () => {
+    const unlinked = there(
+      { there: { name: 'ipax', linked: false, up: false, asOf: null, asking: false, said: null } },
+      false,
+    )
+    expect(text(drawnOn(ipaxTab(), { awayTabs: TABS, awayThere: unlinked }))).toContain(
+      '○ ipax is not linked here',
+    )
+    const asking = there({
+      there: { name: 'ipax', linked: true, up: true, asOf: null, asking: true, said: null },
+    })
+    const shown = text(drawnOn(ipaxTab(), { awayTabs: TABS, awayThere: asking }))
+    expect(shown).toContain('… asking ipax')
+    expect(shown).not.toContain('DEVICES')
+  })
+
+  it('keeps the geometry at every size, every tab', () => {
+    for (const [width, height] of [
+      [40, 12],
+      [60, 24],
+      [120, 34],
+      [200, 60],
+    ] as const) {
+      for (const panel of [awayPanel(), ipaxTab()]) {
+        const one = drawnOn(panel, { awayTabs: TABS, awayThere: there() }, { width, height })
+        const widths = new Set(one.rows.map((row) => stripTerminalSequences(row).length))
+        expect(widths.size, `${width}×${height}`).toBe(1)
+      }
+    }
+  })
+})
+
+/** A control on the panel, by its id. */
+function control(id: string): Target {
+  return { kind: 'control', id }
+}

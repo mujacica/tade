@@ -280,6 +280,8 @@ export class App {
           screens: () => this.screens,
           files: () => this.files,
           copy: (text) => copySaying(this.wire, text, (data) => this.terminal.write(data)),
+          // Another machine's pairing link: copied as this machine's is, and said nowhere.
+          copyQuietly: (text) => this.toClipboard(text),
         },
       },
       // What the window would have drawn in the conversation, where nobody looks at it.

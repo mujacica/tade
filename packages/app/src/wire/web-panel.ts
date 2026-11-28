@@ -191,7 +191,7 @@ function left(until: number, now: number): number {
  * nothing about what it may do — only why one reads and does nothing, where
  * that is so.
  */
-function deviceViews(facts: PanelFacts): AwayDevice[] {
+export function deviceViews(facts: PanelFacts, machine: string = MACHINE): AwayDevice[] {
   return facts.devices
     .filter((one) => one.revoked === null)
     .map((one) => ({
@@ -199,7 +199,7 @@ function deviceViews(facts: PanelFacts): AwayDevice[] {
       label: one.label,
       // An owner came in over SSH by definition (`@tade/web`'s `owner.ts`);
       // the address it was minted from is a shell's, not a place to name.
-      from: one.owner ? 'over SSH' : whereFrom(one.from, one.host, MACHINE),
+      from: one.owner ? 'over SSH' : whereFrom(one.from, one.host, machine),
       owner: one.owner,
       ...(one.passkey === null ? {} : { passkey: one.passkey.proved, passkeyMade: one.passkey.at }),
       ...readsOnlyOf(one, facts.surface),

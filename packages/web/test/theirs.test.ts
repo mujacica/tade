@@ -48,6 +48,7 @@ const THEIRS = [
   'take',
   'open',
   'connect',
+  'away',
 ] as const
 
 /** The connect page and its presses: each source's, as its flow says. */
@@ -320,6 +321,7 @@ async function wired(): Promise<{ one: Running; asked: string[] }> {
         records: heard('records'),
         taking: heard('take'),
         opening: heard('open'),
+        awayThere: heard('away'),
         pressThere: { press: heard('press there') },
         // Never reached: its body is read before anything of it is.
         carrying: {} as never,
