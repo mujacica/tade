@@ -245,6 +245,32 @@ describe('asking TypeSafe', () => {
     expect(performance.now() - began).toBeLessThan(9_000)
   })
 
+  it('does not wait to ask again when the ask was called off before the wait began', async () => {
+    // Called off during the first try, so the signal is already aborted when
+    // the wait starts: retry-after 60 would otherwise be waited out (10 s).
+    const off = new AbortController()
+    let asked = 0
+    const judge = new JevJudge({
+      key: 'k',
+      model: 'jev-1.14.0',
+      retries: 1,
+      retryMs: 60_000,
+      fetch: (async () => {
+        asked++
+        off.abort()
+        return new Response('slow down', { status: 429, headers: { 'retry-after': '60' } })
+      }) as typeof fetch,
+    })
+    const began = performance.now()
+    const failed = await judge
+      .ask({ state: 'x', questions: one, signal: off.signal })
+      .then(() => null)
+      .catch((err: unknown) => err as JudgeError)
+    expect(failed?.status).toBe(429)
+    expect(asked).toBe(2)
+    expect(performance.now() - began).toBeLessThan(9_000)
+  })
+
   it('says a state that was too long in words, and does not ask again with the same one', async () => {
     let asked = 0
     const judge = new JevJudge({

@@ -553,7 +553,9 @@ function waitFor(response: Response | null, attempt: number, base: number): numb
 }
 
 function pause(ms: number, signal?: AbortSignal): Promise<void> {
-  if (ms <= 0) return Promise.resolve()
+  // An ask called off before the wait began has no 'abort' left to hear: a
+  // listener added now never fires, and it would wait out the whole delay.
+  if (ms <= 0 || signal?.aborted) return Promise.resolve()
   return new Promise((done) => {
     const timer = setTimeout(done, ms)
     timer.unref?.()
