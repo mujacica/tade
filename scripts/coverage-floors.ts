@@ -134,7 +134,9 @@ export const FLOOR: Record<string, number> = {
   'packages/extensions/core': 93,
   'packages/extensions/resources': 93,
   'packages/extensions/jev': 94,
-  'packages/judges/jev': 94,
+  // 94 -> 98 when 385daffd's tests of what Jev does took it from 93.9 to 99.5
+  // and left the floor behind: 5.5 points of slack against the ratchet's 4.
+  'packages/judges/jev': 98,
   'packages/mcp/broker': 94,
   'packages/voice/core': 94,
   'packages/core': 95,
