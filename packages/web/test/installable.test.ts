@@ -409,7 +409,11 @@ describe('the real folder', () => {
     // machine chips (10 KB as it sits: one wrapper the seven list pages share
     // rather than seven, the chips, the side's other machines and
     // `reviewsOnce`) took it to 1542.50. 450 since the overview was cut down
-    // to the basics and the orchestrator, which took it to 445.36.
-    expect(raw).toBeLessThan(450 * 1024)
+    // to the basics and the orchestrator, which took it to 445.36. 457 since
+    // the overview showed every agent on every machine (19 KB as it sits:
+    // counts per machine and project, each agent's row and the queue's
+    // reasons, in `overview.js`, `overview-figures.js` and `overview.css`)
+    // took it from 434.75 at 59999c31 to 453.54, and 454.17 at cc153a04.
+    expect(raw).toBeLessThan(457 * 1024)
   })
 })
