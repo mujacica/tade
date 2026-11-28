@@ -126,8 +126,9 @@ const ActBody = z.strictObject({
 
 /**
  * The window's half: what the listener is handed by a heart with a face that
- * can carry a phone's (`wire/far-faces.ts`). Absent, both routes are the `404`
- * of a path nobody built — `tade serve`, which draws no window to share.
+ * can carry a phone's (`wire/far-faces.ts`) — `tade app`'s, and `tade serve`'s,
+ * which opens the window unseen. Absent, both routes are the `404` of a path
+ * nobody built — a heart alone, with no window to share.
  */
 export interface WindowDoor {
   /** Whether acting from away is on **now**: read at the act, never cached. */

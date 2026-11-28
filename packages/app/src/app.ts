@@ -6,8 +6,8 @@ import { VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
 import { surfaceOf, type WindowDoor } from '@tade/web'
 import { runningVersion } from '@tade/workbench/programs'
-import { type FaceCapabilities, ON_THIS_MACHINE } from './faces.ts'
-import { Heart } from './heart.ts'
+import { type FaceCapabilities, NOBODY_LOOKING, ON_THIS_MACHINE } from './faces.ts'
+import { Heart, type Said } from './heart.ts'
 import type { Intent } from './keymap.ts'
 import { freeViewportKeys } from './keys.ts'
 import { knownTasks } from './live.ts'
@@ -64,6 +64,7 @@ import { Screens } from './wire/screens.ts'
 import { Search } from './wire/search.ts'
 import type { Settings, SettingTools } from './wire/settings.ts'
 import { Spend } from './wire/spend.ts'
+import { unseenTerminal } from './wire/unseen.ts'
 import { Updates, type UpdateTools } from './wire/updates.ts'
 import { spokenLine, Voice, vocabulary } from './wire/voice.ts'
 import type { Away } from './wire/web.ts'
@@ -84,8 +85,15 @@ export type { AppOptions, Thinker, WorkerImageFile } from './wire/context.ts'
 /** How long the window's own closes may take, of the second quitting has (`quitting.ts`). */
 const STOP_MS = 300
 
+/** A window nobody looks at (`tade serve`): what it would have drawn in the conversation goes to `said`. */
+export interface Unseen {
+  said(line: Said): void
+}
+
 export class App {
   private readonly opts: AppOptions
+  /** Opened with no screen, and where what it says goes instead; null for a window somebody sees. */
+  private readonly unseen: Unseen | null
   private readonly terminal: Terminal
   private readonly tui: Screen
   /**
@@ -182,94 +190,101 @@ export class App {
    */
   private readonly far: FarFaces
 
-  private constructor(opts: AppOptions) {
+  private constructor(opts: AppOptions, unseen: Unseen | null) {
     this.opts = opts
+    this.unseen = unseen
     // The face's halves of everything the heart runs, each asked for when it
     // is needed: every subject named here is made below, after the heart.
-    this.heart = new Heart(opts, {
-      capabilities: ON_THIS_MACHINE,
-      draw: () => this.paint(),
-      typed: () => this.looks.typed(),
-      layout: () => this.window.layout(),
-      due: () => this.looks.soonTick(),
-      twins: (project) => this.remotes.watchTwins(project),
-      watchThere: (machine, project, watch) => this.remotes.watchThere(machine, project, watch),
-      places: () => this.remotes.places(),
-      asked: () => ({ elsewhere: this.remotes.mirrored()?.elsewhere() ?? {} }),
-      sawTasks: (tasks) => {
-        // Focus can only be restored once there are panes to restore it to,
-        // and only the first time: after that it is wherever you moved to.
-        this.window.restoreFocus()
-        void this.routes.learnHarnesses(tasks)
-      },
-      beat: (_tasks, moved) => {
-        // The links beat on the heart's own beat, before this.
-        this.fleet.beat()
-        this.updates.beat()
-        this.far.beat()
-        if (moved) this.draw() // a beat that found what the last did is not news
-      },
-      heard: (event) => this.tui.requestNews(event.urgency === 'blocking'),
-      serversMoved: () => this.extensions.askAgain(),
-      inventories: {
-        remotes: () => this.remotes.inventories(),
-        settingsOpen: () => settingsOpen(this.wire.state.panel),
-      },
-      settings: {
-        loadAccounts: () => void this.machine.loadAccountViews(),
-        refreshModels: () => this.routes.refreshModels(),
-        lookAtWhatIsInstalled: () => void this.updates.lookAtWhatIsInstalled(),
-        setupChanged: () => this.extensions.forgetSetup(),
-        openSetup: (extension) => this.extensions.openSetup(extension),
-        silence: () => void this.voice.silence(),
-        accountAction: (choice) => this.machine.accountAction(choice),
-        remoteAction: (choice) => this.remotes.action(choice, this.projects),
-        updateAction: (choice) => this.updates.action(choice),
-        testMicrophone: () => this.voice.testMicrophone(),
-        openFile: (path) => this.files.openPlace({ path }),
-        copy: (text) => this.toClipboard(text),
-        releases: () => kittyActive(this.terminal),
-        holdSleep: () => this.awake.apply(),
-      },
-      agents: {
-        prefill: (line) => this.keyboard.prefill(line),
-        openChanges: (task) => this.files.openChanges(task),
-        openPlace: (target) => this.files.openPlace(target),
-        copyToClipboard: (text) => this.toClipboard(text),
-        routes: () => this.routes,
-        handsOver: () => this.remotes.moved(),
-        there: () => this.remotes.there(),
-      },
-      projects: { rememberWindow: () => this.window.remember() },
-      orchestrator: {
-        anchored: (next) => this.screens.anchored(next),
-        voice: {
-          ready: () => this.voice.ready,
-          awaiting: () => this.voice.awaiting,
-          handle: (said) => this.voice.handle(said),
-          speakChunk: (text) => this.voice.speakChunk(text),
-          speakMessage: (text) => this.voice.speakMessage(text),
-          flushSpeech: () => this.voice.flushSpeech(),
+    this.heart = new Heart(
+      opts,
+      {
+        // Nobody looking is nothing in front of anybody, as a heart with no face.
+        capabilities: unseen ? NOBODY_LOOKING : ON_THIS_MACHINE,
+        draw: () => this.paint(),
+        typed: () => this.looks.typed(),
+        layout: () => this.window.layout(),
+        due: () => this.looks.soonTick(),
+        twins: (project) => this.remotes.watchTwins(project),
+        watchThere: (machine, project, watch) => this.remotes.watchThere(machine, project, watch),
+        places: () => this.remotes.places(),
+        asked: () => ({ elsewhere: this.remotes.mirrored()?.elsewhere() ?? {} }),
+        sawTasks: (tasks) => {
+          // Focus can only be restored once there are panes to restore it to,
+          // and only the first time: after that it is wherever you moved to.
+          this.window.restoreFocus()
+          void this.routes.learnHarnesses(tasks)
         },
-        remember: (said) => this.keyboard.remember(said),
-        credentialProblem: (provider) => this.machine.credentialProblem(provider),
-        machines: () => this.remotes.machines(),
+        beat: (_tasks, moved) => {
+          // The links beat on the heart's own beat, before this.
+          this.fleet.beat()
+          this.updates.beat()
+          this.far.beat()
+          if (moved) this.draw() // a beat that found what the last did is not news
+        },
+        heard: (event) => this.tui.requestNews(event.urgency === 'blocking'),
+        serversMoved: () => this.extensions.askAgain(),
+        inventories: {
+          remotes: () => this.remotes.inventories(),
+          settingsOpen: () => settingsOpen(this.wire.state.panel),
+        },
+        settings: {
+          loadAccounts: () => void this.machine.loadAccountViews(),
+          refreshModels: () => this.routes.refreshModels(),
+          lookAtWhatIsInstalled: () => void this.updates.lookAtWhatIsInstalled(),
+          setupChanged: () => this.extensions.forgetSetup(),
+          openSetup: (extension) => this.extensions.openSetup(extension),
+          silence: () => void this.voice.silence(),
+          accountAction: (choice) => this.machine.accountAction(choice),
+          remoteAction: (choice) => this.remotes.action(choice, this.projects),
+          updateAction: (choice) => this.updates.action(choice),
+          testMicrophone: () => this.voice.testMicrophone(),
+          openFile: (path) => this.files.openPlace({ path }),
+          copy: (text) => this.toClipboard(text),
+          releases: () => kittyActive(this.terminal),
+          holdSleep: () => this.awake.apply(),
+        },
+        agents: {
+          prefill: (line) => this.keyboard.prefill(line),
+          openChanges: (task) => this.files.openChanges(task),
+          openPlace: (target) => this.files.openPlace(target),
+          copyToClipboard: (text) => this.toClipboard(text),
+          routes: () => this.routes,
+          handsOver: () => this.remotes.moved(),
+          there: () => this.remotes.there(),
+        },
+        projects: { rememberWindow: () => this.window.remember() },
+        orchestrator: {
+          anchored: (next) => this.screens.anchored(next),
+          voice: {
+            ready: () => this.voice.ready,
+            awaiting: () => this.voice.awaiting,
+            handle: (said) => this.voice.handle(said),
+            speakChunk: (text) => this.voice.speakChunk(text),
+            speakMessage: (text) => this.voice.speakMessage(text),
+            flushSpeech: () => this.voice.flushSpeech(),
+          },
+          remember: (said) => this.keyboard.remember(said),
+          credentialProblem: (provider) => this.machine.credentialProblem(provider),
+          machines: () => this.remotes.machines(),
+        },
+        away: {
+          copy: (text) => this.toClipboard(text),
+          // A restart from the person's own phone ends what this window would.
+          reloadStops: () => this.window.reloadStops(),
+          // And reloads every machine, as the strip's reload does.
+          reloadAll: () => this.fleet.reload(),
+          // The window itself, for a phone that draws its own copy of it.
+          window: () => this.windowDoor(),
+        },
+        remotes: {
+          screens: () => this.screens,
+          files: () => this.files,
+          copy: (text) => copySaying(this.wire, text, (data) => this.terminal.write(data)),
+        },
       },
-      away: {
-        copy: (text) => this.toClipboard(text),
-        // A restart from the person's own phone ends what this window would.
-        reloadStops: () => this.window.reloadStops(),
-        // And reloads every machine, as the strip's reload does.
-        reloadAll: () => this.fleet.reload(),
-        // The window itself, for a phone that draws its own copy of it.
-        window: () => this.windowDoor(),
-      },
-      remotes: {
-        screens: () => this.screens,
-        files: () => this.files,
-        copy: (text) => copySaying(this.wire, text, (data) => this.terminal.write(data)),
-      },
-    })
+      // What the window would have drawn in the conversation, where nobody looks at it.
+      unseen?.said ?? null,
+    )
     this.wire = this.heart.wire
     this.looks = new Looks({
       look: () => this.look(),
@@ -393,7 +408,7 @@ export class App {
       callId: () => this.extensions.callId(),
       writeKey: (key, value, was) => this.settings.writeKey(key, value, was),
     })
-    this.terminal = opts.terminal ?? new ProcessTerminal()
+    this.terminal = opts.terminal ?? (unseen ? unseenTerminal() : new ProcessTerminal())
     // Mouse reporting is on by default, which is what makes the window
     // clickable: events arrive at the component with coordinates local to it.
     // It asks for focus reports too, which `watch` reads; a resize is a look at once.
@@ -611,8 +626,15 @@ export class App {
     this.heart.put(next)
   }
 
-  static async start(opts: AppOptions): Promise<App> {
-    const app = new App(opts)
+  /**
+   * Open the window: on this terminal, or — `unseen` — on none at all, for a
+   * machine nobody sits at (`tade serve`). Unseen, it is the same window
+   * whole, so everything a face reaches is there for a phone's full view; it
+   * draws to a terminal that shows nothing (`unseenTerminal`), says nothing
+   * out loud, and declares that nobody is looking (`NOBODY_LOOKING`).
+   */
+  static async start(opts: AppOptions, unseen: Unseen | null = null): Promise<App> {
+    const app = new App(opts, unseen)
     await app.begin()
     return app
   }
@@ -788,7 +810,12 @@ export class App {
         // phone reads the same quiet hours and the same budget out of the same two keys.
         settings: attentionFor('voice', attention),
         speaker: this.voice.muteable(
-          this.opts.speaker ?? (await Speaker.create({ soundDir: join(this.opts.home, 'sounds') })),
+          this.opts.speaker ??
+            (await Speaker.create({
+              soundDir: join(this.opts.home, 'sounds'),
+              // Nobody is at an unseen window to hear it, so it says nothing out loud.
+              ...(this.unseen && { voice: null, player: null, silence: null }),
+            })),
         ),
         vocabulary: async () => vocabulary(live.tasks),
         status: async (scope) => this.orchestrator.describe(scope),
@@ -881,9 +908,13 @@ export class App {
     return this.heart.watchTools()
   }
 
-  /** What the orchestrator's update and reload tools do, from this window. */
+  /**
+   * What the orchestrator's update and reload tools do, from this window —
+   * or, unseen, as a heart with no face answers them (`Heart.updateTools`):
+   * nobody is there to watch an update run or to see what a reload would stop.
+   */
   updateTools(): UpdateTools {
-    return this.updates.tools()
+    return this.unseen ? this.heart.updateTools() : this.updates.tools()
   }
 
   /** What the `ToolHost` asks at every call. `Away.arming` has the argument. */

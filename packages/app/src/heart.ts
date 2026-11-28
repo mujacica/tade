@@ -80,8 +80,10 @@ import { reloadStopsOf } from './wire/window.ts'
 // the subjects those act through — the one door a setting is written by,
 // opening and closing a project, stopping and opening an agent again.
 //
-// `tade app` is this with a face over it (`App`), and `tade serve` is this
-// alone, for a machine nobody sits at. It is the same program holding the same
+// `tade app` is this with a face over it (`App`), and `tade serve` is the same
+// window opened unseen (`App.start`'s `unseen`), for a machine nobody sits at:
+// a phone's full view needs the subjects only a window has, so the face is
+// there and declares nobody is looking. It is the same program holding the same
 // lock, so every rule that says "while a window is open" is still literally
 // true: a window may simply have no screen. Nothing here draws, reads a key or
 // takes a terminal — `test/heart.test.ts` holds what it may reach to that — and

@@ -154,8 +154,8 @@ export interface AwayDeps {
   /**
    * How many lanes starting the window again would end (`Window.reloadStops`),
    * for a restart from the person's own phone (`web-restart.ts`): the face's,
-   * because only a window starts again. Absent with no screen, where the
-   * phone is told this Tade cannot start itself again.
+   * because only a window starts again. Absent with no window at all (a bare
+   * heart), where the phone is told this Tade cannot start itself again.
    */
   reloadStops?: () => number
   /**
@@ -167,9 +167,10 @@ export interface AwayDeps {
   /**
    * The window itself, for a phone that draws its own copy (`far-faces.ts`,
    * §10 T3): the face's, because only a window has the subjects a frame is
-   * folded from. Absent with no screen (`tade serve`), where the full view's
-   * routes are the `404` of a path nobody wired. Asked for, because the face
-   * makes it after the heart.
+   * folded from — which is why `tade serve` opens the window unseen rather
+   * than running a heart alone. Absent with no window at all (a bare heart),
+   * where the full view's routes are the `404` of a path nobody wired. Asked
+   * for, because the face makes it after the heart.
    */
   window?: () => WindowDoor | undefined
   /**

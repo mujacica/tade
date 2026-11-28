@@ -243,6 +243,23 @@ it('tells its service manager it is ready once its away view listens, and that i
   ])
   // Ready is reachable: the away view a Mac's link goes to already answers.
   expect(await answers(port)).toBe(true)
+  // And it has the full view a phone draws the window in: a paired device's
+  // look is answered with the revision to build on, where a heart alone had no
+  // window to hand it and answered the `404` of a path nobody wired.
+  const pairing = tade(['web', 'pair', '--owner', '--json', '--label', 'phone'], home)
+  expect(await pairing.exited).toBe(0)
+  const owner = JSON.parse(pairing.out()) as { cookie: string; csrf: string; host: string }
+  const look = await fetch(`http://${owner.host}/api/window/look`, {
+    method: 'POST',
+    headers: {
+      cookie: owner.cookie,
+      origin: `http://${owner.host}`,
+      'content-type': 'application/json',
+      'x-tade-csrf': owner.csrf,
+    },
+    body: JSON.stringify({ columns: 80, rows: 24, rev: null }),
+  })
+  expect({ status: look.status, body: await look.text() }).toMatchObject({ status: 200 })
   // Said before systemd was told, but over a pipe that need not have delivered it yet.
   await until('it says what it runs', () => serving.err().includes(`${SERVES}, with no screen.`))
 

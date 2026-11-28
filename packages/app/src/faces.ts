@@ -195,7 +195,7 @@ export const ON_THIS_MACHINE: FaceCapabilities = {
   why: {},
 }
 
-/** A heart with no face at all (`tade serve`): nobody is looking, so nothing is in front of anybody. */
+/** A heart with no face at all, or a window opened unseen (`tade serve`): nobody is looking, so nothing is in front of anybody. */
 export const NOBODY_LOOKING: FaceCapabilities = {
   links: false,
   clipboard: false,

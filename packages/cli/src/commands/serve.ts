@@ -1,4 +1,5 @@
-import { Heart, saidLine } from '@tade/app/heart'
+import { App } from '@tade/app'
+import { saidLine } from '@tade/app/heart'
 import { ownCheckoutOption } from '@tade/app/wire/own-code'
 import { defaultConfigPath, keptByService, loadConfig, tadeHome, type Unclosed } from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
@@ -22,12 +23,15 @@ import { ownUnit, restartAsService } from './serve-restart.ts'
 
 // `tade serve` — the window with no screen, for a machine nobody sits at.
 //
-// It is `Heart.alone`: the beat, and on it the queue, schedules and watches,
-// intake, and the full checks once a batch; the orchestrator, started as the
-// window starts it (`orchestrating.ts`) and told what happens; and the away
-// view, with the notifications it sends — over the same workbench and the same
-// lock as `tade app`, so the two never run on one home at once and every "while
-// a window is open" is true of it. What the window would have drawn in the
+// It is the window itself, opened unseen (`App.start`'s `unseen`): the beat,
+// and on it the queue, schedules and watches, intake, and the full checks once
+// a batch; the orchestrator, started as the window starts it
+// (`orchestrating.ts`) and told what happens; and the away view, with the
+// notifications it sends and the full view a phone draws the window in, which
+// needs the window's own subjects — over the same workbench and the same lock
+// as `tade app`, so the two never run on one home at once and every "while a
+// window is open" is true of it. Nobody looking is declared rather than
+// pretended: it draws to a terminal that shows nothing and says nothing aloud. What the window would have drawn in the
 // conversation is written to standard error instead, a line each, which is a
 // service's log — the orchestrator's words and what it ran among them; nothing
 // is ever written to standard output, and nothing reads a key. It runs until it
@@ -40,12 +44,12 @@ import { ownUnit, restartAsService } from './serve-restart.ts'
 // would close it as a signal does — so a Mac's link can reach it the moment
 // the unit is active — and that it is stopping when it closes. Under that
 // unit the person's phone can restart it, and so can the orchestrator's
-// `tade_reload` (the heart's `updateTools`), as systemd's restart
+// `tade_reload` (`App.updateTools`, answered as the heart's), as systemd's restart
 // (`serve-restart.ts`), where a window would have re-execed itself.
 
 /** What runs here with no screen, said first. */
 export const SERVES =
-  'the beat, the queue, schedules and watches, intake, the batched full checks, the orchestrator, and the away view with its notifications'
+  'the beat, the queue, schedules and watches, intake, the batched full checks, the orchestrator, and the away view with its notifications and full view'
 
 /**
  * What does not run here yet, said beside it, because a person reading the
@@ -154,7 +158,7 @@ export function registerServe(program: Command, io: Io, setExit: (code: number) 
       const stopped = new Promise<void>((resolve) => {
         stop = resolve
       })
-      let heart: Heart | null = null
+      let app: App | null = null
       try {
         const tools = await orchestrating({
           client,
@@ -169,7 +173,7 @@ export function registerServe(program: Command, io: Io, setExit: (code: number) 
         })
         thinking = tools
         const restart = restartAsService(ownUnit())
-        heart = await Heart.alone(
+        app = await App.start(
           {
             client,
             config: cfg.config,
@@ -195,11 +199,11 @@ export function registerServe(program: Command, io: Io, setExit: (code: number) 
             // A server turned off through the one door ends its session at once.
             endServers: (servers) => mcp.useServers(servers),
           },
-          (line) => io.err(saidLine(line)),
+          { said: (line) => io.err(saidLine(line)) },
         )
         void openReporting()
         void mcp.warm()
-        const running = heart
+        const running = app
         stopHeart = () => running.stop()
         io.err(`tade serve on ${home}: ${SERVES}, with no screen.`)
         io.err(NOT_SERVED)
@@ -221,12 +225,16 @@ export function registerServe(program: Command, io: Io, setExit: (code: number) 
         setExit(Exit.error)
       } finally {
         stopReporting()
+        // The window first, as `tade app` closes it: the away view and the
+        // status look are among what it closes, named as it names them.
+        if (app) {
+          await app.stop()
+          late.push(...(await app.wait()))
+        }
         late.push(
           ...(await closeAll({
             together: [
               ...(thinking?.closes() ?? []),
-              // The away view and the status look, named as the window names them.
-              ...(heart?.closes() ?? []),
               { name: 'the MCP servers', close: () => mcp.close() },
               { name: 'the status child', close: () => looking.close() },
             ],
