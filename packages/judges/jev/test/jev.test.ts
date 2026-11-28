@@ -182,6 +182,69 @@ describe('asking TypeSafe', () => {
     }
   })
 
+  it('asks once more where nobody answered at all, and says it could not reach TypeSafe', async () => {
+    let asked = 0
+    const judge = new JevJudge({
+      key: 'k',
+      model: 'jev-1.14.0',
+      retries: 1,
+      retryMs: 0,
+      fetch: (async () => {
+        asked++
+        throw new TypeError('fetch failed')
+      }) as typeof fetch,
+    })
+    const failed = await judge
+      .ask({ state: 'x', questions: one })
+      .then(() => null)
+      .catch((err: unknown) => err as JudgeError)
+    expect(failed?.message).toBe('TypeSafe could not be reached: fetch failed')
+    expect(failed?.retryable).toBe(true)
+    expect(asked).toBe(2)
+  })
+
+  it('says an answer that is not a judgement as that, and as worth asking again', async () => {
+    const judge = new JevJudge({
+      key: 'k',
+      model: 'jev-1.14.0',
+      retryMs: 0,
+      fetch: (async () => new Response('<html>gateway</html>', { status: 200 })) as typeof fetch,
+    })
+    const failed = await judge
+      .ask({ state: 'x', questions: one })
+      .then(() => null)
+      .catch((err: unknown) => err as JudgeError)
+    expect(failed?.message).toBe('TypeSafe answered something that was not a judgement')
+    expect(failed?.status).toBe(200)
+    expect(failed?.retryable).toBe(true)
+  })
+
+  it('stops waiting to ask again when the ask is called off', async () => {
+    // A minute's wait between tries, and the ask called off a moment into it:
+    // the second try is made then, not a minute later.
+    const off = new AbortController()
+    let asked = 0
+    const judge = new JevJudge({
+      key: 'k',
+      model: 'jev-1.14.0',
+      retries: 1,
+      retryMs: 60_000,
+      fetch: (async () => {
+        asked++
+        if (asked === 1) setTimeout(() => off.abort(), 20)
+        return new Response('slow down', { status: 429, headers: { 'retry-after': '60' } })
+      }) as typeof fetch,
+    })
+    const began = performance.now()
+    const failed = await judge
+      .ask({ state: 'x', questions: one, signal: off.signal })
+      .then(() => null)
+      .catch((err: unknown) => err as JudgeError)
+    expect(failed?.status).toBe(429)
+    expect(asked).toBe(2)
+    expect(performance.now() - began).toBeLessThan(9_000)
+  })
+
   it('says a state that was too long in words, and does not ask again with the same one', async () => {
     let asked = 0
     const judge = new JevJudge({
@@ -278,6 +341,9 @@ describe('following the latest version', () => {
     expect(newestOf(['jev-2', 'jev-1.40.0'])).toBe('jev-2')
     expect(newestOf([])).toBeNull()
     expect(newestOf(['nothing-numbered'])).toBeNull()
+    // Two that number the same are as new as each other: the first listed.
+    expect(newestOf(['jev-1.2', 'v1.2.0'])).toBe('jev-1.2')
+    expect(newestOf(['v1.2.0', 'jev-1.2'])).toBe('v1.2.0')
   })
 
   it('reads an empty setting, and latest said in words, as asking for the latest', () => {
@@ -598,5 +664,20 @@ describe('what TypeSafe lists, and what outlives a restart', () => {
       /lists no versions for this key.*extensions\.jev\.model/,
     )
     expect(await new JevJudge({ key: 'k', model: 'jev-1.14.0', fetch: empty }).verify()).toBeNull()
+  })
+
+  it('names what it listed when none of it reads as a version', async () => {
+    const unnumbered = (async (input: string | URL | Request) =>
+      String(input).endsWith('/v1/models')
+        ? Response.json({ models: [{ name: 'jev-preview' }, { name: 'jev-beta' }] })
+        : new Response('never asked', { status: 500 })) as typeof fetch
+    const failed = await new JevJudge({ key: 'k', fetch: unnumbered, retries: 0, retryMs: 0 })
+      .ask({ state: 'x', questions: one })
+      .then(() => null)
+      .catch((err: unknown) => err as JudgeError)
+    expect(failed?.cannotAnswer).toBe(true)
+    expect(failed?.message).toMatch(
+      /^Jev has no version to ask with: TypeSafe's list of versions could not be read \(none of the versions it lists \(jev-preview, jev-beta\) reads as a version\)/,
+    )
   })
 })

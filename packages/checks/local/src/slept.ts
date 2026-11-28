@@ -128,43 +128,53 @@ export function sleepMarks(): SleepMarks {
 /** Milliseconds on the monotonic clock, which stops while Linux is suspended. */
 const monotonic = () => Number(process.hrtime.bigint()) / 1e6
 
-/** This Linux machine's suspended total now. Never throws. */
-function readSuspended(): Suspended {
+/** This Linux machine's suspended total now, read from `file` (`/proc/uptime`). Never throws. */
+export function readSuspended(file = '/proc/uptime'): Suspended {
   const before = monotonic()
   let printed: string
   try {
-    printed = readFileSync('/proc/uptime', 'utf8')
+    printed = readFileSync(file, 'utf8')
   } catch (error) {
     return { trouble: `/proc/uptime could not be read: ${(error as Error).message}` }
   }
   return suspendedOf(printed, before, monotonic())
 }
 
-const linuxMarks = sleepMarks()
+/** Linux's answer, from the suspended total `read` gives, marked at the beats. */
+export function suspendedSlept(read: () => Suspended = readSuspended): SleptBetween {
+  const marks = sleepMarks()
+  return Object.assign(async (from: number) => marks.since(from, read()), {
+    mark: (at: number) => marks.mark(at, read()),
+  })
+}
 
-/** Linux's answer, from the suspended total marked at the beats. */
-const linuxSlept: SleptBetween = Object.assign(
-  async (from: number) => linuxMarks.since(from, readSuspended()),
-  { mark: (at: number) => linuxMarks.mark(at, readSuspended()) },
-)
+/**
+ * macOS's answer, from the kernel's last sleep and wake as `program` (`sysctl`)
+ * prints them, and `null` with why on any `platform` but macOS.
+ */
+export function kernelSlept(platform: NodeJS.Platform, program = 'sysctl'): SleptBetween {
+  return async (from: number): Promise<SleepAnswer> => {
+    if (platform !== 'darwin') {
+      return {
+        slept: null,
+        trouble: `${platform} is not asked when it slept, only macOS and Linux are`,
+      }
+    }
+    const asked = await runProgram(program, ['-n', 'kern.sleeptime', 'kern.waketime'], {
+      timeoutMs: ASK_MS,
+    })
+    if (asked.missing) return { slept: null, trouble: 'there is no sysctl on this machine' }
+    if (asked.timedOut) return { slept: null, trouble: `sysctl did not answer in ${ASK_MS} ms` }
+    if (asked.code !== 0) {
+      return {
+        slept: null,
+        trouble: `sysctl failed: ${asked.stderr.trim() || `exit ${asked.code}`}`,
+      }
+    }
+    return sleptSince(from, asked.stdout)
+  }
+}
 
 /** This machine's answer: the kernel's on macOS and Linux, and `null` with why everywhere else. */
-export const sleptBetween: SleptBetween = process.platform === 'linux' ? linuxSlept : darwinSlept
-
-async function darwinSlept(from: number): Promise<SleepAnswer> {
-  if (process.platform !== 'darwin') {
-    return {
-      slept: null,
-      trouble: `${process.platform} is not asked when it slept, only macOS and Linux are`,
-    }
-  }
-  const asked = await runProgram('sysctl', ['-n', 'kern.sleeptime', 'kern.waketime'], {
-    timeoutMs: ASK_MS,
-  })
-  if (asked.missing) return { slept: null, trouble: 'there is no sysctl on this machine' }
-  if (asked.timedOut) return { slept: null, trouble: `sysctl did not answer in ${ASK_MS} ms` }
-  if (asked.code !== 0) {
-    return { slept: null, trouble: `sysctl failed: ${asked.stderr.trim() || `exit ${asked.code}`}` }
-  }
-  return sleptSince(from, asked.stdout)
-}
+export const sleptBetween: SleptBetween =
+  process.platform === 'linux' ? suspendedSlept() : kernelSlept(process.platform)

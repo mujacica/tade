@@ -1,11 +1,18 @@
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import {
+  kernelSlept,
   lastSleepOrWake,
+  readSuspended,
   SUSPEND_NOISE_MS,
+  type Suspended,
   sleepMarks,
   sleptBetween,
   sleptSince,
   suspendedOf,
+  suspendedSlept,
 } from '../src/slept.ts'
 
 // What `sysctl -n kern.sleeptime kern.waketime` prints, read: the kernel's
@@ -42,6 +49,26 @@ describe('whether the machine slept', () => {
     if (process.platform === 'darwin' || process.platform === 'linux') {
       expect(answer).toEqual({ slept: false, trouble: null })
     } else expect(answer.slept).toBeNull()
+  })
+
+  it('is not asked anywhere but macOS, and says which platform it was', async () => {
+    expect(await kernelSlept('win32')(0, 1)).toEqual({
+      slept: null,
+      trouble: 'win32 is not asked when it slept, only macOS and Linux are',
+    })
+  })
+
+  it('cannot be told from a sysctl that is missing or failed, and says which', async () => {
+    // Real programs in sysctl's place: one that is not there, and one that
+    // exits 1 having printed nothing.
+    expect(await kernelSlept('darwin', 'tade-no-such-sysctl')(0, 1)).toEqual({
+      slept: null,
+      trouble: 'there is no sysctl on this machine',
+    })
+    expect(await kernelSlept('darwin', 'false')(0, 1)).toEqual({
+      slept: null,
+      trouble: 'sysctl failed: exit 1',
+    })
   })
 })
 
@@ -92,5 +119,34 @@ describe('whether a Linux machine slept', () => {
     marks.mark(3_000, { ms: 0 })
     expect(marks.since(2_500, { ms: 0 })).toEqual({ slept: null, trouble: 'gone' })
     expect(marks.since(3_000, { trouble: 'late' })).toEqual({ slept: null, trouble: 'late' })
+  })
+
+  it('reads the suspended total from what the uptime file says, and why where it cannot', () => {
+    // An uptime far past any monotonic clock here, so the total is plainly
+    // that uptime less this process's clock — read from a file on any platform.
+    const dir = tmp('tade-slept-')
+    const file = join(dir, 'uptime')
+    writeFileSync(file, '9000000.00 1.00\n')
+    const read = readSuspended(file)
+    if (!('ms' in read)) throw new Error(`no reading: ${read.trouble}`)
+    const clock = Number(process.hrtime.bigint()) / 1e6
+    expect(read.ms).toBeGreaterThan(9_000_000_000 - clock - 1_000)
+    expect(read.ms).toBeLessThanOrEqual(9_000_000_000 - clock + 1_000)
+    const gone = readSuspended(join(dir, 'missing'))
+    expect('trouble' in gone && gone.trouble).toMatch(/^\/proc\/uptime could not be read: ENOENT/)
+  })
+
+  it('answers from the total marked at the beat asked from and the total now', async () => {
+    let now: Suspended = { ms: 1_000 }
+    const asleep = suspendedSlept(() => now)
+    asleep.mark?.(5_000)
+    expect(await asleep(5_000, 6_000)).toEqual({ slept: false, trouble: null })
+    now = { ms: 91_000 }
+    expect(await asleep(5_000, 96_000)).toEqual({ slept: true, trouble: null })
+    now = { trouble: '/proc/uptime could not be read: EACCES' }
+    expect(await asleep(5_000, 97_000)).toEqual({
+      slept: null,
+      trouble: '/proc/uptime could not be read: EACCES',
+    })
   })
 })
