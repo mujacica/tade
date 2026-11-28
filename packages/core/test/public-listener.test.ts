@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CADDY_ADMIN,
   type CertificateLook,
+  caddyFile,
   caddySite,
+  caddyUpdatesCommand,
   certificateSays,
   outdatedSays,
   PUBLIC_DIR,
@@ -86,6 +89,8 @@ describe('the site block', () => {
       [
         'tade.example.com {',
         '\theader Strict-Transport-Security "max-age=31536000"',
+        '\theader -Server',
+        '\theader -Via',
         '\treverse_proxy unix//run/tade/away.sock {',
         '\t\ttransport http {',
         '\t\t\tproxy_protocol v2',
@@ -106,6 +111,23 @@ describe('the site block', () => {
     const age = Number(/max-age=(\d+)/.exec(block)?.[1])
     expect(age).toBeGreaterThanOrEqual(31_536_000)
     expect(block).not.toMatch(/includeSubDomains|preload/)
+  })
+})
+
+describe('the whole Caddyfile', () => {
+  it('moves the admin API off loopback in a global block that comes first, then the site', () => {
+    const file = caddyFile('tade.example.com')
+    expect(file.startsWith(`{\n\tadmin ${CADDY_ADMIN}\n}\n\n`)).toBe(true)
+    expect(file.endsWith(caddySite('tade.example.com'))).toBe(true)
+    // A socket, never a port: a port on loopback answers every process on the box.
+    expect(CADDY_ADMIN).toMatch(/^unix\/\//)
+    expect(file).not.toMatch(/2019|localhost/)
+  })
+
+  it('lets unattended-upgrades move Caddy forward from its own repository', () => {
+    expect(caddyUpdatesCommand()).toBe(
+      `echo 'Unattended-Upgrade::Origins-Pattern { "origin=cloudsmith/caddy/stable"; };' | sudo tee /etc/apt/apt.conf.d/51unattended-caddy >/dev/null`,
+    )
   })
 })
 

@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   type CertificateLook,
-  caddySite,
+  caddyFile,
   PUBLIC_IS_THE_INTERNET,
   TADE_SH_IS_THE_INSTALLER,
 } from '@tade/core'
@@ -35,6 +35,12 @@ describe('what is said beside the block', () => {
     expect(said).toContain("printf 'd /run/tade 2750 %s caddy -\\n' you | sudo tee")
     expect(said).toContain('now: /run/tade is not there, so nothing listens for Caddy')
     expect(said).toContain('sudo systemctl reload caddy')
+    // Caddy's own repository is outside the stock unattended origins.
+    expect(said).toContain('origin=cloudsmith/caddy/stable')
+    // Replaced, never appended: a global block must come first.
+    expect(said).toContain('tade host caddy | sudo tee')
+    expect(said).not.toContain('tee -a')
+    expect(said).toContain('--address')
     // Debian 12's and Ubuntu's own caddy is 2.6, which refuses the block.
     expect(said).toContain('Caddy 2.7 or newer')
     expect(said).toContain('caddyserver.com/docs/install')
@@ -77,26 +83,29 @@ describe('the look from here', () => {
       },
     }),
     caddy: async () => ({ version: '2.11.7' }),
+    adminOpen: async () => false,
     newer: async () => ({ newer: null }),
     now: NOW,
     ...over,
   })
 
-  it('is quiet when all four are right', async () => {
+  it('is quiet when all five are right', async () => {
     const said = await lookAtPublic(looking())
-    expect(said.map((one) => one.loud)).toEqual([false, false, false, false])
+    expect(said.map((one) => one.loud)).toEqual([false, false, false, false, false])
     expect(said.map((one) => one.said)).toEqual([
       `Tade is listening for Caddy at ${SOCKET}`,
       'caddy 2.11.7',
+      "nothing answers on 127.0.0.1:2019: Caddy's admin API is not open to every process here",
       "certificate: 60 days left, until 2026-12-15, from Let's Encrypt",
       'Tade is not behind, as of the last update check',
     ])
   })
 
-  it('is loud about a directory, a socket nobody listens on, a certificate and a version', async () => {
+  it('is loud about a directory, a socket nobody listens on, an open admin API, a certificate and a version', async () => {
     const said = await lookAtPublic(
       looking({
         dir: null,
+        adminOpen: async () => true,
         look: async () => ({ at: NOW, cannot: 'ENOTFOUND' }),
         newer: async () => ({ newer: '0.2.4 is out' }),
         caddy: async () => ({ version: '2.6.2' }),
@@ -104,11 +113,17 @@ describe('the look from here', () => {
     )
     expect(said.every((one) => one.loud)).toBe(true)
     expect(said[1]?.said).toContain('caddy 2.6.2 is too old for the block, which needs 2.7')
-    const none = await lookAtPublic(looking({ caddy: async () => null }))
+    expect(said[2]?.said).toContain('lets any process here replace the live config')
+    expect(said[2]?.said).toContain('/var/lib/caddy/admin.sock')
+    const none = await lookAtPublic(
+      looking({ caddy: async () => null, adminOpen: async () => true }),
+    )
     expect(none[1]).toEqual({
       said: 'no caddy here: it needs installing, 2.7 or newer',
       loud: true,
     })
+    // No Caddy, so whatever answers on its port is not its admin API to speak of.
+    expect(none.some((one) => one.said.includes('2019'))).toBe(false)
     expect(said[0]?.said).toContain('/run/tade is not there')
     const idle = await lookAtPublic(looking({ answering: async () => false }))
     expect(idle[0]).toMatchObject({ loud: true })
@@ -117,7 +132,7 @@ describe('the look from here', () => {
 
   it('cannot tell whether Tade is behind where nothing has asked, and does not guess', async () => {
     const said = await lookAtPublic(looking({ newer: async () => null }))
-    expect(said[3]).toEqual({
+    expect(said[4]).toEqual({
       said: 'whether Tade is behind cannot be told: nothing here has asked — `tade update --check` asks',
       loud: false,
     })
@@ -144,10 +159,10 @@ describe('tade host caddy', () => {
       child.on('exit', (code) => resolve({ code, stdout, stderr }))
     })
 
-  it('prints the block and nothing else on standard output, for a name it is given', async () => {
+  it('prints the whole Caddyfile and nothing else on standard output, for a name it is given', async () => {
     const result = await run(['host', 'caddy', 'Tade.Example.com'])
     expect(result.code).toBe(0)
-    expect(result.stdout).toBe(caddySite(NAME))
+    expect(result.stdout).toBe(caddyFile(NAME))
     expect(result.stderr).toContain(`Set surfaces.web.public to ${NAME}`)
   })
 

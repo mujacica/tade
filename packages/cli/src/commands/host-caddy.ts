@@ -2,8 +2,11 @@ import { dirname } from 'node:path'
 import {
   belowOldest,
   CADDY,
+  CADDY_ADMIN,
+  CADDY_ADMIN_DEFAULT,
   CADDY_OLDEST,
   type CertificateLook,
+  caddyUpdatesCommand,
   certificateSays,
   type DirSeen,
   type Health,
@@ -14,10 +17,14 @@ import {
 } from '@tade/core'
 
 // `tade host caddy`: what puts the away view on a name of the person's own,
-// behind Caddy on this box. The block alone on standard output, so
-// `tade host caddy | sudo tee -a /etc/caddy/Caddyfile` is the whole of adding
-// it; everything else — the one root line for the socket's directory, the
-// records the name needs, the switch — on standard error, beside it.
+// behind Caddy on this box. The whole Caddyfile alone on standard output — the
+// global block that moves Caddy's admin API off `localhost:2019`
+// (`CADDY_ADMIN`), then the site — so `tade host caddy | sudo tee
+// /etc/caddy/Caddyfile` is the whole of it on a box that serves nothing else;
+// everything else — the one root line for the socket's directory, Caddy's own
+// updates, the records the name needs, the switch — on standard error, beside
+// it. **Replaced, never appended**: Caddy refuses a global block that is not
+// first, and the package's own file serves a page on `:80` to any name.
 //
 // It writes nothing, runs nothing and asks nobody anything unless `--check` is
 // passed: the directory needs root, the Caddyfile is Caddy's, and the records
@@ -44,8 +51,15 @@ export function caddySaid(opts: {
     problem === null
       ? `   ${dir} is there, and right.`
       : `   now: ${problem.replace(/: `tade host caddy`.*$/, '')}`,
-    `2. Caddy ${CADDY_OLDEST} or newer (\`caddy version\`) — ${CADDY.install?.aptTooOld} — then the block above in`,
-    `   /etc/caddy/Caddyfile, and \`sudo systemctl reload caddy\`.`,
+    `2. Caddy ${CADDY_OLDEST} or newer (\`caddy version\`) — ${CADDY.install?.aptTooOld} — and, installed from`,
+    `   Caddy's repository, let unattended-upgrades move it forward, which it does not by itself:`,
+    `   ${caddyUpdatesCommand()}`,
+    `   Then the file above as /etc/caddy/Caddyfile, replacing the package's: \`tade host caddy | sudo tee`,
+    `   /etc/caddy/Caddyfile\` (with sites of your own in it, put its first block at the very top and the`,
+    `   site beside yours). Its first block moves Caddy's admin API to ${CADDY_ADMIN.replace(/^unix\//, '')}, so no`,
+    `   process here can rewrite the live config through ${CADDY_ADMIN_DEFAULT.host}:${CADDY_ADMIN_DEFAULT.port}. Caddy running now still listens there, so`,
+    `   the first load names it: \`sudo -u caddy caddy reload --config /etc/caddy/Caddyfile --address`,
+    `   localhost:${CADDY_ADMIN_DEFAULT.port}\`; every reload after is \`sudo systemctl reload caddy\`.`,
     `3. An A record for ${opts.name} pointing at this machine — and AAAA only if IPv6 answers on 443,`,
     `   because Let's Encrypt tries it first; once there is a certificate, a CAA record. \`tade host`,
     `   domain ${opts.name}\` looks at each and says exactly what to add.`,
@@ -68,6 +82,8 @@ export interface Looking {
   look: (name: string) => Promise<CertificateLook>
   /** What `caddy version` said here: its version, or null where there is no caddy to ask. */
   caddy: () => Promise<{ version: string | null } | null>
+  /** Whether something answers on Caddy's default admin address, `CADDY_ADMIN_DEFAULT`. */
+  adminOpen: () => Promise<boolean>
   /** The kept Updates answer: its clause for a newer Tade, or null where nothing has asked. Asks nobody. */
   newer: () => Promise<{ newer: string | null } | null>
   now: number
@@ -91,7 +107,9 @@ export async function lookAtPublic(at: Looking): Promise<Health[]> {
       loud: true,
     })
   }
-  out.push(caddySays(await at.caddy()))
+  const caddy = await at.caddy()
+  out.push(caddySays(caddy))
+  if (caddy !== null) out.push(adminSays(await at.adminOpen()))
   out.push(certificateSays(at.name, await at.look(at.name), at.now))
   const kept = await at.newer()
   if (kept === null) {
@@ -104,6 +122,20 @@ export async function lookAtPublic(at: Looking): Promise<Health[]> {
     out.push(behind ?? { said: 'Tade is not behind, as of the last update check', loud: false })
   }
   return out
+}
+
+/** Caddy's admin API, said by whether its default address answers. */
+export function adminSays(open: boolean): Health {
+  const at = `${CADDY_ADMIN_DEFAULT.host}:${CADDY_ADMIN_DEFAULT.port}`
+  if (!open)
+    return {
+      said: `nothing answers on ${at}: Caddy's admin API is not open to every process here`,
+      loud: false,
+    }
+  return {
+    said: `something answers on ${at}, Caddy's admin API by default, and it lets any process here replace the live config — put the file above in place, whose first block moves it to ${CADDY_ADMIN.replace(/^unix\//, '')}`,
+    loud: true,
+  }
 }
 
 /** Caddy here, said against the oldest the block works with. */

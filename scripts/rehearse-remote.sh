@@ -206,7 +206,8 @@ steps() {
         curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt | sudo tee /etc/apt/sources.list.d/caddy-stable.list
         sudo apt-get update && sudo apt-get install -y caddy
         printf 'd /run/tade 2750 %s caddy -\\n' you | sudo tee /etc/tmpfiles.d/tade.conf && sudo systemd-tmpfiles --create /etc/tmpfiles.d/tade.conf
-        printf '{\\n\\tlocal_certs\\n}\\n\\n' | sudo tee /etc/caddy/Caddyfile && tade host caddy | sudo tee -a /etc/caddy/Caddyfile && sudo systemctl reload caddy
+        tade host caddy | awk 'NR==2{print "\\tlocal_certs"}1' | sudo tee /etc/caddy/Caddyfile     (its global block, plus Caddy's own CA)
+        sudo -u caddy caddy reload --config /etc/caddy/Caddyfile --address localhost:2019     (the first load; then systemctl reload)
         tade web on && tade host caddy --check     (listening; the certificate is Caddy's own CA: loud, rightly)
    5. tade web pair               then claim it as a phone would, through Caddy:
         curl -sk --resolve vpsN.rehearsal.example:443:127.0.0.1 -H 'Origin: https://vpsN.rehearsal.example' \\

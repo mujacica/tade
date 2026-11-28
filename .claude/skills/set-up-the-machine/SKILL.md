@@ -26,7 +26,7 @@ and setting up ends by actually opening a lane — because every other check is 
 | `packages/core/src/service.ts` | pure: `serviceUnit`, `SERVICE`, `START`, `LOG` — the user unit, as text; `execOf`, `unitTrouble` — a unit that is there, read back; `serviceStateOf`, `serviceTrouble` — how it stands |
 | `packages/cli/src/notify.ts` | `tade serve` telling systemd it is ready and stopping: `takeNotifySocket`, `notifier` |
 | `packages/cli/src/commands/host-caddy.ts` | `tade host caddy`: `caddySaid` (the steps beside the block), `lookAtPublic` (`--check`) |
-| `packages/core/src/public-listener.ts` | pure: `PUBLIC_DIR`, `publicSocket`, `publicName`, `publicDirProblem`, `publicDirCommand`, `caddySite`, `certificateSays`, `outdatedSays` |
+| `packages/core/src/public-listener.ts` | pure: `PUBLIC_DIR`, `publicSocket`, `publicName`, `publicDirProblem`, `publicDirCommand`, `caddySite`, `caddyFile`, `CADDY_ADMIN`, `caddyUpdatesCommand`, `certificateSays`, `outdatedSays` |
 | `packages/workbench/src/certificate.ts` | `lookAtCertificate` — one TLS handshake to a name, what a phone would get |
 | `packages/core/src/domain.ts` | pure: `domainSays`, `domainHead`, `DomainSeen`, `caaRecord`, `refusedName` (`TADE_SH_IS_THE_INSTALLER`), `publicAddresses` |
 | `packages/core/src/public-name.ts` | pure: `publicWrite`, `loopbackWrite`, `copiedHosts` — the name written alone, `trusted_hosts` for a loopback Caddy, and which trusted hostnames Tade itself copied there |
@@ -428,9 +428,14 @@ things only a person with root can do, so **Tade says each exactly and does none
   `programsNeeded` and in use once `surfaces.web.public` is set, with `CADDY_OLDEST` its floor:
   `proxy_protocol` in the http transport is 2.7's, and Debian 12's and Ubuntu 24.04's own package
   is 2.6.2, which refuses the whole Caddyfile. Step 2 says so, and `--check` asks `caddy version`.
-- **The site block** — on standard output alone, so `tade host caddy | sudo tee -a
-  /etc/caddy/Caddyfile` is the whole of adding it: name-bound, `unix//` upstream, `proxy_protocol
-  v2`, `Host` untouched. Everything else goes to standard error.
+- **The whole Caddyfile** (`caddyFile`) — on standard output alone, so `tade host caddy | sudo tee
+  /etc/caddy/Caddyfile` replaces the package's (never `tee -a`: Caddy refuses a global block that is
+  not first). Its global block moves the admin API to a socket in Caddy's home (`CADDY_ADMIN`),
+  because `localhost:2019` lets any process replace the live config — so the first load names the
+  old address (`--address localhost:2019`) and `--check` is loud while it still answers. The site:
+  name-bound, `unix//` upstream, `proxy_protocol v2`, `Host` untouched, `Server` and `Via` off.
+  Step 2 also gives the apt line letting unattended-upgrades move Caddy (`caddyUpdatesCommand`).
+  Everything else goes to standard error.
 - **The records** — an `A` (an `AAAA` only if IPv6 answers on 443, which Let's Encrypt tries
   first) and, once there is a certificate, a `CAA`. Nothing at the registrar is Tade's:
   `tade host domain` (below) says exactly what to add.

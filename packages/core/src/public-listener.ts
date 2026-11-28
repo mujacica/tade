@@ -143,10 +143,18 @@ export const PUBLIC_PROGRAMS: readonly RequiredProgram[] = [CADDY]
  */
 export const HSTS = 'max-age=31536000'
 
+/**
+ * Name-bound as above, with `Server` and `Via` taken off the answer: what
+ * serves the name is nobody's business, and both are Caddy saying so on every
+ * response. A site-level `header -Via` is the one that holds — `header_down`
+ * inside `reverse_proxy` leaves it, because Caddy adds it after.
+ */
 export function caddySite(name: string, socket: string = publicSocket()): string {
   return [
     `${name} {`,
     `	header Strict-Transport-Security "${HSTS}"`,
+    '\theader -Server',
+    '\theader -Via',
     `\treverse_proxy unix/${socket} {`,
     '\t\ttransport http {',
     '\t\t\tproxy_protocol v2',
@@ -155,6 +163,46 @@ export function caddySite(name: string, socket: string = publicSocket()): string
     '}',
     '',
   ].join('\n')
+}
+
+/**
+ * Where Caddy's admin API listens: a Unix socket in Caddy's own home.
+ *
+ * **Never its default, `localhost:2019`.** That port answers every process on
+ * the box with no credential, and `POST /load` replaces the whole live config —
+ * so anything running there (an agent that read a hostile page, another
+ * account) could turn on credential logging and read the phone's cookie, or
+ * point the public name somewhere else, without touching a file. Caddy's
+ * package makes `/var/lib/caddy` its user's home, `0750` and `caddy:caddy`, and
+ * Caddy makes the socket `0200`, so only Caddy — and `systemctl reload caddy`,
+ * whose `caddy reload` runs as it and reads the address out of this file — can
+ * use it.
+ */
+export const CADDY_ADMIN = 'unix//var/lib/caddy/admin.sock'
+
+/** The address Caddy's admin API answers on when nothing moved it, which `--check` looks at. */
+export const CADDY_ADMIN_DEFAULT = { host: '127.0.0.1', port: 2019 }
+
+/**
+ * The whole Caddyfile for `name`: the global options first — Caddy refuses a
+ * global block anywhere else — then the site.
+ */
+export function caddyFile(name: string, socket: string = publicSocket()): string {
+  return ['{', `\tadmin ${CADDY_ADMIN}`, '}', '', caddySite(name, socket)].join('\n')
+}
+
+/**
+ * Caddy's own apt repository's origin, as its `Release` file says it.
+ * Ubuntu's stock `50unattended-upgrades` allows only the distribution's own
+ * pockets, so a Caddy installed from Caddy's repository is never upgraded
+ * unattended unless this origin is added.
+ */
+export const CADDY_APT_ORIGIN = 'cloudsmith/caddy/stable'
+
+/** The one root line that lets unattended-upgrades move Caddy forward from its own repository. */
+export function caddyUpdatesCommand(): string {
+  const conf = '/etc/apt/apt.conf.d/51unattended-caddy'
+  return `echo 'Unattended-Upgrade::Origins-Pattern { "origin=${CADDY_APT_ORIGIN}"; };' | sudo tee ${conf} >/dev/null`
 }
 
 /** What a TLS look at the public name saw of its certificate. */

@@ -1,11 +1,13 @@
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
+import { connect } from 'node:net'
 import { userInfo } from 'node:os'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
 import {
   CADDY,
-  caddySite,
+  CADDY_ADMIN_DEFAULT,
+  caddyFile,
   copiedHosts,
   defaultConfigPath,
   domainSays,
@@ -106,7 +108,7 @@ export function registerHost(program: Command, io: Io, setExit: (code: number) =
       const socket = publicSocket()
       const dir = await dirSeen(PUBLIC_DIR)
       const uid = process.getuid?.() ?? -1
-      io.out(caddySite(name, socket).trimEnd())
+      io.out(caddyFile(name, socket).trimEnd())
       for (const line of caddySaid({
         name,
         configured,
@@ -128,6 +130,7 @@ export function registerHost(program: Command, io: Io, setExit: (code: number) =
           const said = await runProgram(CADDY.command, CADDY.versionArgs, { timeoutMs: 5_000 })
           return said.missing ? null : { version: parseVersion(said.stdout) }
         },
+        adminOpen: () => tcpAnswers(CADDY_ADMIN_DEFAULT.host, CADDY_ADMIN_DEFAULT.port),
         newer: async () => {
           const kept = await lastUpdates(tadeHome())
           return kept === null ? null : { newer: kept.tade.newer }
@@ -356,4 +359,18 @@ export function registerHost(program: Command, io: Io, setExit: (code: number) =
         }),
       )
     })
+}
+
+/** Whether something accepts a TCP connection at `host:port`, within a second and a half. */
+function tcpAnswers(host: string, port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = connect({ host, port })
+    const done = (open: boolean) => {
+      socket.destroy()
+      resolve(open)
+    }
+    socket.setTimeout(1_500, () => done(false))
+    socket.once('connect', () => done(true))
+    socket.once('error', () => done(false))
+  })
 }
