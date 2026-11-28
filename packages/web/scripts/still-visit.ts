@@ -138,11 +138,6 @@ function staged(world: World, device: Device, visit: Visit, reading: ReturnType<
       )
     if (url.pathname === '/api/snapshot') return answered(200, reading.snapshot())
     if (url.pathname === '/api/settings') return answered(200, reading.settings())
-    if (url.pathname === '/api/notes')
-      return answered(
-        200,
-        reading.notes(url.searchParams.get('scope') ?? undefined, url.searchParams.get('after')),
-      )
     const agent = /^\/api\/agent\/([^/]+)\/([^/]+)$/.exec(url.pathname)
     if (agent !== null)
       return answered(

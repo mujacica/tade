@@ -129,7 +129,7 @@ describe('what an unauthenticated request can get', () => {
 
   it('is nothing else at all: every data route is a 401', async () => {
     const one = await start()
-    for (const path of ['/api/snapshot', '/api/notes', '/api/devices', '/api/settings']) {
+    for (const path of ['/api/snapshot', '/api/chat', '/api/devices', '/api/evaluations']) {
       const answer = await ask(one, path)
       expect(answer.status, path).toBe(401)
       expect(said(answer).error, path).toBe('no_session')
@@ -269,33 +269,6 @@ describe('the worker, as a browser is served it', () => {
     for (const path of ['/api/snapshot', '/api/stream', '/api/devices']) {
       expect(answer.text, path).not.toContain(path)
     }
-  })
-})
-
-describe('the notes, a page at a time', () => {
-  it('lists every note with no scope, as the snapshot does, and one scope’s with one', async () => {
-    // The page walks the snapshot's own list with `after`, so the route with
-    // no scope has to be that list: every note this device may count.
-    const one = await start()
-    const paired = await pair(one)
-    const every = await ask(one, '/api/notes', { headers: { cookie: paired.cookie } })
-    const elsewhere = await ask(one, '/api/notes?scope=tade', {
-      headers: { cookie: paired.cookie },
-    })
-    expect(said(every).total).toBe(2)
-    expect(said(elsewhere).total).toBe(0)
-  })
-
-  it('reads a cursor as a name to compare and nothing else', async () => {
-    const one = await start()
-    const paired = await pair(one)
-    const page = await ask(one, '/api/notes?after=../../etc/passwd', {
-      headers: { cookie: paired.cookie },
-    })
-    expect(page.status).toBe(200)
-    // Compared with the notes' own names, which no path is: nothing is read off a disk for it.
-    expect(Array.isArray(said(page).rows)).toBe(true)
-    expect(page.text).not.toContain('passwd')
   })
 })
 
@@ -671,14 +644,13 @@ describe('resource exhaustion', () => {
   })
 })
 describe('the query, read by exactly one route', () => {
-  it('reads the notes scope out of it, which is not a credential', () => {
-    // The one query parameter anything here reads. A *ticket* is never one —
-    // it is in the fragment, which a browser does not send — and
-    // `pairing.test.ts` asserts a ticket offered as a query parameter is
-    // refused.
-    expect(queryOf('/api/notes?scope=tade/web').get('scope')).toBe('tade/web')
-    expect(queryOf('/api/notes').get('scope')).toBeNull()
-    expect(queryOf('/api/notes?scope=a#b').get('scope')).toBe('a')
+  it('reads a cursor out of it, which is not a credential', () => {
+    // A *ticket* is never a query parameter — it is in the fragment, which a
+    // browser does not send — and `pairing.test.ts` asserts a ticket offered
+    // as one is refused.
+    expect(queryOf('/api/chat?before=c41').get('before')).toBe('c41')
+    expect(queryOf('/api/chat').get('before')).toBeNull()
+    expect(queryOf('/api/chat?before=a#b').get('before')).toBe('a')
   })
 })
 
@@ -689,7 +661,7 @@ describe('the path a request is for', () => {
   })
 
   it('is the path without its query or fragment', () => {
-    expect(pathOf('/api/notes?scope=a')).toBe('/api/notes')
+    expect(pathOf('/api/chat?before=a')).toBe('/api/chat')
     expect(pathOf('/pair#t=abc')).toBe('/pair')
     expect(pathOf('/')).toBe('/')
   })
@@ -791,16 +763,6 @@ describe('nothing a crafted request can do moves a task', () => {
         `${one_.method ?? 'GET'} ${one_.path} → ${answer.status}`,
       ).toContain(answer.status)
     }
-
-    // The one query any route reads, with a traversal in it: a real `200`
-    // with nothing in it, because a scope is a **name matched against a
-    // note's own scope** and never a path anything is built from. Asserted
-    // rather than left out of the barrage, because "it answered 404" and "it
-    // answered the truth, which is that you have no notes there" are
-    // different facts and only the second one is this design's.
-    const notes = await ask(one, '/api/notes?scope=../../../etc/passwd', { headers: { cookie } })
-    expect(notes.status).toBe(200)
-    expect(said(notes).rows).toEqual([])
 
     expect(await filesUnder(one.home)).toEqual(before)
   })

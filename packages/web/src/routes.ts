@@ -274,7 +274,6 @@ export const ROUTES: readonly Route[] = [
   // `EventSource` permanently, and `204` is how a browser is told to stop
   // retrying rather than hammering a port it will never get into.
   { method: 'GET', path: '/api/stream', name: 'stream', needs: 'read', mutates: false },
-  { method: 'GET', path: '/api/notes', name: 'notes', needs: 'read', mutates: false },
   // **The conversation with Tade before a line the page holds** (`earlier.ts`),
   // read as somebody scrolls up past what the snapshot carries, so every line
   // of it can be read here. Asking may make the window read its record further back, which

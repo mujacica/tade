@@ -37,8 +37,7 @@ import { task } from './fixtures.ts'
 // so which scope each verb needs exists in `verbs.ts` for the machine and in
 // `acts.js` for the page. The alternative is a bundler for one table. What
 // makes two copies safe is this file: the same table through both, asserted
-// equal — the pattern `inScope`/`appliesTo` and `live.js`/`stream.ts` already
-// use.
+// equal — the pattern `live.js`/`stream.ts` already uses.
 //
 // The rest is what a renderer cannot be tested for in this repository. There is
 // no DOM in its `lib` and no jsdom in its lockfile, so the *decisions* a

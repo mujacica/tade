@@ -30,8 +30,7 @@ import { KEY } from '../src/verbs.ts'
 // so "stale, unreachable or closed" exists in `src/stream.ts` for everything
 // that reasons about it here and in `src/assets/live.js` for the page. The
 // alternative is a bundler for one function. What makes two copies safe is
-// this file: the same table through both, asserted equal — the pattern
-// `reading.ts`'s `inScope` already uses against `appliesTo`.
+// this file: the same table through both, asserted equal.
 
 const NOW = Date.parse('2026-10-08T14:30:00.000Z')
 

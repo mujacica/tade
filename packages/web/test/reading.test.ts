@@ -1,9 +1,6 @@
-import { appliesTo, type Note } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import { BUDGET } from '../src/page.ts'
-import { inScope, notesOf, projector } from '../src/reading.ts'
-import { snapshotOf } from '../src/snapshot.ts'
-import { input, NOW, note, reach } from './fixtures.ts'
+import { projector } from '../src/reading.ts'
+import { input, NOW, reach } from './fixtures.ts'
 
 describe('the projector', () => {
   it('answers from what it holds and builds nothing per question', () => {
@@ -34,128 +31,11 @@ describe('the projector', () => {
     expect(held.rev).toBe(14)
   })
 
-  it('answers the notes route from the input of its last beat', () => {
-    const one = input({ reach: reach() })
-    const held = projector(one, NOW)
-    expect(held.notes('sentry')).toMatchObject({ total: 2 })
-    held.beat({ ...one, notes: [] }, NOW + 2_000)
-    expect(held.notes('sentry').rows).toEqual([])
-  })
-
   it('ticks without advancing anything', () => {
     const held = projector(input({ reach: reach() }), NOW)
     const beat = held.tick(NOW + 2_000)
     expect(beat.rev).toBe(12)
     expect(beat.set).toEqual({})
     expect(held.rev).toBe(12)
-  })
-})
-
-describe('notes in one scope', () => {
-  const one = input({
-    reach: reach(),
-    notes: [
-      note({ scope: null, text: 'about everything', at: '2026-10-01T00:00:00.000Z' }),
-      note({ scope: 'sentry', text: 'about the project', at: '2026-10-02T00:00:00.000Z' }),
-      note({
-        scope: 'sentry/away-projection',
-        text: 'about the task',
-        at: '2026-10-03T00:00:00.000Z',
-      }),
-      note({ scope: 'sentry/other', text: 'about a sibling', at: '2026-10-04T00:00:00.000Z' }),
-    ],
-  })
-
-  it('follows `appliesTo`: the project’s, the task’s and everything’s', () => {
-    const page = notesOf(one, 'sentry/away-projection')
-    expect(page.rows.map((row) => row.text?.words)).toEqual([
-      'about the task',
-      'about the project',
-      'about everything',
-    ])
-  })
-
-  it('never leaks a sibling task’s note', () => {
-    expect(notesOf(one, 'sentry/away-projection').rows.map((row) => row.scope)).not.toContain(
-      'sentry/other',
-    )
-  })
-
-  it('gives a note the same id here as in a snapshot', () => {
-    const page = notesOf(one, 'sentry')
-    const snapshot = snapshotOf(one, NOW)
-    for (const row of page.rows) {
-      const same = snapshot.notes.find((other) => other.id === row.id)
-      expect(same?.text?.words).toBe(row.text?.words)
-    }
-  })
-
-  it('tells two notes written in the same millisecond apart', () => {
-    const twice = input({
-      reach: reach(),
-      notes: [
-        note({ at: '2026-10-05T00:00:00.000Z', text: 'first' }),
-        note({ at: '2026-10-05T00:00:00.000Z', text: 'second' }),
-      ],
-    })
-    const ids = notesOf(twice, 'sentry').rows.map((row) => row.id)
-    expect(new Set(ids).size).toBe(2)
-  })
-})
-
-describe('the older notes, a page at a time', () => {
-  // Five notes a minute apart and a budget of two: the snapshot carries the
-  // newest two and a cursor past them, and the notes route walks on from it.
-  const five = input({
-    reach: reach(),
-    notes: Array.from({ length: 5 }, (_, n) =>
-      note({ at: new Date(Date.parse('2026-10-08T12:00:00.000Z') - n * 60_000).toISOString() }),
-    ),
-  })
-  const made = projector(five, NOW, { budget: { ...BUDGET, notes: 2 } })
-
-  it('walks on from the snapshot’s own cursor, newest first, to the end', () => {
-    const first = made.snapshot()
-    expect(first.notes).toHaveLength(2)
-    const next = first.pages.notes?.next ?? null
-    expect(next).not.toBeNull()
-    const second = made.notes(undefined, next)
-    expect(second.rows).toHaveLength(2)
-    expect(second.rows.map((row) => row.id)).not.toContain(first.notes[1]?.id)
-    const third = made.notes(undefined, second.next)
-    expect(third.rows).toHaveLength(1)
-    expect(third.next).toBeNull()
-    // Every note once, and every page older than the one before it.
-    const ids = [...first.notes, ...second.rows, ...third.rows].map((row) => row.id)
-    expect(new Set(ids).size).toBe(5)
-    const oldest = (rows: readonly { at: string }[]) => rows.map((row) => row.at).sort()[0] ?? ''
-    const newest = (rows: readonly { at: string }[]) =>
-      rows
-        .map((row) => row.at)
-        .sort()
-        .at(-1) ?? ''
-    expect(newest(second.rows) < oldest(first.notes)).toBe(true)
-    expect(newest(third.rows) < oldest(second.rows)).toBe(true)
-  })
-
-  it('starts over and says so for a cursor that names nothing', () => {
-    const page = made.notes(undefined, 'not-a-note')
-    expect(page.restarted).toBe(true)
-    expect(page.rows).toHaveLength(2)
-  })
-})
-
-describe('the scope rule is `appliesTo`’s', () => {
-  // The copy cannot drift: if core changes how a note's scope reaches a task,
-  // this is what goes red.
-  const scopes = [null, 'sentry', 'sentry/away-projection', 'tade', 'tade/window']
-  it('agrees with it over every pairing', () => {
-    for (const noted of scopes)
-      for (const asked of scopes) {
-        const entry = { text: 'x', scope: noted, by: 'voice', at: '2026-10-01T00:00:00.000Z' }
-        expect(inScope(noted, asked), `${noted} seen from ${asked}`).toBe(
-          appliesTo(entry as Note, asked),
-        )
-      }
   })
 })

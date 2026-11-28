@@ -9,9 +9,9 @@ import {
   type RacesFor,
 } from './evaluations.ts'
 import type { SnapshotInput } from './input.ts'
-import { BUDGET, type Budget, type Page, pageOf } from './page.ts'
-import type { AgentOut, ChatPage, Delta, NoteRow, Snapshot } from './protocol.ts'
-import { type Cursors, chatBefore, noteRows } from './snapshot.ts'
+import { BUDGET, type Budget } from './page.ts'
+import type { AgentOut, ChatPage, Delta, Snapshot } from './protocol.ts'
+import { type Cursors, chatBefore } from './snapshot.ts'
 import type { Cursor } from './stream.ts'
 
 // The whole of what the away view may read, declared in one place.
@@ -28,7 +28,7 @@ import type { Cursor } from './stream.ts'
 // needs and the window implements it.
 //
 // It is written in this package's own vocabulary and not the workbench's (R2):
-// `snapshot()` and `notes()`, never `collectStatus` or `recall`.
+// `snapshot()` and `chat()`, never `collectStatus` or `recall`.
 //
 // This is the one file in the package that is not pure: `projector` holds the last projection and the revision, which is
 // state, and the pure half of what it does is `revise` in `delta.ts`.
@@ -66,23 +66,6 @@ export interface WebReading {
    */
   copies?(held: ReadonlyMap<string, Cursor> | null): readonly string[]
   /**
-   * The notes in one scope, newest first.
-   *
-   * Its own call rather than a field on the snapshot, because notes are the
-   * one collection whose whole value is the text: a budget that cut them to a
-   * count on the snapshot would be answering a different question from the one
-   * somebody opening the notes page is asking.
-   *
-   * `after` is the page's own cursor — the `next` of the page before, which
-   * the snapshot's notes carry on `pages.notes.next` — so a phone that has
-   * read the newest two hundred asks for the next two hundred, and a note that
-   * went in the meantime starts the walk over and says so (`restarted`).
-   * Paging that list means paging *every* note, as the snapshot lists them,
-   * so `undefined` is every note and `null` is still the notes about
-   * everything — the one scope a note can have that names no project.
-   */
-  notes(scope: string | null | undefined, after?: string | null): Page<NoteRow>
-  /**
    * The lines of the conversation with Tade said before the line `before`
    * names, oldest first (`chatBefore`): what a page reads as somebody scrolls
    * up past what the snapshot carries. What the window holds — reading its
@@ -94,7 +77,7 @@ export interface WebReading {
    * One agent, for a device that has its page open: what it has been doing,
    * and the last rows of its screen.
    *
-   * Its own call for the reason `notes` is, and one more: **asking is what
+   * Its own call rather than a field on the snapshot, and one more: **asking is what
    * makes the window look.** A lane is read on the beat only while some device
    * keeps asking about it (`web-lanes.ts`), so an agent nobody has
    * open costs nothing, and a page that stops asking stops the reading within
@@ -106,7 +89,7 @@ export interface WebReading {
   /**
    * What Tade is set up with, as this device may read it.
    *
-   * Its own call for the reason `notes` is: settings change when somebody
+   * Its own call rather than a field on the snapshot: settings change when somebody
    * changes one, and a phone is not sent forty rows of them twice a second
    * for a page nobody has open. A key is never in it (`settingsFor`).
    */
@@ -197,9 +180,6 @@ export function projector(
     snapshot(): Snapshot {
       return held
     },
-    notes(scope: string | null | undefined, after: string | null = null): Page<NoteRow> {
-      return notesOf(input, scope, budget, after)
-    },
     chat(before: string): ChatPage {
       return chatBefore(input.talk, before, budget)
     },
@@ -231,43 +211,4 @@ export function projector(
       return tick(held, at)
     },
   }
-}
-
-/**
- * `appliesTo`'s rule, over a projected row.
- *
- * Written out rather than called, because `appliesTo` takes a whole `Note` and
- * a row is not one. `test/reading.test.ts` asserts the two agree over a table,
- * so the copy cannot drift: a note about a project applies to every task in
- * it, a note about everything always applies, and a note about one task never
- * leaks to its siblings.
- */
-export function inScope(note: string | null, scope: string | null): boolean {
-  if (note === null) return true
-  if (scope === null) return false
-  if (note === scope) return true
-  return scope.startsWith(`${note}/`)
-}
-
-/**
- * The notes in one scope, newest first.
- *
- * A scope is a task id, a project name, or null for everything.
- *
- * Ids are made over the **whole** input and then filtered, never over the
- * filtered set: an ordinal computed after a filter would give one note two
- * different ids on two different routes, and a delta keyed by it would merge
- * one note's words into another's row.
- */
-export function notesOf(
-  input: SnapshotInput,
-  scope: string | null | undefined,
-  budget: Budget = BUDGET,
-  after: string | null = null,
-): Page<NoteRow> {
-  const rows = noteRows(input.notes, budget).filter(
-    (row) => scope === undefined || inScope(row.scope, scope),
-  )
-  const newest = [...rows].sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
-  return pageOf(newest, budget.notes, (row) => row.id, after)
 }

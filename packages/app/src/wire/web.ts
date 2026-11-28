@@ -944,10 +944,6 @@ export class Away implements Subject {
         return held.rev
       },
       copies: (held) => (this.sentCopies(reach.device) ? this.copies.opening(held) : []),
-      notes: (scope, after) => {
-        this.catchUp(reach, held)
-        return held.notes(scope, after)
-      },
       agent: (task, seen = null) => {
         // The collections are the ones this beat built, memoised, never a look.
         const answer = agentOf(this.collections().tasks, task, this.agentIn(task), AGENT, seen)
