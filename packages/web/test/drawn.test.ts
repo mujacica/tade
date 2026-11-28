@@ -21,7 +21,7 @@ const MODULE: Drawn = {
 const DRAWING: Drawing = {
   version: 'v1a2b3',
   files: new Map([[MODULE.path, MODULE]]),
-  importMap: { imports: { '@tade/view': '/draw/v1a2b3/pkg/view.js' } },
+  importMap: { imports: { view: '/draw/v1a2b3/pkg/view.js' } },
   roots: ['/draw/v1a2b3/pkg/view.js'],
   imports: new Map(),
 }
