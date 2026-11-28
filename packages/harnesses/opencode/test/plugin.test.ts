@@ -3,6 +3,7 @@ import { until } from '@tade/drivers-core/conformance'
 import { SignalChannel, type WorkerCommand, type WorkerSignal } from '@tade/harnesses-core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
+import { namesServer, serverState, TOOLS_WAIT_MS } from '../src/plugin/index.ts'
 
 // Tade's OpenCode plugin, loaded the way OpenCode loads it — a default export
 // whose `setup` is handed a context — against a stand-in for that context and
@@ -545,6 +546,66 @@ describe('Tade’s plugin inside OpenCode', () => {
     ])
     // Nothing an agent runs is told it, or speaks for the lane.
     expect(process.env.TADE_OPENCODE_OPENING).toBeUndefined()
+  })
+
+  /** A run whose config lists Tade's own tool server, as every lane's does. */
+  const WITH_TOOLS = JSON.stringify({
+    mcp: { servers: { tade: { type: 'local', command: ['x'] } } },
+  })
+
+  it('says the first instruction only once Tade’s tool server has connected, so the turn is offered its tools', async () => {
+    const { stand } = await supervised({
+      TADE_OPENCODE_OPENING: 'fix the flaky test',
+      OPENCODE_CONFIG_CONTENT: WITH_TOOLS,
+    })
+    let state = 'pending'
+    let asked = 0
+    const mcp = stand.ctx.mcp as { list: () => Promise<unknown> }
+    mcp.list = async () => {
+      asked++
+      return { data: [{ name: 'tade', status: { status: state } }] }
+    }
+    // Not listed yet, then pending: asked again and again, and nothing said.
+    await until(() => asked >= 3, { timeout: 10_000 })
+    expect(stand.calls.some((call) => call.what === 'prompt')).toBe(false)
+    state = 'connected'
+    await until(() => stand.calls.some((call) => call.what === 'prompt'), { timeout: 10_000 })
+    expect(stand.calls.filter((call) => call.what === 'prompt')).toEqual([
+      { what: 'prompt', input: { sessionID: SESSION, text: 'fix the flaky test' } },
+    ])
+  })
+
+  it('says the first instruction without Tade’s tools after a while, and says that it did', async () => {
+    // The plugin's clock, from before it loads, moving with the real one
+    // until it is moved past the wait.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'Date'], shouldAdvanceTime: true })
+    cleanups.push(() => vi.useRealTimers())
+    // The stand-in never lists a server called tade.
+    const { signals, stand } = await supervised({
+      TADE_OPENCODE_OPENING: 'fix the flaky test',
+      OPENCODE_CONFIG_CONTENT: WITH_TOOLS,
+    })
+    expect(stand.calls.some((call) => call.what === 'prompt')).toBe(false)
+    await vi.advanceTimersByTimeAsync(TOOLS_WAIT_MS + 1_000)
+    await until(() => stand.calls.some((call) => call.what === 'prompt'), { timeout: 10_000 })
+    await until(() => signals.some((s) => s.type === 'problem'), { timeout: 10_000 })
+    expect(signals.find((s) => s.type === 'problem')).toMatchObject({
+      text: expect.stringContaining("went without Tade's tools"),
+    })
+  })
+
+  it('reads how OpenCode says a tool server stands, and whether a run’s config lists one', () => {
+    const listed = { data: [{ name: 'sentry', status: { status: 'failed' } }] }
+    expect(serverState(listed, 'tade')).toBeNull()
+    expect(serverState({ data: [{ name: 'tade', status: { status: 'pending' } }] }, 'tade')).toBe(
+      'pending',
+    )
+    expect(serverState([{ server: 'tade', status: 'connected' }], 'tade')).toBe('connected')
+    expect(serverState(null, 'tade')).toBeNull()
+    expect(namesServer(JSON.parse(WITH_TOOLS), 'tade')).toBe(true)
+    expect(namesServer({ mcp: { servers: { sentry: {} } } }, 'tade')).toBe(false)
+    expect(namesServer({}, 'tade')).toBe(false)
+    expect(namesServer(null, 'tade')).toBe(false)
   })
 
   it('gives the agent’s own commands the folders the account moved back, and none of Tade’s run', async () => {

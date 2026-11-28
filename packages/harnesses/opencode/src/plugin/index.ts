@@ -115,6 +115,35 @@ export function describePermission(action: string, resources: readonly string[])
   return what ? `${action}: ${what}` : action
 }
 
+/** The longest a first instruction waits for Tade's tool server to connect. */
+export const TOOLS_WAIT_MS = 30_000
+
+/**
+ * How OpenCode says one tool server stands (`pending`, `connected`, `failed`,
+ * `needs_auth`…) in what `mcp.list` answers; null while it lists no server by
+ * that name, which it does before it has read its config.
+ */
+export function serverState(listed: unknown, name: string): string | null {
+  const said = obj(listed)
+  const rows = Array.isArray(said?.data) ? said.data : Array.isArray(listed) ? listed : []
+  for (const raw of rows as unknown[]) {
+    const row = obj(raw)
+    if ((str(row?.name) ?? str(row?.server)) !== name) continue
+    return str((obj(row?.status) ?? row)?.status)
+  }
+  return null
+}
+
+/**
+ * Whether the config this run was handed (`configFor`, parsed out of
+ * `OPENCODE_CONFIG_CONTENT`) lists a tool server by that name: one it does not
+ * list is never waited for.
+ */
+export function namesServer(config: unknown, name: string): boolean {
+  const servers = obj(obj(obj(config)?.mcp)?.servers)
+  return Boolean(servers && name in servers)
+}
+
 const obj = (value: unknown): Json | null =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Json) : null
 const str = (value: unknown): string | null =>
@@ -642,11 +671,50 @@ export default {
       }
     }
 
+    /**
+     * Until Tade's own tool server has connected, or failed, or `TOOLS_WAIT_MS`
+     * has gone by. OpenCode starts its MCP servers beside the plugins and
+     * offers a turn only the tools of the ones connected by then, so a first
+     * instruction said at once ran without `tade_done` whenever the server —
+     * node, reading TypeScript — was slow to start, as it is on a busy machine:
+     * the model asked for `tade_tade_done` and was told no tool had that name.
+     */
+    const toolsReady = async (): Promise<void> => {
+      if (!ctx.mcp) return
+      let config: unknown = null
+      try {
+        config = JSON.parse(process.env.OPENCODE_CONFIG_CONTENT ?? 'null')
+      } catch (err) {
+        problem(
+          `Tade's OpenCode plugin could not read the config this run was handed, so this agent's first instruction does not wait for Tade's tools: ${String(err)}`,
+        )
+        return
+      }
+      if (!namesServer(config, 'tade')) return
+      const until = Date.now() + TOOLS_WAIT_MS
+      let state: string | null = null
+      let why: string | null = null
+      while (Date.now() < until) {
+        const listed = await ctx.mcp.list().catch((err: unknown) => {
+          why = String(err)
+          return null
+        })
+        state = serverState(listed, 'tade')
+        if (state !== null && state !== 'pending') return
+        await new Promise((resolve) => setTimeout(resolve, 250))
+      }
+      problem(
+        `Tade's tool server had not connected to OpenCode after ${TOOLS_WAIT_MS / 1000} s (${state ?? 'not listed'}${why ? `; OpenCode would not say how its tool servers stand: ${why}` : ''}), so this agent's first instruction went without Tade's tools.`,
+      )
+    }
+
     // The session this lane is for, made if the line could not make it, and
-    // its first instruction said into it: once, at the launch that carries it.
+    // its first instruction said into it: once, at the launch that carries it,
+    // and once Tade's tools are there to be offered with it.
     const opening = process.env.TADE_OPENCODE_OPENING
     delete process.env.TADE_OPENCODE_OPENING
     void (async () => {
+      if (opening) await toolsReady()
       const wanted = process.env.TADE_OPENCODE_MODEL ? refOf(process.env.TADE_OPENCODE_MODEL) : null
       const title = process.env.TADE_TITLE?.trim() || process.env.TADE_CALLED?.trim() || undefined
       // The server may still be settling while plugins load: tried again for a while.
