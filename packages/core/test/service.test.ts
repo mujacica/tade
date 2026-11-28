@@ -46,6 +46,8 @@ describe('the unit', () => {
   it('signals Tade alone when it stops, and leaves the agents to the scope they are in', () => {
     expect(line('KillMode')).toEqual(['KillMode=mixed'])
     expect(line('TimeoutStopSec')).toEqual(['TimeoutStopSec=30'])
+    // Longer than a start after a cold boot takes, which outran the 90 s default.
+    expect(line('TimeoutStartSec')).toEqual(['TimeoutStartSec=300'])
     expect(unit).toContain('stopping or')
     expect(unit).toContain('never ends one')
   })
@@ -67,6 +69,21 @@ describe('the unit', () => {
 
   it('reads the one file a login shell reads keys from too, and starts without it', () => {
     expect(line('EnvironmentFile')).toEqual(['EnvironmentFile=-%h/.config/tade/env'])
+  })
+
+  it('gives nothing it starts a way to sudo, or files another user could read', () => {
+    expect(line('NoNewPrivileges')).toEqual(['NoNewPrivileges=yes'])
+    expect(line('UMask')).toEqual(['UMask=0077'])
+    expect(line('RestrictSUIDSGID')).toEqual(['RestrictSUIDSGID=yes'])
+    // Nothing that needs a namespace: it would take the agents' tmux sockets
+    // out of the /tmp an ssh login sees, or stop bwrap and Node's JIT.
+    for (const key of ['ProtectSystem', 'PrivateTmp', 'ProtectHome', 'PrivateUsers']) {
+      expect(line(key)).toEqual([])
+    }
+    expect(line('RestrictNamespaces')).toEqual([])
+    expect(line('MemoryDenyWriteExecute')).toEqual([])
+    const unitPart = unit.slice(unit.indexOf('[Service]'), unit.indexOf('[Install]'))
+    expect(unitPart).toContain('NoNewPrivileges=yes')
   })
 
   it('names a home only where it is not the default', () => {

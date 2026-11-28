@@ -122,15 +122,45 @@ export function serviceUnit(facts: ServiceFacts): string {
     // orchestrator, the servers it brokers — as quitting does; whatever is
     // left once it has gone is killed.
     'KillMode=mixed',
+    // A warm start takes about a minute before it says it is ready, and the
+    // first one after a boot, on a cold disk, took longer than systemd's 90 s
+    // default and was killed and started again (ipax, 2026-11-28).
+    'TimeoutStartSec=300',
     'TimeoutStopSec=30',
     'Restart=on-failure',
     'RestartSec=5',
+    ...HARDENING,
     '',
     '[Install]',
     'WantedBy=default.target',
     '',
   ].join('\n')
 }
+
+/**
+ * What the unit takes away. Everything it starts inherits it — a tmux server
+ * started through `systemd-run --scope` too, and so its agents: no setuid, so
+ * no `sudo` from anything under it, and nothing it writes readable by another
+ * user (the away socket is `chmod`ed to `0660` by name, `listeners.ts`).
+ *
+ * Nothing here needs a mount or user namespace. A user unit gets
+ * `ProtectSystem`, `PrivateTmp` and the like only by putting the whole server
+ * in a user namespace, and the tmux server and agents with it, which takes
+ * their tmux sockets out of the `/tmp` an ssh login sees. No `RestrictNamespaces`
+ * either, because bwrap, which an agent's sandbox may be, makes a user
+ * namespace, and no `MemoryDenyWriteExecute`, which Node's JIT cannot run
+ * under. git, a PTY, tmux, bwrap and Node were checked under exactly this on
+ * Ubuntu 26.04 with systemd 259.
+ */
+const HARDENING = [
+  'UMask=0077',
+  'NoNewPrivileges=yes',
+  'RestrictSUIDSGID=yes',
+  'LockPersonality=yes',
+  'RestrictRealtime=yes',
+  'SystemCallArchitectures=native',
+  'SystemCallFilter=~@clock @cpu-emulation @module @obsolete @raw-io @reboot @swap',
+]
 
 /** The backup's two units: the one run, and the timer that runs it hourly. */
 export const BACKUP_SERVICE = 'tade-backup.service'
