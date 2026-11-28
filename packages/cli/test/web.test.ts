@@ -313,9 +313,9 @@ describe('tade web', () => {
         'pending',
       ])
       expect(written[0]).toMatchObject({ label: 'my phone' })
-      // A code says where it goes and what to call it, never what it may have.
-      expect(written[4]).not.toHaveProperty('scopes')
-      expect(written[4]).not.toHaveProperty('granted')
+      // A code carries the scopes and grants an older window's strict schema
+      // requires, and nothing here reads them (TADE-Y, older-window.test.ts).
+      expect(written[4]).toMatchObject({ host: 'tade.example.com' })
       const devices = await tade('web', 'devices')
       expect(devices.stdout).toContain(`a code from the terminal  ${String(got.device)}  unclaimed`)
       const status = JSON.parse((await tade('web', 'status', '--json')).stdout) as {
