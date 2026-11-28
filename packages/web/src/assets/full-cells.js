@@ -23,6 +23,8 @@
 //
 // Pure: no DOM, so a test imports it as the page does.
 
+import { JOINED, WIDTHS } from './full-widths.js'
+
 /** The ground and the ink where a cell paints neither: the pictures' own. */
 export const THEME = {
   background: '#1c1c1c',
@@ -142,37 +144,76 @@ export function paintOf(pen) {
   return { ink, ground }
 }
 
+/** The width `table` gives `point`, or `otherwise` where it gives none. */
+function lookUp(table, point, otherwise) {
+  let lo = 0
+  let hi = table.length / 3 - 1
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    if (point < table[mid * 3]) hi = mid - 1
+    else if (point > table[mid * 3 + 1]) lo = mid + 1
+    else return table[mid * 3 + 2]
+  }
+  return otherwise
+}
+
+/** How many cells one code point takes, alone: pi-tui's answer, from `full-widths.js`. */
+export function widthOfPoint(point) {
+  return lookUp(WIDTHS, point, 1)
+}
+
+// An emoji spelled in several code points — a selector, a keycap, a skin tone —
+// is two cells whatever its first one is alone, as pi-tui measures it. The
+// pattern is built rather than written, because a browser without the `v` flag
+// (iOS before 17) refuses a literal at parse time and the whole page with it;
+// such a browser measures by the first code point alone.
+const EMOJI = (() => {
+  try {
+    // biome-ignore lint/complexity/useRegexLiterals: a literal is a parse error where `v` is unknown.
+    return new RegExp('^\\p{RGI_Emoji}$', 'v')
+  } catch (err) {
+    if (err instanceof SyntaxError) return null
+    throw err
+  }
+})()
+
 /**
- * Whether a character takes two cells: the East Asian wide and full-width
- * blocks, and the pictographs, as a terminal lays them out. A span of one is
- * drawn two cells wide, so the row after it stays in its columns.
+ * How many cells a glyph takes: pi-tui's `visibleWidth`, as the window
+ * measured it when it drew the row — never less than one, as `terminal.ts`
+ * lays a picture out.
  */
-export function wide(char) {
-  const c = char.codePointAt(0) ?? 0
-  return (
-    (c >= 0x1100 && c <= 0x115f) ||
-    (c >= 0x2e80 && c <= 0x303e) ||
-    (c >= 0x3041 && c <= 0x33ff) ||
-    (c >= 0x3400 && c <= 0x4dbf) ||
-    (c >= 0x4e00 && c <= 0x9fff) ||
-    (c >= 0xa000 && c <= 0xa4cf) ||
-    (c >= 0xac00 && c <= 0xd7a3) ||
-    (c >= 0xf900 && c <= 0xfaff) ||
-    (c >= 0xfe30 && c <= 0xfe4f) ||
-    (c >= 0xff00 && c <= 0xff60) ||
-    (c >= 0xffe0 && c <= 0xffe6) ||
-    (c >= 0x1f300 && c <= 0x1f64f) ||
-    (c >= 0x1f900 && c <= 0x1f9ff) ||
-    (c >= 0x20000 && c <= 0x3fffd)
-  )
+export function widthOf(glyph) {
+  const point = glyph.codePointAt(0) ?? 0
+  const joined = glyph.length > (point > 0xffff ? 2 : 1)
+  const alone = Math.max(1, widthOfPoint(point))
+  if (!joined) return alone
+  if (EMOJI?.test(glyph)) return 2
+  return lookUp(JOINED, point, alone)
+}
+
+/**
+ * The glyph at `at`: its code point and whatever joins it — a mark, a joiner,
+ * a selector — as `terminal.ts`'s `clusterAt` takes one.
+ */
+export function glyphAt(row, at) {
+  let glyph = ''
+  for (const char of row.slice(at, at + 16)) {
+    if (
+      glyph !== '' &&
+      (char <= '\x1f' || char === '\x7f' || widthOfPoint(char.codePointAt(0) ?? 0) !== 0)
+    )
+      break
+    glyph += char
+  }
+  return glyph
 }
 
 const ESC = '\x1b'
 
 /**
  * One drawn row as runs: `{ text, ink, ground, bold, italic, underline, wide,
- * link }`, each the longest stretch with one paint. A wide character is a run
- * of its own, so the page can give it two cells.
+ * link }`, each the longest stretch with one paint. A wide glyph is a run of
+ * its own, so the page can give it two cells.
  */
 export function runsOf(row) {
   const runs = []
@@ -225,16 +266,18 @@ export function runsOf(row) {
       i += 2
       continue
     }
-    const point = row.codePointAt(i) ?? 0
-    const whole = String.fromCodePoint(point)
-    i += whole.length
-    if (point < 0x20 || point === 0x7f) continue
-    if (wide(whole)) {
-      flush()
-      runs.push(runOf(pen, link, whole, true))
+    if (char < ' ' || char === '\x7f') {
+      i++
       continue
     }
-    text += whole
+    const glyph = glyphAt(row, i)
+    i += glyph.length
+    if (widthOf(glyph) === 2) {
+      flush()
+      runs.push(runOf(pen, link, glyph, true))
+      continue
+    }
+    text += glyph
   }
   flush()
   return runs

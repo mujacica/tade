@@ -57,8 +57,15 @@ declare module '*/assets/full-cells.js' {
   export function colour256(n: number): string
   export function applySgr(pen: Pen, codes: readonly number[]): Pen
   export function paintOf(pen: Pen): { ink: string; ground: string | null }
-  export function wide(char: string): boolean
+  export function widthOfPoint(point: number): number
+  export function widthOf(glyph: string): number
+  export function glyphAt(row: string, at: number): string
   export function runsOf(row: string): Run[]
+}
+
+declare module '*/assets/full-widths.js' {
+  export const WIDTHS: readonly number[]
+  export const JOINED: readonly number[]
 }
 
 declare module '*/assets/full-keys.js' {
