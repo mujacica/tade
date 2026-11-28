@@ -177,7 +177,6 @@ const ALLOWED: Record<string, number> = {
   'packages/app/src/wire/web-factory.ts': 1,
   'packages/app/src/wire/web-push.ts': 2,
   'packages/app/src/wire/web-sessions.ts': 1,
-  'packages/app/src/wire/web-settings.ts': 1,
   'packages/app/src/wire/window.ts': 2,
   'packages/checks/core/src/ci.ts': 2,
   'packages/checks/core/src/coverage.ts': 1,
@@ -360,12 +359,10 @@ const ALLOWED: Record<string, number> = {
   'packages/web/src/assets/push.js': 6,
   'packages/web/src/assets/sw.js': 1,
   'packages/web/src/assets/switch.js': 1,
-  'packages/web/src/configured.ts': 1,
   // `held`: a line that is not JSON is skipped, as a journal's bad line is —
   // a ticket lost to it is refused like a run-out one, and a new link mints another.
   'packages/web/src/connect-tickets.ts': 1,
   'packages/web/src/devices.ts': 3,
-  'packages/web/src/drafted.ts': 1,
   'packages/web/src/drawn.ts': 1,
   'packages/web/src/endpoint.ts': 1,
   'packages/web/src/factory.ts': 1,

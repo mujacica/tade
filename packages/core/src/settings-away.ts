@@ -4,8 +4,6 @@ import {
   AWAY_IS_WHILE_OPEN,
   alwaysOpenHere,
   DEVICES_SEEN_BY_AGENTS,
-  DRAFTS_ARE_NOT_PUBLISHED,
-  DRAFTS_ARE_NOT_PUBLISHED_SHORT,
   INSTALLED_IS_NOT_REVOCABLE,
   LAN_IS_PLAINTEXT,
   LAST_VIEW_IS_A_COPY,
@@ -26,8 +24,6 @@ import {
   PUSH_SAYS_NOTHING,
   PUSH_SAYS_NOTHING_SHORT,
   passkeyHoursOf,
-  SETTINGS_FROM_AWAY,
-  SETTINGS_FROM_AWAY_SHORT,
 } from './away.ts'
 import type { Config } from './config.ts'
 import { TALKING_IS_NOT_YOU, TALKING_IS_NOT_YOU_SHORT } from './origin.ts'
@@ -244,44 +240,6 @@ export function awayGroup(config: Config, keptBy: string | null = null): Setting
         // read at every turn as well.
         live: true,
         keywords: ['ask', 'talk', 'chat', 'message', 'orchestrator', 'conversation', 'prompt'],
-      },
-      {
-        path: 'surfaces.web.drafts',
-        // A **fifth** decision, and a row of its own rather than a clause on
-        // Acting: Acting's verbs are about work that already exists, and this
-        // writes a file every future run of a workflow would be stamped from
-        // once somebody here publishes it. The sentence names what it cannot
-        // reach, because *bounded* is the word a comfortable version of it
-        // would keep while dropping the bound.
-        title: 'Save draft workflows',
-        section: DEVICE_MAY,
-        short: `fill in a drafted workflow a field at a time; ${DRAFTS_ARE_NOT_PUBLISHED_SHORT}`,
-        means: `on: a paired device can fill in one field at a time of a workflow that is already drafted; off: there is no route to save one. ${DRAFTS_ARE_NOT_PUBLISHED}`,
-        value: String(web.drafts),
-        fallback: 'true',
-        type: { kind: 'flag' },
-        // `true` the way `acting` is: the listener is built again, and off is
-        // read at every save as well.
-        live: true,
-        keywords: ['draft', 'drafts', 'workflow', 'template', 'designer', 'edit', 'form'],
-      },
-      {
-        path: 'surfaces.web.settings',
-        // A **tenth** decision, and a row of its own rather than a clause on
-        // Acting: Acting's verbs are about work, and this writes the config.
-        // The sentence is the list of what it reaches, because *only the
-        // harmless ones* is the word a comfortable version would keep.
-        title: 'Change settings',
-        section: DEVICE_MAY,
-        short: SETTINGS_FROM_AWAY_SHORT,
-        means: `on: a paired device can change any setting; off: there is no route to change one. ${SETTINGS_FROM_AWAY}`,
-        value: String(web.settings),
-        fallback: 'true',
-        type: { kind: 'flag' },
-        // `true` the way `acting` is: the listener is built again, and off is
-        // read at every change as well.
-        live: true,
-        keywords: ['settings', 'config', 'configure', 'setting', 'preferences'],
       },
       {
         path: 'surfaces.web.install',

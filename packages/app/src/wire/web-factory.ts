@@ -243,7 +243,6 @@ export async function wouldOf(
 export async function workflowsRead(
   home: string,
   runs: ReadonlyMap<string, number>,
-  drafting: boolean,
 ): Promise<WorkflowHeld[]> {
   const { templates } = await readTemplates(home)
   // The personas publishing would fold in — Tade's own and yours — read once,
@@ -285,10 +284,9 @@ export async function workflowsRead(
         ? { problems: [...draft.problems], warnings: [] }
         : checkedOf(template, personas)),
       runs: runs.get(one.name) ?? 0,
-      // A workflow Tade ships has its bytes in Tade's own source, so there is
-      // no draft to save and `writeDraft` refuses one by name — said here as a
-      // fact rather than discovered at the save.
-      editable: drafting && shows === 'draft' && !one.builtIn,
+      // No route saves a draft from away: a workflow is edited at the machine,
+      // or in the window's own panel drawn in the full view.
+      editable: false,
     })
   }
   return held

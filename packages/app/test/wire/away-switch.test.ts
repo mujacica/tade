@@ -68,7 +68,7 @@ describe('the away view, turned on from Settings', () => {
     await onTheAwayPage(await freePort())
     const page = screenOf(terminal.written).join('\n')
     expect(page).toContain('A PAIRED DEVICE MAY')
-    for (const name of ['Act', 'Talk to Tade', 'Save draft workflows', 'Get notifications']) {
+    for (const name of ['Act', 'Talk to Tade', 'Install the page', 'Get notifications']) {
       expect(page).toContain(name)
     }
     // The sentences each row used to be, and the ellipsis they were cut with.

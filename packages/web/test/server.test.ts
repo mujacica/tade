@@ -48,8 +48,6 @@ describe('nothing listens unless it is turned on', () => {
         passkeyMs: 0,
         acting: false,
         talking: false,
-        drafting: false,
-        configuring: false,
         installing: false,
         keepsView: false,
         pushing: false,

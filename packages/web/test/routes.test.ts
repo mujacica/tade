@@ -3,7 +3,6 @@ import {
   ACTS,
   ASKS,
   CONNECTS,
-  DRAFTS,
   HOOKS,
   LIFECYCLE,
   OWNED,
@@ -11,7 +10,6 @@ import {
   ROUTES,
   routeFor,
   routesFor,
-  SETTINGS,
   WINDOW,
 } from '../src/routes.ts'
 import { OFF, type Surface } from '../src/surface.ts'
@@ -134,16 +132,10 @@ describe('the shape of the table', () => {
       expect(paths, forbidden).not.toContain(forbidden)
   })
 
-  it('reads the settings with one GET, and writes none of them', () => {
-    // **The one read of the machine's own setup, and it used to be on the
-    // list above.** It came off it deliberately: a `GET` like every other
-    // read, the same for every device, with a key never in it
-    // (`settingsFor`). Nothing in this table writes one — that is
-    // `SETTINGS`, below, behind a setting of its own.
-    const reading = ROUTES.filter((route) => route.path.startsWith('/api/settings'))
-    expect(reading.map((route) => `${route.method} ${route.path}`)).toEqual(['GET /api/settings'])
-    expect(reading[0]?.mutates).toBe(false)
-    expect(reading[0]?.needs).toBe('read')
+  it('reads and writes no setting', () => {
+    // A phone reads and changes the settings in the window's own Settings,
+    // drawn in the full view, so no route here touches one.
+    expect(ROUTES.filter((route) => route.path.startsWith('/api/settings'))).toEqual([])
   })
 
   it('never lets a device revoke another: there is no route shaped to', () => {
@@ -164,13 +156,13 @@ describe('the shape of the table', () => {
 /** The full view's look: in every table, as the owner's and the connect tables are. */
 const LOOK = WINDOW.filter((route) => route.windows === 'look')
 
-describe('the five tables a setting turns on', () => {
+describe('the three tables a setting turns on', () => {
   it('puts nothing in the base table, so read-only stays an absence', () => {
-    // Each of the four is a second table `routesFor` adds only where its own
+    // Each of the three is a second table `routesFor` adds only where its own
     // setting says so, which is why `ROUTES` is still the list somebody checks
     // read-only against in forty lines.
     const paths = ROUTES.map((route) => route.path)
-    for (const route of [...ACTS, ...ASKS, ...DRAFTS, ...PUSHES, ...SETTINGS]) {
+    for (const route of [...ACTS, ...ASKS, ...PUSHES]) {
       expect(paths, route.path).not.toContain(route.path)
     }
   })
@@ -190,46 +182,19 @@ describe('the five tables a setting turns on', () => {
     expect(on({ acting: true })).toContain('/api/act/park')
     expect(on({ acting: true })).toContain('/api/window/act')
     expect(on({ talking: true })).not.toContain('/api/window/act')
-    expect(on({ acting: true })).not.toContain('/api/draft/save')
     expect(on({ talking: true })).toContain('/api/ask/ask')
-    expect(on({ talking: true })).not.toContain('/api/draft/save')
-    // The one this slice adds, and the asymmetry worth asserting: acting on
-    // still builds no path to save a draft.
-    expect(on({ drafting: true })).toContain('/api/draft/save')
-    expect(on({ drafting: true })).not.toContain('/api/act/park')
-    expect(on({ acting: true, talking: true })).not.toContain('/api/draft/save')
-    // The fourth, and the asymmetry worth asserting the other way round:
+    expect(on({ talking: true })).not.toContain('/api/act/park')
+    // The third, and the asymmetry worth asserting the other way round:
     // acting on builds no path to subscribe, and subscribing on none to act.
     expect(on({ pushing: true })).toContain('/api/notify/subscribe')
     expect(on({ pushing: true })).toContain('/api/notify/forget')
     expect(on({ pushing: true })).not.toContain('/api/act/park')
-    expect(on({ acting: true, talking: true, drafting: true })).not.toContain(
-      '/api/notify/subscribe',
-    )
-    // The fifth: changing a setting is its own switch, and every other one on
-    // at once still builds no path to it.
-    expect(on({ configuring: true })).toEqual([
-      ...ROUTES.map((route) => route.path),
-      '/api/settings/change',
-      ...LOOK.map((route) => route.path),
-      ...OWNED.map((route) => route.path),
-      ...CONNECTS.map((route) => route.path),
-    ])
-    expect(
-      on({ acting: true, talking: true, drafting: true, pushing: true, installing: true }),
-    ).not.toContain('/api/settings/change')
-  })
-
-  it('gives the changing route the configure kind, which nothing else is', () => {
-    // A table of its own behind a setting of its own, so nothing in the other
-    // four tables is it.
-    expect(SETTINGS.map((route) => `${route.method} ${route.path}`)).toEqual([
-      'POST /api/settings/change',
-    ])
-    for (const route of SETTINGS) expect(route.needs, route.path).toBe('configure')
-    for (const route of [...ROUTES, ...ACTS, ...ASKS, ...DRAFTS, ...PUSHES]) {
-      expect(route.needs, route.path).not.toBe('configure')
-    }
+    expect(on({ acting: true, talking: true })).not.toContain('/api/notify/subscribe')
+    // No setting builds a path to read or change a setting, or to save a draft:
+    // a phone does both in the window's own panels, in the full view.
+    const every = on({ acting: true, talking: true, pushing: true, installing: true })
+    expect(every.filter((path) => path.startsWith('/api/settings'))).toEqual([])
+    expect(every.filter((path) => path.startsWith('/api/draft'))).toEqual([])
   })
 
   it('needs no more than read to be told, which is the honest scope', () => {
@@ -249,7 +214,6 @@ describe('the five tables a setting turns on', () => {
       enabled: true,
       acting: true,
       talking: true,
-      drafting: true,
       pushing: true,
     })
     const paths = every.map((route) => route.path)
@@ -264,20 +228,12 @@ describe('the five tables a setting turns on', () => {
     }
   })
 
-  it('gives every saving route the draft scope, which no verb and no saying has', () => {
-    for (const route of DRAFTS) expect(route.needs, route.path).toBe('draft')
-    for (const route of [...ACTS, ...ASKS]) expect(route.needs, route.path).not.toBe('draft')
-  })
-
-  it('gives every route in the five tables exactly one of the five jobs', () => {
-    // A route reaches a `WebActing` method, a `WebAsking` one, a `WebDrafting`
-    // one, a `WebPushing` one or a `WebConfiguring` one, and never two: two
-    // would be a handler that had to choose, which is the shape `carryOut`
-    // answers with a `404`.
-    for (const route of [...ACTS, ...ASKS, ...DRAFTS, ...PUSHES, ...SETTINGS]) {
-      const jobs = [route.verb, route.says, route.saves, route.notifies, route.configures].filter(
-        (one) => one !== undefined,
-      )
+  it('gives every route in the three tables exactly one of the three jobs', () => {
+    // A route reaches a `WebActing` method, a `WebAsking` one or a `WebPushing`
+    // one, and never two: two would be a handler that had to choose, which is
+    // the shape `carryOut` answers with a `404`.
+    for (const route of [...ACTS, ...ASKS, ...PUSHES]) {
+      const jobs = [route.verb, route.says, route.notifies].filter((one) => one !== undefined)
       expect(jobs, route.path).toHaveLength(1)
       expect(route.method, route.path).toBe('POST')
       expect(route.mutates, route.path).toBe(true)
@@ -297,9 +253,7 @@ describe('the five tables a setting turns on', () => {
       enabled: true,
       acting: true,
       talking: true,
-      drafting: true,
       pushing: true,
-      configuring: true,
     })
     const paths = every.map((route) => route.path)
     for (const forbidden of [
@@ -323,15 +277,9 @@ describe('the five tables a setting turns on', () => {
     const accounts = every.find((one) => one.path === '/api/accounts')
     expect(OWNED).toContain(accounts)
     expect(accounts).toMatchObject({ here: true })
-    // **Everything under `/api/settings` with every capability on**: one read
-    // and one change, and the change is the one that reaches `settingReach`'s
-    // `open` tier and nothing else (`test/configured.test.ts` runs the tiers).
-    expect(
-      every
-        .filter((route) => route.path.startsWith('/api/settings'))
-        .map((route) => `${route.method} ${route.path}`)
-        .sort(),
-    ).toEqual(['GET /api/settings', 'POST /api/settings/change'])
+    // **Nothing under `/api/settings` with every capability on**: a phone
+    // changes a setting in the window's own Settings, in the full view.
+    expect(every.filter((route) => route.path.startsWith('/api/settings'))).toEqual([])
   })
 })
 
@@ -356,7 +304,7 @@ describe('the doorbells', () => {
       expect(route.needs, route.path).toBe('read')
       expect(route.opens, route.path).toBeUndefined()
       expect(route.here, route.path).toBeUndefined()
-      const jobs = [route.verb, route.says, route.saves, route.notifies, route.configures]
+      const jobs = [route.verb, route.says, route.notifies]
       expect(
         jobs.filter((one) => one !== undefined),
         route.path,
@@ -364,15 +312,7 @@ describe('the doorbells', () => {
       expect(route.path.split('/').at(-1), route.path).toBe(route.rings)
     }
     // And no other table has a route that rings, so no other door is one.
-    for (const route of [
-      ...ROUTES,
-      ...ACTS,
-      ...ASKS,
-      ...DRAFTS,
-      ...PUSHES,
-      ...SETTINGS,
-      ...OWNED,
-    ]) {
+    for (const route of [...ROUTES, ...ACTS, ...ASKS, ...PUSHES, ...OWNED]) {
       expect(route.rings, route.path).toBeUndefined()
     }
   })
@@ -438,7 +378,7 @@ describe('the owner’s table', () => {
       expect(route.here, route.path).toBe(true)
       expect(route.mutates, route.path).toBe(true)
       expect(route.public, route.path).toBeUndefined()
-      const jobs = [route.verb, route.says, route.saves, route.notifies, route.configures]
+      const jobs = [route.verb, route.says, route.notifies]
       expect(
         jobs.filter((one) => one !== undefined),
         route.path,
@@ -481,7 +421,7 @@ describe('the connect pages', () => {
       expect(route.public, route.path).toBeUndefined()
       expect(route.opens, route.path).toBeUndefined()
       expect(route.rings, route.path).toBeUndefined()
-      const jobs = [route.verb, route.says, route.saves, route.notifies, route.configures]
+      const jobs = [route.verb, route.says, route.notifies]
       expect(
         jobs.filter((one) => one !== undefined),
         route.path,
@@ -495,15 +435,7 @@ describe('the connect pages', () => {
       }
     }
     // And no other table has a route that connects anything.
-    for (const route of [
-      ...ROUTES,
-      ...ACTS,
-      ...ASKS,
-      ...DRAFTS,
-      ...PUSHES,
-      ...SETTINGS,
-      ...OWNED,
-    ]) {
+    for (const route of [...ROUTES, ...ACTS, ...ASKS, ...PUSHES, ...OWNED]) {
       expect(route.connects, route.path).toBeUndefined()
     }
   })

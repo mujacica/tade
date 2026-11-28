@@ -154,10 +154,8 @@ export function actsOf(session) {
   return {
     steer: acts,
     ask: acts,
-    draft: acts,
     agents: acts,
     projects: acts,
-    configure: acts,
   }
 }
 
@@ -179,63 +177,6 @@ export function askBody(talk, key, rev, said) {
 /** What stopping the turn sends: the same four fields, minus the words. */
 export function stopBody(talk, key, rev) {
   return { was: talk?.rev ?? '', key, rev }
-}
-
-/**
- * What one save of a draft field sends.
- *
- * `was` is the **draft's** own revision — its content hash, as the screen was
- * drawn against it — so a save from a form drawn before somebody else edited
- * the same draft is a `409` that redraws the truth rather than a write that
- * silently loses theirs. The scope is the step's **name** and not its
- * position: a position moves when a step is added, and a save against one
- * would write the right field of the wrong agent.
- */
-export function draftBody(row, part, field, value, key, rev) {
-  return {
-    template: row?.name ?? '',
-    was: row?.rev ?? '',
-    scope: part,
-    field,
-    value,
-    key,
-    rev,
-  }
-}
-
-/**
- * Whether a draft field may be saved from here, and why not where it may not.
- *
- * Four answers in one place, because a form that asked them separately is a
- * form where one of them gets forgotten:
- *
- * - the device cannot act (paired in the clear) — **nothing is drawn**, not
- *   even a reason;
- * - the workflow itself cannot be saved from away (`editable`): it is one Tade
- *   ships, there is no draft, or the setting is off;
- * - the field says it cannot be changed here (`off`), which is the template's
- *   own rule and beats anything this device may do;
- * - it can.
- */
-export function savingOf(row, field, acts) {
-  if (acts?.draft !== true) return { kind: 'off', why: '' }
-  if (row?.editable !== true || row?.rev === null || row?.rev === undefined) {
-    return { kind: 'no', why: whyNotSave(row) }
-  }
-  if (field?.off !== null && field?.off !== undefined && field.off !== '') {
-    return { kind: 'no', why: field.off }
-  }
-  return { kind: 'yes', why: '' }
-}
-
-/** Why this workflow cannot be saved from away, in the row's own terms. */
-function whyNotSave(row) {
-  if (row === null || row === undefined) return 'there is no workflow here to save'
-  if (row.builtIn) return 'Tade ships this one: its bytes are in Tade’s own source'
-  if (row.shows !== 'draft') {
-    return 'there is no draft: a published version is a snapshot nothing may change'
-  }
-  return 'saving a draft from a device is turned off at the machine'
 }
 
 /**
@@ -463,66 +404,5 @@ export function headingFor(verb) {
 export function howSaid(how) {
   if (how === 'next-turn') return 'when its turn ends'
   if (how === 'restart') return 'by starting it again, keeping the conversation'
-  return ''
-}
-
-/* ── the settings (`settings.js` draws them) ───────────────────────────────── */
-
-/** Where the settings are read, and where one is changed. */
-export const SETTINGS_PATH = '/api/settings'
-export const CHANGE_PATH = '/api/settings/change'
-
-/**
- * One row's standing for this device: whether to draw a control, and what to
- * say where not.
- *
- * - `off` — this device cannot act (paired in the clear). No control and no
- *   reason: the value is still drawn.
- * - `no` — this setting is changed at the machine; the row's own `why` is
- *   drawn.
- * - `yes` — a control.
- */
-export function settingStanding(row, acts) {
-  if (acts?.configure !== true) return { kind: 'off', why: '' }
-  if (row?.may !== 'change' || row?.was === null || row?.was === undefined) {
-    return { kind: 'no', why: row?.why ?? '' }
-  }
-  return { kind: 'yes', why: '' }
-}
-
-/**
- * What one change sends: the path, the value the screen was drawn with, the
- * new value, and the two fields every act carries.
- *
- * **A row that holds a key sends nothing but a clear**, whatever was typed:
- * the page was never shown the key, so it can never have meant to set one, and
- * the machine refuses anything else for it too. The one exception is a key row
- * the machine says may be set (`sets`), which sends what was typed into its
- * box — never anything it was shown.
- */
-export function changeBody(row, value, key, rev) {
-  const credential = row?.held !== null && row?.held !== undefined
-  return {
-    path: row?.path ?? '',
-    was: row?.was ?? '',
-    value: !credential || row?.sets === true ? value : '',
-    confirm: true,
-    key,
-    rev,
-  }
-}
-
-/** What a row's value is, in words: the value, whether a key is held, or the fallback. */
-export function shownOf(row) {
-  if (row === null || row === undefined) return '—'
-  if (row.held !== null && row.held !== undefined) return row.held
-  if (row.shown !== '') return row.shown
-  return row.fallback === '' ? 'nothing set' : `nothing set — ${row.fallback}`
-}
-
-/** What a page that has not been answered yet, or was answered with none, says instead. */
-export function settingsSaid(answer) {
-  if (answer === null) return 'asking…'
-  if (!Array.isArray(answer.groups) || answer.groups.length === 0) return 'no settings here'
   return ''
 }

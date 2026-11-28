@@ -15,26 +15,23 @@ import { type ActingDeps, webActing } from './web-acting.ts'
 import { agentActing } from './web-agent.ts'
 import { type Talking, webAsking } from './web-asking.ts'
 import { steeringFor } from './web-beat.ts'
-import { webDrafting } from './web-drafting.ts'
 import { type Lifecycle, lifecycleActing, projectSeen } from './web-lifecycle.ts'
-import { type ConfiguringDeps, webConfiguring } from './web-settings.ts'
 
-// The five halves of the away view the window hands over, and the one rule
-// they share.
+// The halves of the away view the window hands over, and the one rule they
+// share.
 //
 // **Each is handed over only where its own setting says so, and absence is the
 // enforcement.** With a setting off there is no interface and no route: a
 // crafted call meets the same `404` as a path nobody built, rather than a `403`
 // naming a setting — because an off capability is not a thing to probe. And
-// each one's `unlocked()` is read again at every act, every turn and every
-// save, so turning a setting **off** takes authority away at the very next one,
+// each one's `unlocked()` is read again at every act and every turn, so turning a setting **off** takes authority away at the very next one,
 // even while the listener is being built again with the new table
 // (`web-follow.ts`) — which is also how turning one **on** gets its routes.
 //
 // **Its own file so the rule above is written once**, and so `web.ts`'s `open`
 // reads as the listener coming up rather than as three nested conditionals.
-// What each half does is `web-acting.ts`, `web-asking.ts` and
-// `web-drafting.ts`; what is here is which of them exist.
+// What each half does is `web-acting.ts`, `web-asking.ts` and `web-push.ts`;
+// what is here is which of them exist.
 
 /** What the three halves need of the window. Accessors, every one of them. */
 export interface Halving {
@@ -56,8 +53,6 @@ export interface Halving {
   devices: () => readonly Device[]
   conversation: () => { busy: boolean; whose: string }
   talk: Talking
-  /** A draft was saved, so whatever folds the templates reads them again. */
-  saved: () => void
   /**
    * What a device may ask about being told, and the public key to subscribe
    * with.
@@ -68,8 +63,6 @@ export interface Halving {
    * `WebPush` in `web-push.ts` is it; what is here is which halves exist.
    */
   notifications: () => { half: WebPushing; key: () => string }
-  /** The settings and the one door they are written by, for a change from away. */
-  settings: Pick<ConfiguringDeps, 'rows' | 'known' | 'write'>
   now: () => number
 }
 
@@ -111,24 +104,7 @@ export function halvesFor(surface: Surface, deps: Halving): Partial<ServerOption
           }),
         }
       : {}),
-    // **Handed over only where the setting says so**, like the other two: with
-    // drafting off there is no `WebDrafting` and no saving route, so a
-    // crafted call is the `404` of a path nobody built.
-    // `unlocked()` is read again at every save.
-    ...(surface.drafting
-      ? {
-          drafting: webDrafting({
-            home: deps.home,
-            drafting: () => surfaceOf(deps.config().surfaces.web).drafting,
-            // A save lands in a file, and a file edit writes no journal
-            // line — so the fold that reads the templates is told rather
-            // than left to find out on its own clock.
-            saved: () => deps.saved(),
-            now: () => deps.now(),
-          }),
-        }
-      : {}),
-    // **Handed over only where the setting says so**, like the other three.
+    // **Handed over only where the setting says so**, like the other two.
     // The asymmetry is smaller here and is said that way in the setting's own
     // words: the route table waits for a restart as usual, but what *sends* a
     // notification reads the setting on every beat — so turning it off stops
@@ -137,19 +113,6 @@ export function halvesFor(surface: Surface, deps: Halving): Partial<ServerOption
     // `vapid` goes with it and never without it: a page told a public key by a
     // listener with no notifying half would draw a control with no route
     // behind it.
-    // **Handed over only where the setting says so**, like the other four: with
-    // changing off there is no `WebConfiguring` and no changing route, so a
-    // crafted call is the `404` of a path nobody built. `unlocked()` is read
-    // again at every change, and the device record again at the write.
-    ...(surface.configuring
-      ? {
-          configuring: webConfiguring({
-            ...deps.settings,
-            configuring: () => surfaceOf(deps.config().surfaces.web).configuring,
-            devices: () => deps.devices(),
-          }),
-        }
-      : {}),
     ...(surface.pushing
       ? (() => {
           const notifications = deps.notifications()

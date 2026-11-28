@@ -118,32 +118,9 @@ export interface Surface {
    */
   talking: boolean
   /**
-   * Whether a paired device may save a field of a draft workflow.
-   *
-   * **Read twice like `acting` and `talking`, and for the same two reasons**:
-   * at start-up it decides whether the saving route is in the table at all
-   * (`routesFor`), and at every save it is read again so turning it off takes
-   * authority away now. It is a *fifth* decision and not a reading of either:
-   * a verb is about work that exists, a message is free text to a model, and
-   * this writes a file every future run of a workflow would be stamped from
-   * once somebody at the machine publishes it.
-   */
-  drafting: boolean
-  /**
-   * Whether a paired device may change a setting.
-   *
-   * **Read twice like the three above, and for the same two reasons**: at
-   * start-up it decides whether the changing route is in the table at all
-   * (`routesFor`), and at every change it is read again so turning it off
-   * takes authority away now. A *sixth* decision and not a reading of any of
-   * them: it writes the config, and what it may write is `settingReach`'s
-   * `open` tier and nothing else (`configuring.ts` has why).
-   */
-  configuring: boolean
-  /**
    * Whether a device may install the shell and open it with nothing to ask.
    *
-   * **Read twice like the three above, and the second reading is the one that
+   * **Read twice like the two above, and the second reading is the one that
    * can take it away.** At start-up it decides what `/sw.js` answers with: the
    * worker that precaches the shell, or the one that removes itself. There is
    * no third answer and in particular no `404`, because a `404` on a worker's
@@ -202,8 +179,6 @@ export interface WebConfig {
   passkey_hours: number
   acting: boolean
   orchestrator: boolean
-  drafts: boolean
-  settings: boolean
   install: boolean
   offline: boolean
   push: boolean
@@ -220,8 +195,6 @@ export const OFF: Surface = {
   passkeyMs: 0,
   acting: false,
   talking: false,
-  drafting: false,
-  configuring: false,
   installing: false,
   keepsView: false,
   pushing: false,
@@ -249,8 +222,6 @@ export function surfaceOf(web: WebConfig): Surface {
     passkeyMs: web.enabled ? passkeyHoursOf(web.passkey_hours) * 3_600_000 : 0,
     acting: web.enabled && web.acting,
     talking: web.enabled && web.orchestrator,
-    drafting: web.enabled && web.drafts,
-    configuring: web.enabled && web.settings,
     installing: web.enabled && web.install,
     // Two keys deep, because a view kept on a phone's disk is read by the
     // shell on that phone and there is no shell without the first one.
@@ -352,12 +323,11 @@ export function trusted(origin: Origin, surface: Surface = OFF): boolean {
  * (`trusted`), a session that was not paired in the clear (`Device.clear`)
  * and, from the public listener, a passkey proved lately (`proven`) — and
  * which table a setting builds it in: `steer`, `agents` and `projects` are
- * `ACTS` (`surfaces.web.acting`), `ask` is `ASKS` (`orchestrator`), `draft` is
- * `DRAFTS` (`drafts`) and `configure` is `SETTINGS` (`settings`). A route's
+ * `ACTS` (`surfaces.web.acting`) and `ask` is `ASKS` (`orchestrator`). A route's
  * kind is declared in the route table (`routes.ts`), and `test/routes.test.ts`
  * asserts no route in `ROUTES` is more than `read`.
  */
-export const SCOPES = ['read', 'steer', 'ask', 'draft', 'agents', 'projects', 'configure'] as const
+export const SCOPES = ['read', 'steer', 'ask', 'agents', 'projects'] as const
 export type Scope = (typeof SCOPES)[number]
 
 /** Whether a host is this machine, in any of its three spellings. */

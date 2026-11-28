@@ -84,8 +84,6 @@ describe('the door, for a route that is the SSH key’s', () => {
     passkeyMs: 12 * HOUR,
     acting: true,
     talking: false,
-    drafting: false,
-    configuring: false,
     installing: false,
     keepsView: false,
     pushing: false,

@@ -547,7 +547,6 @@ describe('the shape of the rule', () => {
       'surfaces.intake.sources.slack.reply',
       'surfaces.web.acting',
       'surfaces.web.bind',
-      'surfaces.web.drafts',
       'surfaces.web.enabled',
       // `install` and `offline` were here, by the subtree alone, and are not:
       // neither grants a device anything — one puts the static page on a phone
@@ -568,10 +567,6 @@ describe('the shape of the rule', () => {
       'surfaces.web.push',
       'surfaces.web.push_details',
       'surfaces.web.push_key',
-      // Whether a device may change a setting at all is, itself, a setting no
-      // words reach: the subtree again, and the one key in it a page would most
-      // like to turn on.
-      'surfaces.web.settings',
       'surfaces.web.trusted_hosts',
       'telemetry.dsn',
     ])
@@ -624,8 +619,6 @@ describe('what the person’s own words reach under intake and the away view', (
       'passkey_hours',
       'acting',
       'orchestrator',
-      'drafts',
-      'settings',
       'push',
       'push_details',
       'push_key',
@@ -673,8 +666,6 @@ describe('what the person’s own words reach under intake and the away view', (
       'surfaces.web.push_key': 'never',
       'surfaces.web.acting': 'never',
       'surfaces.web.orchestrator': 'never',
-      'surfaces.web.drafts': 'never',
-      'surfaces.web.settings': 'never',
       'surfaces.web.install': 'asked',
       'surfaces.web.offline': 'asked',
       'surfaces.web.push': 'never',

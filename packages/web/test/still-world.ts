@@ -1,6 +1,6 @@
 import type { World } from '../scripts/still.ts'
 import type { Device } from '../src/devices.ts'
-import { agentHeld, input, NOW, settingRows } from './fixtures.ts'
+import { agentHeld, input, NOW } from './fixtures.ts'
 
 // A world for `still.test.ts` to draw, out of this package's own fixtures:
 // one paired device, which is the person's own. A module of its own
@@ -26,5 +26,4 @@ export const TEST_WORLD: World = {
   devices: [DEVICE],
   input: (reach) => input({ reach }),
   agent: () => agentHeld(),
-  settings: () => ({ groups: settingRows(), known: [] }),
 }

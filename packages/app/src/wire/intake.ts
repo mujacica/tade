@@ -343,18 +343,14 @@ export class Intake implements Subject {
    * and a file edit writes no journal line — so there is no signal to refold
    * on. A slow clock rather than a watcher on a directory, which would be a
    * second lifetime to get wrong for a page that is already a few seconds
-   * behind by design. `markStale` is how a save from away is seen at once.
+   * behind by design.
    */
   private async readWorkflows(): Promise<void> {
     const now = this.wire.now()
     if (this.reading !== null) return this.reading
     if (this.readAt > 0 && now - this.readAt < TEMPLATES_EVERY) return
     this.readAt = now
-    this.reading = workflowsRead(
-      this.wire.opts.client.home,
-      this.runsPerWorkflow(),
-      this.wire.opts.config.surfaces.web.drafts,
-    )
+    this.reading = workflowsRead(this.wire.opts.client.home, this.runsPerWorkflow())
       .then((held) => {
         this.stored = held
       })
@@ -392,12 +388,6 @@ export class Intake implements Subject {
   /** The floor, for whoever hands it to the away view. */
   factory(): FactoryHeld {
     return this.floor
-  }
-
-  /** A save from away: the templates are read again on the next fold. */
-  markStale(): void {
-    this.readAt = 0
-    this.folded = -1
   }
 
   /**

@@ -509,7 +509,7 @@ export function whoChanged(detail: Readonly<Record<string, unknown>> | undefined
 /**
  * Who is the person, as a line says who changed something: the window's own
  * Settings, a terminal's `tade config`, an edit to the file found by a carry,
- * and a paired device, every one of which is theirs (`web-settings.ts`). Never `orchestrator`, never Tade itself, never a
+ * and a paired device, every one of which is theirs. Never `orchestrator`, never Tade itself, never a
  * line that does not say.
  */
 const THE_PERSON: ReadonlySet<string> = new Set(['window', 'you', 'cli', 'file'])

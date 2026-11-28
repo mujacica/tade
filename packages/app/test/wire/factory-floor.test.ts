@@ -15,7 +15,6 @@ import {
   paired,
   parkedIn,
   projectionOf,
-  save,
   waitFor,
 } from './away-harness.ts'
 import { delivered } from './away-intake.ts'
@@ -127,7 +126,7 @@ async function foldOf(one: Machine): Promise<FactoryHeld> {
         watches: [CLI_WATCH],
       }),
     ),
-    workflows: workflowsIn(await workflowsRead(one.home, new Map(), false)),
+    workflows: workflowsIn(await workflowsRead(one.home, new Map())),
     runFrom: new Map(),
   }
 }
@@ -408,14 +407,14 @@ describe('the workflows, and what has no route at all', () => {
     // tell you anything useful about.
     expect(mine?.places.map((place) => place.depth)).toEqual([0, 1])
     expect(mine?.places[1]?.why[0]?.why).toContain('failing test first')
-    // Never published here, and never editable: the setting is off in this
-    // fixture, and publishing has no route at all.
+    // Never published here, and never editable: no route saves a draft from
+    // away, and publishing has no route at all.
     expect(mine?.versions).toEqual([])
     expect(mine?.editable).toBe(false)
     expect(mine?.locally.map((each) => each.act)).toContain('publish')
   })
 
-  it('never serves a setting, a grant, a publish or a draft while they are off', async () => {
+  it('never serves a setting, a grant or a publish', async () => {
     // The absences, asked of a running listener rather than of the table: each
     // is an act at the machine, and a path that is not in the table is a `404`
     // that tells whoever is probing nothing either way.
@@ -423,11 +422,6 @@ describe('the workflows, and what has no route at all', () => {
     await paired(one.home, one.port)
     for (const name of ['settings', 'config', 'grant', 'publish', 'templates']) {
       const answer = await act(one.port, name, {})
-      expect(answer.status, name).toBe(404)
-    }
-    // And the saving table, which is off in this fixture: a path nobody built.
-    for (const name of ['save', 'publish']) {
-      const answer = await save(one.port, name, {})
       expect(answer.status, name).toBe(404)
     }
   })

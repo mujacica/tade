@@ -1,6 +1,4 @@
-import type { SettingGroup } from '@tade/core'
 import { AGENT, type AgentIn, agentOf } from './agent.ts'
-import { type SettingsOut, settingsFor } from './configuring.ts'
 import { revise, tick } from './delta.ts'
 import {
   type EvaluationsFor,
@@ -87,18 +85,10 @@ export interface WebReading {
    */
   agent(task: string, seen?: string | null): AgentOut
   /**
-   * What Tade is set up with, as this device may read it.
-   *
-   * Its own call rather than a field on the snapshot: settings change when somebody
-   * changes one, and a phone is not sent forty rows of them twice a second
-   * for a page nobody has open. A key is never in it (`settingsFor`).
-   */
-  settings(): SettingsOut
-  /**
    * The scorecards and the judge's calibration, as this device may read them.
    *
-   * Its own call for the reason `settings` is — it moves when work finishes,
-   * and nobody needs four tables of it twice a second — and one more: a
+   * Its own call rather than a field on the snapshot — it moves when work
+   * finishes, and nobody needs four tables of it twice a second — and one more: a
    * scorecard is a sum, so it is folded over the projects this device reads
    * rather than filtered afterwards (`evaluations.ts`). Money is behind
    * `spend` and what the judge said behind `findings`.
@@ -141,13 +131,6 @@ export interface ProjectorOptions {
    * signal to go on looking at that lane, which only the window can act on.
    */
   agent?: (task: string) => AgentIn | null
-  /**
-   * The settings, as the window lists them, and every key it knows of.
-   *
-   * A function for the reason `agent` is: asked at the moment a device asks,
-   * out of what the window already holds.
-   */
-  settings?: () => { groups: readonly SettingGroup[]; known: readonly string[] }
   /** The scorecards over the projects named, out of what the window already holds. */
   evaluations?: EvaluationsFor
   /** Every race over the projects named, out of what the window already holds. */
@@ -185,10 +168,6 @@ export function projector(
     },
     agent(task: string, seen: string | null = null): AgentOut {
       return agentOf(input.tasks, task, opts.agent?.(task) ?? null, AGENT, seen)
-    },
-    settings(): SettingsOut {
-      const held = opts.settings?.() ?? { groups: [], known: [] }
-      return settingsFor(held.groups, held.known)
     },
     evaluations(): EvaluationsOut {
       return evaluationsFor(opts.evaluations, opts.races)

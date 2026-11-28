@@ -1,6 +1,5 @@
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import type { SettingGroup } from '@tade/core'
 import type { AgentIn } from '../src/agent.ts'
 import type { Device } from '../src/devices.ts'
 import type { SnapshotInput } from '../src/input.ts'
@@ -66,7 +65,6 @@ export interface World {
   devices: readonly Device[]
   input: (reach: Reach) => SnapshotInput
   agent: (task: string) => AgentIn | null
-  settings: () => { groups: SettingGroup[]; known: string[] }
 }
 
 /** What one screen looked like: the frame's two outer elements' classes, and its body. */

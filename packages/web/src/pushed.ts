@@ -18,8 +18,8 @@ import { trusted } from './surface.ts'
 // and what the journal is told — and **no sockets at all**, like its three
 // siblings.
 //
-// It reads like `drafted.ts` with one step missing, and the missing step is
-// the thing worth reading this file for.
+// It reads like `acted.ts` with one step missing, and the missing step is the
+// thing worth reading this file for.
 //
 // 1. **The body is parsed by a strict schema.** A field nobody declared fails
 //    the parse, and the two keys are checked at their **decoded** lengths —
@@ -142,8 +142,8 @@ export function readForget(body: unknown): ReadingPush {
 /**
  * The two things a device may ask for, by the name in the path.
  *
- * The keys are the method names on `WebPushing`, exactly as `SAVINGS`'s key is
- * `save`, so `test/separation.test.ts` can hold the interface and the table
+ * The keys are the method names on `WebPushing`, so
+ * `test/separation.test.ts` can hold the interface and the table
  * equal in both directions.
  */
 export const PUSHINGS: Readonly<Record<string, (body: unknown) => ReadingPush>> = {

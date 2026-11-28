@@ -775,7 +775,7 @@ describe('the Away page', () => {
   it('names each row in a few words, so nothing on the page is cut', () => {
     // The page cuts a name past half its width with an ellipsis, and eight
     // rows that each began *Let a paired device* were cut on every terminal.
-    expect(rows.length).toBe(15)
+    expect(rows.length).toBe(13)
     for (const one of rows) {
       expect(one.title.length, one.path).toBeLessThanOrEqual(24)
       expect(one.title, one.path).not.toMatch(/^Let a/)
@@ -786,8 +786,6 @@ describe('the Away page', () => {
     expect(rows.filter((one) => one.section === DEVICE_MAY).map((one) => one.path)).toEqual([
       'surfaces.web.acting',
       'surfaces.web.orchestrator',
-      'surfaces.web.drafts',
-      'surfaces.web.settings',
       'surfaces.web.install',
       'surfaces.web.offline',
       'surfaces.web.push',

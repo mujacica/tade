@@ -6,8 +6,6 @@ import {
   afterAnswer,
   asksFor,
   bodyFor,
-  CHANGE_PATH,
-  changeBody,
   confirms,
   controlsFor,
   headingFor,
@@ -16,18 +14,12 @@ import {
   NEEDS,
   PROJECT_SHOWN,
   QUEUE_ASKS,
-  SETTINGS_PATH,
   SHOWN,
-  settingStanding,
-  settingsSaid,
-  shownOf,
   standingOf,
   wordsFor,
 } from '../src/assets/acts.js'
 import { draftStore, reasonFor, saidOn, whoSaid } from '../src/assets/talk.js'
-import { readSettingChange } from '../src/configured.ts'
 import { ERRORS } from '../src/errors.ts'
-import { ROUTES, SETTINGS } from '../src/routes.ts'
 import { VERBS, verbFor } from '../src/verbs.ts'
 import { task } from './fixtures.ts'
 
@@ -145,10 +137,8 @@ describe('what this device may draw', () => {
     const all = {
       steer: true,
       ask: true,
-      draft: true,
       agents: true,
       projects: true,
-      configure: true,
     }
     expect(actsOf({ device: 'dev_7f3a9c21' })).toEqual(all)
     expect(actsOf({ device: 'dev_7f3a9c21', clear: false })).toEqual(all)
@@ -160,10 +150,8 @@ describe('what this device may draw', () => {
     const none = {
       steer: false,
       ask: false,
-      draft: false,
       agents: false,
       projects: false,
-      configure: false,
     }
     for (const session of [null, undefined, { device: 'dev_7f3a9c21', clear: true }]) {
       expect(actsOf(session), JSON.stringify(session)).toEqual(none)
@@ -535,85 +523,5 @@ describe('the conversation screen', () => {
     // `undefined` where a string is read.
     draft.set(undefined)
     expect(draft.get()).toBe('')
-  })
-})
-
-describe('the settings, as the page draws them', () => {
-  const OPEN = {
-    path: 'surfaces.window.editor',
-    title: 'Editor',
-    scope: null,
-    means: 'what a file opens in',
-    shown: 'code',
-    fallback: 'your $EDITOR',
-    held: null,
-    kind: 'choice',
-    options: ['code', 'zed', 'vim'],
-    live: true,
-    may: 'change',
-    why: '',
-    was: 'code',
-  }
-  const KEYED = {
-    ...OPEN,
-    path: 'extensions.jev.key',
-    title: 'Jev API key',
-    shown: '',
-    held: 'set',
-    may: 'machine',
-    why: 'a key is changed at this machine, and is never shown here',
-    was: null,
-  }
-
-  it('asks the paths the machine serves', () => {
-    expect(ROUTES.some((route) => route.method === 'GET' && route.path === SETTINGS_PATH)).toBe(
-      true,
-    )
-    expect(SETTINGS.map((route) => route.path)).toEqual([CHANGE_PATH])
-  })
-
-  it('draws no control and no reason for a device that cannot act', () => {
-    expect(settingStanding(OPEN, { configure: false })).toEqual({ kind: 'off', why: '' })
-    expect(settingStanding(OPEN, null)).toEqual({ kind: 'off', why: '' })
-    expect(settingStanding(KEYED, {})).toEqual({ kind: 'off', why: '' })
-  })
-
-  it('draws the row’s own reason where it is changed at the machine', () => {
-    expect(settingStanding(KEYED, { configure: true })).toEqual({ kind: 'no', why: KEYED.why })
-    // A row that says it may be changed but echoes nothing is not one the page
-    // can send: absent, which is the safe direction.
-    expect(settingStanding({ ...OPEN, was: null }, { configure: true }).kind).toBe('no')
-    expect(settingStanding(OPEN, { configure: true })).toEqual({ kind: 'yes', why: '' })
-  })
-
-  it('sends a body the machine reads as one change, with the value it was shown', () => {
-    const body = changeBody(OPEN, 'zed', 'abcdefgh12345678', 7)
-    expect(body).toEqual({
-      path: 'surfaces.window.editor',
-      was: 'code',
-      value: 'zed',
-      confirm: true,
-      key: 'abcdefgh12345678',
-      rev: 7,
-    })
-    // **The page's copy and the machine's reader agree**, which is the only
-    // way a two-file rule stays one rule.
-    expect(readSettingChange(body).ok).toBe(true)
-  })
-
-  it('sends nothing but a clear for a row that holds a key, whatever was typed', () => {
-    expect(changeBody(KEYED, 'sk-pasted-over-the-top', 'abcdefgh12345678', 1).value).toBe('')
-  })
-
-  it('says a key as whether it is held, and nothing set with what that means', () => {
-    expect(shownOf(KEYED)).toBe('set')
-    expect(shownOf(OPEN)).toBe('code')
-    expect(shownOf({ ...OPEN, shown: '' })).toBe('nothing set — your $EDITOR')
-    expect(shownOf({ ...OPEN, shown: '', fallback: '' })).toBe('nothing set')
-  })
-
-  it('says nothing here, and nothing at all where there are settings', () => {
-    expect(settingsSaid({ groups: [] })).toBe('no settings here')
-    expect(settingsSaid({ groups: [{ id: 'a', title: 'A', settings: [] }] })).toBe('')
   })
 })

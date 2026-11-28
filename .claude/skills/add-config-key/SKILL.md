@@ -143,9 +143,9 @@ Three answers and no fourth:
   costs. The shape of that argument is the one to copy: it is reach over a *setting* and never over
   an act, the act stays behind whatever already gates it (`approvals`), and the residual risk is
   named rather than left for somebody to find. A key only belongs here on the person's own say-so.
-  **Every tier is what a paired phone may change** where `surfaces.web.settings` is on
-  (`packages/web/src/configuring.ts`): every paired device is the person's own, so a key is
-  reachable from away the day it is added, a key included (set, never shown).
+  **Every tier is what a paired phone may change**, in the window's own Settings drawn in the full
+  view: every paired device is the person's own, so a key is reachable from away the day it is
+  added, a key included (set, never shown).
 
 **Which account new agents run as is a default too, among the accounts that exist.**
 `workers.accounts.<harness>` (the machine's) and `projects.<name>.accounts.<harness>` (one
@@ -460,8 +460,8 @@ A key that stops being read does not simply leave the schema: people have it wri
 refusing the file takes away everything else they wrote at the same time. So it is **ignored and
 said** — an entry in the `GONE` table in `packages/core/src/gone.ts` (read by `dropGone`), with the
 pattern and the sentence that replaced it side by side, so that tidying one away takes the other
-with it. `mcp.servers.*.sandbox` and `checks.from_ci` are the examples; `SERVER_RUNS_AS_YOU` and
-`CHECKS_ARE_READ` are the sentences.
+with it. `mcp.servers.*.sandbox`, `checks.from_ci` and `surfaces.web.settings`/`drafts` are the examples;
+`SERVER_RUNS_AS_YOU`, `CHECKS_ARE_READ` and `AWAY_HAS_THE_WINDOW` are the sentences.
 
 Never refuse the file, and never leave the key in the schema parsing quietly into nothing — that is
 the "accepts and ignores" failure with an extra step.

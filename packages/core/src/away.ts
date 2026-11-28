@@ -122,9 +122,8 @@ export const ACTING_IS_NOT_YOU =
   'the project’s own settings go with it and opening it puts back only where it lives. An ' +
   'approval shows the command it is about, with this machine’s paths shortened — where the task ' +
   'works as ./, your home as ~, any other path cut to its last name — and every key Tade holds ' +
-  'taken out. Acting can never change a setting — that is a switch of its own — read a ' +
-  'credential, run a command, start an agent on words a device typed, push, merge or overrule a ' +
-  'check; what your device reaches past that, it reaches by talking to Tade or on Settings, as ' +
+  'taken out. Acting can never change a setting, read a credential, run a command, start an ' +
+  'agent on words a device typed, push, merge or overrule a check; what your device reaches past that, it reaches by talking to Tade or on Settings, as ' +
   'you would here. Acting needs this machine itself or an https origin you named in Trusted ' +
   'hostnames, so a device paired over a network in the clear only ever reads — and every act is ' +
   'in the journal under the device that took it.'
@@ -148,59 +147,10 @@ export const ACTING_IS_NOT_YOU_SHORT = 'every paired device acts as you'
 export const LOCAL_ONLY_ACTS =
   'Publishing a workflow or a persona and granting an account or a tool are acts at this ' +
   'machine and have no route at all. A device can read what has been handed over, approve a ' +
-  'request a grant here already allowed, follow what the work does, and save a draft nobody has ' +
-  'published.'
+  'request a grant here already allowed, and follow what the work does.'
 
 /** The short clause, for the one line a control gets. */
 export const LOCAL_ONLY_SHORT = 'publishing and granting stay acts at the machine'
-
-/**
- * What saving a draft from a device is, said where that is turned on.
- *
- * The same shape as the three sentences above: the fact, then what stands
- * against it, in one breath. The fact a person has to be able to picture is
- * that a draft is a file in Tade's home that nothing runs — and that the thing
- * which *would* make it run is the one act this can never reach.
- *
- * It names the bound rather than describing it, because "bounded" is the word
- * a comfortable version of this sentence would keep while dropping what the
- * bound is.
- */
-export const DRAFTS_ARE_NOT_PUBLISHED =
-  'A draft is a file in Tade’s home that no run reads. Saving one from a device fills in fields ' +
-  'of a workflow that is already drafted — one field at a time, through the same validator the ' +
-  'file goes through — and it can never publish one, make one, rename one, delete one, or touch ' +
-  'a published version, which never changes once it is out. Publishing is an act at this ' +
-  'machine, so what a device saves waits there until somebody here reads it.'
-
-/** The short clause, for the one line a control gets. */
-export const DRAFTS_ARE_NOT_PUBLISHED_SHORT = 'a draft is a file no run reads until it is published'
-
-/**
- * What changing a setting from a device is, said where that is turned on.
- *
- * The same shape as the sentences above: what it reaches, then what stands
- * against the rest, in one breath — and the list is the load-bearing half,
- * because *only harmless settings* is the word a comfortable version would
- * keep while dropping which ones.
- *
- * **Every paired device is the person's own**, so it reaches every tier:
- * they decided it may do
- * everything they can at the machine, a revoke away if it is stolen, so it
- * changes any setting, a key included — still with two presses, against the
- * value it was shown, under that device's name. An agent here that paired
- * itself reaches nothing it could not already: it runs as the person and can
- * edit `config.yaml` itself (`KEYS_AND_AGENTS`).
- */
-export const SETTINGS_FROM_AWAY =
-  'Every device you pair is yours and changes any setting as you would here, a key included — ' +
-  'each with two presses, against the value it was shown, and written in the journal under that ' +
-  'device. A key or a token is shown as set or not set and is never read back. An agent on this ' +
-  'machine could pair itself, and reaches nothing that way it could not already: it runs as you ' +
-  'and can edit the config itself.'
-
-/** The short clause, for the one line a control gets. */
-export const SETTINGS_FROM_AWAY_SHORT = 'any setting, a key included, never shown'
 
 /**
  * What installing this needs of the origin, said where somebody turns it on.
@@ -260,8 +210,7 @@ export const INSTALLED_IS_NOT_REVOCABLE_SHORT =
 /**
  * What a device may keep on its own disk, said where that is turned on.
  *
- * Named rather than described, for the reason `DRAFTS_ARE_NOT_PUBLISHED` names
- * its bound: *minimal* and *redacted* are the words a comfortable version of
+ * Named rather than described: *minimal* and *redacted* are the words a comfortable version of
  * this sentence would keep while dropping what was actually kept. So the list
  * is the sentence, and `packages/web/test/offline.test.ts` holds the record to
  * it.
@@ -306,8 +255,8 @@ export const PUSH_GOES_THROUGH_A_STRANGER_SHORT =
 /**
  * What a notification says, named rather than described.
  *
- * `DRAFTS_ARE_NOT_PUBLISHED`'s treatment, for its reason: *minimal* and
- * *generic* are the words a comfortable version of this sentence would keep
+ * Named rather than described, for `LAST_VIEW_IS_A_COPY`'s reason: *minimal*
+ * and *generic* are the words a comfortable version of this sentence would keep
  * while dropping what was actually sent. So the list is the sentence, and
  * `packages/web/test/noticed.test.ts` holds the payload to it.
  *
@@ -602,49 +551,11 @@ export const WebSurface = z
      */
     orchestrator: z.boolean().default(true),
     /**
-     * Whether a paired device may save a draft workflow.
-     *
-     * **A fifth decision, and the one whose bound is the thing it writes
-     * rather than the words it takes.** `acting`'s verbs are about work that
-     * exists; `orchestrator` is free text to a model. This is neither: it
-     * fills in a field of a template **draft**, which is a file in Tade's home
-     * that no run reads, through the same pure validator the file goes through
-     * (`editWorkflow`) and the one writer that cannot name a published version
-     * (`writeDraft`).
-     *
-     * What it can never do is the half worth a setting: there is no route that
-     * publishes, that makes a draft, that renames or deletes one, or that
-     * touches a published version — `DRAFTS_ARE_NOT_PUBLISHED` says so, and
-     * the route table is the enforcement. So the worst a crafted call can do
-     * is leave a draft nobody published in a state somebody at this machine
-     * reads before publishing it.
-     *
-     * Turning it **on** takes effect the next time Tade starts, for the reason
-     * `acting` does: the route table is built with the listener. Turning it
-     * **off** is read at every save, so the direction that takes authority
-     * away is immediate.
-     */
-    drafts: z.boolean().default(true),
-    /**
-     * Whether a paired device may change a setting.
-     *
-     * **A tenth decision.** It reaches every setting from every paired
-     * device, a key included, because every one is the person's own
-     * (`SETTINGS_FROM_AWAY`). Still not enough on its own: a trusted origin,
-     * and each change names the value it was shown.
-     *
-     * Turning it **on** takes effect the next time Tade starts, for the reason
-     * `acting` does: the route table is built with the listener. Turning it
-     * **off** is read at every change.
-     */
-    settings: z.boolean().default(true),
-    /**
      * Whether a device may install the shell and open it with nothing
      * to ask.
      *
-     * **A sixth decision, and the only one whose effect outlives the
-     * machine saying so.** The five above are reached at the moment of
-     * a request; this one puts files on somebody else's phone. What
+     * **A decision whose effect outlives the machine saying so.** The
+     * ones above are reached at the moment of a request; this one puts files on somebody else's phone. What
      * those files are is the whole of why it is a small decision: the
      * static page — markup, styles, modules, two icons — which carries
      * no projection, is the same bytes for every device, and can draw

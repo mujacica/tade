@@ -30,7 +30,6 @@ import {
   type Snapshot,
   type SnapshotInput,
   Streams,
-  settingsFor,
   sseFrame,
   surfaceOf,
   type TaskFacts,
@@ -334,12 +333,6 @@ export class Away implements Subject {
         devices: () => this.devices,
         conversation: () => this.conversation(),
         talk: this.deps.talk,
-        saved: () => this.deps.saved(),
-        settings: {
-          rows: () => this.deps.settings.rows(),
-          known: () => knownHere(this.wire, this.config()),
-          write: (path, value, by) => this.deps.settings.write(path, value, by),
-        },
         now: () => this.wire.now(),
       }),
       answers: this.answers(),
@@ -949,8 +942,6 @@ export class Away implements Subject {
       // **The conversation as it is now**, not as of the beat: what a look back
       // just read out of the record (`earlier`) is in it.
       chat: (before) => chatBefore(this.talkNow(), before),
-      // What the window already holds.
-      settings: () => settingsFor(this.deps.settings.rows(), knownHere(this.wire, this.config())),
       evaluations: () => evaluationsAnswer(this.wire),
     }
   }

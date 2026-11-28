@@ -1,8 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
-  DRAFTS_ARE_NOT_PUBLISHED,
-  DRAFTS_ARE_NOT_PUBLISHED_SHORT,
   INSTALLED_IS_NOT_REVOCABLE,
   INSTALLED_IS_NOT_REVOCABLE_SHORT,
   LAN_IS_PLAINTEXT_SHORT,
@@ -20,7 +18,6 @@ import {
   TALKING_IS_NOT_YOU_SHORT,
 } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import { readDraftSave, SAVINGS } from '../src/drafted.ts'
 import { PUSHINGS, readSubscribe } from '../src/pushed.ts'
 import { AUTH_BYTES, P256DH_BYTES } from '../src/pushing.ts'
 import {
@@ -133,12 +130,11 @@ describe('the away server is not the ToolHost', () => {
     }
   })
 
-  it('writes no config itself: a change from away is the window’s, through one method', () => {
-    // **Nothing in this package moves a setting.** A change from away reaches
-    // the window through `WebConfiguring.change` and the window writes it
-    // through the one door every setting goes through (`Settings.write`), so
-    // what the page could reach is a method on an interface and never a
-    // function that writes the file.
+  it('writes no config itself: what reaches one is the window’s, through its one door', () => {
+    // **Nothing in this package moves a setting.** A carry or a connect page
+    // reaches the window, and the window writes through the one door every
+    // setting goes through (`Settings.write`), so what the page could reach is
+    // a method on an interface and never a function that writes the file.
     const problems: string[] = []
     for (const file of FILES) {
       const text = readFileSync(file, 'utf8')
@@ -193,21 +189,9 @@ describe('what a verb may never reach, as the verb table grows', () => {
     )
   })
 
-  it('declares exactly the one method the saving table has, and nothing else', () => {
-    // Both directions, mechanically, exactly as `WebActing` is held to
-    // `VERBS`: a method with no saving is a door nothing opens *yet*, which is
-    // the one a route somebody adds in a hurry finds — and a saving with no
-    // method is a `404` nobody can explain.
-    const text = readFileSync(join(SRC, 'drafting.ts'), 'utf8')
-    const block = /export interface WebDrafting \{([\s\S]*?)\n\}/.exec(text)?.[1] ?? ''
-    expect(block, 'the WebDrafting block').not.toBe('')
-    const methods = [...block.matchAll(/^ {2}([a-z][A-Za-z]*)\(/gm)].map((one) => one[1])
-    expect(methods.filter((one) => one !== 'unlocked')).toEqual(Object.keys(SAVINGS))
-  })
-
   it('declares exactly the two methods the notification table has, and nothing else', () => {
-    // Both directions, mechanically, exactly as `WebActing` is held to `VERBS`
-    // and `WebDrafting` to `SAVINGS`. The one that matters here is the
+    // Both directions, mechanically, exactly as `WebActing` is held to `VERBS`.
+    // The one that matters here is the
     // direction that would add a method: a `send` on this interface is one
     // line from a route, and a route is one line from a device able to make
     // this machine POST to an address of its choosing.
@@ -232,7 +216,7 @@ describe('what a verb may never reach, as the verb table grows', () => {
   })
 
   it('takes no path, no command and no device in a subscription’s body', () => {
-    // The same cross-product the verbs and the saves get. The one that would
+    // The same cross-product the verbs get. The one that would
     // have got away is `device`: a body that could name one would be a phone
     // subscribing another, and the binding is the whole of what makes a
     // subscription safe.
@@ -259,47 +243,6 @@ describe('what a verb may never reach, as the verb table grows', () => {
       'url',
     ]) {
       expect(readSubscribe({ ...every, [name]: 'anything' }).ok, name).toBe(false)
-    }
-  })
-
-  it('has no shape in the saving half that could publish, make or remove one', () => {
-    // The absences, in code: `DRAFTS_ARE_NOT_PUBLISHED` is the sentence and
-    // these are what make it true. A `publish` on this interface would be one
-    // line away from a route, and a route is one line away from a run.
-    const text = code(readFileSync(join(SRC, 'drafting.ts'), 'utf8'))
-    for (const shape of ['publish', 'reject', 'remove', 'rename', 'create', 'version']) {
-      expect(text.toLowerCase(), `drafting.ts has ${shape}`).not.toContain(`${shape}(`)
-    }
-  })
-
-  it('takes no path and no command in a save\u2019s body either', () => {
-    // The same cross-product the verbs get. A draft is addressed by a name
-    // Tade would have written, and the one that got away would not have been
-    // a missing file: a name from outside joined onto a path reads somewhere
-    // else entirely.
-    const every = {
-      template: 'reproduce-and-fix',
-      was: 'sha256:aaaa',
-      key: 'abcdefgh12345678',
-      rev: 0,
-    }
-    for (const name of ['path', 'file', 'cwd', 'cmd', 'command', 'prompt', 'setting', 'scopes']) {
-      expect(
-        readDraftSave({
-          ...every,
-          scope: 'template',
-          field: 'title',
-          value: 'x',
-          [name]: 'anything',
-        }).ok,
-        name,
-      ).toBe(false)
-    }
-    for (const template of ['../../etc/passwd', '/etc/passwd', 'a/b', '~/x']) {
-      expect(
-        readDraftSave({ ...every, template, scope: 'template', field: 'title', value: 'x' }).ok,
-        template,
-      ).toBe(false)
     }
   })
 
@@ -341,8 +284,6 @@ describe('what the surface is turned on as', () => {
       orchestrator: false,
       push: false,
       push_details: false,
-      drafts: false,
-      settings: false,
       install: false,
       offline: false,
     })
@@ -372,8 +313,6 @@ describe('what the surface is turned on as', () => {
       orchestrator: false,
       push: false,
       push_details: false,
-      drafts: false,
-      settings: false,
       install: true,
       offline: true,
     }
@@ -409,8 +348,6 @@ describe('what the surface is turned on as', () => {
           orchestrator: false,
           push: false,
           push_details: false,
-          drafts: false,
-          settings: false,
           install: false,
           offline: false,
         }),
@@ -459,8 +396,6 @@ describe('what a session minted on an origin may ever do', () => {
     orchestrator: false,
     push: false,
     push_details: false,
-    drafts: false,
-    settings: false,
     install: false,
     offline: false,
   })
@@ -694,35 +629,10 @@ describe('the sentences', () => {
     }
     // And what a device *can* do, in the same breath: a page that
     // only listed refusals would read as a surface nobody finished.
-    for (const can of ['approve a request', 'follow what the work does', 'save a draft']) {
+    for (const can of ['approve a request', 'follow what the work does']) {
       expect(LOCAL_ONLY_ACTS, can).toContain(can)
     }
     expect(LOCAL_ONLY_SHORT.length).toBeLessThan(70)
-  })
-
-  it('say what a draft is, and name the five things saving one can never reach', () => {
-    // The sentence that must never get comfortable. The clause that would go
-    // first is the one saying what a draft *is* — a file no run reads — because
-    // without it "bounded" is the whole claim.
-    expect(DRAFTS_ARE_NOT_PUBLISHED).toContain('no run reads')
-    for (const never of [
-      'publish one',
-      'make one',
-      'rename one',
-      'delete one',
-      'published version',
-    ]) {
-      expect(DRAFTS_ARE_NOT_PUBLISHED, never).toContain(never)
-    }
-    // And the bound, named rather than described: one field at a time, through
-    // the same validator the file goes through.
-    expect(DRAFTS_ARE_NOT_PUBLISHED).toContain('one field at a time')
-    expect(DRAFTS_ARE_NOT_PUBLISHED).toContain('same validator')
-    expect(DRAFTS_ARE_NOT_PUBLISHED).toContain('an act at this machine')
-    for (const word of ['secure', 'encrypted', 'private', 'safe', 'harmless']) {
-      expect(DRAFTS_ARE_NOT_PUBLISHED.toLowerCase(), word).not.toContain(word)
-    }
-    expect(DRAFTS_ARE_NOT_PUBLISHED_SHORT.length).toBeLessThan(80)
   })
 
   it('have a short clause for the one line a control gets', () => {

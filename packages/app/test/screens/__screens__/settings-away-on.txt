@@ -43,8 +43,8 @@
     │                            ▕│ an agent on this machine could pair itself            Disconnect everything   █│    
     │                            ▕│                                                                               █│    
     │                            ▕│ Who can reach it            ◉ loopback     ○ lan                              █│    
-    │                            ▕│                                                                               ▕│    
-    │                            ▕│ Port                        ‹   7654   ›                                      ▕│    
+    │                            ▕│                                                                               █│    
+    │                            ▕│ Port                        ‹   7654   ›                                      █│    
     │                            ▕│                                                                               ▕│    
     │                            ▕│ Trusted hostnames          none                                               ▕│    
     │                            ▕│                                                                               ▕│    

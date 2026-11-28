@@ -3,9 +3,9 @@ import type { From, Outcome } from './acting.ts'
 // What a paired device may do about notifications, as the one interface the
 // window implements.
 //
-// **A fourth table, and what makes it a different kind from the other three.**
+// **A third table, and what makes it a different kind from the other two.**
 // `ACTS` is a target plus the state it expects; `ASKS` is free text to a
-// model; `DRAFTS` is a field of a file a run will read. None of those is this:
+// model. Neither of those is this:
 // a subscription changes nothing about any project, any task or any file of
 // Tade's — it is **this browser saying where to reach it**, which is the same
 // category as the session it already holds.
@@ -75,8 +75,8 @@ export interface WebPushing {
   /**
    * Whether notifications are still unlocked, read **at the call**.
    *
-   * A function and not a flag, exactly as `WebActing.unlocked`,
-   * `WebAsking.unlocked` and `WebDrafting.unlocked` are. Here the asymmetry is
+   * A function and not a flag, exactly as `WebActing.unlocked` and
+   * `WebAsking.unlocked` are. Here the asymmetry is
    * smaller than theirs and is said honestly in the setting's own words: the
    * route table waits for a restart as usual, but what *sends* a notification
    * reads the setting on every beat, so turning it off stops delivery within a

@@ -133,8 +133,7 @@ export async function stillsInBrowser(
   const server = webServer({
     home,
     surface: { ...OFF, enabled: true, port: 0 },
-    readingFor: (reach) =>
-      projector(world.input(reach), world.now, { agent: world.agent, settings: world.settings }),
+    readingFor: (reach) => projector(world.input(reach), world.now, { agent: world.agent }),
     tickets,
     // The keypress at the machine, answered yes: every paired device is the
     // person's own, so there is nothing else to answer.

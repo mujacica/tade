@@ -65,6 +65,19 @@ export const AGENTS_RUN_AS_YOU =
   'agents run as whoever runs Tade, on every machine: there is no user of their own to run them as'
 
 /**
+ * What a phone may change of a setting or a workflow, now that the away view
+ * has no door of its own for either.
+ *
+ * `surfaces.web.settings` and `surfaces.web.drafts` turned on a route that
+ * changed a setting and one that saved a field of a draft workflow, for pages
+ * the away view no longer has. A phone reads and changes both in the window's
+ * own Settings and workflows, drawn in the full view, so there is no door left
+ * for either key to open.
+ */
+export const AWAY_HAS_THE_WINDOW =
+  'the away view has no settings or drafts page of its own: a phone changes a setting or a draft in the window’s own panels, in the full view'
+
+/**
  * Keys Tade used to read and does not any more, and what to say about each.
  *
  * A setting somebody wrote down is a sentence they meant. Refusing the whole
@@ -88,6 +101,8 @@ const GONE: readonly (readonly [pattern: string, said: string])[] = [
   ['agents.user', AGENTS_RUN_AS_YOU],
   ['projects.*.user', AGENTS_RUN_AS_YOU],
   ['projects.*.checks.from_ci', CHECKS_ARE_READ],
+  ['surfaces.web.settings', AWAY_HAS_THE_WINDOW],
+  ['surfaces.web.drafts', AWAY_HAS_THE_WINDOW],
   // Not a key that went, but a name that never was one: a remote called what
   // `watches` calls this machine, from before `tade remote add` refused it.
   [

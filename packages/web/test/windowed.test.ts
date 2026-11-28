@@ -26,8 +26,6 @@ const SURFACE: Surface = {
   passkeyMs: 0,
   acting: true,
   talking: false,
-  drafting: false,
-  configuring: false,
   installing: false,
   keepsView: false,
   pushing: false,

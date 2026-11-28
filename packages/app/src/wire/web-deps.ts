@@ -133,16 +133,8 @@ export interface AwayDeps {
    * file knows nothing about any of the three.
    */
   factory(): FactoryHeld
-  /**
-   * A draft was saved from away, so whatever folds the templates reads them
-   * again rather than waiting out its own clock.
-   *
-   * One method and no argument: the fold reads every template anyway, and a
-   * name here would be a second thing to keep in step for no gain.
-   */
-  saved(): void
-  /** Three methods of `Settings`, never the subject: the generated key, what a granted device
-   * reads, and the one change it may make (`web-settings.ts`). */
+  /** Three methods of `Settings`, never the subject: the generated key, and the rows and the
+   * one door a setting is written by, for a carry and the pages that connect a source. */
   settings: Pick<Settings, 'rows' | 'write' | 'writeKey'>
   /** The agents and projects subjects, for stopping and closing from away (`web-lifecycle.ts`). */
   lifecycle: Lifecycle

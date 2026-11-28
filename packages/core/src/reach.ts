@@ -183,8 +183,8 @@ const NEVER: readonly (readonly [string, string])[] = [
   // network (`bind`) and at which address a pairing code sends a phone with
   // the ticket that makes it a device (`port`), which origin is trusted
   // (`trusted_hosts`), what a paired device may do — and an agent here can
-  // pair itself (`DEVICES_SEEN_BY_AGENTS`), so `acting`, `orchestrator`,
-  // `drafts` and `settings` widen what an agent may do — what goes through a
+  // pair itself (`DEVICES_SEEN_BY_AGENTS`), so `acting` and `orchestrator`
+  // widen what an agent may do — what goes through a
   // push service somebody else runs (`push`, `push_details`), and the key that
   // signs it (`push_key`).
   [

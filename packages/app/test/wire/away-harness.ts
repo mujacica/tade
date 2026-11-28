@@ -42,7 +42,7 @@ import type { AwayDeps } from '../../src/wire/web-deps.ts'
 import { capabilities } from './away-capabilities.ts'
 import { homeConfig, INTAKE } from './away-intake.ts'
 import { type AgentLanes, laneDoor, lifecycleFor } from './away-lifecycle.ts'
-import { realWriteKey, settingsDoor, settingsOn } from './away-settings.ts'
+import { realWriteKey, settingsDoor } from './away-settings.ts'
 import { worldOf } from './away-world.ts'
 
 // A window with a real workbench behind it, a real listener on loopback, and a
@@ -213,8 +213,6 @@ export interface MachineOptions {
    * kinder than reality.
    */
   writeKey?: (key: string, value: string, was: string) => Promise<void>
-  /** Changing a setting from away on, in both configs (`settingsOn`). */
-  settings?: boolean
   /** Keys written through the window's own `Settings.writeKey`, as a carry writes them. */
   realKeys?: boolean
   /** What the harnesses say of their sign-ins, where a test needs an answer. */
@@ -235,7 +233,6 @@ export interface MachineOptions {
 
 /** Off here unless a test turns one on, though each is on by default: nothing rides along. */
 const ONLY_WHAT_IS_ASKED = {
-  drafts: false,
   install: false,
   offline: false,
   push: false,
@@ -251,7 +248,6 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
   const home = tmp('tade-away-act-')
   writeFileSync(join(home, 'config.yaml'), homeConfig(repo.root, over.intake === true))
   const port = await freePort()
-  if (over.settings === true) settingsOn(home, port, over.acting ?? true)
   const client = await Workbench.open({ home })
   shut.push(client)
   const first = await client.createTask({
@@ -275,7 +271,6 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
           port,
           acting: over.acting ?? true,
           orchestrator: over.talking === true,
-          settings: over.settings === true,
           ...ONLY_WHAT_IS_ASKED,
         },
         ...(over.intake === true ? { intake: INTAKE } : {}),
@@ -456,7 +451,6 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
     },
     stands: over.stands ?? (() => Promise.resolve(null)),
     factory: over.factory ?? (() => nothingHandedOver()),
-    saved: () => {},
     // A fixture must not be kinder than reality: a key written here goes into
     // the harness's own config file, so a test that turns notifications on
     // reads a key back the way the window does.
@@ -751,14 +745,6 @@ export async function paired(home: string, port: number): Promise<void> {
   ])
 }
 
-/** One change to a setting, as a browser would send it. */
-export function change(
-  port: number,
-  body: Record<string, unknown>,
-): Promise<{ status: number; body: Record<string, unknown> }> {
-  return send(port, '/api/settings/change', body)
-}
-
 /** One owner's carry of another machine's setup, as its link sends it. */
 export function carried(
   port: number,
@@ -781,15 +767,6 @@ export function shared(
   body: Record<string, unknown>,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   return send(port, '/api/notes/share', body)
-}
-
-/** One save of a draft field, as a browser would send it. */
-export function save(
-  port: number,
-  what: string,
-  body: Record<string, unknown>,
-): Promise<{ status: number; body: Record<string, unknown> }> {
-  return send(port, `/api/draft/${what}`, body)
 }
 
 /**

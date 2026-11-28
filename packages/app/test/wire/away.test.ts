@@ -189,7 +189,6 @@ async function wiring(
     },
     stands: () => Promise.resolve(null),
     factory: () => nothingHandedOver(),
-    saved: () => {},
     // No settings: a read lists nothing and a change from away throws, which is
     // the direction that makes a test reaching one fail.
     settings: {

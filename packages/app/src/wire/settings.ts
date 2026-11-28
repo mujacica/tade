@@ -638,8 +638,8 @@ export class Settings implements Subject {
    * config that would not load is put back exactly as it was first.
    *
    * `by` is who asked, as the record says it: `window`, `orchestrator`, or a
-   * paired device as `byOf` words one (`device <id>`, `web-settings.ts`) —
-   * never `you` for a change from away.
+   * paired device as `byOf` words one (`device <id>`) — never `you` for a
+   * change from away.
    */
   async write(path: string, value: string, by = 'window', said = ''): Promise<string> {
     const groups = this.reachable()

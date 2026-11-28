@@ -19,16 +19,7 @@ import {
   OVERVIEW_SIZES,
 } from '../test/browser-duo-plan.ts'
 import { exitFor, type Finding, said, sayReport, worstOf } from '../test/browser-plan.ts'
-import {
-  agentHeld,
-  blocked,
-  input,
-  NOW,
-  pasted,
-  plan,
-  settingRows,
-  task,
-} from '../test/fixtures.ts'
+import { agentHeld, blocked, input, NOW, pasted, plan, task } from '../test/fixtures.ts'
 import { harnessTalk } from './browser-chat.ts'
 import { DUO_SHAPE } from './browser-snippets.ts'
 
@@ -262,7 +253,6 @@ async function serve(home: string) {
         NOW,
         {
           agent: () => agentHeld(),
-          settings: () => ({ groups: settingRows(), known: [] }),
         },
       )
       held.set(reach.device, made)

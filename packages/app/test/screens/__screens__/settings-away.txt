@@ -18,13 +18,13 @@
     │  Window                    █│ Passkey before acting       ‹   12   ›    hours                               █│    
  ▾ F│                            █│                                                                               █│    
    ▾│▌ Away view                 █│ Notification signing key   generated when it is first needed                  █│    
-    │▌                           █│                                                                               ▕│    
-    │  Intake                    █│ A PAIRED DEVICE MAY                                                           ▕│    
+    │▌                           █│                                                                               █│    
+    │  Intake                    █│ A PAIRED DEVICE MAY                                                           █│    
    ▸│                            █│ Act                       ────████ on                                         ▕│    
 ━   │  Projects              ● 1 █│                                                                               ▕│   ━
     │                            ▕│ Talk to Tade              ────████ on                                         ▕│    
     │  Journal                   ▕│                                                                               ▕│   ▕
-    │                            ▕│ Save draft workflows      ────████ on                                         ▕│   ▕
+    │                            ▕│ Install the page          ────████ on                                         ▕│   ▕
     │  Telemetry                 ▕│ ● Saved as you change it.                                                      │   ▕
     │                            ▕│                                                   Open config.yaml     Done    │   ▕
  ❯ w╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   ▕

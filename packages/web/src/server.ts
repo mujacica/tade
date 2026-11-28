@@ -7,12 +7,10 @@ import { type MenuStanding, menuHere } from './agent-menu.ts'
 import { answerHere } from './answering.ts'
 import { carryAsk } from './asked.ts'
 import { assetsDir, readAssets } from './assets.ts'
-import { carryChange } from './configured.ts'
 import { connectTicketHolds } from './connect-tickets.ts'
 import { ConnectStates, carryConnect, connectHere } from './connected.ts'
 import { copiesHeldOf } from './copies.ts'
 import { appendDevice, type Device, listing, readDevices } from './devices.ts'
-import { carrySave } from './drafted.ts'
 import { chatHere } from './earlier.ts'
 import { bodyOf, type Refusal, refuse } from './errors.ts'
 import { filesFor } from './files.ts'
@@ -270,11 +268,7 @@ export function webServer(opts: ServerOptions): WebServer {
       // A **verb or a message**, and each under its own type: an act and a
       // paragraph to a model are different things to read back, and the
       // question somebody has about a phone is which of the two it asked for.
-      const asked =
-        found.route.verb ??
-        found.route.says ??
-        found.route.saves ??
-        (found.route.configures === undefined ? undefined : 'setting')
+      const asked = found.route.verb ?? found.route.says
       if (asked !== undefined) {
         tell({
           type: found.route.says === undefined ? 'web_did' : 'web_asked',
@@ -407,8 +401,6 @@ export function webServer(opts: ServerOptions): WebServer {
         return json(res, await menuHere(found.params, reachOf(device), menuStanding(), opts))
       case 'talk answer':
         return json(res, await answerHere(found.params, opts))
-      case 'settings':
-        return json(res, opts.readingFor(reachOf(device)).settings())
       case 'evaluations':
         return json(res, opts.readingFor(reachOf(device)).evaluations())
       case 'devices':
@@ -454,12 +446,8 @@ export function webServer(opts: ServerOptions): WebServer {
         }
         if (found.route.verb !== undefined) return act(res, found.route, device, at)
         if (found.route.says !== undefined) return say(res, found.route.says, device, at)
-        if (found.route.saves !== undefined) return save(res, found.route.saves, device, at)
         if (found.route.notifies !== undefined) {
           return notify(res, found.route.notifies, device, at)
-        }
-        if (found.route.configures !== undefined) {
-          return configure(res, found.route.configures, device, at)
         }
         return answer(res, refuse('no_such'))
     }
@@ -594,30 +582,6 @@ export function webServer(opts: ServerOptions): WebServer {
   }
 
   /**
-   * One field of one draft, saved: `carrySave`, through `door`.
-   *
-   * **The draft's name goes in the detail and never on `event.task`.** A
-   * workflow is not a task, and a `web_did` carrying one as its task would
-   * make the journal claim a task exists by that name — which every fold keyed
-   * by task would then read as one.
-   */
-  async function save(res: Res, saves: string, device: Device, at: At): Promise<void> {
-    const drafting = opts.drafting
-    if (drafting === undefined) return answer(res, refuse('no_such'))
-    await readReceipts()
-    return door(
-      res,
-      at,
-      (body) =>
-        carrySave(saves, body, { drafting, ...standing(device, at, () => drafting.unlocked()) }),
-      ({ task: template, ...rest }) => ({
-        type: 'web_did',
-        detail: { ...rest, ...(template === '' ? {} : { template }) },
-      }),
-    )
-  }
-
-  /**
    * Subscribing or forgetting: `carryPush`, through `door`. The line is a
    * `web_subscribed` rather than a `web_did` — what changed is not work, it is
    * that this machine will now reach out to a push service about that phone —
@@ -635,33 +599,6 @@ export function webServer(opts: ServerOptions): WebServer {
       (body) =>
         carryPush(notifies, body, { pushing, ...standing(device, at, () => pushing.unlocked()) }),
       ({ task: _none, ...detail }) => ({ type: 'web_subscribed', detail }),
-    )
-  }
-
-  /**
-   * One setting changed: `carryChange`, through `door`.
-   *
-   * The path goes in the detail as `setting` and never on `event.task`, for
-   * the reason a draft's name does not: a setting is not a task. The window's
-   * own `config_changed` line is the other half of the record, with what it
-   * was, what it is and `by: device <id>`.
-   */
-  async function configure(res: Res, name: string, device: Device, at: At): Promise<void> {
-    const configuring = opts.configuring
-    if (configuring === undefined) return answer(res, refuse('no_such'))
-    await readReceipts()
-    return door(
-      res,
-      at,
-      (body) =>
-        carryChange(name, body, {
-          configuring,
-          ...standing(device, at, () => configuring.unlocked()),
-        }),
-      ({ task: setting, ...rest }) => ({
-        type: 'web_did',
-        detail: { ...rest, ...(setting === '' ? {} : { setting }) },
-      }),
     )
   }
 

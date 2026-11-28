@@ -8,8 +8,6 @@ import {
   type HookSource,
 } from '@tade/core'
 import { SAYINGS } from './asked.ts'
-import { CHANGES } from './configured.ts'
-import { SAVINGS } from './drafted.ts'
 import { PUSHINGS } from './pushed.ts'
 import type { Scope, Surface } from './surface.ts'
 import { VERBS } from './verbs.ts'
@@ -43,9 +41,8 @@ import { VERBS } from './verbs.ts'
 // grants anything, no route publishes anything, no route starts an agent —
 // but the owner's `take`, which makes queued work the window starts by its own
 // rule (`taken.ts`) — no route takes a path or a command, and no route reaches
-// the `ToolHost`. One
-// route reads the settings, and the one that writes one is `SETTINGS`, built
-// only where `surfaces.web.settings` says so (`configuring.ts`). A path that is not in
+// the `ToolHost`, and no route reads or writes a setting — a phone changes one
+// in the window's own Settings, drawn in the full view. A path that is not in
 // the table is a `404` and not a `403` — an off capability is not a thing to
 // probe — so the absences cost nothing to keep.
 
@@ -80,29 +77,13 @@ export interface Route {
    */
   verb?: string
   /**
-   * The draft field this route saves, where it is one of `DRAFTS`.
+   * What about notifications this route changes, where it is one of `PUSHES`.
    *
    * Carried rather than read back out of the path, for the reason `verb` and
    * `says` are. A route has exactly one of the three and never two, and
    * `test/routes.test.ts` says so.
    */
-  saves?: string
-  /**
-   * What about notifications this route changes, where it is one of `PUSHES`.
-   *
-   * Carried rather than read back out of the path, for the reason `verb`,
-   * `saves` and `says` are. A route has exactly one of the four and never two,
-   * and `test/routes.test.ts` says so.
-   */
   notifies?: string
-  /**
-   * What this route does to a setting, where it is one of `SETTINGS`.
-   *
-   * Carried rather than read back out of the path, for the reason `verb`,
-   * `saves`, `notifies` and `says` are. A route has exactly one of the five and
-   * never two, and `test/routes.test.ts` says so.
-   */
-  configures?: string
   /**
    * The thing this route says to the conversation, where it is one of `ASKS`.
    *
@@ -315,13 +296,8 @@ export const ROUTES: readonly Route[] = [
     mutates: false,
   },
   { method: 'GET', path: '/api/devices', name: 'devices', needs: 'read', mutates: false },
-  // **What Tade is set up with, read while somebody has the page open.** A
-  // `GET` like every other read, and the same for every device: a key is
-  // never in it (`settingsFor`). It changes nothing — the one route that does is in
-  // `SETTINGS`, a table of its own behind a setting of its own.
-  { method: 'GET', path: '/api/settings', name: 'settings', needs: 'read', mutates: false },
   // **The scorecards, read while somebody has the page open** (`evaluationsFor`).
-  // A `GET` that changes nothing, like the settings.
+  // A `GET` that changes nothing.
   { method: 'GET', path: '/api/evaluations', name: 'evaluations', needs: 'read', mutates: false },
 
   // Signing out. A mutation, because it destroys a credential — and **its own
@@ -484,36 +460,6 @@ export const PUSHES: readonly Route[] = Object.keys(PUSHINGS).map((name) => ({
   needs: 'read' as Scope,
   mutates: true,
   notifies: name,
-}))
-
-export const DRAFTS: readonly Route[] = Object.keys(SAVINGS).map((name) => ({
-  method: 'POST' as const,
-  path: `/api/draft/${name}`,
-  name: `${name} a draft`,
-  needs: 'draft' as Scope,
-  mutates: true,
-  saves: name,
-}))
-
-/**
- * The changing route: **one path per thing a device may do to a setting**, and
- * the table is `CHANGES` — which has one entry.
- *
- * A fifth table rather than a thirteenth verb, for the reason `configuring.ts`
- * gives: the target is a dotted path into the config rather than a task, and
- * the write is the one door every setting goes through. One route and not one
- * per setting, because the settings are the window's to list, and the window
- * asks the row again at the write.
- *
- * `/api/settings/change` and not `/api/config`, which would read as the file.
- */
-export const SETTINGS: readonly Route[] = Object.keys(CHANGES).map((name) => ({
-  method: 'POST' as const,
-  path: `/api/settings/${name}`,
-  name: `${name} a setting`,
-  needs: 'configure' as Scope,
-  mutates: true,
-  configures: name,
 }))
 
 /**
@@ -977,9 +923,8 @@ export const WINDOW: readonly Route[] = [
  * Built once, when the server is made, which is why turning any of the
  * capabilities **on** waits for a restart and turning one **off** does not:
  * the table is the strongest half of each gate and the live re-read
- * (`WebActing.unlocked`, `WebAsking.unlocked`, `WebDrafting.unlocked`,
- * `WebConfiguring.unlocked`) is the half that can only ever take authority
- * away. Asymmetric in the safe
+ * (`WebActing.unlocked`, `WebAsking.unlocked`) is the half that can only
+ * ever take authority away. Asymmetric in the safe
  * direction, and each setting's own words say so.
  */
 export function routesFor(surface: Surface): readonly Route[] {
@@ -987,9 +932,7 @@ export function routesFor(surface: Surface): readonly Route[] {
     ...ROUTES,
     ...(surface.acting ? ACTS : []),
     ...(surface.talking ? ASKS : []),
-    ...(surface.drafting ? DRAFTS : []),
     ...(surface.pushing ? PUSHES : []),
-    ...(surface.configuring ? SETTINGS : []),
     ...WINDOW.filter((route) => route.windows === 'look' || surface.acting),
     ...OWNED,
     ...CONNECTS,

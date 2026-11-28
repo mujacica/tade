@@ -20,8 +20,7 @@ which are about another *machine*, never a device.
 |---|---|
 | a route | `src/routes.ts`, then the `switch` in `src/server.ts` |
 | a **verb** a device may ask for | `src/verbs.ts` (the closed table), a method on `WebActing` in `src/acting.ts`, the window's own half in `packages/app/src/wire/web-acting.ts`, and the page's control in `src/assets/acts.js` |
-| what a device may **read of the config, or change in it** | `src/configuring.ts` (the interface, `awayReach`, `settingsFor` and `settingOut` — what a device is shown and so may echo), `src/configured.ts` (the strict body, the gate and the sequence), `SETTINGS` and `GET /api/settings` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-settings.ts`, and the screen in `src/assets/pages/settings.js` |
-| what a device may **save** | `src/drafting.ts` (the interface and the draft's revision), `src/drafted.ts` (the closed table, the gate and the sequence), `DRAFTS` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-drafting.ts`, and the form in `src/assets/pages/workflows.js` |
+| what a device may **read of the config, or change in it**: nothing of its own — a phone uses the window's Settings in the full view; `surfaces.web.settings` and `surfaces.web.drafts` are `GONE` (`@tade/core`'s `gone.ts`) | `isCredential` in `src/configuring.ts` is all that is left, asked by the window's own Settings and its tools; `test/routes.test.ts` holds that no route is under `/api/settings` or `/api/draft` |
 | what a device may ask about **being told** | `src/pushing.ts` (the interface and what the page is told), `src/pushed.ts` (the closed table, the gate and the sequence), `PUSHES` in `src/routes.ts`, the window's half in `packages/app/src/wire/web-push.ts`, and the control in `src/assets/push.js` |
 | what is worth a notification, and what it may say | `src/noticed.ts` — pure: the five transitions, the payload, the budget, the quiet hours, the presence rule and the dedupe |
 | where a notification may be sent | `src/endpoint.ts` (the URL and the addresses), `src/push-out.ts` (the sender), `src/push-scripted.ts` (the one every test uses) |
@@ -166,8 +165,8 @@ which are about another *machine*, never a device.
   (`OWNED`): an owner device — the SSH key's session — on this machine's own door (`here`), or a
   paired phone on any door, and the `404` to anybody with no session. That is what keeps it no
   wider than what already was: whoever holds the key can edit `config.yaml` over the same SSH.
-  **Why a paired phone may:** it already changes every setting from the away Settings page, keys
-  included (`web-settings.ts`), so the carry asks nothing it could not; off the door it
+  **Why a paired phone may:** it already changes every setting in the window's own Settings, drawn
+  in the full view, keys included, so the carry asks nothing it could not; off the door it
   is asked a trusted origin and the passkey, and it writes as `device <id>`. **This
   machine decides** — every path is asked of `carryOf` again, so its own are refused whatever
   arrives; a value somebody here changed is said back and left unless the person there pressed;
@@ -326,14 +325,13 @@ which are about another *machine*, never a device.
   are almost all attestation, which Tade asks for none of and checks none of. What it checks is a
   list, and `test/webauthn.test.ts` is that list as rows over a software authenticator and over
   answers real authenticators gave; a refusal's reason goes in `web_proved`, never to the page.
-- **There are five second tables, each with its own setting, and absence is
-  the enforcement for all five.** `ACTS` is `surfaces.web.acting`, `ASKS` is
-  `surfaces.web.orchestrator`, `DRAFTS` is `surfaces.web.drafts`, `PUSHES` is
-  `surfaces.web.push`, `SETTINGS` is `surfaces.web.settings`. `halvesFor` hands
-  over the matching interface and nothing else, so with a setting off a crafted
-  call is the `404` of a path nobody built. Each one's `unlocked()` is re-read
-  at every act, turn, save, subscribe and change: on builds the listener
-  again (`web-follow.ts`), and off is now.
+- **There are three second tables, each with its own setting, and absence is
+  the enforcement for all three.** `ACTS` is `surfaces.web.acting`, `ASKS` is
+  `surfaces.web.orchestrator`, `PUSHES` is `surfaces.web.push`. `halvesFor`
+  hands over the matching interface and nothing else, so with a setting off a
+  crafted call is the `404` of a path nobody built. Each one's `unlocked()` is
+  re-read at every act, turn and subscribe: on builds the listener again
+  (`web-follow.ts`), and off is now.
 - **`PUSHES` is the one second table whose subject is not the work**, which is
   why it has no receipt and no entity revision: a subscription is *this browser
   saying where to reach it*, so a repeat meets its own row (one per device, last
@@ -797,15 +795,13 @@ line or commit message can say the easy half. `test/separation.test.ts` holds ea
   on that device's own session. Nought is off, and says that a session then acts alone. Held in
   `passkey.test.ts`, and among the never-private ones.
 
-## The config, and the five controls over it
+## The config, and the controls over it
 
 `surfaces.web` is read in exactly one place — `surfaceOf` — and it is a `never` subtree in
 `reach.ts`: each key either widens who can reach the control room (`enabled`, `bind`,
 `trusted_hosts`, and `public`, which is the internet), decides where the pairing code sends a phone (`port`), lets a device change
-something (`acting`), lets one talk to the model that holds the tools (`orchestrator`), lets one
-save a draft every future run of a workflow would be stamped from (`drafts`), lets one change a
-setting a request is enough for (`settings`) — and an agent here can pair itself, so those four
-widen what an agent may do — or goes through a stranger's push service (`push`, `push_details`,
+something (`acting`), lets one talk to the model that holds the tools (`orchestrator`) — and an
+agent here can pair itself, so those two widen what an agent may do — or goes through a stranger's push service (`push`, `push_details`,
 `push_key`). **Two are carved out to `asked`** by name in `ALLOWED_UNDER`: `install`, which puts
 Tade's own page on a phone already paired, and `offline`, which lets that phone keep counts it was
 already shown — neither lets anybody in or a device do anything. A key you add is `never` until
@@ -827,27 +823,6 @@ the beat, so changing it cuts nobody off.
 **A new key here is a visible change**, so it redraws the README's pictures in the same commit
 (`redraw-the-pictures`): the Settings category list grew past the rows the panel has, which is
 correct (it scrolls) and moved every settings golden.
-
-## Changing a setting from away is a fifth table, and it reaches every tier
-
-`SETTINGS` is one route, `POST /api/settings/change`, behind `surfaces.web.settings`. Every paired
-device is the person's own, so it reaches every tier `settingReach` has, a key included — the
-person decided driving this machine from their phone or another of their machines is the same as
-from the keyboard. A machine link's **words** are still `said` only where that machine says they
-were typed (`armOf`); a setting changed from its Settings page is that machine's press, `by: device
-<id>`. An agent that paired itself reaches nothing it could not already, since it can edit
-`config.yaml` itself. `SETTINGS_FROM_AWAY` says it.
-
-- **The write accepts exactly what the read offered.** `settingOut` decides a row's `may` and `was`
-  for `GET /api/settings`, and `web-settings.ts` asks the same function at the write — so a value not
-  shown whole (a key pasted into it) is not changeable, and the echo is compared against the row the
-  window lists now. A choice is one of its options exactly and a flag is `true`/`false`:
-  `parseSetting` is a keyboard's reading and too lenient for a device's exact value.
-- **A key is never readable, only set or cleared.** `set`/`not set`, no value, no revision of one,
-  every shown value cleaned of every key Tade holds (`keysOf`); a key row carries `sets` and may be
-  typed into, never shown.
-- **Provenance is `byOf`'s**: `config_changed` says `by: device <id>`, and the `web_did` carries the
-  path as `setting` in its detail, never as the event's `task`.
 
 ## What is not built, and must not arrive because a route was convenient
 

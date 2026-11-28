@@ -21,10 +21,7 @@ const BOOT = new URL('../src/assets/boot.js', import.meta.url)
 async function visited(world: World, visit: Visit): Promise<Still[]> {
   const device = world.devices.find((one) => one.id === visit.device)
   if (device === undefined) throw new Error(`the world has no device ${visit.device}`)
-  const reading = projector(world.input(reachOf(device)), world.now, {
-    agent: world.agent,
-    settings: world.settings,
-  })
+  const reading = projector(world.input(reachOf(device)), world.now, { agent: world.agent })
   const page = staged(world, device, visit, reading)
   const doc = page.doc
   page.go(visit.paths[0] ?? '/')
@@ -137,7 +134,6 @@ function staged(world: World, device: Device, visit: Visit, reading: ReturnType<
         ),
       )
     if (url.pathname === '/api/snapshot') return answered(200, reading.snapshot())
-    if (url.pathname === '/api/settings') return answered(200, reading.settings())
     const agent = /^\/api\/agent\/([^/]+)\/([^/]+)$/.exec(url.pathname)
     if (agent !== null)
       return answered(

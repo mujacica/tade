@@ -30,8 +30,6 @@ const SURFACE: Surface = {
   passkeyMs: 0,
   acting: false,
   talking: false,
-  drafting: false,
-  configuring: false,
   installing: true,
   keepsView: false,
   pushing: true,

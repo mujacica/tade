@@ -822,5 +822,4 @@ export const PAGE_WORLD: World = {
   devices: [DESK, PHONE],
   input,
   agent: (id) => (id === 'checkout/stripe-v15' ? STRIPE : null),
-  settings: () => ({ groups: [], known: [] }),
 }

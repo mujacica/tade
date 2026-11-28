@@ -1,5 +1,3 @@
-import { join } from 'node:path'
-import { writeSetting } from '@tade/core'
 import type { Wiring } from '../../src/wire/context.ts'
 import { Settings, type SettingsDeps } from '../../src/wire/settings.ts'
 import type { AwayDeps } from '../../src/wire/web.ts'
@@ -10,16 +8,15 @@ import type { AwayDeps } from '../../src/wire/web.ts'
 // **Its own file for the reason `away-lifecycle.ts` is**: a different subject,
 // and the harness at the length a file is allowed to be.
 //
-// **The door is the real one.** A change from away goes through
-// `Settings.write`, which writes the home's `config.yaml`, reads it back, hands
-// the new config to the window and writes `config_changed` — a stand-in that
-// answered *saved* would be the kindest fixture there is for the one write this
-// surface can make.
+// **The door is the real one.** A carry from another machine or a page that
+// connects a source writes through `Settings.write`, which writes the home's
+// `config.yaml`, reads it back, hands the new config to the window and writes
+// `config_changed` — a stand-in that answered *saved* would be the kindest
+// fixture there is.
 
 /**
  * What the Settings subject asks of the rest of the window, and nothing of it
- * here: no accounts, no models, no microphone. A change from away reaches none
- * of them — the open tier is two sizes, an editor and a push mode.
+ * here: no accounts, no models, no microphone.
  */
 const NOTHING_ELSE: SettingsDeps = {
   loadAccounts: () => {},
@@ -68,23 +65,4 @@ export function settingsDoor(wire: Wiring, writeKey: AwayDeps['settings']['write
 export function realWriteKey(wire: Wiring): AwayDeps['settings']['writeKey'] {
   const door = new Settings(wire, NOTHING_ELSE)
   return (key, value, was, how) => door.writeKey(key, value, was, how)
-}
-
-/**
- * Changing a setting from away on, in the home's own file.
- *
- * **Both configs**, for `intake`'s reason: the window's in-memory config is
- * what the capability is read from, and `Settings.write` reads the file back
- * after every change — so a file that did not say the same would turn the
- * capability off under the test at its first write.
- */
-export function settingsOn(home: string, port: number, acting: boolean): void {
-  for (const [key, value] of [
-    ['surfaces.web.enabled', true],
-    ['surfaces.web.port', port],
-    ['surfaces.web.acting', acting],
-    ['surfaces.web.settings', true],
-  ] as const) {
-    writeSetting(join(home, 'config.yaml'), key, value)
-  }
 }

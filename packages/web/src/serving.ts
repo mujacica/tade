@@ -7,11 +7,9 @@ import type { WebAnswers } from './answered.ts'
 import type { WebAsking } from './asking.ts'
 import type { WebAttaching } from './attached.ts'
 import type { WebCarrying } from './carried.ts'
-import type { WebConfiguring } from './configuring.ts'
 import type { WebConnecting } from './connected.ts'
 import type { WebDisk } from './disk.ts'
 import type { WebDocument } from './document.ts'
-import type { WebDrafting } from './drafting.ts'
 import type { DrawingDoor } from './drawn.ts'
 import type { WebDuties } from './duties.ts'
 import type { WebEarlier } from './earlier.ts'
@@ -157,16 +155,6 @@ export interface ServerOptions {
    */
   acting?: WebActing
   /**
-   * What a paired device may *save*, where a person turned drafting on.
-   *
-   * **Optional, and its absence is the guarantee**, exactly as `acting` and
-   * `asking` are: a window that was not given this serves no saving route, so
-   * a crafted call is the `404` of a path nobody built rather than a `403`
-   * naming a setting. `drafting.unlocked()` is read again at every save, so
-   * turning the setting off takes authority away now.
-   */
-  drafting?: WebDrafting
-  /**
    * What a paired device may *say to Tade*, where a person turned talking on.
    *
    * **Optional, and its absence is the guarantee**, exactly as `acting` is: a
@@ -184,24 +172,14 @@ export interface ServerOptions {
    * What a paired device may *ask about being told*, where a person turned
    * notifications on.
    *
-   * **Optional, and its absence is the guarantee**, exactly as `acting`,
-   * `asking` and `drafting` are: a window that was not given this serves no
+   * **Optional, and its absence is the guarantee**, exactly as `acting` and
+   * `asking` are: a window that was not given this serves no
    * notification route, so a crafted call is the `404` of a path nobody built
    * rather than a `403` naming a setting. `pushing.unlocked()` is read again
    * at every call, and the window reads the setting again on every beat before
    * it sends anything — so turning it off stops delivery within a beat.
    */
   pushing?: WebPushing
-  /**
-   * What a paired device may *do to a setting*, where a person turned that on.
-   *
-   * **Optional, and its absence is the guarantee**, exactly as the four above
-   * are: a window that was not given this serves no changing route, so a
-   * crafted call is the `404` of a path nobody built. `configuring.unlocked()`
-   * is read again at every change, so turning the setting off takes authority
-   * away now. Reading the settings is not this: it is `WebReading.settings`.
-   */
-  configuring?: WebConfiguring
   /**
    * The VAPID public key, where there is one.
    *

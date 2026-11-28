@@ -180,6 +180,22 @@ projects:
     expect(r.config.projects.demo?.root).toBe('/tmp/demo')
   })
 
+  it('ignores the away view’s settings and drafts switches, and says a phone uses the window’s', () => {
+    // Each turned on a route the away page's own Settings and workflows pages
+    // used; the page has neither now, so a config that still names them keeps
+    // loading, and says so.
+    const r = parseConfig(
+      'surfaces:\n  web:\n    enabled: true\n    settings: false\n    drafts: true\n    acting: false\n',
+    )
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.warnings.join('\n')).toContain('surfaces.web.settings is ignored')
+    expect(r.warnings.join('\n')).toContain('surfaces.web.drafts is ignored')
+    expect(r.warnings.join('\n')).toContain('in the full view')
+    expect(r.config.surfaces.web.acting).toBe(false)
+    expect('settings' in r.config.surfaces.web).toBe(false)
+  })
+
   it('ignores a remote called here and says so, rather than refusing the file', () => {
     // `here` is what `projects.<name>.watches` calls this machine, so a remote
     // by that name would make the setting name two. `tade remote add` refuses
@@ -993,8 +1009,6 @@ describe('what a project pushes', () => {
     for (const key of [
       'acting',
       'orchestrator',
-      'drafts',
-      'settings',
       'install',
       'offline',
       'push',

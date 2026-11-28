@@ -808,8 +808,6 @@ describe('the orchestrator, configuring Tade', () => {
     for (const [path, said] of [
       ['surfaces.web.acting', 'stop letting my phone act'],
       ['surfaces.web.orchestrator', 'stop letting my phone talk to tade'],
-      ['surfaces.web.drafts', 'stop letting my phone save draft workflows'],
-      ['surfaces.web.settings', 'stop letting my phone change settings'],
       ['surfaces.web.push', 'stop sending notifications to my phone, push off'],
       ['surfaces.web.push_details', 'stop putting work names in push details'],
     ] as const) {
@@ -821,8 +819,6 @@ describe('the orchestrator, configuring Tade', () => {
     expect(client.config.surfaces.web).toMatchObject({
       acting: true,
       orchestrator: true,
-      drafts: true,
-      settings: true,
       push: true,
       push_details: true,
     })
