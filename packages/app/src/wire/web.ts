@@ -12,7 +12,6 @@ import {
   Copies,
   chatBefore,
   connectWhere,
-  copyFrame,
   type Device,
   drawingDoor,
   factsOf,
@@ -30,7 +29,6 @@ import {
   type Snapshot,
   type SnapshotInput,
   Streams,
-  sseFrame,
   surfaceOf,
   type TaskFacts,
   Tickets,
@@ -587,11 +585,7 @@ export class Away implements Subject {
       return
     }
     const frames = this.copies.beat(this.deps.copies?.() ?? [])
-    this.streams.pushCopies(
-      to,
-      frames.map((frame) => sseFrame(copyFrame(frame))),
-      now,
-    )
+    this.streams.pushCopies(to, frames, now)
   }
 
   /** Whether this device is sent the other machines' copies: a paired device, and not a link. */

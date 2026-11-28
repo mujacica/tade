@@ -45,6 +45,15 @@ export const HEARTBEAT_MS = 15_000
  * `resync` is queued** — correct by construction, because a snapshot replaces
  * anything a delta could have said. No urgency ranking, unlike the journal's
  * `evictLeastUrgent`: a projection delta is never the only record of itself.
+ *
+ * **What it counts is what queued behind a write the socket had not taken**,
+ * and never a frame that replaces what the page holds: a snapshot, the
+ * `resync` before it, a copy sent whole (`Held.sendWhole` in `peers.ts`).
+ * Those are handed over whatever the budget and leave it as it was. Counted,
+ * one snapshot over 64 KB was "behind" all by itself: the copies after it were
+ * dropped, a resync was owed, and every `drain` sent another snapshot that was
+ * behind again, so the page's "This page fell behind." bar blinked several
+ * times a second.
  */
 export const PEER_BYTES = 64 * 1024
 export const PEER_FRAMES = 50

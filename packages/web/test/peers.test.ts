@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { Sink } from '../src/peers.ts'
+import { type CopyFrame, copyFrame } from '../src/copies.ts'
+import type { Peer, Sink } from '../src/peers.ts'
 import { Streams } from '../src/peers.ts'
-import type { Delta, Snapshot } from '../src/protocol.ts'
+import { type Delta, PROTOCOL_VERSION, type Snapshot } from '../src/protocol.ts'
 import { projector } from '../src/reading.ts'
 import type { Told } from '../src/serving.ts'
 import {
@@ -11,9 +12,10 @@ import {
   PEER_FRAMES,
   PER_DEVICE,
   STALL_MS,
+  sseFrame,
   TOTAL,
 } from '../src/stream.ts'
-import { input, NOW, reach } from './fixtures.ts'
+import { input, NOW, note, reach } from './fixtures.ts'
 
 // Who is listening, and when one of them stops being worth writing to.
 //
@@ -461,6 +463,7 @@ describe('a sink that throws on the way out', () => {
 
 describe('the other machines’ copies', () => {
   const COPY = 'event: machine\ndata: {"machine":"ipax"}\n\n'
+  const PUSHED: CopyFrame = { v: PROTOCOL_VERSION, machine: 'ipax', kind: 'gone' }
 
   function openWith(live: Streams, device: string, copies: () => readonly string[]) {
     const sink = fake()
@@ -505,7 +508,7 @@ describe('the other machines’ copies', () => {
     const live = streams()
     const mine = openWith(live, 'aaaa0000bbbb1111', () => [])
     const theirs = openWith(live, 'cccc2222dddd3333', () => [])
-    live.pushCopies(new Set(['aaaa0000bbbb1111']), [COPY], NOW)
+    live.pushCopies(new Set(['aaaa0000bbbb1111']), [PUSHED], NOW)
     expect(events(mine.sink)).toEqual(['snapshot', 'machine'])
     expect(events(theirs.sink)).toEqual(['snapshot'])
   })
@@ -598,10 +601,24 @@ describe('the full view’s stream, which asks for the window alone', () => {
     const overview = open(live, { device: DEVICE })
     const page = full(live)
     live.push(DEVICE, delta(1), NOW)
-    live.pushCopies(new Set([DEVICE]), [COPY], NOW)
+    live.pushCopies(
+      new Set([DEVICE]),
+      [{ v: PROTOCOL_VERSION, machine: 'ipax', kind: 'gone' }],
+      NOW,
+    )
     live.window(DEVICE, { kind: 'whole' }, NOW)
     expect(events(page.sink)).toEqual(['window'])
-    expect(events(overview.sink)).toEqual(['snapshot', 'delta', 'machine', 'window'])
+    // The overview reads no `window` frame, so it is handed none: each one
+    // would only use up its budget beside an open full view.
+    expect(events(overview.sink)).toEqual(['snapshot', 'delta', 'machine'])
+  })
+
+  it('is sent to the overview’s stream only where no full view asked for the window alone', () => {
+    // A full view from before `?only=window` reads them off the one stream it opened.
+    const live = streams()
+    const older = open(live, { device: DEVICE })
+    live.window(DEVICE, { kind: 'whole' }, NOW)
+    expect(events(older.sink)).toEqual(['snapshot', 'window'])
   })
 
   it('still feeds the ring, so the overview reopening later replays what it missed', () => {
@@ -653,5 +670,204 @@ describe('the full view’s stream, which asks for the window alone', () => {
     live.gone(opened.peer)
     expect(live.projected()).toEqual([])
     expect(live.listening()).toEqual([DEVICE])
+  })
+})
+
+describe('a page that keeps up, over many beats', () => {
+  // The away page blinked "This page fell behind." several times a second: a
+  // snapshot over `PEER_BYTES` was counted as behind by itself, so the copies
+  // written after it were dropped, a resync was owed, and every `drain` sent
+  // another snapshot that was behind again. These count resyncs beat by beat
+  // over a socket that pushes back as Node's `res` does, read by a client that
+  // keeps up: nothing about a page keeping up is ever behind.
+  const DEVICE = 'aaaa0000bbbb1111'
+  const BEATS = 120
+  const BEAT_MS = 1_000
+  /** Node's default for a writable stream: `write` says false past this. */
+  const HIGH_WATER = 16 * 1024
+
+  /** A response as Node's is: `write` says whether its buffer is under the mark, and a refusal owes a `drain`. */
+  function socket() {
+    const one = {
+      wrote: [] as string[],
+      ended: false,
+      waiting: 0,
+      owesDrain: false,
+      write(text: string): boolean {
+        one.wrote.push(text)
+        one.waiting += text.length
+        const kept = one.waiting < HIGH_WATER
+        if (!kept) one.owesDrain = true
+        return kept
+      },
+      end(): void {
+        one.ended = true
+      },
+    }
+    return one
+  }
+
+  type Socket = ReturnType<typeof socket>
+
+  /**
+   * The client reads everything waiting, which is keeping up, and Node says
+   * `drain` where a write was refused. Whatever the drain hands over is read
+   * too — bounded, because the loop this guards against never ends by itself.
+   */
+  function readAll(live: Streams, peer: Peer, sock: Socket, now: number): void {
+    for (let round = 0; round < 10; round++) {
+      sock.waiting = 0
+      if (!sock.owesDrain) return
+      sock.owesDrain = false
+      live.drained(peer, now)
+    }
+  }
+
+  /** A projection over the budget, as one with every note whole is. */
+  const fat = (): Snapshot =>
+    projector(
+      input({
+        reach: reach(),
+        notes: Array.from({ length: 120 }, (_, at) =>
+          note({ at: new Date(NOW + at).toISOString(), text: `${at} ${'w'.repeat(1_000)}` }),
+        ),
+      }),
+      NOW,
+    ).snapshot()
+
+  const copyWhole = (): CopyFrame => ({
+    v: PROTOCOL_VERSION,
+    machine: 'mac',
+    kind: 'whole',
+    snapshot: fat(),
+  })
+
+  function overview(live: Streams) {
+    const sock = socket()
+    const opened = live.open({
+      device: DEVICE,
+      until: NOW + 86_400_000,
+      cursor: null,
+      sink: sock,
+      snapshot: fat,
+      copies: () => [sseFrame(copyFrame(copyWhole()))],
+      rev: 0,
+      now: NOW,
+    })
+    if (opened.kind !== 'open') throw new Error('it should have opened')
+    return { sock, peer: opened.peer }
+  }
+
+  function fullView(live: Streams) {
+    const sock = socket()
+    const opened = live.open({
+      device: DEVICE,
+      until: NOW + 86_400_000,
+      cursor: null,
+      sink: sock,
+      snapshot: fat,
+      windowOnly: true,
+      rev: 0,
+      now: NOW,
+    })
+    if (opened.kind !== 'open') throw new Error('it should have opened')
+    return { sock, peer: opened.peer }
+  }
+
+  /** One of the window's beats, as `Away.beat` runs it: the projection, the copies, then the streams. */
+  function beat(live: Streams, at: number, window: boolean): number {
+    const now = NOW + at * BEAT_MS
+    live.push(DEVICE, delta(at), now)
+    // A whole copy every tenth beat (a machine restarting there), a change on the rest.
+    const copy: CopyFrame =
+      at % 10 === 0
+        ? copyWhole()
+        : { v: PROTOCOL_VERSION, machine: 'mac', kind: 'change', from: at - 1, delta: delta(at) }
+    live.pushCopies(new Set([DEVICE]), [copy], now)
+    // The full view's face, four times a second, each a screenful of what moved.
+    if (window) {
+      for (let frame = 0; frame < 4; frame++) {
+        live.window(DEVICE, { kind: 'change', rows: 'r'.repeat(12_000), frame }, now)
+      }
+    }
+    live.beat(now)
+    return now
+  }
+
+  const resyncs = (sock: Socket) => events(sock).filter((name) => name === 'resync').length
+
+  it('is never resynced, though its snapshot and copies are each over the budget', () => {
+    expect(JSON.stringify(fat()).length).toBeGreaterThan(PEER_BYTES)
+    const live = streams()
+    const page = overview(live)
+    readAll(live, page.peer, page.sock, NOW)
+    for (let at = 1; at <= BEATS; at++) {
+      const now = beat(live, at, false)
+      readAll(live, page.peer, page.sock, now)
+    }
+    expect(resyncs(page.sock)).toBe(0)
+    // And it was sent every beat's delta, not a snapshot in place of them.
+    expect(events(page.sock).filter((name) => name === 'delta')).toHaveLength(BEATS)
+    expect(events(page.sock).filter((name) => name === 'snapshot')).toHaveLength(1)
+  })
+
+  it('is never resynced with the full view open beside it', () => {
+    const live = streams()
+    const page = overview(live)
+    const full = fullView(live)
+    readAll(live, page.peer, page.sock, NOW)
+    readAll(live, full.peer, full.sock, NOW)
+    for (let at = 1; at <= BEATS; at++) {
+      const now = beat(live, at, true)
+      readAll(live, page.peer, page.sock, now)
+      readAll(live, full.peer, full.sock, now)
+    }
+    expect(resyncs(page.sock)).toBe(0)
+    expect(events(page.sock)).not.toContain('window')
+    expect(events(full.sock).filter((name) => name === 'window')).toHaveLength(BEATS * 4)
+    expect(resyncs(full.sock)).toBe(0)
+  })
+
+  it('still owes one resync where it really stopped reading, and is redrawn once it reads again', () => {
+    const live = streams()
+    const page = overview(live)
+    readAll(live, page.peer, page.sock, NOW)
+    // Not read for a stretch of beats: the deltas pile up past the budget.
+    let now = NOW
+    for (let at = 1; at <= PEER_FRAMES + 5; at++) {
+      now = NOW + at * 100
+      const heavy: Delta = {
+        ...delta(at),
+        set: { notes: { [at]: { id: `${at}`, text: { words: 'h'.repeat(2_000), more: false } } } },
+      }
+      live.push(DEVICE, heavy, now)
+    }
+    readAll(live, page.peer, page.sock, now)
+    expect(resyncs(page.sock)).toBe(1)
+    // Keeping up from there on, it is never owed another.
+    for (let at = PEER_FRAMES + 6; at <= PEER_FRAMES + 6 + BEATS; at++) {
+      now = beat(live, at, false)
+      readAll(live, page.peer, page.sock, now)
+    }
+    expect(resyncs(page.sock)).toBe(1)
+  })
+
+  it('is not pushed a copy whole while it owes a resync, which sends every copy whole again', () => {
+    const live = streams()
+    const page = overview(live)
+    page.sock.waiting = HIGH_WATER
+    for (let at = 1; at <= PEER_FRAMES + 5; at++) live.push(DEVICE, delta(at), NOW)
+    const before = page.sock.wrote.length
+    live.pushCopies(new Set([DEVICE]), [copyWhole()], NOW)
+    expect(page.sock.wrote.length).toBe(before)
+    readAll(live, page.peer, page.sock, NOW)
+    expect(events(page.sock).slice(-3)).toEqual(['resync', 'snapshot', 'machine'])
+  })
+
+  it('is closed if it reads none of a snapshot, which is not counted but still starts the stall', () => {
+    const live = streams()
+    const page = overview(live)
+    live.beat(NOW + STALL_MS + 1)
+    expect(page.sock.ended).toBe(true)
   })
 })

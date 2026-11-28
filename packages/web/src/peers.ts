@@ -1,3 +1,4 @@
+import { type CopyFrame, copyFrame } from './copies.ts'
 import type { Delta, Snapshot } from './protocol.ts'
 import type { Told } from './serving.ts'
 import {
@@ -258,7 +259,7 @@ export class Streams {
       return { kind: 'open', peer: held }
     }
     if (resume.kind === 'resync') {
-      held.send(
+      held.sendWhole(
         sseFrame({
           event: 'resync',
           data: { why: 'behind', said: 'this page was too far behind to catch up' },
@@ -267,7 +268,7 @@ export class Streams {
       )
       this.warn(`a stream resynced: ${resume.why}`, req.device)
     }
-    held.send(sseFrame(snapshotFrame(req.snapshot())), req.now)
+    held.sendWhole(sseFrame(snapshotFrame(req.snapshot())), req.now)
     held.sendCopies(req.now, resume.kind !== 'resync')
     return { kind: 'open', peer: held }
   }
@@ -276,12 +277,23 @@ export class Streams {
    * The other machines' copies moved: each frame to every stream of the
    * devices named, which are the ones sent copies at all. Not in a ring — a
    * stream that opens is sent every copy whole — and not to anybody else.
+   *
+   * A copy sent whole (a machine first heard, restarted, or the first beat
+   * after a page opened) replaces what the page held of it, so it goes as a
+   * snapshot does (`sendWhole`); a change is counted like a delta.
    */
-  pushCopies(devices: ReadonlySet<string>, frames: readonly string[], now: number): void {
+  pushCopies(devices: ReadonlySet<string>, frames: readonly CopyFrame[], now: number): void {
     if (this.stopping || frames.length === 0) return
+    const written = frames.map((frame) => ({
+      text: sseFrame(copyFrame(frame)),
+      whole: frame.kind !== 'change',
+    }))
     for (const peer of this.peers) {
       if (!devices.has(peer.device) || !peer.projection) continue
-      for (const frame of frames) peer.send(frame, now)
+      for (const { text, whole } of written) {
+        if (whole) peer.sendWhole(text, now)
+        else peer.send(text, now)
+      }
     }
   }
 
@@ -379,11 +391,21 @@ export class Streams {
    * (`windowed.ts`): to that device's streams and nobody else's, and never in a
    * ring — a phone that lost one says so with its next look and is sent the
    * window whole, which is also what follows a resync.
+   *
+   * **Only to the streams that read it**: the full view's (`windowOnly`).
+   * The overview's stream reads no `window` frame, and every one it was
+   * handed beside an open full view used up its budget for nothing: a burst
+   * of them was "behind" and a resync. An overview stream is sent them only
+   * while this device has no full-view stream, which is a full view from
+   * before it asked for the window alone (`?only=window`) and reads them off
+   * the one stream it has.
    */
   window(device: string, data: unknown, now: number): void {
     if (this.stopping) return
     const frame = sseFrame({ event: 'window', data })
-    for (const peer of [...this.peers]) if (peer.device === device) peer.send(frame, now)
+    const mine = this.peers.filter((peer) => peer.device === device)
+    const asked = mine.some((peer) => !peer.projection)
+    for (const peer of mine) if (!asked || !peer.projection) peer.send(frame, now)
   }
 
   /**
@@ -499,7 +521,9 @@ class Held implements Peer {
    * what it held was said before it fell behind.
    */
   sendCopies(now: number, opening = false): void {
-    for (const frame of this.whole.copies(opening ? this.whole.held : null)) this.send(frame, now)
+    for (const frame of this.whole.copies(opening ? this.whole.held : null)) {
+      this.sendWhole(frame, now)
+    }
   }
 
   renew(until: number): void {
@@ -515,8 +539,27 @@ class Held implements Peer {
    * from this has a correct projection and not a half-applied one.
    */
   send(text: string, now: number): void {
+    this.hand(text, now, false)
+  }
+
+  /**
+   * Write a frame that replaces what the page holds — a snapshot, the
+   * `resync` before it, a copy whole — whatever the budget, and without
+   * counting it. Everything queued before it is what it replaces, so it is
+   * never "behind"; and counted, a snapshot over the budget was behind by
+   * itself, and every `drain` owed the next one (`PEER_BYTES`). It still
+   * starts the stall clock, so a page that reads none of it is closed.
+   */
+  sendWhole(text: string, now: number): void {
+    this.hand(text, now, true)
+  }
+
+  private hand(text: string, now: number, whole: boolean): void {
     if (!this.open) return
-    if (overBudget(this.pending)) {
+    // A copy pushed whole while a resync is owed is one that resync sends
+    // again, so a page that stopped reading is not handed it twice, uncounted.
+    if (whole && this.owed) return
+    if (!whole && overBudget(this.pending)) {
       this.owed = true
       return
     }
@@ -528,6 +571,7 @@ class Held implements Peer {
       return
     }
     this.slowSince ??= now
+    if (whole) return
     this.pending = {
       frames: this.pending.frames + 1,
       bytes: this.pending.bytes + text.length,
@@ -553,14 +597,14 @@ class Held implements Peer {
     // What the full view's stream dropped is `window` frames, which it
     // recovers by itself: the next one that does not apply makes it look again.
     if (!this.projection) return
-    this.send(
+    this.sendWhole(
       sseFrame({
         event: 'resync',
         data: { why: 'behind', said: 'this page fell behind, so it is being redrawn' },
       }),
       now,
     )
-    this.send(sseFrame(snapshotFrame(this.whole.snapshot())), now)
+    this.sendWhole(sseFrame(snapshotFrame(this.whole.snapshot())), now)
     this.sendCopies(now)
   }
 
