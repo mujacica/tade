@@ -292,49 +292,6 @@ export const ROUTES: readonly Route[] = [
     needs: 'read',
     mutates: false,
   },
-  // **One call's whole answer, read when somebody opens it** (`answered.ts`):
-  // an agent's out of its harness's record, the conversation with Tade's out
-  // of the orchestrator's. A conversation's rows say whether a call answered
-  // and carry none of it, so nothing is cut and nothing is held for a row
-  // nobody opens. On the conversation's own grants, checked in the answer.
-  {
-    method: 'GET',
-    path: '/api/agent/:project/:task/answer/:call',
-    name: 'agent answer',
-    needs: 'read',
-    mutates: false,
-  },
-  // **What one agent has changed, every file and its whole diff, read when
-  // somebody opens it** (`changes.ts`): the window's Show changes, from away.
-  // Source leaving the machine, cleaned as an agent's screen is, and it
-  // changes nothing.
-  {
-    method: 'GET',
-    path: '/api/agent/:project/:task/changes',
-    name: 'agent changes',
-    needs: 'read',
-    mutates: false,
-  },
-  // **One agent's turns before a cursor its page holds**: the same, for an
-  // agent's conversation, on its own grants (`lanes`, a task it reads).
-  {
-    method: 'GET',
-    path: '/api/agent/:project/:task/earlier',
-    name: 'agent earlier',
-    needs: 'read',
-    mutates: false,
-  },
-  // **One agent's moments before a cursor its page holds**: its timeline read
-  // on past the newest stretch, to its first moment, out of the journal on a
-  // thread of the window's own: what it did is Tade's sentences about
-  // metadata.
-  {
-    method: 'GET',
-    path: '/api/agent/:project/:task/moments',
-    name: 'agent moments',
-    needs: 'read',
-    mutates: false,
-  },
   // **One agent's menu, read when somebody opens it** (`agent-menu.ts`): the
   // window's own list of what may be done to it, each item with why not where
   // it cannot be done now, cut to what this device may ask. A `GET`, and it
@@ -346,6 +303,10 @@ export const ROUTES: readonly Route[] = [
     needs: 'read',
     mutates: false,
   },
+  // **One of the orchestrator's calls' whole answer, read when somebody opens
+  // it** (`answered.ts`): out of the orchestrator's record. A conversation's
+  // rows say whether a call answered and carry none of it, so nothing is cut
+  // and nothing is held for a row nobody opens.
   {
     method: 'GET',
     path: '/api/talk/answer/:call',

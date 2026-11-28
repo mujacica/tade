@@ -7,14 +7,13 @@ import { type MenuStanding, menuHere } from './agent-menu.ts'
 import { answerHere } from './answering.ts'
 import { carryAsk } from './asked.ts'
 import { assetsDir, readAssets } from './assets.ts'
-import { changesHere } from './changes.ts'
 import { carryChange } from './configured.ts'
 import { connectTicketHolds } from './connect-tickets.ts'
 import { ConnectStates, carryConnect, connectHere } from './connected.ts'
 import { copiesHeldOf } from './copies.ts'
 import { appendDevice, type Device, listing, readDevices } from './devices.ts'
 import { carrySave } from './drafted.ts'
-import { chatHere, momentsHere, turnsHere } from './earlier.ts'
+import { chatHere } from './earlier.ts'
 import { bodyOf, type Refusal, refuse } from './errors.ts'
 import { filesFor } from './files.ts'
 import {
@@ -404,21 +403,10 @@ export function webServer(opts: ServerOptions): WebServer {
           res,
           await chatHere(queryOf(req.url ?? '/').get('before'), reachOf(device), opts),
         )
-      case 'agent earlier': {
-        const before = queryOf(req.url ?? '/').get('before')
-        return json(res, await turnsHere(found.params, before, reachOf(device), opts))
-      }
-      case 'agent moments': {
-        const before = queryOf(req.url ?? '/').get('before')
-        return json(res, await momentsHere(found.params, before, reachOf(device), opts))
-      }
       case 'agent menu':
         return json(res, await menuHere(found.params, reachOf(device), menuStanding(), opts))
-      case 'agent changes':
-        return json(res, await changesHere(found.params, reachOf(device), opts))
-      case 'agent answer':
       case 'talk answer':
-        return json(res, await answerHere(found.route.name, found.params, reachOf(device), opts))
+        return json(res, await answerHere(found.params, opts))
       case 'settings':
         return json(res, opts.readingFor(reachOf(device)).settings())
       case 'evaluations':

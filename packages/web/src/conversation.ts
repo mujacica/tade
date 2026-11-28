@@ -17,8 +17,7 @@ import { cleanText } from './screen.ts'
 /**
  * How many of an agent's turns one read of its record asks for: at least
  * this many, back to the start of an exchange (`historyIn`). Every turn read
- * crosses, each whole, and the ones before are the next page's — asked for as
- * the reader scrolls up (`turnsBefore`).
+ * crosses, each whole.
  */
 export const TURNS = { turns: 40 } as const
 

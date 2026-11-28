@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { activitySaid, agentOf, momentsBefore } from '../src/agent.ts'
-import { AgentOutSchema, MomentsPageSchema } from '../src/protocol.ts'
+import { activitySaid, agentOf } from '../src/agent.ts'
+import { AgentOutSchema } from '../src/protocol.ts'
 import { projector } from '../src/reading.ts'
 import {
   agentHeld,
@@ -64,37 +64,15 @@ describe('one agent, for one device', () => {
   })
 })
 
-describe('an agent’s moments before a cursor', () => {
-  it('are its moments read further back, said in Tade’s words, with where the ones before are', () => {
-    const page = momentsBefore(TASK, true, { activity: earlierActivity(), earlier: null })
-    expect(() => MomentsPageSchema.parse(page)).not.toThrow()
-    expect(page.activity.map((one) => [one.id, one.said])).toEqual([
-      ['60', 'its agent stopped'],
-      ['59', 'committed'],
-      ['58', 'tests failed'],
-      ['57', 'its agent started'],
-      ['56', 'was made'],
+describe('an agent’s moments as Tade says them', () => {
+  it('says each in Tade’s words, down to its making', () => {
+    expect(earlierActivity().map((one) => activitySaid(one))).toEqual([
+      'its agent stopped',
+      'committed',
+      'tests failed',
+      'its agent started',
+      'was made',
     ])
-    expect(page).toMatchObject({ earlier: null, why: null })
-    expect(
-      momentsBefore(TASK, true, { activity: earlierActivity().slice(0, 2), earlier: '59' }).earlier,
-    ).toBe('59')
-  })
-
-  it('are nothing for a task out of reach, and say a journal that could not be read', () => {
-    expect(momentsBefore(TASK, false, { activity: earlierActivity(), earlier: '9' })).toMatchObject(
-      {
-        activity: [],
-        earlier: null,
-        why: 'not here',
-      },
-    )
-    expect(momentsBefore(TASK, true, 'unread')).toMatchObject({ activity: [], why: 'unread' })
-    expect(momentsBefore(TASK, true, null)).toMatchObject({
-      activity: [],
-      earlier: null,
-      why: null,
-    })
   })
 })
 

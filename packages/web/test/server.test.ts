@@ -5,13 +5,12 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { callKey } from '../src/answered.ts'
 import type { WebEarlier } from '../src/earlier.ts'
 import { COMPANIONS, CSP } from '../src/headers.ts'
-import { ChatPageSchema, MomentsPageSchema, TurnsPageSchema } from '../src/protocol.ts'
+import { ChatPageSchema } from '../src/protocol.ts'
 import { BODY_MAX, CSRF_HEADER, pathOf, queryOf } from '../src/request.ts'
 import type { Told } from '../src/server.ts'
 import { webServer } from '../src/server.ts'
 import { listenerAt, listenOn } from '../src/surface.ts'
 import { Tickets } from '../src/tickets.ts'
-import { conversationHeld, earlierActivity, HELD_KEY } from './fixtures.ts'
 import {
   actingStub,
   ask,
@@ -287,19 +286,20 @@ describe('one agent, asked for again', () => {
   })
 })
 
-describe("one call's whole answer, read when it is opened", () => {
+describe("one of the orchestrator's calls' whole answer, read when it is opened", () => {
   const SPELT_ID = 'call_0Kx|fc_68f0a1b2c3d4e5f6'
   const long = Array.from({ length: 5_000 }, (_, n) => `line ${n + 1} at /Users/someone/x`).join(
     '\n',
   )
   const answers = {
-    agent: async (_task: string, call: string) =>
+    talk: async (call: string) =>
       call === 'toolu_long' || call === SPELT_ID
         ? { result: long }
         : call === 'toolu_empty'
           ? { result: '' }
-          : null,
-    talk: async (call: string) => (call === 'call_sick' ? ('unread' as const) : null),
+          : call === 'call_sick'
+            ? ('unread' as const)
+            : null,
     known: () => [],
   }
   const opened = async (path: string) => {
@@ -309,12 +309,12 @@ describe("one call's whole answer, read when it is opened", () => {
   }
 
   it('is the whole of a five-thousand-line answer, cleaned, with no line saying there was more', async () => {
-    const got = await opened('/api/agent/sentry/away-projection/answer/toolu_long')
+    const got = await opened('/api/talk/answer/toolu_long')
     expect(got).toMatchObject({ v: 1, call: 'toolu_long', says: 'words' })
     const lines = String(got.text).split('\n')
     expect(lines).toHaveLength(5_000)
     expect(lines.at(-1)).toMatch(/^line 5000 at /)
-    // Cleaned at the boundary like everything an agent wrote, and cut nowhere.
+    // Cleaned at the boundary like everything a harness wrote, and cut nowhere.
     expect(String(got.text)).not.toContain('/Users/someone')
     expect(String(got.text)).not.toMatch(/more than|not kept|more lines|more characters/)
   })
@@ -322,30 +322,22 @@ describe("one call's whole answer, read when it is opened", () => {
   it("is read by the id it was recorded under where that id is not spelt like one, as pi's on OpenAI is", async () => {
     const key = callKey(SPELT_ID) ?? ''
     expect(key.startsWith('~')).toBe(true)
-    const got = await opened(`/api/agent/sentry/away-projection/answer/${key}`)
+    const got = await opened(`/api/talk/answer/${key}`)
     expect(got).toMatchObject({ call: key, says: 'words' })
     expect(String(got.text).split('\n')).toHaveLength(5_000)
   })
 
   it('tells an answer of nothing, one nobody kept and one that could not be read apart', async () => {
-    const at = (call: string) => `/api/agent/sentry/away-projection/answer/${call}`
-    expect(await opened(at('toolu_empty'))).toMatchObject({
+    expect(await opened('/api/talk/answer/toolu_empty')).toMatchObject({
       says: 'nothing',
       text: null,
     })
-    expect(await opened(at('toolu_cut'))).toMatchObject({ says: 'unrecorded' })
-    expect(await opened('/api/talk/answer/call_sick')).toMatchObject({
-      says: 'unread',
-    })
+    expect(await opened('/api/talk/answer/toolu_cut')).toMatchObject({ says: 'unrecorded' })
+    expect(await opened('/api/talk/answer/call_sick')).toMatchObject({ says: 'unread' })
   })
 
-  it('is told about a task the machine has, and nothing else', async () => {
-    expect(await opened('/api/agent/nobody/nothing/answer/toolu_long')).toMatchObject({
-      says: 'not here',
-      text: null,
-    })
-    // A name that is not a call's is not echoed back.
-    expect(await opened('/api/agent/sentry/away-projection/answer/%3Cscript%3E')).toMatchObject({
+  it('never echoes back a name that is not a call’s', async () => {
+    expect(await opened('/api/talk/answer/%3Cscript%3E')).toMatchObject({
       says: 'not here',
       call: '',
     })
@@ -354,24 +346,13 @@ describe("one call's whole answer, read when it is opened", () => {
 
 describe('a conversation read further back than a page holds', () => {
   const FOURTH = '2026-10-08T14:00:03.000Z#0'
-  const turns = conversationHeld().turns
   const made = () => {
-    const asked = { talk: [] as string[], agent: [] as string[], moments: [] as string[] }
+    const asked = { talk: [] as string[] }
     const earlier: WebEarlier = {
       talk: async (before) => {
         asked.talk.push(before)
         return before !== '2026-10-08T14:00:01.000Z#0'
       },
-      agent: async (task, before) => {
-        asked.agent.push(`${task} ${before}`)
-        return before === '9' ? 'unread' : { turns, before: before === '2048' ? '512' : null }
-      },
-      moments: async (task, before) => {
-        asked.moments.push(`${task} ${before}`)
-        return before === '9' ? 'unread' : { activity: earlierActivity(), earlier: null }
-      },
-      known: () => [HELD_KEY],
-      places: () => ({ work: null, tade: null, home: null }),
     }
     return { asked, earlier }
   }
@@ -407,82 +388,6 @@ describe('a conversation read further back than a page holds', () => {
       earlier: false,
     })
     expect(asked.talk).toEqual([])
-  })
-
-  it('answers an agent’s turns before a cursor, cleaned, with where the ones before end', async () => {
-    const { asked, earlier } = made()
-    const got = await opened('/api/agent/sentry/away-projection/earlier?before=2048', earlier)
-    expect(() => TurnsPageSchema.parse(got)).not.toThrow()
-    expect(got).toMatchObject({ task: 'sentry/away-projection', before: '512', why: null })
-    expect(got.turns).toHaveLength(turns.length)
-    expect(JSON.stringify(got)).not.toContain(HELD_KEY)
-    expect(asked.agent).toEqual(['sentry/away-projection 2048'])
-  })
-
-  it('reads no agent’s record about a task out of reach, or by a cursor that is not one', async () => {
-    const { asked, earlier } = made()
-    const at = '/api/agent/sentry/away-projection/earlier'
-    expect(await opened('/api/agent/nobody/nothing/earlier?before=2048', earlier)).toMatchObject({
-      why: 'not here',
-    })
-    expect(await opened(`${at}?before=../2048`, earlier)).toMatchObject({
-      turns: [],
-      before: null,
-      why: null,
-    })
-    expect(await opened(`${at}?before=9`, earlier)).toMatchObject({ why: 'unread' })
-    expect(asked.agent).toEqual(['sentry/away-projection 9'])
-  })
-})
-
-describe('an agent’s timeline read further back than its page holds', () => {
-  const made = () => {
-    const asked: string[] = []
-    const earlier: WebEarlier = {
-      talk: async () => true,
-      agent: async () => 'unread',
-      moments: async (task, before) => {
-        asked.push(`${task} ${before}`)
-        return before === '9' ? 'unread' : { activity: earlierActivity(), earlier: null }
-      },
-      known: () => [],
-      places: () => ({ work: null, tade: null, home: null }),
-    }
-    return { asked, earlier }
-  }
-  const opened = async (path: string, earlier: WebEarlier) => {
-    const one = await start({}, { owned: { earlier } })
-    const paired = await pair(one)
-    return said(await ask(one, path, { headers: { cookie: paired.cookie } }))
-  }
-
-  it('answers its moments before a cursor, to its first, on no grant but reading its project', async () => {
-    const { asked, earlier } = made()
-    const got = await opened('/api/agent/sentry/away-projection/moments?before=100', earlier)
-    const page = MomentsPageSchema.parse(got)
-    expect(page).toMatchObject({ task: 'sentry/away-projection', earlier: null, why: null })
-    expect(page.activity.map((one) => one.said).at(-1)).toBe('was made')
-    expect(asked).toEqual(['sentry/away-projection 100'])
-  })
-
-  it('reads nothing about a task out of reach or by a cursor that is not a number, and says a journal it could not read', async () => {
-    const { asked, earlier } = made()
-    expect(await opened('/api/agent/nobody/nothing/moments?before=100', earlier)).toMatchObject({
-      activity: [],
-      why: 'not here',
-    })
-    expect(
-      await opened('/api/agent/sentry/away-projection/moments?before=../100', earlier),
-    ).toMatchObject({ activity: [], earlier: null, why: null })
-    expect(await opened('/api/agent/sentry/away-projection/moments', earlier)).toMatchObject({
-      activity: [],
-      earlier: null,
-      why: null,
-    })
-    expect(
-      await opened('/api/agent/sentry/away-projection/moments?before=9', earlier),
-    ).toMatchObject({ why: 'unread' })
-    expect(asked).toEqual(['sentry/away-projection 9'])
   })
 })
 

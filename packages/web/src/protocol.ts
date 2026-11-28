@@ -968,8 +968,8 @@ export const AgentOutSchema = z.strictObject({
   /** Its newest moments, newest first. */
   activity: z.array(ActivityRowSchema),
   /**
-   * Where the moments before these are read from, to be asked for as `before`
-   * (`MomentsPageSchema`); null where these reach its first. Opaque: a number.
+   * Where the moments before these are, by the window's own cursor; null
+   * where these reach its first. Opaque: a number.
    */
   earlier: z.string().nullable(),
   screen: z
@@ -999,9 +999,8 @@ export const AgentOutSchema = z.strictObject({
       rev: z.string(),
       turns: z.array(TurnRowSchema).nullable(),
       /**
-       * Where the turns before these end in its record, to be asked for as
-       * `before` (`TurnsPageSchema`); null where these reach its beginning.
-       * Opaque: the harness's own cursor, which is a number.
+       * Where the turns before these end in its record; null where these
+       * reach its beginning. Opaque: the harness's own cursor, which is a number.
        */
       before: z.string().nullable(),
       /** How many things were taken out. A count, never what. */
@@ -1012,40 +1011,3 @@ export const AgentOutSchema = z.strictObject({
   unread: z.enum(CONVERSATION_WHY).nullable(),
 })
 export type AgentOut = z.infer<typeof AgentOutSchema>
-
-/**
- * An agent's moments before a cursor an answer gave
- * (`GET /api/agent/:project/:task/moments?before=`), newest first: what its
- * timeline reads as somebody scrolls on past what it holds, to its first.
- */
-export const MomentsPageSchema = z.strictObject({
-  v: z.literal(PROTOCOL_VERSION),
-  task: z.string(),
-  activity: z.array(ActivityRowSchema),
-  /** Where the moments before these are read from, or null where these reach its first. */
-  earlier: z.string().nullable(),
-  /** Why there are none: a task this device does not read, or a journal that could not be read now. */
-  why: z.enum(['not here', 'unread']).nullable(),
-})
-export type MomentsPage = z.infer<typeof MomentsPageSchema>
-
-/**
- * The turns of an agent's conversation before a cursor an answer gave
- * (`GET /api/agent/:project/:task/earlier?before=`), oldest first and each
- * whole: what its page reads as somebody scrolls up in it.
- */
-export const TurnsPageSchema = z.strictObject({
-  v: z.literal(PROTOCOL_VERSION),
-  task: z.string(),
-  turns: z.array(TurnRowSchema),
-  /** Where the turns before these end, or null where these reach the beginning. */
-  before: z.string().nullable(),
-  /** How many things were taken out. A count, never what. */
-  taken: z.int().nonnegative(),
-  /**
-   * Why there are none: no such task, or a record that could not be read
-   * now — worth asking again.
-   */
-  why: z.enum(['not here', 'unread']).nullable(),
-})
-export type TurnsPage = z.infer<typeof TurnsPageSchema>

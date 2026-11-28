@@ -15,11 +15,8 @@ import type { ActivityIn, ActivityKind } from '@tade/web'
 // **The newest stretch out of what the window holds, and the rest by number.**
 // The window holds the journal's newest lines, so this walks them from the end
 // and stops at `most` moments about this task, or after `SCAN` lines of
-// anything — and says where it stopped: the number the moments before are read
-// from, out of the journal itself and off the window's thread
-// (`Workbench.eventsBefore`), as somebody scrolls the timeline on to the
-// task's first moment (`momentsOf`). Its making is its first, so nothing is
-// asked for before that.
+// anything — and says where it stopped: the number the moments before would be
+// read from. Its making is its first, so nothing is before that.
 //
 // Pure: a function of the events, the task and the bounds.
 
@@ -116,24 +113,4 @@ export function activityIn(
   }
   const from = events[stop]
   return { activity, earlier: from === undefined ? null : String(from.seq) }
-}
-
-/**
- * Lines read out of the journal before a number, newest first and at most
- * `most` of them, as moments: fewer than were asked for, or its making, is
- * its first.
- */
-export function momentsOf(events: readonly TadeEvent[], most: number): Moments {
-  const activity: ActivityIn[] = []
-  for (const event of events) {
-    const one = momentOf(event)
-    if (one === null) continue
-    activity.push(one)
-    if (one.kind === 'made') return { activity, earlier: null }
-  }
-  const oldest = events.at(-1)
-  return {
-    activity,
-    earlier: events.length < most || oldest === undefined ? null : String(oldest.seq),
-  }
 }

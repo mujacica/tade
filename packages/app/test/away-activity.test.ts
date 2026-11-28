@@ -1,6 +1,6 @@
 import type { TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import { ACTIVITY_TYPES, activityIn, momentsOf } from '../src/away-activity.ts'
+import { ACTIVITY_TYPES, activityIn } from '../src/away-activity.ts'
 
 // What one task has been doing, as the away view's agent page takes it out of
 // the journal: a kind, a moment, and at most one name — never a detail spread
@@ -133,45 +133,11 @@ describe('what a task has been doing', () => {
   })
 })
 
-describe('what a task did further back, read out of the journal', () => {
-  it('asks the journal for exactly the kinds a moment is made of', () => {
+describe('the kinds a moment is made of', () => {
+  it('is exactly the journal types that make one', () => {
     expect(ACTIVITY_TYPES).toContain('task_created')
     expect(ACTIVITY_TYPES).toContain('tool_call')
     expect(ACTIVITY_TYPES).not.toContain('said')
     expect(ACTIVITY_TYPES).not.toContain('usage')
-  })
-
-  it('reads a page as moments, and the number of its oldest while a full page came back', () => {
-    const page = [30, 20, 10].map((seq) =>
-      event({ seq, type: 'tool_call', detail: { tool: 'Edit' } }),
-    )
-    expect(momentsOf(page, 3)).toEqual({
-      activity: [30, 20, 10].map((seq) =>
-        expect.objectContaining({ id: String(seq), what: 'Edit' }),
-      ),
-      earlier: '10',
-    })
-  })
-
-  it('is at its first where fewer came back than were asked for, or where it reached its making', () => {
-    const page = [30, 20].map((seq) => event({ seq, type: 'turn_done' }))
-    expect(momentsOf(page, 3).earlier).toBeNull()
-    const made = [event({ seq: 30, type: 'turn_done' }), event({ seq: 20, type: 'task_created' })]
-    expect(momentsOf(made, 2).earlier).toBeNull()
-    expect(momentsOf([], 3)).toEqual({ activity: [], earlier: null })
-  })
-
-  it('reads back a name and never the call it came with', () => {
-    const [one] = momentsOf(
-      [
-        event({
-          type: 'permission_request',
-          detail: { tool: 'Bash', summary: 'Bash: cat /Users/testperson/.ssh/id_rsa' },
-        }),
-      ],
-      1,
-    ).activity
-    expect(one).toMatchObject({ kind: 'asked', what: 'Bash' })
-    expect(JSON.stringify(one)).not.toContain('testperson')
   })
 })

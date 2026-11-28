@@ -739,7 +739,7 @@ export function activity(): ActivityIn[] {
 
 /**
  * The fixture's working task's moments before the window's stretch, newest
- * first, down to its making: what a read further back finds in the journal.
+ * first, down to its making.
  */
 export function earlierActivity(): ActivityIn[] {
   const at = (minute: number) =>

@@ -148,14 +148,8 @@ async function serve() {
       return made
     },
     // Tade's own conversation reads back through what the projection holds,
-    // which is all of it here; nothing on the overview asks for an agent's.
-    earlier: {
-      talk: async () => true,
-      agent: async () => ({ turns: [], before: null }),
-      moments: async () => ({ activity: [], earlier: null }),
-      known: () => [],
-      places: () => ({ work: null, tade: null, home: null }),
-    },
+    // which is all of it here.
+    earlier: { talk: async () => true },
     // **The full view is there, as it is behind every real window**
     // (`drawingDoor` in `@tade/app`'s `wire/web.ts`): the page asks `/draw/`
     // before it offers the Overview/Full view switch (`offerFull`), and a

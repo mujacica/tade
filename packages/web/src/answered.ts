@@ -11,9 +11,7 @@ import { PROTOCOL_VERSION } from './protocol.ts'
 // asked (`WebAnswers`), so a conversation of a hundred test runs is not held
 // in memory for a page somebody may never open.
 //
-// **The same reach as the conversation it is part of**: an agent's on `lanes`
-// for a task the device reads, the conversation with Tade's on `talk` and
-// `lanes` together (`withCalls`) — and the same rule at the boundary, every
+// **The same rule at the boundary as the conversation it is part of**: every
 // path, key and credential taken out (`cleanText`, off the window's thread
 // for a long one: `cleanAway`). A device out of reach is told only that, never
 // whether the call is there.
@@ -95,8 +93,6 @@ export type AnswerIn = { result: string } | null | 'unread'
  * it is in. Each throws, or answers `unread`, for a record it could not read.
  */
 export interface WebAnswers {
-  /** One call an agent made, out of its harness's record for that task. */
-  agent(task: string, call: string): Promise<AnswerIn>
   /** One call the orchestrator made, out of its own harness's record. */
   talk(call: string): Promise<AnswerIn>
   /** Every value the window knows to be a key, taken out exactly (`knownKeys`). */

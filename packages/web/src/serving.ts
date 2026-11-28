@@ -7,7 +7,6 @@ import type { WebAnswers } from './answered.ts'
 import type { WebAsking } from './asking.ts'
 import type { WebAttaching } from './attached.ts'
 import type { WebCarrying } from './carried.ts'
-import type { WebChanges } from './changes.ts'
 import type { WebConfiguring } from './configuring.ts'
 import type { WebConnecting } from './connected.ts'
 import type { WebDisk } from './disk.ts'
@@ -356,19 +355,13 @@ export interface ServerOptions {
   document?: WebDocument
   tool?: WebToolRead
   /**
-   * One call's whole answer, out of the record of the conversation it is in
-   * (`answered.ts`). Absent, both answer routes say the record could not be read.
+   * One of the orchestrator's calls' whole answer, out of its record
+   * (`answered.ts`). Absent, the answer route says the record could not be read.
    */
   answers?: WebAnswers
   /**
-   * One agent's changes, file by file with each file's diff, read when a page
-   * opens them (`changes.ts`). Absent, the route says they could not be read.
-   */
-  changes?: WebChanges
-  /**
-   * A conversation's record read further back than a page holds
-   * (`earlier.ts`). Absent, Tade's conversation is paged through what the
-   * window holds and an agent's says its record could not be read.
+   * The conversation with Tade read further back than a page holds
+   * (`earlier.ts`). Absent, it is paged through what the window holds.
    */
   earlier?: WebEarlier
   /**

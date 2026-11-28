@@ -8,9 +8,7 @@ import type {
   ActivityRow,
   AgentOut,
   CONVERSATION_WHY,
-  MomentsPage,
   SCREEN_WHY,
-  TurnsPage,
 } from './protocol.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
 import { cleanScreen, SCREEN, type ScreenBudget } from './screen.ts'
@@ -47,7 +45,7 @@ import { cleanScreen, SCREEN, type ScreenBudget } from './screen.ts'
 export interface ActivityIn {
   /**
    * What tells one moment from another, and what the moments before it are
-   * asked by (`momentsBefore`): **the window's own cursor, opaque here** —
+   * asked by: **the window's own cursor, opaque here** —
    * only ever compared, sent, and handed back to the window that made it, as a
    * harness's record cursor is (`CURSOR`).
    */
@@ -96,8 +94,8 @@ export interface AgentIn {
   /** Its newest moments, newest first, as many as the window held of them. */
   activity: readonly ActivityIn[]
   /**
-   * The window's cursor the moments before these are read from
-   * (`momentsBefore`), or null where these reach its first.
+   * The window's cursor the moments before these are read from, or null
+   * where these reach its first.
    */
   earlier: string | null
   lane: LaneIn
@@ -119,18 +117,11 @@ export interface AgentIn {
 
 /** How much of one agent an answer carries. */
 export interface AgentBudget extends ScreenBudget {
-  /**
-   * Moments of activity, newest first: the newest stretch, and the page reads
-   * the ones before as somebody scrolls down its timeline (`momentsBefore`),
-   * a stretch of `MOMENTS` at a time, to its first.
-   */
+  /** Moments of activity, newest first: the newest stretch. */
   activity: number
 }
 
 export const AGENT: AgentBudget = { ...SCREEN, activity: 40 }
-
-/** How many moments one read further back brings. */
-export const MOMENTS = 80
 
 /**
  * What a name has to look like to be put in one of Tade's sentences.
@@ -262,30 +253,6 @@ function rowsOf(
   return { activity, earlier: cursorOut(earlier) }
 }
 
-/** What the window read of a task's moments before a cursor, or why it could not. */
-export type MomentsIn = { activity: readonly ActivityIn[]; earlier: string | null } | 'unread'
-
-/**
- * One agent's moments before a cursor its page holds, as
- * `GET /api/agent/:project/:task/moments?before=` answers them, as its newest
- * moments are — Tade's own sentences about metadata — newest first, to its
- * first moment.
- */
-export function momentsBefore(task: string, here: boolean, read: MomentsIn | null): MomentsPage {
-  const none = (why: MomentsPage['why']): MomentsPage => ({
-    v: PROTOCOL_VERSION,
-    task,
-    activity: [],
-    earlier: null,
-    why,
-  })
-  if (!here) return none('not here')
-  if (read === null) return none(null)
-  if (read === 'unread') return none('unread')
-  const rows = rowsOf(read.activity, read.earlier, Number.POSITIVE_INFINITY)
-  return { v: PROTOCOL_VERSION, task, ...rows, why: null }
-}
-
 /**
  * An agent's conversation as one device is sent it: cleaned, or — where the
  * device said it already holds this one (`seen`) — its revision and no turns,
@@ -320,38 +287,3 @@ export const CURSOR = /^\d{1,15}$/
 
 const cursorOut = (cursor: string | null): string | null =>
   cursor !== null && CURSOR.test(cursor) ? cursor : null
-
-/** What the window read of an agent's record before a cursor, or why it could not. */
-export type EarlierIn = { turns: readonly TurnIn[]; before: string | null } | 'unread'
-
-/**
- * The turns before a cursor, as `GET /api/agent/:project/:task/earlier`
- * answers them, each whole and cleaned by the conversation's own rule.
- */
-export function turnsBefore(
-  task: string,
-  here: boolean,
-  read: EarlierIn | null,
-  known: readonly string[],
-  places: Places = NOWHERE,
-): TurnsPage {
-  const none = (why: TurnsPage['why']): TurnsPage => ({
-    v: PROTOCOL_VERSION,
-    task,
-    turns: [],
-    before: null,
-    taken: 0,
-    why,
-  })
-  if (!here) return none('not here')
-  if (read === null || read === 'unread') return none('unread')
-  const clean = turnsOf(read.turns, known, places)
-  return {
-    v: PROTOCOL_VERSION,
-    task,
-    turns: clean.turns,
-    before: cursorOut(read.before),
-    taken: clean.taken,
-    why: null,
-  }
-}

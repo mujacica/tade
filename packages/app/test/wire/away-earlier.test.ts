@@ -1,25 +1,17 @@
 import { request } from 'node:http'
 import type { HistoryAsk, HistoryItem, HistoryPage } from '@tade/harnesses-core'
-import {
-  AGENT,
-  AgentOutSchema,
-  ChatPageSchema,
-  MomentsPageSchema,
-  SnapshotSchema,
-  TurnsPageSchema,
-} from '@tade/web'
+import { AGENT, AgentOutSchema, ChatPageSchema, SnapshotSchema } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import { type Entry, emptyTranscript, type Transcript } from '../../src/transcript.ts'
 import { COOKIE, closeAll, machine, paired } from './away-harness.ts'
 
-// A conversation read back to its beginning from away: everything said in
-// Tade's conversation and on an agent's page can be read on the phone, with
-// nothing only in the window.
+// The conversation with Tade read back to its beginning from away: everything
+// said in it can be read on the phone, with nothing only in the window.
 //
 // **Real listener, real workbench, real device list, the window's own
-// scrollback** (`Earlier`); what stands in is the two records, Tade's and an
-// agent's, because what is under test is that a page asking further back than
-// it holds is answered out of them, and what of them leaves the machine.
+// scrollback** (`Earlier`); what stands in is the records, because what is
+// under test is that a page asking further back than it holds is answered out
+// of them, and what of them leaves the machine.
 
 afterEach(closeAll)
 
@@ -116,37 +108,14 @@ describe('the conversation with Tade, further back than a page holds', () => {
   })
 })
 
-describe('an agent’s conversation, further back than its page holds', () => {
-  it('pages back through its record by the cursor its newest page gave, its paths shortened as Tade’s are', async () => {
-    const asked: (string | null)[] = []
-    let root = ''
+describe('an agent’s newest page, which says where the rest is', () => {
+  it('carries the cursor its record carries on from', async () => {
     const one = await machine({
-      agentHistory: async (_task, ask) => {
-        asked.push(ask.before ?? null)
-        if (ask.before === '2048') {
-          return {
-            items: [
-              { kind: 'sent', text: 'Fix the migration.', images: [], at: AT },
-              {
-                kind: 'tool',
-                id: 'toolu_read',
-                tool: 'Read',
-                input: { file_path: `${root}/db/NAMES.md` },
-                ok: true,
-                result: 'names',
-                at: AT + 1000,
-              },
-            ],
-            earlier: null,
-          }
-        }
-        return {
-          items: [{ kind: 'reply', text: 'Done.', at: AT + 9000 }],
-          earlier: '2048',
-        }
-      },
+      agentHistory: async () => ({
+        items: [{ kind: 'reply', text: 'Done.', at: AT + 9000 }],
+        earlier: '2048',
+      }),
     })
-    root = one.root
     one.running(one.task)
     await paired(one.home, one.port)
     await one.away.open()
@@ -160,21 +129,9 @@ describe('an agent’s conversation, further back than its page holds', () => {
       await new Promise((done) => setTimeout(done, 10))
     }
     expect(answer.conversation).toMatchObject({ before: '2048' })
-
-    const page = TurnsPageSchema.parse(
-      (await get(one.port, `/api/agent/${one.task}/earlier?before=2048`)).body,
-    )
-    expect(page).toMatchObject({ before: null, why: null })
-    expect(page.turns.map((turn) => turn.kind)).toEqual(['sent', 'tool'])
-    expect(asked.at(-1)).toBe('2048')
-    // Where the task works is `.`, as an approval's command and Tade's own
-    // conversation say it — never a name behind `…/` alone.
-    expect(page.turns[1]?.call?.brief).toBe('./db/NAMES.md')
   })
-})
 
-describe('an agent’s timeline, further back than its newest stretch', () => {
-  it('reads on out of the journal, on a thread of its own, to the agent’s first moment', async () => {
+  it('carries its newest stretch of moments, and where the ones before it are', async () => {
     const one = await machine()
     const many = AGENT.activity * 3
     for (let n = 0; n < many; n += 1) {
@@ -192,36 +149,5 @@ describe('an agent’s timeline, further back than its newest stretch', () => {
     const answer = AgentOutSchema.parse((await get(one.port, `/api/agent/${one.task}`)).body)
     expect(answer.activity).toHaveLength(AGENT.activity)
     expect(answer.earlier).not.toBeNull()
-
-    // Read on by each page's cursor, as a phone does scrolling down its timeline.
-    const seen = answer.activity.map((row) => row.id)
-    let before = answer.earlier
-    for (let pages = 0; before !== null && pages < 10; pages += 1) {
-      const page = MomentsPageSchema.parse(
-        (await get(one.port, `/api/agent/${one.task}/moments?before=${before}`)).body,
-      )
-      expect(page.why).toBeNull()
-      seen.push(...page.activity.map((row) => row.id))
-      before = page.earlier
-    }
-    expect(before).toBeNull()
-    // Every moment it had, once each, newest first, down to its making.
-    expect(seen).toHaveLength(many + 1)
-    expect(new Set(seen).size).toBe(seen.length)
-    expect(seen.map(Number)).toEqual([...seen.map(Number)].sort((a, b) => b - a))
-    const first = MomentsPageSchema.parse(
-      (await get(one.port, `/api/agent/${one.task}/moments?before=${seen.at(-2)}`)).body,
-    )
-    expect(first.activity.map((row) => row.said)).toEqual(['was made'])
-  })
-
-  it('reads nothing for a task that is not on this device', async () => {
-    const one = await machine()
-    await paired(one.home, one.port)
-    await one.away.open()
-    const page = MomentsPageSchema.parse(
-      (await get(one.port, '/api/agent/nobody/nothing/moments?before=99')).body,
-    )
-    expect(page).toMatchObject({ activity: [], earlier: null, why: 'not here' })
   })
 })

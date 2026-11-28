@@ -17,7 +17,6 @@ import {
   drawingDoor,
   factsOf,
   type Host,
-  MOMENTS,
   nameDevice,
   type OrchestratorStanding,
   type PairingAsk,
@@ -37,7 +36,6 @@ import {
   type TaskFacts,
   Tickets,
   type Told,
-  TURNS,
   turnsAway,
   type WebAnswers,
   type WebEarlier,
@@ -49,7 +47,7 @@ import {
 } from '@tade/web'
 import { lastUpdates } from '@tade/workbench/programs'
 import { awayCollections, chatLines } from '../away.ts'
-import { ACTIVITY_TYPES, activityIn, momentsOf } from '../away-activity.ts'
+import { activityIn } from '../away-activity.ts'
 import type { Frame } from '../frame.ts'
 import { approvalInFront } from '../model.ts'
 import { ASKING_FIRST, AWAY_CONTROLS, awayPanel, BEHIND_THE_PANEL } from '../panels/away/state.ts'
@@ -64,7 +62,6 @@ import { seenName } from './machines-seen.ts'
 import { armingFor, seenFrom } from './web-asking.ts'
 import { type AwayHeld, nothingYet, partsFrom, talkFor, upSinceOf } from './web-beat.ts'
 import { carryingFor } from './web-carry.ts'
-import { changesFrom } from './web-changes.ts'
 import { CheckRecords } from './web-checks.ts'
 import { connectingFor } from './web-connect.ts'
 import type { AwayDeps } from './web-deps.ts'
@@ -346,12 +343,6 @@ export class Away implements Subject {
         now: () => this.wire.now(),
       }),
       answers: this.answers(),
-      // An agent's changes and their diffs, read when a page opens them: the window's Show changes.
-      changes: changesFrom({
-        live: () => this.wire.live ?? null,
-        known: () => this.lanes.keys(() => knownHere(this.wire, this.config())),
-        note: (err) => this.wire.note(err),
-      }),
       earlier: this.earlierHalf(),
       present: (device, at) => this.presences.seen(device, at),
       ...(this.deps.machines && {
@@ -965,9 +956,8 @@ export class Away implements Subject {
   }
 
   /**
-   * One call's whole answer, read out of the record of the conversation it is
-   * in when a page opens it (`@tade/web`'s `answered.ts`) — an agent's out of
-   * its harness's, the orchestrator's out of its own. Never held: a page asks
+   * One of the orchestrator's calls' whole answer, read out of its own record
+   * when a page opens it (`@tade/web`'s `answered.ts`). Never held: a page asks
    * once a press. A record that could not be read is said here, at the
    * machine, and to the page as `unread`, never as a call that answered nothing.
    */
@@ -986,8 +976,6 @@ export class Away implements Subject {
       }
     }
     return {
-      agent: (task, call) =>
-        read(`what ${task}'s call answered`, this.wire.opts.client.agentAnswer(task, call)),
       talk: (call) =>
         read(
           "what the orchestrator's call answered",
@@ -998,11 +986,9 @@ export class Away implements Subject {
   }
 
   /**
-   * A conversation read further back than a page holds (`@tade/web`'s
-   * `earlier.ts`): Tade's through the window's own scrollback (`Earlier`), so
-   * what is read is the window's as well, and an agent's out of its harness's
-   * record, a page before the cursor its newest page gave. A record that could
-   * not be read is said here, at the machine, and to the page as `unread`.
+   * The conversation with Tade read further back than a page holds
+   * (`@tade/web`'s `earlier.ts`): through the window's own scrollback
+   * (`Earlier`), so what is read is the window's as well.
    */
   private earlierHalf(): WebEarlier {
     return {
@@ -1018,44 +1004,6 @@ export class Away implements Subject {
         }
         return true
       },
-      agent: async (task, before) => {
-        try {
-          const page = await this.wire.opts.client.agentHistory(task, {
-            limit: TURNS.turns,
-            before,
-          })
-          return { turns: page.items, before: page.earlier }
-        } catch (err) {
-          this.wire.note(
-            new Error(
-              `the away view could not read ${task}'s conversation further back: ${err instanceof Error ? err.message : String(err)}`,
-            ),
-          )
-          return 'unread'
-        }
-      },
-      // Out of the journal on a thread of its own (`Workbench.eventsBefore`):
-      // a page scrolled past the newest stretch never holds up a beat.
-      moments: async (task, before) => {
-        try {
-          const events = await this.wire.opts.client.eventsBefore({
-            task,
-            types: ACTIVITY_TYPES,
-            before: Number(before),
-            most: MOMENTS,
-          })
-          return momentsOf(events, MOMENTS)
-        } catch (err) {
-          this.wire.note(
-            new Error(
-              `the away view could not read what ${task} did further back: ${err instanceof Error ? err.message : String(err)}`,
-            ),
-          )
-          return 'unread'
-        }
-      },
-      known: () => this.lanes.keys(() => knownHere(this.wire, this.config())),
-      places: (task) => this.placesOf(task),
     }
   }
 

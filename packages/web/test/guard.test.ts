@@ -309,16 +309,9 @@ describe('the content type, so a form post is never a verb', () => {
 })
 
 describe('reading a conversation further back', () => {
-  // `/api/chat` and an agent's `/earlier` are reads like the snapshot: a
-  // session bound to this host, a fetch from the page itself, and nothing
-  // above `read` — what a device may see of them is its grants', in the answer.
-  const BACK = [
-    { route: route('chat'), path: '/api/chat?before=2026-10-08T14:00:00.000Z%230' },
-    {
-      route: route('agent earlier'),
-      path: '/api/agent/sentry/away-projection/earlier?before=2048',
-    },
-  ]
+  // `/api/chat` is a read like the snapshot: a session bound to this host, a
+  // fetch from the page itself, and nothing above `read`.
+  const BACK = [{ route: route('chat'), path: '/api/chat?before=2026-10-08T14:00:00.000Z%230' }]
 
   it('is answered with a session, from the page itself', () => {
     for (const one of BACK)
