@@ -15,7 +15,6 @@ import {
 } from '@tade/core'
 import { type Compaction, compactJournal } from './compact.ts'
 import { EventIndex } from './event-index.ts'
-import { type BeforeAsk, readBeforeAway } from './journal-away.ts'
 import { SettingStamps } from './setting-stamps.ts'
 
 // events.jsonl is the truth: append-only, one JSON object per line. The SQLite
@@ -83,8 +82,6 @@ export class EventLog {
   private seq: number
   readonly path: string
   readonly index: EventIndex | null
-  /** Where the index is, while there is one: what a read on another thread opens. */
-  private readonly indexAt: string | null
   /** The clock every `config_changed` line is stamped by, caught up with the journal at open. */
   private stamps: SettingStamps
 
@@ -93,14 +90,12 @@ export class EventLog {
     fh: FileHandle,
     seq: number,
     index: EventIndex | null,
-    indexAt: string | null,
     queueLimit: number,
   ) {
     this.path = path
     this.fh = fh
     this.seq = seq
     this.index = index
-    this.indexAt = index === null ? null : indexAt
     this.queueLimit = queueLimit
     this.stamps = new SettingStamps(machineLabel())
   }
@@ -169,7 +164,7 @@ export class EventLog {
     // with its write-ahead log and shared memory: SQLite makes those two with
     // the database's own mode, so narrowing all three keeps them narrow.
     if (index && indexPath && unnarrowed === null) unnarrowed = await narrowIndex(indexPath)
-    const log = new EventLog(opts.path, fh, from, index, indexPath, opts.subscriberQueue ?? 1_000)
+    const log = new EventLog(opts.path, fh, from, index, opts.subscriberQueue ?? 1_000)
     // Before anything is appended, so the first setting changed after an open
     // is stamped later than every one the journal already holds. A journal
     // that could not be read for them still stamps by the wall clock, and says
@@ -280,23 +275,6 @@ export class EventLog {
     let n = 0
     for (const s of this.subs) n += s.dropped
     return n
-  }
-
-  /**
-   * One task's newest lines of some types numbered below `before`, newest
-   * first — read on a thread of its own (`journal-away.ts`), out of the index
-   * where there is one and the file where there is not — or where the index
-   * could not be asked, which is a warning in the journal — so whoever asks
-   * never holds up the thread that drew the window. Throws where it could not
-   * read.
-   */
-  async readBefore(ask: BeforeAsk): Promise<TadeEvent[]> {
-    const read = await readBeforeAway({ path: this.path, index: this.indexAt }, ask)
-    // Answered all the same, out of the file: said where somebody will read it.
-    if (read.trouble !== null && !this.shut) {
-      await this.append({ type: 'warning', detail: { message: read.trouble } })
-    }
-    return read.events
   }
 
   async read(filter: EventFilter = {}): Promise<TadeEvent[]> {

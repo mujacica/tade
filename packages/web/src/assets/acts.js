@@ -70,26 +70,6 @@ export const NEEDS = {
 }
 
 /**
- * What the queue control offers, and the word on each.
- *
- * On a parked row, a start picks the work up as well (`pickUpToStart` is the
- * rule), so it is offered — except on work from outside the machine, where
- * picking it up is approving somebody else's request, which is done at the
- * machine. `ready` marks the one that is an order among what is ready, which
- * parked work is not, so a tap on it could only be refused; and a resume lifts
- * no park, so on a parked row it would be a tap that did nothing. The machine
- * refuses the first two too — this is the page not asking.
- */
-export const QUEUE_ASKS = [
-  { change: 'pause', said: 'Pause' },
-  { change: 'resume', said: 'Resume' },
-  { change: 'start', said: 'Start now' },
-  { change: 'wait', said: 'Wait again' },
-  { change: 'first', said: 'Do this first', ready: true },
-  { change: 'drop', said: 'Drop the wait', silent: true },
-]
-
-/**
  * Which kinds of act this device's own session may ask for.
  *
  * Every paired device is the person's own and may ask for every one — except

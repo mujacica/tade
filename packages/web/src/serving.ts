@@ -325,9 +325,9 @@ export interface ServerOptions {
    */
   orchestratorSignIn?: WebSigningIn
   /**
-   * Settings › Accounts for this machine and every one it links to, and an
-   * account's own sign-in (`accounts.ts`). Absent, both routes are the `404`
-   * of a path nobody wired.
+   * Settings › Accounts for this machine and every one it links to: a look,
+   * and the presses on its sign-ins (`accounts.ts`). Absent, its one route,
+   * `/api/accounts`, is the `404` of a path nobody wired.
    */
   accounts?: WebAccounts
   document?: WebDocument

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { QUEUE_ASKS as ASKS, HOWS } from '../src/acting.ts'
+import { HOWS } from '../src/acting.ts'
 import {
   actsOf,
   afterAnswer,
@@ -10,7 +10,6 @@ import {
   MENU_SHOWN,
   NEEDS,
   PROJECT_SHOWN,
-  QUEUE_ASKS,
   SHOWN,
   standingOf,
 } from '../src/assets/acts.js'
@@ -19,7 +18,7 @@ import { ERRORS } from '../src/errors.ts'
 import { VERBS, verbFor } from '../src/verbs.ts'
 import { task } from './fixtures.ts'
 
-// The page's own rules about what it offers, and the three copies held equal.
+// The page's own rules about what it offers, and the two copies held equal.
 //
 // A browser cannot import a `.ts` file and this repository has no build step,
 // so which scope each verb needs exists in `verbs.ts` for the machine and in
@@ -72,16 +71,6 @@ describe('what kind of act each verb is, written twice', () => {
         .map((verb) => verb.name)
         .sort(),
     )
-  })
-
-  it('offers the queue the queue’s own words, and never an order', () => {
-    // `order` is the one choice a device may never ask for: a list of task ids
-    // in a body could reorder work in a project this device cannot see, so
-    // `first` is the page's word for it and the list is computed at the
-    // machine.
-    expect(QUEUE_ASKS.map((one) => one.change).sort()).toEqual([...ASKS].sort())
-    expect(QUEUE_ASKS.map((one) => one.change)).not.toContain('order')
-    for (const one of QUEUE_ASKS) expect(one.said.length).toBeGreaterThan(3)
   })
 
   it('says what a wait means in words, for every way the wire can say one', () => {
