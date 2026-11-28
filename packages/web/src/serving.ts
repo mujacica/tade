@@ -19,7 +19,6 @@ import type { WebEarlier } from './earlier.ts'
 import type { WebHooks } from './hooked.ts'
 import type { WebInventoryTold } from './inventory-told.ts'
 import type { WebMachine } from './machine.ts'
-import type { WebMachines } from './machines.ts'
 import type { WebOpening } from './opened.ts'
 import type { Streams } from './peers.ts'
 import type { WebPressThere } from './pressed-there.ts'
@@ -333,12 +332,6 @@ export interface ServerOptions {
    * `document.ts`, `tool-read.ts`). Each absent is the `404` of a path nobody wired.
    */
   machine?: WebMachine
-  /**
-   * The Machines page, for the person's own phone: every machine's inventory
-   * and a press on it (`machines.ts`). Absent, both routes are the `404` of a
-   * path nobody wired.
-   */
-  machines?: WebMachines
   /**
    * Tade started again from the person's own phone (`restarted.ts`). Absent,
    * the route is the `404` of a path nobody wired.

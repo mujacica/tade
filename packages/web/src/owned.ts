@@ -16,7 +16,6 @@ import type { Refusal } from './errors.ts'
 import { type InventoryToldAnswer, inventoryToldHere } from './inventory-told.ts'
 import { carryLooking } from './looking.ts'
 import { type MachineAnswer, machineHere } from './machine.ts'
-import { type MachinesAnswer, machinesHere, machinesPressHere } from './machines.ts'
 import { type OpenAnswer, openHere } from './opened.ts'
 import { carryPresence } from './presence.ts'
 import { type PressedThere, pressThereHere } from './pressed-there.ts'
@@ -52,8 +51,7 @@ import { type WatchSeenAnswer, watchSeenHere } from './watch-seen.ts'
 // over the same SSH (`repositories.ts`), one project as its window draws it
 // (`side.ts`) and what is on its disk, pressed there (`disk.ts`), and what this machine is, one of its
 // documents and one of its tools that only reads (`machine.ts`, `document.ts`,
-// `tool-read.ts`), every machine's inventory and the press that moves the keys
-// into one file (`machines.ts`), Tade started again on the code on disk now
+// `tool-read.ts`), Tade started again on the code on disk now
 // (`restarted.ts`) or its orchestrator alone, its orchestrator's sign-in driven
 // from the phone (`signing-in.ts`), Settings › Accounts for this machine and
 // every one it links to, with an account's own sign-in (`accounts.ts`), what another machine of theirs has (`inventory-told.ts`), its whole projection for this machine's page to draw (`projection-told.ts`), what one of its watches has already found (`watch-seen.ts`), its public name's records looked at now (`records.ts`),
@@ -87,8 +85,6 @@ export const OWNED_DOOR: ReadonlySet<string> = new Set([
   'disk',
   'carry',
   'machine',
-  'machines',
-  'machines press',
   'restart',
   'orchestrator restart',
   'orchestrator sign-in',
@@ -129,7 +125,6 @@ export async function carryOwned(
     | 'side'
     | 'disk'
     | 'machine'
-    | 'machines'
     | 'restarting'
     | 'orchestratorRestart'
     | 'orchestratorSignIn'
@@ -160,7 +155,6 @@ export async function carryOwned(
         | SideAnswer
         | DiskAnswer
         | MachineAnswer
-        | MachinesAnswer
         | RestartAnswer
         | OrchestratorRestartAnswer
         | SignInStanding
@@ -191,8 +185,6 @@ export async function carryOwned(
   if (route === 'side') return sideHere(req, opts.side)
   if (route === 'disk') return diskHere(req, opts.disk)
   if (route === 'machine') return machineHere(req, opts.machine)
-  if (route === 'machines') return machinesHere(req, opts.machines)
-  if (route === 'machines press') return machinesPressHere(req, device, opts.machines)
   if (route === 'restart') return restartHere(req, device, opts.restarting)
   if (route === 'orchestrator restart') {
     return orchestratorRestartHere(req, device, opts.orchestratorRestart)

@@ -14,7 +14,6 @@ import type { Settings } from './settings.ts'
 import type { Talking } from './web-asking.ts'
 import type { FactoryHeld } from './web-beat.ts'
 import type { Lifecycle } from './web-lifecycle.ts'
-import type { MachinesHeld } from './web-machines.ts'
 import type { SideDeps } from './web-side.ts'
 
 // What the away subject (`web.ts`) needs of the rest of the window, in a file
@@ -49,16 +48,14 @@ export interface AwayDeps {
   /**
    * What this machine has, as its last look found it, for `/api/machine`; and
    * what another machine of the person's tells it it has, kept here
-   * (`/api/inventory`); and the Machines page the person's own phone draws and
-   * presses (`web-machines.ts`, `MachinesHeld`). Methods, never the subject.
-   * Absent, `/api/machine` says nothing of it and the told door and the page's
-   * two are the `404` of a path nobody wired.
+   * (`/api/inventory`). Methods, never the subject. Absent, `/api/machine`
+   * says nothing of it and the told door is the `404` of a path nobody wired.
    */
-  inventory?: Pick<Inventories, 'latest' | 'heard'> & MachinesHeld
+  inventory?: Pick<Inventories, 'latest' | 'heard'>
   /**
    * What each other machine holds of this one's changes to notes taken there,
-   * for a press there (`notes-shared.ts`), drawn on the Machines page. Absent,
-   * the page knows only what machines that share with this one tell its door.
+   * for a press there (`notes-shared.ts`). Absent, this machine knows only
+   * what machines that share with this one tell its door.
    */
   waiting?: WaitingThere
   /**

@@ -391,8 +391,7 @@ describe('the owner’s table', () => {
     // checked out, a path no phone reads (`repositories.ts`); one project as
     // this machine's window draws it, paths in it (`side.ts`); what is on disk in
     // it, the one owner's route that takes a path (`disk.ts`); what this machine
-    // is, every machine's inventory and the press that moves the keys into one
-    // file (`machines.ts`), Tade started again on the code on disk now
+    // is, Tade started again on the code on disk now
     // (`restarted.ts`) or its orchestrator alone, what one of its watches has already found (`watch-seen.ts`), whose each duty is where a repository is a project on several machines (`duties.ts`), one of
     // its documents, and one of its tools that only reads, run with this
     // machine's own keys (`machine.ts`, `document.ts`, `tool-read.ts`); what
@@ -423,8 +422,6 @@ describe('the owner’s table', () => {
       'POST /api/side',
       'POST /api/disk',
       'POST /api/machine',
-      'POST /api/machines',
-      'POST /api/machines/press',
       'POST /api/restart',
       'POST /api/orchestrator/restart',
       'POST /api/orchestrator/sign-in',

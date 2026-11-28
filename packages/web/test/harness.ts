@@ -237,7 +237,6 @@ export async function start(
       ServerOptions,
       | 'machine'
       | 'disk'
-      | 'machines'
       | 'restarting'
       | 'orchestratorRestart'
       | 'orchestratorSignIn'

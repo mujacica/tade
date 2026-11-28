@@ -745,27 +745,6 @@ export const OWNED: readonly Route[] = [
     mutates: true,
     here: true,
   },
-  // The Machines page, for the person's own phone (`machines.ts`): every
-  // machine's inventory as the window's Settings › Machines draws it, and a
-  // press there — look again, work out moving the keys into one file, move
-  // them, leave them. The move edits the person's shell files, which the same
-  // SSH key can edit; nothing else writes.
-  {
-    method: 'POST',
-    path: '/api/machines',
-    name: 'machines',
-    needs: 'read',
-    mutates: true,
-    here: true,
-  },
-  {
-    method: 'POST',
-    path: '/api/machines/press',
-    name: 'machines press',
-    needs: 'read',
-    mutates: true,
-    here: true,
-  },
   // Tade started again on the code on disk now (`restarted.ts`), from the
   // page's restart bar: what the SSH key that started it may do. A press that
   // would stop lanes is answered with how many and does nothing, so stopping

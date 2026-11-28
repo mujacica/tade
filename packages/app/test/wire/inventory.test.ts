@@ -13,7 +13,6 @@ import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { type AppState, initialState } from '../../src/model.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 import { Inventories, type InventoryThere } from '../../src/wire/inventory.ts'
-import { machinesFrom } from '../../src/wire/web-machines.ts'
 
 // What this machine has, as the window holds it (`inventory.ts`): looked at,
 // written to the journal an item at a time as set or missing and never again
@@ -212,7 +211,7 @@ describe('what this machine has, as the window holds it', () => {
   })
 
   for (const said of ['in step', 'behind by 3 lines', '1 conflict']) {
-    it(`draws ${said} under a machine linked as vps that calls itself ipax, on Settings and the phone alike`, async () => {
+    it(`draws ${said} under a machine linked as vps that calls itself ipax, on Settings`, async () => {
       const { wire } = wired()
       const ipax: Inventory = {
         machine: 'ipax',
@@ -247,15 +246,8 @@ describe('what this machine has, as the window holds it', () => {
         ['vps', said],
         ['never', 'cannot tell'],
       ])
-      const phone = await machinesFrom(wire, inventories).shown()
-      expect(phone.columns?.map((one) => [one.machine, one.synced ?? null])).toEqual([
-        [expect.any(String), null],
-        ['vps', said],
-        ['never', 'cannot tell'],
-      ])
-      // What keeps one from saying is carried as its kind, for the phone's fix.
+      // What keeps one from saying is carried as its kind.
       expect(settings.map((one) => one.trouble ?? null)).toEqual([null, null, 'down'])
-      expect(phone.columns?.map((one) => one.trouble ?? null)).toEqual([null, null, 'down'])
     })
   }
 

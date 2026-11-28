@@ -37,8 +37,6 @@ const THEIRS = [
   'side',
   'disk',
   'machine',
-  'machines',
-  'machines press',
   'restart',
   'orchestrator restart',
   'orchestrator sign-in',
@@ -305,11 +303,6 @@ async function wired(): Promise<{ one: Running; asked: string[] }> {
       owned: {
         machine: heard('machine'),
         disk: heard('disk'),
-        machines: {
-          shown: heard('machines'),
-          press: heard('machines press'),
-          settle: heard('machines settle'),
-        },
         restarting: { standing: heard('restart'), restart: heard('restart') },
         orchestratorRestart: { restart: heard('orchestrator restart') },
         orchestratorSignIn: {

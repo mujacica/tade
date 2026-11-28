@@ -35,8 +35,7 @@ import type { Wiring } from './context.ts'
 // **A change another machine gave to a note taken here waits for a press**
 // (`Memory.held`): kept here as the file last stood, looked at again only when
 // it moved, so the Remotes page asks nothing of the disk four times a second;
-// taken or left from there (`settle`) or from the person's own phone
-// (`web-machines.ts`).
+// taken or left from there (`settle`).
 //
 // **And the other way, a change made here waits for a press there**: a
 // machine sharing with this one names, opening each exchange, the changes it
