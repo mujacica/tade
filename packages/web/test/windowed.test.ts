@@ -153,6 +153,35 @@ describe('the one act', () => {
     )
     expect(answered.refusal?.error).toBe('not_offered')
   })
+
+  it('carries a press on what the phone drew as the window’s own hit, bounded where it landed', async () => {
+    // A tap the phone cannot answer itself (§10 T4): the hit as the drawing
+    // made it, read field by field by the window's own mouse over there.
+    const made = door()
+    const click = {
+      kind: 'click',
+      target: { kind: 'file', path: 'src/a.ts' },
+      button: 'left',
+      at: { x: 12, y: 4, cell: 2, clicks: 1 },
+    }
+    const answered = await carryWindow({ key: KEY, intent: click }, await context(made.window))
+    expect(answered.refusal).toBeNull()
+    expect(made.acts[0]?.intent).toEqual(click)
+    expect(answered.did.tool).toBe('window click')
+    // Off the screen, a fourth press, a hit with no kind: none of them parse.
+    for (const odd of [
+      { ...click, at: { x: 5_000, y: 4 } },
+      { ...click, at: { x: 1, y: 1, clicks: 4 } },
+      { ...click, target: { path: 'x' } },
+      { ...click, button: 'middle' },
+    ]) {
+      const refused = await carryWindow(
+        { key: `${KEY}x`, intent: odd },
+        await context(door().window),
+      )
+      expect(refused.refusal?.error, JSON.stringify(odd)).toBe('malformed')
+    }
+  })
 })
 
 describe('the look', () => {

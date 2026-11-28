@@ -1,4 +1,5 @@
-import type { Intent } from '../keymap.ts'
+import type { Target } from '../hits.ts'
+import type { ClickAt, Intent } from '../keymap.ts'
 import type { PanelOutcome } from '../panels/outcome.ts'
 
 // Where an intent is carried out (`keymap.ts`): the one path from what a key
@@ -34,6 +35,12 @@ export interface IntentTargets {
   say(said: string): void
   /** What a panel's answer changes. */
   applyPanel(outcome: PanelOutcome): void
+  /**
+   * A press on something drawn, as the window's own mouse answers one. Only a
+   * face that draws somewhere else sends one; the machine's own keyboard never
+   * does, so it has none and a click sent to it is refused by name.
+   */
+  click?(target: Target, button: 'left' | 'right', at: ClickAt): void
 }
 
 /** Carry one intent out through the door that does it. */
@@ -72,6 +79,10 @@ export function doIntent(intent: Intent, to: IntentTargets): void {
     }
     case 'panel':
       to.applyPanel(intent.outcome)
+      break
+    case 'click':
+      if (to.click === undefined) throw new Error('nothing here answers a press on a drawing')
+      to.click(intent.target, intent.button, intent.at)
       break
   }
 }

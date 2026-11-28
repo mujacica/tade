@@ -9,22 +9,36 @@ import {
   takeFar,
 } from './far.ts'
 import type { Frame } from './frame.ts'
-import type { Hit } from './hits.ts'
+import { type Hit, hitBoxAt, scrollAt, type Target } from './hits.ts'
 import { type Intent, keyOutcome } from './keymap.ts'
 import { appKey, forLane } from './keys.ts'
+import { goElsewhere } from './machines.ts'
 import {
   type AppState,
+  focusTask,
   keyAction,
   laneWithKeyboard,
   leaveLine,
+  ORCHESTRATOR_TAB,
   openLine,
   panelMoved,
+  scrollBy,
+  selectProject,
   setListening,
+  showOrchestrator,
+  showTerminal,
+  toggleCheck,
+  toggleFolder,
+  toggleSection,
+  viewActions,
+  viewLane,
 } from './model.ts'
 import type { PanelOutcome } from './panels/outcome.ts'
-import { panelKey } from './panels.ts'
+import { panelClick, panelDismiss, panelKey } from './panels.ts'
 import { reachOf } from './scroll.ts'
 import { PLAIN, type Skin } from './skin.ts'
+import { isTalkTab, showTalk } from './talk-tab.ts'
+import { isThere } from './there.ts'
 import type { Drawn } from './ui.ts'
 import type { LastFrame } from './view/last-frame.ts'
 import { draw } from './view.ts'
@@ -63,6 +77,15 @@ export interface FarPress {
   readonly draw: boolean
 }
 
+/**
+ * What a tap on this phone did: a key's answer, and what the page does on its
+ * own screen — a link opened there, never on the machine (`ON_A_PHONE`).
+ */
+export interface FarTap extends FarPress {
+  /** A link the tap landed on, for the page to open. */
+  readonly link?: string
+}
+
 /** What a phone's face is made with. */
 export interface FarFaceOptions {
   /** The machine's name, for what is said when the connection drops. */
@@ -89,6 +112,8 @@ export class FarFace {
   private down: number | null = null
   /** The moment the page last drew for, which it hands in: the machine's clock does not cross. */
   private drawnAt: number | null = null
+  /** Where the page put the sidebar's edge for itself (`holdSidebar`), or null for the window's own. */
+  private sidebar: number | null = null
 
   constructor(options: FarFaceOptions = {}) {
     this.options = options
@@ -175,9 +200,83 @@ export class FarFace {
             ...frame,
             flash: `${this.options.machine ?? 'the machine'} cannot be reached: this is the window as it last was`,
           }
-    const drawn = draw(state, shown, last)
+    // The sidebar's edge where the page put it — on the fold, in book pose —
+    // and the hits come from the same drawing, so a tap lands where it looks.
+    const laid =
+      this.sidebar === null
+        ? state
+        : { ...state, sizes: { ...state.sizes, sidebarWidth: this.sidebar } }
+    const drawn = draw(laid, shown, last)
     this.hits = drawn.hits
     return drawn
+  }
+
+  /**
+   * Put the sidebar's edge at `width` columns, whatever the window was set
+   * to, or give it back with null. The page's alone: on the large screen
+   * sideways the fold is the centre line, and the edge goes on it (§10 T4).
+   * Never sent: where this phone's fold is is nothing the machine needs.
+   */
+  holdSidebar(width: number | null): void {
+    this.sidebar = width
+  }
+
+  /**
+   * A tap on the cell at column `x`, row `y` of what was last drawn: a click,
+   * looked up in the hit map that drawing returned (`hits.ts`). What only
+   * moves this face — an agent looked at, a project, a section opened, a
+   * panel's own control — is done here at once; a link is handed back for the
+   * page to open; what only the machine can answer — a file to read, a menu,
+   * an agent to open — goes as a `click` the window's own mouse carries out.
+   */
+  tap(x: number, y: number, how: { clicks?: number; button?: 'left' | 'right' } = {}): FarTap {
+    const state = this.state()
+    const hit = state === null ? null : hitBoxAt(this.hits, x, y)
+    if (state === null || hit === null) return NOTHING
+    const { target } = hit
+    const button = how.button ?? 'left'
+    const at = { x, y, cell: x - hit.from, clicks: how.clicks ?? 1 }
+    const there = (moved: AppState | null = null): FarTap => {
+      const looked = moved === null ? false : this.become(moved, state)
+      return { intents: [{ kind: 'click', target, button, at }], looked, draw: looked }
+    }
+    if (target.kind === 'link') return { ...NOTHING, link: target.url }
+    if (target.kind === 'scroll' || target.kind === 'inert' || target.kind === 'divider') {
+      return NOTHING
+    }
+    // This phone's own line is drawn here, and its caret is its own.
+    if (target.kind === 'input') return NOTHING
+    if (state.panel) {
+      const inputs = this.extras().inputs ?? {}
+      if (target.kind === 'control')
+        return this.panel(state, panelClick(state.panel, target.id, inputs))
+      if (target.kind === 'dismiss') return this.panel(state, panelDismiss(state.panel, inputs))
+      return there()
+    }
+    if (button === 'right') return there()
+    const moved = movedBy(state, target)
+    if (moved === null) return there()
+    if (target.kind === 'task') {
+      // Looking at an agent is this phone's; opening one that is not running
+      // resumes its session, which is the machine's to do.
+      const pane = moved.panes.find((one) => one.task === target.task)
+      if (pane && !pane.queued && !pane.lane && pane.state !== 'parked') return there(moved)
+    }
+    return { intents: [], looked: this.become(moved, state), draw: true }
+  }
+
+  /**
+   * A swipe over the cell at `x`, `y`: `rows` lines through the one move
+   * every surface makes (`scrollBy`), against what the region under it was
+   * last drawn as. Positive is further down, as a notch of the wheel is.
+   */
+  swipe(x: number, y: number, rows: number): FarPress {
+    const state = this.state()
+    const area = state === null ? null : scrollAt(this.hits, x, y)
+    if (state === null || area === null || rows === 0) return NOTHING
+    const next = scrollBy(state, area, rows, reachOf(this.hits, area))
+    if (next === state) return NOTHING
+    return { intents: [], looked: this.become(next, state), draw: true }
   }
 
   /**
@@ -343,6 +442,51 @@ export class FarFace {
   /** The moment, as the page last said it drawing (`draw`'s `now`), for what a key says. */
   private now(state: AppState): number {
     return this.drawnAt ?? state.lastKeyAt ?? 0
+  }
+}
+
+/**
+ * Where a press moves a face that it can work out for itself, as the window's
+ * own mouse moves it (`Mouse.clicked`); null for a press only the machine can
+ * answer, or one on another machine's agent, which that machine answers.
+ */
+function movedBy(state: AppState, target: Target): AppState | null {
+  switch (target.kind) {
+    case 'task':
+      return isThere(target.task) ? null : focusTask(state, target.task)
+    case 'lane': {
+      if (isThere(target.task)) return null
+      const split = state.splits[target.task]
+      return split?.lane === target.lane
+        ? { ...focusTask(state, target.task), keyboard: 'pane', splitFocus: true }
+        : { ...viewLane(state, target.task, target.lane), splitFocus: false }
+    }
+    case 'pane-tab':
+      return isThere(target.task) ? null : viewActions(state, target.task)
+    case 'check':
+      return toggleCheck(state, target.task, target.check)
+    case 'project':
+      return selectProject(state, target.project)
+    case 'remote-project':
+      return goElsewhere(state, { machine: target.machine, project: target.project })
+    case 'section':
+      return toggleSection(state, target.section, target.quiet === true)
+    case 'bottom-tab':
+      return target.tab === ORCHESTRATOR_TAB
+        ? showOrchestrator(state)
+        : isTalkTab(target.tab)
+          ? showTalk(state, target.tab)
+          : showTerminal(state, target.tab)
+    case 'terminal':
+      return { ...leaveLine(state), keyboard: 'terminal', splitFocus: target.side === 'split' }
+    case 'pane':
+      return { ...leaveLine(state), keyboard: 'pane', splitFocus: target.side === 'split' }
+    case 'folder':
+      return toggleFolder(state, target.path)
+    case 'orchestrator':
+      return openLine(state)
+    default:
+      return null
   }
 }
 

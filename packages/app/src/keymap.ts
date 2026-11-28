@@ -1,3 +1,4 @@
+import type { Target } from './hits.ts'
 import {
   type AppState,
   focusBy,
@@ -55,6 +56,13 @@ export type Intent =
   | { kind: 'say'; said: string }
   /** An open panel carried out, as its keys or a click left it (`Router.applyPanel`). */
   | { kind: 'panel'; outcome: PanelOutcome }
+  /**
+   * A press on something a phone drew that only the machine can answer —
+   * a file to read, a menu to build, an agent to open — carried out by the
+   * window's own click (`Mouse.clicked`) as that phone's face. What a press
+   * only moves about the face, a phone does for itself (`FarFace.tap`).
+   */
+  | { kind: 'click'; target: Target; button: 'left' | 'right'; at: ClickAt }
 
 /** The kinds of intent there are, as a list a door can check a body against. */
 export const INTENT_KINDS = [
@@ -67,7 +75,16 @@ export const INTENT_KINDS = [
   'type',
   'say',
   'panel',
+  'click',
 ] as const satisfies readonly Intent['kind'][]
+
+/** Where a press landed: the cell, how far into its hit, and how many presses in a row. */
+export interface ClickAt {
+  readonly x: number
+  readonly y: number
+  readonly cell?: number
+  readonly clicks?: number
+}
 
 /** What a claimed key comes to: the state it leaves this face in, and what it asks done. */
 export interface KeyOutcome {

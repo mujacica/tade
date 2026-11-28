@@ -8,11 +8,13 @@ import { header } from './request.ts'
 
 // The window's drawing, answered: what `/draw` serves (`drawing.ts` builds it).
 //
-// - `/draw/` is the **document** a browser draws the window in: nothing but
-//   the import map, inline because a browser takes no other kind, and a
-//   policy that is the page's own with that one script's hash added to
-//   `script-src` — the map is allowed and nothing else inline is. Where the
-//   page's code starts is in a `<meta>`, so the page decides when to import it.
+// - `/draw/` is the **document** a browser draws the window in — the full
+//   view (§10 T4): the import map, inline because a browser takes no other
+//   kind, and a policy that is the page's own with that one script's hash
+//   added to `script-src` — the map is allowed and nothing else inline is.
+//   The full view's own stylesheet and module (`assets/full.css`,
+//   `assets/full.js`) are the away page's files, linked like any; where the
+//   drawing starts is in a `<meta>`, so the page decides when to import it.
 // - `/draw/<version>/<path>` is **a module**, `immutable`: its URL changes
 //   with any byte of what is served, so a phone that has it never asks again,
 //   and a version that is not this one's is a `404` rather than a guess.
@@ -121,9 +123,19 @@ export function documentOf(made: Drawing): { html: Buffer; csp: string; etag: st
       '<head>',
       '<meta charset="utf-8">',
       '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">',
+      '<meta name="color-scheme" content="dark">',
+      '<meta name="theme-color" content="#1c1c1c">',
       '<title>Tade</title>',
+      '<link rel="manifest" href="/assets/tade.webmanifest">',
+      '<link rel="icon" href="/assets/icon-192.png">',
+      '<link rel="apple-touch-icon" href="/assets/icon-180.png">',
+      '<link rel="stylesheet" href="/assets/tokens.css">',
+      '<link rel="stylesheet" href="/assets/full.css">',
       `<meta name="tade-drawing" content="${made.roots[0] ?? ''}">`,
       `<script type="importmap">${map}</script>`,
+      // The full view (`assets/full.js`): after the map, which a module needs
+      // in place before it loads, and it imports the drawing when it is ready.
+      '<script type="module" src="/assets/full.js"></script>',
       '</head>',
       '<body></body>',
       '</html>',

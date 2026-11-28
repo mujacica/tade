@@ -162,6 +162,15 @@ export const MACHINES_PAGE = {
 
 export const PICTURES: readonly Picture[] = [
   {
+    file: 'full-view.svg',
+    scenario: 'the-full-view-on-a-phone',
+    title: 'tade — the full view, on a phone',
+    about:
+      'The full view on a foldable phone held sideways: the Tade window itself, drawn by the phone ' +
+      'at 129 columns from the state the machine sends, with the line between the agents and the ' +
+      'agent at work on the fold.',
+  },
+  {
     file: 'window.svg',
     scenario: 'watching-an-agent',
     title: 'tade — checkout',

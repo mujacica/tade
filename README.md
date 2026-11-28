@@ -167,6 +167,13 @@ can at the machine; **Sign out** or `tade web revoke` takes it back.
 
 ![Tade's away view on a laptop and then a phone: the overview, an agent waiting with Allow and Deny, plans, spend and three phones](https://raw.githubusercontent.com/mujacica/tade/main/images/away-page.svg)
 
+Turn the phone sideways and it is the window itself — **Full view**, drawn by the phone from the
+state the machine sends, at its own size: taps are clicks, swipes scroll, and a key row has the
+keys a phone lacks. Upright is the overview; the switch in the header changes either, and the phone
+remembers.
+
+![The full view on a foldable phone held sideways: the Tade window drawn at 129 columns, the line between the agents and the agent at work on the fold](https://raw.githubusercontent.com/mujacica/tade/main/images/full-view.svg)
+
 ## Models and accounts
 
 Pick the model for the orchestrator and for new agents. Claude Code, Codex, Grok Build and OpenCode

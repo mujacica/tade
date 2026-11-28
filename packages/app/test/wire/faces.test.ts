@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { NOBODY_LOOKING, ON_ANOTHER_MACHINE, ON_THIS_MACHINE } from '../../src/faces.ts'
 import { focusTask, initialState } from '../../src/model.ts'
-import { copySaying, type Wiring } from '../../src/wire/context.ts'
+import { diffPanel } from '../../src/panels/diff/state.ts'
+import { diffBody } from '../../src/panels/diff/view.ts'
+import { copySaying, type Subject, type Wiring } from '../../src/wire/context.ts'
+import { panelInputsOf } from '../../src/wire/frame.ts'
 import { FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
 
 // A heart that takes faces (`Heart.attach`, `App.attach`): the window drawn
@@ -93,6 +96,27 @@ describe('a second face on a running heart', () => {
     await until('the first face to draw once more', () => terminal.written.length > from + 1)
     expect(second.written.length).toBe(cleared)
     expect(() => attached.face.as(() => 0)).toThrow('that face has gone from this heart')
+  })
+
+  it('lays a panel’s body out at the size of the face it is drawn for, not the machine’s terminal', async () => {
+    // A diff or a file opened on a phone folds at the phone's width: what a
+    // subject sizes inside a frame asks the face being served (`Heart.room`).
+    const app = await start()
+    terminal.resize(200, 60)
+    const small = app.attach(sized(80, 24), { capabilities: ON_ANOTHER_MACHINE })
+    const large = app.attach(sized(200, 60), { capabilities: ON_ANOTHER_MACHINE })
+    const subjects = (app as unknown as { subjects: readonly Subject[] }).subjects
+    const open = diffPanel('app/refunds', ['a.ts'])
+    const body = (face: typeof small) =>
+      face.face.as(() => {
+        face.face.put({ ...face.face.state, panel: open })
+        return panelInputsOf(subjects, open).body
+      })
+    expect(body(small), 'the small face’s diff body').toBe(diffBody(80, 24))
+    expect(body(large), 'and the large one’s').toBe(diffBody(200, 60))
+    expect(diffBody(80, 24)).toBeLessThan(diffBody(200, 60))
+    large.detach()
+    small.detach()
   })
 })
 

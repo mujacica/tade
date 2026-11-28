@@ -282,6 +282,16 @@ describe('what it caches, and what it will not', () => {
     }
   })
 
+  it('leaves the full view’s document to the machine: its own page, never the shell', async () => {
+    // `/draw/` carries the import map the window's drawing loads through, which
+    // the shell does not, so a full view answered with the shell is a page that
+    // cannot draw the window (§10 T4).
+    const { shell, caches } = machineServing(FIRST)
+    const worker = run(shell, caches)
+    await worker.install()
+    expect(await worker.ask('https://machine.example/draw/', { mode: 'navigate' })).toBeNull()
+  })
+
   it('does not touch an API request, a mutation or another origin', async () => {
     // **The whole of the no-leaked-cache claim, as behaviour.** None of these
     // is refused or passed through by this worker — `respondWith` is never

@@ -52,7 +52,11 @@ export class FaceScreen {
   constructor(deps: FaceScreenDeps) {
     this.deps = deps
     this.tui = screenFor(deps.terminal)
-    this.face = deps.attach({ capabilities: deps.capabilities, draw: () => this.draw() })
+    this.face = deps.attach({
+      capabilities: deps.capabilities,
+      draw: () => this.draw(),
+      room: () => ({ columns: deps.terminal.columns, rows: deps.terminal.rows }),
+    })
     const component: Component = {
       render: (width) => this.frame(width),
       invalidate: () => {},

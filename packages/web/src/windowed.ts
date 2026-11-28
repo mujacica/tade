@@ -86,6 +86,19 @@ const IntentBody = z.discriminatedUnion('kind', [
       .refine((text) => text.trim() !== '', { message: 'say something' }),
   }),
   z.strictObject({ kind: z.literal('panel'), outcome: Outcome_ }),
+  // A press on something the phone drew that only the machine can answer: the
+  // window's own hit, carried as it is and read field by field over there.
+  z.strictObject({
+    kind: z.literal('click'),
+    target: z.looseObject({ kind: z.string().min(1).max(64) }),
+    button: z.enum(['left', 'right']),
+    at: z.strictObject({
+      x: z.int().min(0).max(1_000),
+      y: z.int().min(0).max(500),
+      cell: z.int().min(0).max(1_000).optional(),
+      clicks: z.int().min(1).max(3).optional(),
+    }),
+  }),
 ])
 
 /** One intent, as the door hands it to the window. */

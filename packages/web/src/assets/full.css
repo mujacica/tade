@@ -1,0 +1,223 @@
+/*
+  The full view (`full.js`, §10 T4 of the Duo plan): the window itself, drawn
+  by the phone as a grid of cells, on the terminal's ground and in the window's
+  own tones (`tokens.css`, which every colour a row paints is one of).
+
+  Three bands, top to bottom, inside the phone's own insets: the header with
+  the switch back to the overview, the window, and the key row the phone's
+  keyboard has none of. The body is the visual viewport's height
+  (`--fv-room`, set from `visualViewport`), so when the keyboard rises the
+  window draws again in the room above it rather than being slid off the top.
+
+  Its own stylesheet, apart from the overview's: the page at `/draw/` is a
+  different document, and none of the overview's frame is in it.
+*/
+
+html {
+  background: var(--ground);
+  color-scheme: dark;
+  /* No zoom on a double tap: the window counts a double tap as a double click. */
+  touch-action: manipulation;
+}
+
+body.fv {
+  margin: 0;
+  height: var(--fv-room, 100dvh);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  background: var(--ground);
+  color: var(--bright);
+  font-family: var(--font-ui);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+  box-sizing: border-box;
+  overscroll-behavior: none;
+}
+
+/* ── the header ───────────────────────────────────────────────────────── */
+
+.fv-top {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  padding-inline: var(--s2);
+  border-block-end: var(--border);
+}
+
+.fv-top .mode-switch {
+  display: flex;
+  flex: none;
+  border: var(--border);
+  border-radius: var(--r2);
+  overflow: hidden;
+}
+
+.fv-top .mode {
+  display: grid;
+  place-items: center;
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding-inline: var(--s3);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+  color: var(--heading);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.fv-top .mode[aria-current="page"] {
+  background: var(--surface);
+  color: var(--bright);
+}
+
+.fv-said {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--step--1);
+  color: var(--heading);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fv-tap,
+.fv-key {
+  flex: none;
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding-inline: var(--s2);
+  border: 0;
+  border-radius: var(--r1);
+  background: var(--control);
+  color: var(--bright);
+  font-family: var(--font-mono);
+  font-size: var(--step-0);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fv-tap[hidden] {
+  display: none;
+}
+
+.fv-tap:active,
+.fv-key:active {
+  background: var(--hovered);
+}
+
+.fv-key[aria-pressed="true"] {
+  background: var(--amber);
+  color: var(--ink);
+}
+
+.fv-tap:focus-visible,
+.fv-key:focus-visible,
+.fv-top .mode:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: -2px;
+}
+
+/* ── the window ───────────────────────────────────────────────────────── */
+
+.fv-room {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  /* A finger here is the window's: a tap is a click, a swipe is the wheel. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.fv-grid {
+  /*
+    Centred, so on the large screen sideways the centre column is the centre
+    of the glass, which is where the fold is (`full-fit.js`).
+  */
+  width: var(--fv-width, auto);
+  margin-inline: auto;
+  font-family: var(--font-mono);
+  font-size: var(--fv-font, 12px);
+  line-height: var(--fv-row, 1.2);
+  font-variant-ligatures: none;
+  font-kerning: none;
+  color: #d0d0d0;
+}
+
+.fv-row {
+  height: var(--fv-row, 1.2em);
+  white-space: pre;
+  overflow: hidden;
+}
+
+.fv-row .b {
+  font-weight: 700;
+}
+
+.fv-row .i {
+  font-style: italic;
+}
+
+.fv-row .u {
+  text-decoration: underline;
+}
+
+/* A character a terminal gives two cells: given two here, so the row keeps its columns. */
+.fv-row .w {
+  display: inline-block;
+  width: 2ch;
+  text-align: center;
+}
+
+.fv-probe {
+  position: absolute;
+  visibility: hidden;
+  white-space: pre;
+  font-size: 100px;
+  line-height: 1;
+}
+
+/* A selection being made: the browser has the finger, and the text can be taken. */
+body.fv-selecting .fv-room {
+  touch-action: auto;
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* ── the keys ─────────────────────────────────────────────────────────── */
+
+.fv-keys {
+  display: flex;
+  gap: var(--s1);
+  padding: var(--s1) var(--s2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-block-start: var(--border);
+}
+
+.fv-keys::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+  What the phone's keyboard types into: in the page, so focusing it raises the
+  keyboard, and at 16 px, so iOS does not zoom to it. Nothing of it is seen.
+*/
+.fv-type {
+  position: fixed;
+  inset-inline-start: 0;
+  inset-block-end: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  resize: none;
+  font-size: 16px;
+  pointer-events: none;
+}

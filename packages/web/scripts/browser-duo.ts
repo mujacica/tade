@@ -69,12 +69,12 @@ export interface Playwright {
   webkit: { launch: (opts: object) => Promise<Engine> }
 }
 
-interface Engine {
+export interface Engine {
   newContext: (opts: object) => Promise<Context>
   close: () => Promise<void>
 }
 
-interface Context {
+export interface Context {
   newPage: () => Promise<Page>
   route: (match: string, answer: (route: Route) => Promise<void>) => Promise<void>
   addInitScript: (script: { content: string }) => Promise<void>
@@ -88,7 +88,7 @@ interface Route {
   fulfill: (opts: object) => Promise<void>
 }
 
-interface Page {
+export interface Page {
   on: (event: 'pageerror', hear: (problem: unknown) => void) => void
   goto: (url: string, opts?: object) => Promise<unknown>
   fill: (selector: string, value: string) => Promise<void>
@@ -338,7 +338,7 @@ async function serve(home: string) {
  * custom properties (`insetsAsVars`). No service worker, so the route is what
  * answers and not a cache.
  */
-async function phoneAt(engine: Engine, screen: DuoScreen, state?: object): Promise<Context> {
+export async function phoneAt(engine: Engine, screen: DuoScreen, state?: object): Promise<Context> {
   const context = await engine.newContext({
     viewport: { width: screen.width, height: screen.height },
     deviceScaleFactor: 3,
@@ -391,7 +391,7 @@ const KEYBOARD = `(() => {
   window.__duoKeyboard = (px) => { covered = px; view.dispatchEvent(new Event('resize')) }
 })()`
 
-async function pairIn(page: Page, origin: string, ticket: string): Promise<void> {
+export async function pairIn(page: Page, origin: string, ticket: string): Promise<void> {
   await page.goto(`${origin}/pair#t=${ticket}`, { waitUntil: 'load' })
   await page.waitForSelector('#label', { timeout: 10_000 })
   await page.fill('#label', 'the duo')

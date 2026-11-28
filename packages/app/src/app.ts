@@ -443,7 +443,7 @@ export class App {
       say: (said) => this.orchestrator.say(said),
     })
     this.extensions = new Extensions(this.wire, {
-      size: () => this.room(),
+      size: () => this.faceRoom(),
       skin: this.skin,
       takeConfig: () => this.heart.takeConfig(),
       dateOf: (at) => this.window.dateOf(at),
@@ -467,7 +467,7 @@ export class App {
       there: () => this.remotes.there(),
     })
     this.files = new Files(this.wire, {
-      size: () => this.room(),
+      size: () => this.faceRoom(),
       skin: this.skin,
       copy: (text) => copySaying(this.wire, text, (data) => this.terminal.write(data)),
       openSearch: (query) => this.search.open(query),
@@ -581,6 +581,10 @@ export class App {
         act: (said) => void this.router.act(said),
         say: (said) => this.remotes.say(said) || this.orchestrator.say(said),
         applyPanel: (outcome) => this.router.applyPanel(outcome),
+        // A press the phone could not answer itself: the window's own click,
+        // as that phone's face — a link and a copy never come here, because
+        // a phone does both on its own screen (`ON_A_PHONE`).
+        click: (target, button, at) => this.mouse.clicked(target, button, at),
       }),
       send: (device, message) => this.away.window(device, message),
       front: () => paneLane(this.state),
@@ -918,6 +922,16 @@ export class App {
   /** How big the terminal is, which is how big everything drawn in it may be. */
   private room(): { columns: number; rows: number } {
     return { columns: this.terminal.columns, rows: this.terminal.rows }
+  }
+
+  /**
+   * How big the face being served draws: a phone's size while one is served
+   * (`Heart.room`), this terminal's otherwise. What a subject lays out to a
+   * size inside a frame — a file's body, a diff's, the Extensions panel — is
+   * asked this, so a phone's panel folds at the phone's width.
+   */
+  private faceRoom(): { columns: number; rows: number } {
+    return this.heart.room() ?? this.room()
   }
 
   private now(): number {

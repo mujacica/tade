@@ -141,7 +141,13 @@ export class FarFaces {
   ): { rev: number | null } {
     let far = this.fars.get(device)
     if (far === undefined) {
-      const face = this.deps.attach({ capabilities: ON_A_PHONE, draw: () => this.soon() })
+      // Its panels are laid out to its own size, never the machine's terminal.
+      const size = { columns: look.columns, rows: look.rows }
+      const face = this.deps.attach({
+        capabilities: ON_A_PHONE,
+        draw: () => this.soon(),
+        room: () => ({ columns: far?.columns ?? size.columns, rows: far?.rows ?? size.rows }),
+      })
       far = {
         face,
         columns: look.columns,
@@ -176,6 +182,9 @@ export class FarFaces {
     }
     if (intent.kind === 'quit') {
       throw new NotOffered('closing the window is for this machine’s own keyboard')
+    }
+    if (intent.kind === 'click' && intent.target.kind === 'link') {
+      throw new NotOffered('a phone opens a link on its own screen, never this machine’s')
     }
     far.until = this.deps.now() + LOOK_MS
     if (own) this.place(far, own)

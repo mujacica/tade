@@ -57,6 +57,9 @@ self.addEventListener('fetch', (event) => {
   if (asked.method !== 'GET') return
   const url = new URL(asked.url)
   if (url.origin !== self.location.origin) return
+  // The full view is a document of its own, made with the window's drawing and
+  // its import map (`/draw/`): the machine's to answer, never the shell.
+  if (asked.mode === 'navigate' && url.pathname.startsWith('/draw/')) return
   // A navigation is the shell, whatever path it was for, as the machine serves it.
   const wanted = asked.mode === 'navigate' ? '/' : url.pathname
   if (!SHELL.files.includes(wanted)) return

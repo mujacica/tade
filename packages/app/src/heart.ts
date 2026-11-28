@@ -185,6 +185,13 @@ export interface FaceSpec {
   draw(): void
   /** Where it starts looking; where the machine's own face is, holding nothing, unless given (`ownFrom`). */
   readonly own?: FaceOwn
+  /**
+   * How big it draws, where that is not this machine's terminal: a phone's
+   * columns and rows. What a subject lays out to a size while this face is
+   * served — a file's body, a diff's, the Extensions panel — is laid out to
+   * this (`Heart.room`), so a phone's panel folds at the phone's width.
+   */
+  room?(): { columns: number; rows: number }
 }
 
 /** A face attached to a heart (`Heart.attach`): its own view of the one state, until it goes. */
@@ -210,6 +217,7 @@ export interface AttachedFace {
 interface Guest {
   readonly capabilities: FaceCapabilities
   readonly draw: () => void
+  readonly room: (() => { columns: number; rows: number }) | null
   own: FaceOwn
   /** The last view made for it, kept while neither half has moved (`Heart.seen`). */
   seen: { heart: AppState; own: FaceOwn; state: AppState } | null
@@ -811,6 +819,9 @@ export class Heart {
     const guest: Guest = {
       capabilities: spec.capabilities,
       draw: () => spec.draw(),
+      room: spec.room
+        ? () => (spec.room as () => { columns: number; rows: number }).call(spec)
+        : null,
       own: spec.own ?? ownFrom(this.current),
       seen: null,
     }
@@ -827,6 +838,14 @@ export class Heart {
         this.guests.delete(guest)
       },
     }
+  }
+
+  /**
+   * How big the face being served draws, where it said (`FaceSpec.room`);
+   * null for the machine's own face, which is its terminal's size.
+   */
+  room(): { columns: number; rows: number } | null {
+    return this.served()?.room?.() ?? null
   }
 
   /** How many faces are attached besides the machine's own. */

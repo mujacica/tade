@@ -383,5 +383,16 @@ describe('the window, drawn by a phone from the state the machine sends', () => 
       intent: { kind: 'format-disk' },
     })
     expect(odd.status).toBe(400)
+    // A link is opened on the phone's own screen (§10 T4), never this machine's.
+    const link = await post(port, '/api/window/act', {
+      key: `${KEY}4`,
+      intent: {
+        kind: 'click',
+        target: { kind: 'link', url: 'https://example.com/' },
+        button: 'left',
+        at: { x: 1, y: 1 },
+      },
+    })
+    expect(link.body.error).toBe('not_offered')
   })
 })

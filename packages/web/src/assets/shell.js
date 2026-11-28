@@ -25,6 +25,7 @@ import { freshMark } from './glyphs.js'
 import { icon, wordmark } from './icons.js'
 import { backoffAt, partsOf } from './live.js'
 import { GROUPS, MORE_TAB, NAV, navFor, pathOf, placeOf, TITLES } from './routes.js'
+import { modeSwitch } from './switch.js'
 
 /**
  * The whole frame, built once for the life of the page.
@@ -97,7 +98,12 @@ export function shell(desk = null) {
   })
   into(sideDoor, icon('agents'))
   into(tools, sideDoor, again, keys)
-  into(top, brand, ask, fresh, tools)
+  // Overview and Full view (`switch.js`): drawn once the machine has said it
+  // draws a window to share (`boot.js`), and not before — a switch to a view
+  // that cannot load is a press that goes nowhere.
+  const modes = modeSwitch('overview')
+  modes.hidden = true
+  into(top, brand, modes, ask, fresh, tools)
 
   const bars = el('div', { class: 'bars' })
 
@@ -175,6 +181,7 @@ export function shell(desk = null) {
     again,
     keys,
     links,
+    modes,
     // Every press that folds or opens a dock, by the dock (`docks.js`).
     folds: {
       menu: [railFold],

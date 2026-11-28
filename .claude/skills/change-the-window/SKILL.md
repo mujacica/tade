@@ -1402,6 +1402,16 @@ test holds it to find exactly the files the parser does. `node packages/app/scri
 builds and draws every golden scenario **in a browser**, from the same modules, and holds each screen
 byte for byte to its `.ansi`; it says `unrun` without Playwright, like the away view's harness.
 
+**The page that runs it is the full view** (`/draw/`, §10 T4): `assets/full.js` imports the
+drawing through the document's map and draws `FarFace`'s rows into a grid of spans
+(`full-grid.js`, painted by `full-cells.js`, which `test/full-cells.test.ts` holds equal to the
+pictures' `scripts/terminal.ts` over every golden row). A tap is `FarFace.tap` — what only moves the
+face is done on the phone, a link is the page's to open, and anything else goes as a `click` intent
+the machine's own `Mouse.clicked` carries out as that face; a swipe is `FarFace.swipe`; on the
+large screen sideways `holdSidebar` puts the sidebar's edge on the fold (`full-fit.js`).
+`node packages/app/scripts/browser-full.ts` checks it in WebKit at the Duo's six sizes and two slab
+phones each way up.
+
 **Its size is its own, decided 27 Nov 2026.** The full view's code is 323 files, 3,921 KB as served
 and 1,093 KB on the wire (brotli, file by file, which is what a phone is sent), 112 KB of it
 highlight.js — twice the overview's whole page. So:
@@ -1423,9 +1433,11 @@ sends per phone or the phone computes (nothing here moved them yet):
   width. The line is pi's editor and is changed only by keys, so a phone needs its own line, not the
   machine's at another width;
 - **the file viewer** (`wire/files.ts` `panel(width)`, `wire/viewed.ts`): Markdown laid out to the
-  panel's width, kept per width because it is a pass over the whole file, and the file and diff
-  bodies sized from the machine's terminal (`size()`, also `wire/extensions.ts`). `formattedLines`
-  is pure now, so the phone can lay out a file whose text it is sent;
+  panel's width, kept per width because it is a pass over the whole file. The file and diff bodies
+  and the Extensions panel are sized from **the face being served** (`Heart.room`, from
+  `FaceSpec.room`; `App.faceRoom` is what `Files` and `Extensions` are handed), so a phone's
+  panel folds at the phone's width and the machine's at its terminal's. `formattedLines` is pure,
+  so the phone can lay out a file whose text it is sent;
 - **a lane's screen** (`wire/lanes.ts`): a terminal's screen at the lane's own size, which cannot be
   drawn again at another width — the phone draws it as captured, cut and scrolled as the window does.
 

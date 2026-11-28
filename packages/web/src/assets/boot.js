@@ -84,6 +84,7 @@ import {
   streamPath,
   wantingIds,
 } from './store.js'
+import { offerFull, typing } from './switch.js'
 import { talkScreen } from './talk.js'
 import { everyMachine, machinePicked, reviewsOnce, thereCtx, thereOn } from './there.js'
 import { toasts } from './toasts.js'
@@ -551,10 +552,7 @@ function openStream() {
     // somebody has typed something into a box: then it is the bar with its
     // press, because nothing reloads a page somebody is typing in.
     alive()
-    const typed = [...document.querySelectorAll('textarea, input')].some(
-      (one) => one.value.trim() !== '' && one.offsetParent !== null,
-    )
-    if (!typed) {
+    if (!typing()) {
       location.reload()
       return
     }
@@ -847,6 +845,8 @@ async function start() {
     draw(viewOf(location.pathname))
     wireBeat()
     openStream()
+    // The full view, where the machine draws a window to share (`switch.js`).
+    void offerFull(shown.modes, () => outside === null)
     // After the first draw, never before it: registering a worker is a network
     // round trip and a snapshot is what somebody opened this for. The machine
     // says whether to, and saying no still brings an existing registration up

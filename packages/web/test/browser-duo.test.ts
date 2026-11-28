@@ -87,3 +87,29 @@ describe('with no browser', () => {
     ])
   })
 })
+
+describe('the full view’s sizes', () => {
+  it('are the Duo’s six and two slab phones each way up, inside their own insets', async () => {
+    const { FULL_SIZES } = await import('./browser-full-plan.ts')
+    expect(FULL_SIZES.filter((one) => one.name.startsWith('duo-'))).toHaveLength(6)
+    const slabs = FULL_SIZES.filter((one) => one.name.startsWith('slab-'))
+    expect(slabs).toHaveLength(4)
+    for (const one of slabs.filter((size) => size.name.endsWith('-upright'))) {
+      const turned = slabs.find((size) => size.name === one.name.replace('-upright', '-sideways'))
+      expect([turned?.width, turned?.height], one.name).toEqual([one.height, one.width])
+    }
+    // The two the plan names a number for, and the one that folds.
+    const named = FULL_SIZES.filter((one) => one.columns !== undefined).map((one) => one.name)
+    expect(named).toEqual(['duo-outer-sideways', 'duo-inner-sideways', 'duo-outer-safari-sideways'])
+    expect(FULL_SIZES.filter((one) => one.fold).map((one) => one.name)).toEqual([
+      'duo-inner-sideways',
+    ])
+    // The Duo's four Home Screen sizes are the overview harness's own.
+    for (const screen of DUO) {
+      const same = FULL_SIZES.find(
+        (one) => one.width === screen.width && one.height === screen.height,
+      )
+      expect(same?.insets, screen.name).toEqual(screen.insets)
+    }
+  })
+})

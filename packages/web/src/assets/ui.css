@@ -754,3 +754,44 @@ a.ui-card:hover,
   font-size: var(--step--1);
   white-space: pre;
 }
+
+/*
+  Overview and Full view (`switch.js`): the page's two modes, the one you are
+  in marked and the other a link to it. Hidden until the machine says it draws
+  a window to share. At a phone's width only the way out is drawn — the mode
+  you are in is the page you are looking at.
+*/
+.mode-switch {
+  display: flex;
+  flex: none;
+  border: var(--border);
+  border-radius: var(--r2);
+  overflow: hidden;
+}
+
+.mode-switch[hidden] {
+  display: none;
+}
+
+.mode {
+  display: grid;
+  place-items: center;
+  min-height: var(--tap);
+  padding-inline: var(--s3);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+  color: var(--heading);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.mode[aria-current="page"] {
+  background: var(--surface);
+  color: var(--bright);
+}
+
+@media (max-width: 479px) {
+  .mode[aria-current="page"] {
+    display: none;
+  }
+}
