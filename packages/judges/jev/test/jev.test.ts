@@ -219,55 +219,52 @@ describe('asking TypeSafe', () => {
     expect(failed?.retryable).toBe(true)
   })
 
-  it('stops waiting to ask again when the ask is called off', async () => {
+  it('stops when the ask is called off between tries, and makes no further try', async () => {
     // A minute's wait between tries, and the ask called off a moment into it:
-    // the second try is made then, not a minute later.
+    // it ends then, with the caller's own abort, and nothing more is asked.
     const off = new AbortController()
     let asked = 0
     const judge = new JevJudge({
       key: 'k',
       model: 'jev-1.14.0',
-      retries: 1,
+      retries: 2,
       retryMs: 60_000,
       fetch: (async () => {
         asked++
-        if (asked === 1) setTimeout(() => off.abort(), 20)
+        if (asked === 1) setTimeout(() => off.abort(new Error('the look was stopped')), 20)
         return new Response('slow down', { status: 429, headers: { 'retry-after': '60' } })
       }) as typeof fetch,
     })
     const began = performance.now()
-    const failed = await judge
-      .ask({ state: 'x', questions: one, signal: off.signal })
-      .then(() => null)
-      .catch((err: unknown) => err as JudgeError)
-    expect(failed?.status).toBe(429)
-    expect(asked).toBe(2)
+    await expect(judge.ask({ state: 'x', questions: one, signal: off.signal })).rejects.toThrow(
+      /the look was stopped/,
+    )
+    expect(asked).toBe(1)
     expect(performance.now() - began).toBeLessThan(9_000)
   })
 
-  it('does not wait to ask again when the ask was called off before the wait began', async () => {
+  it('stops at once when the ask was called off during a try, and says the abort', async () => {
     // Called off during the first try, so the signal is already aborted when
-    // the wait starts: retry-after 60 would otherwise be waited out (10 s).
+    // the try fails: retry-after 60 would otherwise be waited out (10 s), and
+    // the 429 is not what the caller should hear.
     const off = new AbortController()
     let asked = 0
     const judge = new JevJudge({
       key: 'k',
       model: 'jev-1.14.0',
-      retries: 1,
+      retries: 2,
       retryMs: 60_000,
       fetch: (async () => {
         asked++
-        off.abort()
+        off.abort(new Error('the look was stopped'))
         return new Response('slow down', { status: 429, headers: { 'retry-after': '60' } })
       }) as typeof fetch,
     })
     const began = performance.now()
-    const failed = await judge
-      .ask({ state: 'x', questions: one, signal: off.signal })
-      .then(() => null)
-      .catch((err: unknown) => err as JudgeError)
-    expect(failed?.status).toBe(429)
-    expect(asked).toBe(2)
+    await expect(judge.ask({ state: 'x', questions: one, signal: off.signal })).rejects.toThrow(
+      /the look was stopped/,
+    )
+    expect(asked).toBe(1)
     expect(performance.now() - began).toBeLessThan(9_000)
   })
 

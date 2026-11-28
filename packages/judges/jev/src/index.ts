@@ -412,6 +412,9 @@ export class JevJudge implements Judge {
     const retries = this.opts.retries ?? 2
     let last: JudgeError | null = null
     for (let attempt = 0; attempt <= retries; attempt++) {
+      // Called off is called off: no further try, and the caller hears its own
+      // abort rather than whatever the last try happened to fail with.
+      if (signal?.aborted) throw signal.reason
       const timeout = AbortSignal.timeout(this.opts.timeoutMs ?? 10_000)
       const response = await call(url, {
         method: 'POST',
@@ -430,6 +433,7 @@ export class JevJudge implements Judge {
       })
       if (response?.ok) return response
       if (response) last = await refusal(response)
+      if (signal?.aborted) throw signal.reason
       if (!last?.retryable || attempt === retries) break
       await pause(waitFor(response, attempt, this.opts.retryMs ?? 500), signal)
     }
