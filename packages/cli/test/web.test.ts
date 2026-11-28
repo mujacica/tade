@@ -8,6 +8,7 @@ import {
   CONNECT_OFF,
   CONNECT_ON_LAN,
   connectTicketHolds,
+  FOR_AN_OLDER_WINDOW,
   writeDevices,
 } from '@tade/web'
 import { lockHome } from '@tade/workbench/lock'
@@ -313,9 +314,17 @@ describe('tade web', () => {
         'pending',
       ])
       expect(written[0]).toMatchObject({ label: 'my phone' })
-      // A code carries the scopes and grants an older window's strict schema
-      // requires, and nothing here reads them (TADE-Y, older-window.test.ts).
-      expect(written[4]).toMatchObject({ host: 'tade.example.com' })
+      // Every device is the person's own, so nothing here reads what a code may
+      // have — but a window opened by older code keeps its strict schema, which
+      // requires `scopes`, `projects` and `granted`, and would skip a line
+      // without them and refuse the code (TADE-Y). So the shell writes that
+      // window's own default words on purpose (older-window.test.ts).
+      expect(written[4]).toMatchObject({
+        host: 'tade.example.com',
+        scopes: FOR_AN_OLDER_WINDOW.scopes,
+        projects: null,
+        granted: FOR_AN_OLDER_WINDOW.granted,
+      })
       const devices = await tade('web', 'devices')
       expect(devices.stdout).toContain(`a code from the terminal  ${String(got.device)}  unclaimed`)
       const status = JSON.parse((await tade('web', 'status', '--json')).stdout) as {
