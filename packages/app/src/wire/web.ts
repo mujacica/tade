@@ -109,9 +109,9 @@ const PUBLIC_AGAIN_MS = 15_000
 // keypress at this machine, which is the one authorisation nothing remote can obtain.
 //
 // **Idle costs nothing.** With `enabled: false` there is no server and `beat` returns on its first
-// line. With it on and nobody connected, `beat` builds **no projection**: `streams.listening()` is
-// empty, so there is nothing to project for. `test/away.test.ts` asserts that as a count of calls
-// rather than as a sentence.
+// line. With it on and nobody connected, `beat` builds **no projection**: `streams.projected()` is
+// empty, so there is nothing to project for — nor with only the full view open, which reads none.
+// `test/away.test.ts` asserts that as a count of calls rather than as a sentence.
 
 /** How often this machine's own projection is built while its listener is off and nothing beats it. */
 const OWN_EVERY_MS = 1_000
@@ -492,12 +492,13 @@ export class Away implements Subject {
    *
    * **Nothing at all is built for nobody.** The beat marks what the last one
    * built as stale and then does two things: advances the projection for each
-   * device with a stream open, and lets the streams do their own time-based
-   * work. With nobody connected both are empty loops — so an enabled away
-   * view nobody is looking at costs one assignment every two seconds, and in
-   * particular runs none of the four folds over the journal that building a
-   * projection needs. `test/away.test.ts` asserts that as a count of reads
-   * rather than as this sentence.
+   * device with a stream open that is sent one (`Streams.projected` — never
+   * for the full view alone, which reads none of it), and lets the streams do
+   * their own time-based work. With nobody connected both are empty loops —
+   * so an enabled away view nobody is looking at costs one assignment every
+   * two seconds, and in particular runs none of the four folds over the
+   * journal that building a projection needs. `test/away.test.ts` asserts that
+   * as a count of reads rather than as this sentence.
    *
    * The collections are built *on demand* instead (`collections`), because a
    * request is not idle — and memoised until the next beat, so four tabs of
@@ -517,7 +518,7 @@ export class Away implements Subject {
     const now = this.wire.now()
     this.held = null
     this.beatAt = now
-    for (const device of this.streams.listening()) {
+    for (const device of this.streams.projected()) {
       const held = this.devices.find((one) => one.id === device)
       if (held === undefined) continue
       const delta = this.projectorFor(reachOf(held)).beat(this.inputFor(reachOf(held)), now)
@@ -574,12 +575,13 @@ export class Away implements Subject {
 
   /**
    * The other machines' copies, moved on for every page of the person's own
-   * that is open — and for nobody else. With none open, nothing is compared:
+   * that is open and sent the projection — and for nobody else, the full view
+   * included. With none open, nothing is compared:
    * what was sent is let go, so the next page to open is sent each copy whole
    * on the beat after it does.
    */
   private beatCopies(now: number): void {
-    const to = new Set(this.streams.listening().filter((device) => this.sentCopies(device)))
+    const to = new Set(this.streams.projected().filter((device) => this.sentCopies(device)))
     if (to.size === 0) {
       this.copies.beat([])
       return
@@ -926,6 +928,8 @@ export class Away implements Subject {
       get rev() {
         return held.rev
       },
+      // A device whose only stream was the full view's was passed by the beat.
+      level: () => this.catchUp(reach, held),
       copies: (held) => (this.sentCopies(reach.device) ? this.copies.opening(held) : []),
       agent: (task, seen = null) => {
         // The collections are the ones this beat built, memoised, never a look.

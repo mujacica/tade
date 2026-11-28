@@ -57,6 +57,16 @@ export interface WebReading {
    */
   readonly rev: number
   /**
+   * Bring this device's projection level with the window's last beat, if a
+   * beat passed it by — which one does for a device whose only open stream is
+   * the full view (`Streams.projected`) — feeding the ring what it moved by.
+   * Asked by a stream that is sent the projection, before it reads `rev`, so
+   * it starts level and a page holding an older cursor is replayed up to it.
+   * Nothing at all for a device this beat already projected; absent where the
+   * projection is always beaten for whoever is listening.
+   */
+  level?(): void
+  /**
    * The other machines' copies this device is sent, as the frames a stream
    * opens with (`copies.ts`): none for a device that is not the person's own,
    * and absent where this door holds none. Handed which revision of each the

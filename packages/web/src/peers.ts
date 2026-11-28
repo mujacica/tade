@@ -184,14 +184,25 @@ export class Streams {
   }
 
   /**
-   * The devices somebody is listening for.
-   *
-   * What the window reads to decide which projections to build at all: a
-   * device nobody has a stream open for is a projection nobody asked for, and
-   * building one would be the "idle cost" this design promised was nought.
+   * The devices somebody is listening for, on any stream — the full view's
+   * too: who is reading, which the strip counts and a session's end is
+   * decided against. Which projections to build is `projected`.
    */
   listening(): string[] {
     return [...new Set(this.peers.map((peer) => peer.device))]
+  }
+
+  /**
+   * The devices with a stream that is sent the projection: what the window
+   * reads to decide which projections to build on a beat. A device nobody has
+   * such a stream open for is a projection nobody asked for — one whose only
+   * stream is the full view's (`windowOnly`) included, since nothing of a
+   * projection is ever sent down it. Its overview opening later is brought
+   * level first (`WebReading.level`), so skipping it here costs that page
+   * nothing.
+   */
+  projected(): string[] {
+    return [...new Set(this.peers.filter((peer) => peer.projection).map((peer) => peer.device))]
   }
 
   /**

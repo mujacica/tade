@@ -1,10 +1,10 @@
 import { appendFile, mkdtemp } from 'node:fs/promises'
-import { createServer } from 'node:http'
+import { type ClientRequest, createServer, request } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ConfigSchema, LAN_IS_PLAINTEXT_SHORT, LOCAL, startOfToday } from '@tade/core'
-import { readDevices, writeDevices } from '@tade/web'
+import { digestOf, readDevices, writeDevices } from '@tade/web'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Live } from '../../src/live.ts'
 import { type AppState, initialState, withTasks } from '../../src/model.ts'
@@ -420,6 +420,28 @@ describe('what it costs when nobody is looking', () => {
     expect(held.reads).toEqual([])
   })
 
+  it('reads nothing of the window over a hundred beats with only the full view open', async () => {
+    // Somebody is reading — the strip counts them — but down a stream that is
+    // sent the window alone (`?only=window`), so there is no projection to
+    // move on: a phone left on an agent's full screen costs what nobody does.
+    const held = heldState({ tasks: 40 })
+    const port = await freePort()
+    const { away, home } = await wiring({ web: { enabled: true, port }, live: held.live })
+    await away.open()
+    await signedIn(home, port)
+    await away.reread()
+    const stream = await listen(port, '/api/stream?only=window')
+    try {
+      expect(away.facts().remote?.devices).toBe(1)
+      held.reads.length = 0
+      for (let at = 0; at < 100; at++) away.beat()
+      expect(held.reads).toEqual([])
+      expect(away.facts().remote?.devices).toBe(1)
+    } finally {
+      stream.destroy()
+    }
+  })
+
   it('builds the projection when something actually asks', async () => {
     const held = heldState()
     const { away } = await wiring({ web: { enabled: true }, live: held.live })
@@ -821,6 +843,45 @@ function device(id: string, label: string) {
     until: new Date(1_000 + 86_400_000).toISOString(),
     from: '192.168.1.42',
   }
+}
+
+const SECRET = 'A'.repeat(43)
+
+/** The one paired device, with a session a stream can open under. */
+async function signedIn(home: string, port: number): Promise<void> {
+  await writeDevices(home, [
+    {
+      ...device('00112233445566aa', 'iPhone'),
+      digest: digestOf(SECRET),
+      host: `127.0.0.1:${port}`,
+    },
+  ])
+}
+
+/** A stream held open as a page holds one, once the server has written its first bytes. */
+function listen(port: number, path: string): Promise<ClientRequest> {
+  return new Promise((done, failed) => {
+    const req = request(
+      {
+        host: '127.0.0.1',
+        port,
+        path,
+        method: 'GET',
+        headers: {
+          host: `127.0.0.1:${port}`,
+          cookie: `tade_away=00112233445566aa.${SECRET}`,
+          accept: 'text/event-stream',
+          'sec-fetch-site': 'same-origin',
+        },
+      },
+      (res) => {
+        if (res.statusCode !== 200) failed(new Error(`the stream answered ${res.statusCode}`))
+        res.once('data', () => done(req))
+      },
+    )
+    req.on('error', failed)
+    req.end()
+  })
 }
 
 /** The reading the server would be handed for the one paired device. */

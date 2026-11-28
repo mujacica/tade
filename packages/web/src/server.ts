@@ -495,6 +495,10 @@ export function webServer(opts: ServerOptions): WebServer {
       write: (text) => res.write(text),
       end: () => res.end(),
     }
+    const windowOnly = windowOnlyOf(req.url ?? '/')
+    // A stream sent the projection starts level with the last beat, which
+    // passes by a device whose only stream was the full view's (`level`).
+    if (!windowOnly) reading.level?.()
     const opened = streams.open({
       device: device.id,
       until: device.until,
@@ -503,7 +507,7 @@ export function webServer(opts: ServerOptions): WebServer {
       snapshot: () => reading.snapshot(),
       copies: (held) => reading.copies?.(held) ?? [],
       held: copiesHeldOf(req.url ?? '/'),
-      windowOnly: windowOnlyOf(req.url ?? '/'),
+      windowOnly,
       rev: reading.rev,
       now: now(),
     })

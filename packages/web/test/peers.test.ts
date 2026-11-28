@@ -642,4 +642,16 @@ describe('the full view’s stream, which asks for the window alone', () => {
     full(live)
     expect(live.listening()).toEqual([DEVICE])
   })
+
+  it('is projected for by no beat until the same device opens a stream that is sent the projection', () => {
+    const live = streams()
+    full(live)
+    expect(live.projected()).toEqual([])
+    const { opened } = open(live, { device: DEVICE })
+    expect(live.projected()).toEqual([DEVICE])
+    if (opened.kind !== 'open') throw new Error('it should have opened')
+    live.gone(opened.peer)
+    expect(live.projected()).toEqual([])
+    expect(live.listening()).toEqual([DEVICE])
+  })
 })

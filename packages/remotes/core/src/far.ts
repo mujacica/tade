@@ -34,6 +34,7 @@ import {
   type WatchSeenAnswer,
   type WebConnecting,
   type WebDisk,
+  type WebReading,
   type WebServer,
   type WebSide,
   webServer,
@@ -310,6 +311,8 @@ class Far implements FarEnd {
   private projects: readonly string[]
   private titles: Readonly<Record<string, string>> = {}
   private readonly projectors = new Map<string, Projector>()
+  /** The devices the last beat projected, as the window's `caughtUp` says it: a stream opening for one is level. */
+  private beaten = new Set<string>()
   private timer: NodeJS.Timeout | null = null
 
   readonly home: string
@@ -383,7 +386,7 @@ class Far implements FarEnd {
           return 'kept'
         },
       },
-      readingFor: (reach) => this.projectorFor(reach),
+      readingFor: (reach) => this.readingFor(reach),
       tickets: new Tickets(),
       streams,
       confirm: async () => ({ let: false, why: 'refused' }),
@@ -573,7 +576,7 @@ class Far implements FarEnd {
     if (this.server === null) await this.listen(this.port)
   }
 
-  /** What the window's beat does (`wire/web.ts`): a projection per listening device, pushed if it moved. */
+  /** What the window's beat does (`wire/web.ts`): a projection per device sent one, pushed if it moved. */
   private async beat(): Promise<void> {
     const server = this.server
     if (server === null) return
@@ -583,14 +586,38 @@ class Far implements FarEnd {
       // A device signed out by the CLI is let go of on the beat, as the window does.
       if (device.revoked !== null) server.streams.revoke(device.id, 'signed out')
     }
-    for (const id of server.streams.listening()) {
+    // Never for a device whose only stream is the full view's, which reads none of it.
+    this.beaten = new Set()
+    for (const id of server.streams.projected()) {
       const device = devices.find((one) => one.id === id)
       if (device === undefined) continue
+      this.beaten.add(id)
       const reach = reachOf(device)
       const delta = this.projectorFor(reach).beat(this.inputFor(reach), now)
       if (delta !== null) server.streams.push(id, delta, now)
     }
     server.streams.beat(now)
+  }
+
+  /** The projector, read as the server reads one, and brought level for a stream sent it (`level`). */
+  private readingFor(reach: Reach): WebReading {
+    const held = this.projectorFor(reach)
+    return {
+      snapshot: () => held.snapshot(),
+      get rev() {
+        return held.rev
+      },
+      level: () => {
+        if (this.beaten.has(reach.device)) return
+        this.beaten.add(reach.device)
+        const now = Date.now()
+        const delta = held.beat(this.inputFor(reach), now)
+        if (delta !== null) this.server?.streams.push(reach.device, delta, now)
+      },
+      chat: (before) => held.chat(before),
+      agent: (task, seen) => held.agent(task, seen),
+      evaluations: () => held.evaluations(),
+    }
   }
 
   private projectorFor(reach: Reach): Projector {
