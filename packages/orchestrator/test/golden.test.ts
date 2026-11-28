@@ -144,10 +144,12 @@ describe('the tools the orchestrator has', () => {
     // Claude Code (2.1.311, measured with a probe server) cuts an MCP tool's
     // description somewhere between 4,000 and 4,100 characters and appends
     // `… [truncated]`, so whatever is past that never reaches the model, and
-    // nothing says so. The longest today is under 2,000.
-    for (const tool of toolSurface()) {
-      expect(tool.description.length, tool.name).toBeLessThanOrEqual(4000)
-    }
+    // nothing says so. 3,800 leaves room for a harness that cuts a little
+    // earlier, and every tool over it is named at once.
+    const over = toolSurface()
+      .filter((tool) => tool.description.length > 3800)
+      .map((tool) => `${tool.name} (${tool.description.length})`)
+    expect(over).toEqual([])
   })
 
   it('says in its own description when it is gated on the person’s own words', () => {

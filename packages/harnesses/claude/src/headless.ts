@@ -118,11 +118,14 @@ export function headlessArgs(launch: HeadlessLaunch): string[] {
  * snapshot option does not reach it. So the orchestrator kept a
  * `tade_queue_change` with no `after` and no `retell`, and changed queued work
  * the only way it could see — removing it and planning it again, under a new
- * name each time. Inline, the tools are what the server says today: about
- * forty thousand tokens of Tade's and its extensions', cached between turns,
- * and the person's own servers' with them. Set last, because `spec.env` is
- * the window's whole environment and a value inherited from wherever Tade
- * was opened would quietly undo it.
+ * name each time. Inline, the tools are what the server says today, Tade's
+ * and its extensions' and the person's own servers', all of them in every
+ * request's prefix and cached between turns. What they cost goes stale with
+ * every tool added, so measure it rather than trust a figure: a first turn's
+ * input, cache-write and cache-read tokens (stream-json `usage`), minus the
+ * same with `--strict-mcp-config` and no servers. Set last, because
+ * `spec.env` is the window's whole environment and a value inherited from
+ * wherever Tade was opened would quietly undo it.
  *
  * **And none of another run's supervision.** The account is the window's
  * environment too, so Tade opened from inside an agent hands this run that
