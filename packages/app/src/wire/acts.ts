@@ -48,7 +48,7 @@ import { seenName } from './machines-seen.ts'
 // the outbox ask with any act and any "person's words" it likes. So an act
 // taken from an outbox is read by the same schema as one sent to this
 // machine's door (`readOutboxAnswer`), run under a narrowed arm with the
-// steer and tidy tiers only (`outboxArm`, judged by `allowMethod`), and the
+// tidy tier only (`outboxArm`, judged by `allowMethod`), and the
 // lines it quotes are not read: a terminal, an agent started, an approval
 // answered or a setting changed here needs the person here, or their own
 // device paired here.
@@ -74,16 +74,22 @@ const ANSWERS_KEPT_MS = 30 * 60_000
 
 /**
  * What an act taken from a hub's outbox may reach here (ONE-AWAY-VIEW Q3b):
- * a paired device's steer tier — steer, park, a note — and the tidy tier no
- * device has — stop an agent, close one that is not running and whose work is
- * kept, pause or resume queued work and a schedule — in
- * every project, judged method by method (`REMOTE_METHODS`). Each of those
- * only ever makes less happen here. Not `answer`, because approving a command
- * an agent here is waiting on is running it; and nothing that starts an
- * agent, opens a terminal or changes a setting, because whatever controls
- * the hub must never be able to make this machine run code (F1).
+ * the tidy tier no device has — stop an agent, close one that is not running
+ * and whose work is kept, park a task or take it back up, pause or resume
+ * queued work and a schedule — in every project, judged method by method
+ * (`REMOTE_METHODS`). Each of those only ever makes less happen here, because
+ * whatever controls the hub writes what is in its outbox, and it must never be
+ * able to make this machine run code (F1).
+ *
+ * So **not `steer`**: a steer is typed into an agent running here as a user
+ * turn, and that agent has a shell, and a note is told to every agent here as
+ * the person's own words (security audit S2, 26 Nov). The phone on the hub's
+ * page keeps stop and park on this machine's agents; what it would say to one
+ * it says at this machine's own door, or to Tade here. Not `answer` either,
+ * because approving a command an agent here is waiting on is running it; and
+ * nothing that starts an agent, opens a terminal or changes a setting.
  */
-export const OUTBOX_GRANTS: readonly RemoteGrant[] = ['steer', 'tidy']
+export const OUTBOX_GRANTS: readonly RemoteGrant[] = ['tidy']
 
 /** The arm an act from `from`'s outbox runs under here. */
 export function outboxArm(from: string): Arm {

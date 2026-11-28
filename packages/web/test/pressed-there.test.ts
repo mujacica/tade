@@ -18,11 +18,6 @@ const ON = { machine: 'laptop', key: 'press-0001' }
 /** Every press, as the page sends it, and the method and parameters it must come to. */
 const MAPPED: [PressThere, string, Record<string, unknown>][] = [
   [
-    { ...ON, verb: 'steer', task: 'tade/fix-it', said: 'look at the test first' },
-    'worker/steer',
-    { task: 'tade/fix-it', message: 'look at the test first' },
-  ],
-  [
     { ...ON, verb: 'stop', task: 'tade/fix-it', confirm: true },
     'worker/stop',
     { task: 'tade/fix-it' },
@@ -32,11 +27,6 @@ const MAPPED: [PressThere, string, Record<string, unknown>][] = [
     { ...ON, verb: 'park', task: 'tade/fix-it', parked: false },
     'task/park',
     { task: 'tade/fix-it', parked: false },
-  ],
-  [
-    { ...ON, verb: 'note', task: 'tade/fix-it', text: 'the flake is the clock' },
-    'memory/remember',
-    { text: 'the flake is the clock', scope: 'tade/fix-it' },
   ],
   [
     { ...ON, verb: 'queue', task: 'tade/fix-it', change: 'pause' },
@@ -51,7 +41,7 @@ const MAPPED: [PressThere, string, Record<string, unknown>][] = [
 ]
 
 describe('the presses this door carries to another machine', () => {
-  it('maps each of the seven to that machine’s method itself', () => {
+  it('maps each of the five to that machine’s method itself', () => {
     expect(MAPPED.map(([press]) => press.verb)).toEqual([...PRESSES_THERE])
     for (const [press, method, params] of MAPPED) {
       expect(methodOf(press), press.verb).toEqual({ method, params })
@@ -61,7 +51,7 @@ describe('the presses this door carries to another machine', () => {
 
 type Handed = { machine: string; key: string; method: string; params: Record<string, unknown> }
 
-async function door(said: { ok: boolean; said: string } = { ok: true, said: 'steered' }) {
+async function door(said: { ok: boolean; said: string } = { ok: true, said: 'parked' }) {
   const handed: Handed[] = []
   const one = await start(
     {},
@@ -104,7 +94,7 @@ describe('POST /api/there/press', () => {
     for (const [body] of MAPPED) {
       const answer = await press(one, phone, body)
       expect(answer.status, answer.text).toBe(200)
-      expect(JSON.parse(answer.text)).toEqual({ ok: true, said: 'steered' })
+      expect(JSON.parse(answer.text)).toEqual({ ok: true, said: 'parked' })
     }
     expect(handed).toEqual(
       MAPPED.map(([, method, params]) => ({
@@ -151,38 +141,39 @@ describe('POST /api/there/press', () => {
         'content-type': 'application/json',
         [CSRF_HEADER]: made.csrf,
       },
-      body: JSON.stringify(MAPPED[1]?.[0]),
+      body: JSON.stringify(MAPPED[0]?.[0]),
     })
     expect(answer.status, answer.text).toBe(200)
     expect(handed).toHaveLength(1)
     expect(handed[0]).toMatchObject({ method: 'worker/stop', key: `${made.device}-press-0001` })
   })
 
-  it('refuses every body that is not one of its seven presses, as text', async () => {
+  it('refuses every body that is not one of its five presses, as text', async () => {
     const { one, handed } = await door()
     const phone = await theirs(one)
-    const steer = { ...ON, verb: 'steer', task: 'tade/fix-it', said: 'go on' }
+    const park = { ...ON, verb: 'park', task: 'tade/fix-it', parked: true }
     for (const body of [
       // A method name is never taken from a page, whatever it names.
-      { ...steer, method: 'terminal/open' },
+      { ...park, method: 'terminal/open' },
+      // Nothing that types into an agent there or tells its agents a note: no
+      // outbox is given the steer tier (security audit S2).
+      { ...ON, verb: 'steer', task: 'tade/fix-it', said: 'go on' },
+      { ...ON, verb: 'note', task: 'tade/fix-it', text: 'the flake is the clock' },
       { ...ON, verb: 'terminal/open', task: 'tade/fix-it' },
       { ...ON, verb: 'answer', task: 'tade/fix-it', allow: true },
       { ...ON, verb: 'start', task: 'tade/fix-it' },
       { ...ON, verb: 'close', task: 'tade/fix-it', force: true },
       { ...ON, verb: 'remove', task: 'tade/fix-it' },
       // Each press's own fields, and nothing beside them.
-      { ...steer, also: 1 },
-      { ...steer, said: '   ' },
-      { ...steer, said: 'x'.repeat(2_001) },
-      { ...steer, task: '../../etc' },
-      { ...steer, key: 'short' },
-      { ...steer, key: 'has a space in it' },
-      { ...steer, machine: '' },
-      { ...steer, machine: '../ipax' },
+      { ...park, also: 1 },
+      { ...park, task: '../../etc' },
+      { ...park, key: 'short' },
+      { ...park, key: 'has a space in it' },
+      { ...park, machine: '' },
+      { ...park, machine: '../ipax' },
       { ...ON, verb: 'stop', task: 'tade/fix-it' },
       { ...ON, verb: 'stop', task: 'tade/fix-it', confirm: false },
       { ...ON, verb: 'park', task: 'tade/fix-it', parked: 'yes' },
-      { ...ON, verb: 'note', task: 'tade/fix-it', text: '' },
       { ...ON, verb: 'queue', task: 'tade/fix-it', change: 'start' },
       { ...ON, verb: 'queue project', project: '../tade', change: 'pause' },
       { ...ON, verb: 'queue project', task: 'tade/fix-it', change: 'pause' },

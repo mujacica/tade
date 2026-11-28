@@ -1,7 +1,6 @@
 import type { IncomingMessage } from 'node:http'
 import { MACHINE_NAMED, TaskId } from '@tade/core'
 import { z } from 'zod'
-import { BOUNDS } from './acting.ts'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
@@ -13,11 +12,13 @@ import { KEY } from './verbs.ts'
 // (`@tade/app`'s `MachineActs.pressed`), which that machine takes on its beat,
 // runs through its own gate under the arm it gives an outbox (`outboxArm`)
 // and answers in its next ask — so what may be done there is that machine's
-// to decide, and it is the steer and tidy tiers (Q3b).
+// to decide, and it is the tidy tier alone (Q3b; security audit S2): whoever
+// controls a hub writes its outbox, so nothing in one may type into an agent
+// there or tell its agents a note.
 //
 // **This door names the presses too**, a short list it maps to that
-// machine's tool methods itself: steer, stop, close, park, a note, and pausing or
-// resuming queued work. Nothing a page sends becomes a method name, so a
+// machine's tool methods itself: stop, close, park, and pausing or resuming
+// queued work — the tidy tier, so it carries nothing that machine would refuse. Nothing a page sends becomes a method name, so a
 // page — or anything that took one over — can ask for nothing else of the
 // door either, whatever the far gate would say.
 //
@@ -34,23 +35,13 @@ const Task = TaskId
 
 const Machine = z.string().regex(MACHINE_NAMED)
 
-/** Text somebody typed: bounded, and nothing but spaces is nothing said. */
-function typed(bound: number) {
-  return z
-    .string()
-    .max(bound)
-    .refine((text) => text.trim() !== '', { message: 'say something' })
-}
-
 const On = { machine: Machine, key: z.string().regex(KEY) }
 
 const PressText = z.discriminatedUnion('verb', [
-  z.strictObject({ ...On, verb: z.literal('steer'), task: Task, said: typed(BOUNDS.said) }),
   z.strictObject({ ...On, verb: z.literal('stop'), task: Task, confirm: z.literal(true) }),
   // Closing one that is not running, never forced: that machine keeps what is not merged.
   z.strictObject({ ...On, verb: z.literal('close'), task: Task }),
   z.strictObject({ ...On, verb: z.literal('park'), task: Task, parked: z.boolean() }),
-  z.strictObject({ ...On, verb: z.literal('note'), task: Task, text: typed(BOUNDS.text) }),
   z.strictObject({
     ...On,
     verb: z.literal('queue'),
@@ -68,29 +59,17 @@ const PressText = z.discriminatedUnion('verb', [
 export type PressThere = z.infer<typeof PressText>
 
 /** The presses this door carries to another machine, by the word the page sends. */
-export const PRESSES_THERE = [
-  'steer',
-  'stop',
-  'close',
-  'park',
-  'note',
-  'queue',
-  'queue project',
-] as const
+export const PRESSES_THERE = ['stop', 'close', 'park', 'queue', 'queue project'] as const
 
 /** One of that machine's tool methods and its parameters, for a press: this door's own mapping. */
 export function methodOf(press: PressThere): { method: string; params: Record<string, unknown> } {
   switch (press.verb) {
-    case 'steer':
-      return { method: 'worker/steer', params: { task: press.task, message: press.said } }
     case 'stop':
       return { method: 'worker/stop', params: { task: press.task } }
     case 'close':
       return { method: 'worker/close', params: { task: press.task } }
     case 'park':
       return { method: 'task/park', params: { task: press.task, parked: press.parked } }
-    case 'note':
-      return { method: 'memory/remember', params: { text: press.text, scope: press.task } }
     case 'queue':
       return { method: 'queue/change', params: { task: press.task, change: press.change } }
     case 'queue project':

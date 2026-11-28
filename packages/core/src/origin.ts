@@ -78,9 +78,11 @@ export function byOf(who: Who): Asker {
  * What a narrowed turn may do: a press the person's other machine carries out
  * of a hub's outbox (`@tade/app`'s `outboxArm`, ONE-AWAY-VIEW Q3b), which is
  * about a machine and never a device — every paired device is the person's
- * own and runs as the owner arm. `tidy` is stopping an agent, pausing or
- * resuming queued work and schedules: the presses that only ever make less
- * happen.
+ * own and runs as the owner arm. `tidy` is stopping or closing an agent,
+ * parking a task, pausing or resuming queued work and schedules: the presses
+ * that only ever make less happen, and all an outbox is given. `steer` (typing
+ * into a running agent, a note) and `answer` are no outbox's (`NOT_GIVEN_BECAUSE`
+ * in `@tade/orchestrator`'s `origin.ts`).
  *
  * `read` is not here: what this list is about is the things a turn can *do*.
  */

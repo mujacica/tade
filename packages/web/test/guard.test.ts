@@ -235,6 +235,36 @@ describe('Origin, on a mutation', () => {
     expect(schemesFor(asking({ tls: true }), '192.168.1.10', LAN)).toEqual(['https'])
   })
 
+  it('takes only https for the public name from the public listener, though Caddy speaks plaintext to it', () => {
+    // Security audit S9: `http://<public name>` is answered by Caddy with a
+    // redirect and HSTS, so no page of ours is ever that origin. A mutation
+    // claiming it is refused at the origin layer, not left to the cookie.
+    const name = 'tade.example.com'
+    const surface = { ...LAN, trustedHosts: [name], publicName: name }
+    const pairing = (origin: string) =>
+      asking({
+        method: 'POST',
+        path: PAIR.path,
+        host: name,
+        origin,
+        contentType: 'application/json',
+        cookie: null,
+      })
+    const at = guarding({ surface, session: null })
+    const plain = allowed(pairing(`http://${name}`), PAIR, at)
+    expect(plain.ok).toBe(false)
+    if (!plain.ok) expect(plain.refusal.error).toBe('bad_origin')
+    expect(allowed(pairing(`https://${name}`), PAIR, at).ok).toBe(true)
+    expect(schemesFor(asking({ tls: false }), name, surface)).toEqual(['https'])
+    // A `lan` bind is a public listener too, and plaintext by design: its own
+    // address keeps the socket's scheme, and a proxy's name its two.
+    expect(schemesFor(asking({ tls: false }), '192.168.1.10', surface)).toEqual(['http'])
+    expect(schemesFor(asking({ tls: false }), 'studio.yak-bebop.ts.net', LAN)).toEqual([
+      'http',
+      'https',
+    ])
+  })
+
   it('parses an origin, or says it is not one', () => {
     expect(parseOrigin('http://a.example:80')).toEqual({
       scheme: 'http',

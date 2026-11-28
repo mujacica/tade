@@ -293,8 +293,19 @@ export function originMatches(origin: string, host: string, schemes: readonly st
  * The socket's own, and `https` for a host somebody wrote into
  * `trusted_hosts` — the one case where what reached the socket and what the
  * browser saw are honestly different.
+ *
+ * **The public name on the public listener is `https` and nothing else**
+ * (security audit S9). Caddy ends TLS and speaks plaintext to the socket, so
+ * the socket's own scheme is `http` — but no page of ours is ever served as
+ * `http://<public name>`: Caddy answers that with a redirect and HSTS. An
+ * `http` origin for it is a page somebody else made, so it is refused at the
+ * origin layer rather than left to the cookie and `Sec-Fetch-Site` to stop.
+ * Only the public name: a `lan` bind is a public listener too, and plaintext
+ * by design, so its own addresses keep the socket's scheme.
  */
 export function schemesFor(asking: Asking, host: string, surface: Surface): string[] {
+  const named = surface.publicName
+  if (asking.listener === 'public' && named !== null && sameHost(named, host)) return ['https']
   const own = asking.tls ? 'https' : 'http'
   const proxied = surface.trustedHosts.some((one) => sameHost(one, host))
   return proxied && own !== 'https' ? [own, 'https'] : [own]

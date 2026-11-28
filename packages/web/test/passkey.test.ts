@@ -265,8 +265,10 @@ describe('a request no page of Tade’s sends', () => {
       csrf: p.csrf,
       origin: `http://${NAME}`,
     })
+    // Refused at the origin layer, before the route's own `https` ask: on the
+    // public listener the public name is `https` alone (security audit S9).
     expect(plain.status).toBe(403)
-    expect(JSON.parse(plain.text).error).toBe('locked')
+    expect(JSON.parse(plain.text).error).toBe('bad_origin')
     const named = await as(p, '/api/passkey/challenge', { device: 'ffeeddccbbaa9988' })
     expect(named.status).toBe(400)
     const headers = {

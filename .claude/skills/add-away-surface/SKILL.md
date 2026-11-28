@@ -13,7 +13,7 @@ switch is on by default** (the person asked for turning it on to be one click). 
 is the person's own** (decided 26 Nov, §10 T1 of `away-view-on-iphone-duo`): it reads everything and
 does everything the person can, so there are no grants, no scopes a device holds and no per-project
 reach. What stands is pairing, the session, the passkey, revocation and the guard's origin, CSRF and
-`Host` checks; and **the hub's outbox tiers between machines** (`pressed-there.ts`, steer and tidy),
+`Host` checks; and **the hub's outbox tier between machines** (`pressed-there.ts`, tidy alone),
 which are about another *machine*, never a device.
 
 | Changing | File |
@@ -514,7 +514,8 @@ which are about another *machine*, never a device.
   socket). What it still cannot reach is what the keyboard cannot either, held in the window for
   every arm: a `never` setting, and an act needing a `said` line an agent's output never is.
   Revoking it is read at every call. **The narrowed `remote` arm stays for the hub's outbox**
-  (`outboxArm`, steer and tidy): a press another machine carries, which is about a machine and not a
+  (`outboxArm`, tidy alone — never a steer or a note, which reach an agent with a shell as the
+  person's words): a press another machine carries, which is about a machine and not a
   device.
 - **A body of `null` is a body.** `readBody` returns a discriminated answer, because `unknown | null`
   made a four-byte `null` indistinguishable from "already refused" and held the request open for ever.

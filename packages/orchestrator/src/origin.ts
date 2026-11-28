@@ -166,6 +166,27 @@ const READS_ELSEWHERE =
   'it reads another machine’s Tade as its owner, which is wider than anything a paired device was granted there'
 
 /**
+ * Why a grant is not something to hand a narrowed arm lightly, said after the
+ * refusal where one is missing. The only narrowed arm that holds any is a hub's
+ * outbox (`@tade/app`'s `outboxArm`), given `tidy` alone: whatever controls the
+ * hub writes its acts, so a steer from it would type into an agent here that has
+ * a shell, and a note would be told to every agent here as the person's own words
+ * (a note written under a narrowed arm is `device <id>`'s and carries no `from`,
+ * so `NOTES_FROM_ELSEWHERE` never frames it).
+ */
+const NOT_GIVEN_BECAUSE: Partial<Record<RemoteGrant, string>> = {
+  answer: 'approving a command an agent here is waiting on is running it',
+  steer:
+    'a steer reaches an agent running here, and a note every agent here, as the person’s own words, and those agents have a shell',
+}
+
+/** The refusal for a grant the arm was not given, with why where there is one. */
+function notGiven(name: string, grant: RemoteGrant): string {
+  const because = NOT_GIVEN_BECAUSE[grant]
+  return `\`${name}\` needs this device to have been granted ${grant} at the machine, and it was not${because === undefined ? '' : `: ${because}`}.`
+}
+
+/**
  * Every one of Tade's own tools, and what a remote turn may do with it.
  *
  * **Exhaustive, and a test holds it against `orchestratorTools()`.** A tool
@@ -202,11 +223,12 @@ export const REMOTE_TOOLS: Readonly<Record<string, Reaching>> = {
   tade_approve: { kind: 'needs', grant: 'answer' },
   tade_deny: { kind: 'needs', grant: 'answer' },
 
-  // What a device granted `steer` can already press.
+  // Typing into a running agent, and a note every agent is told.
   tade_steer: { kind: 'needs', grant: 'steer' },
-  tade_park: { kind: 'needs', grant: 'steer' },
-  tade_resume: { kind: 'needs', grant: 'steer' },
   tade_remember: { kind: 'needs', grant: 'steer' },
+  // Setting work aside and taking it back up: the tidy tier, like `task/park`.
+  tade_park: { kind: 'needs', grant: 'tidy' },
+  tade_resume: { kind: 'needs', grant: 'tidy' },
 
   // Execution, by every route it has.
   tade_run_start: { kind: 'local', because: EXECUTES },
@@ -355,7 +377,7 @@ export function allowTool(tool: string, arm: Arm): Allowed {
   if (reaching.kind === 'needs' && !armMay(arm, reaching.grant)) {
     return {
       ok: false,
-      said: `\`${tool}\` needs this device to have been granted ${reaching.grant} at the machine, and it was not. Say so; there is no other route to it.`,
+      said: `${notGiven(tool, reaching.grant)} Say so; there is no other route to it.`,
     }
   }
   return { ok: true }
@@ -443,12 +465,9 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   'worker/pending': { reaching: { kind: 'needs', grant: 'answer' } },
   'worker/decide': { reaching: { kind: 'needs', grant: 'answer' } },
 
-  // The steer tier, each the same act the device's own control makes.
+  // The steer tier: typing into an agent that is running, and a note every
+  // agent is told. **No outbox is given it** (`NOT_GIVEN_BECAUSE` says why).
   'worker/steer': {
-    reaching: { kind: 'needs', grant: 'steer' },
-    project: (p) => projectOfTask(p.task),
-  },
-  'task/park': {
     reaching: { kind: 'needs', grant: 'steer' },
     project: (p) => projectOfTask(p.task),
   },
@@ -486,6 +505,12 @@ export const REMOTE_METHODS: Readonly<Record<string, MethodReaching>> = {
   },
   // Closing one that is not running, never forced: what is not kept elsewhere stays.
   'worker/close': {
+    reaching: { kind: 'needs', grant: 'tidy' },
+    project: (p) => projectOfTask(p.task),
+  },
+  // Setting work aside, or taking it back up: parked work is started again by
+  // the queue's own rule or a person, never by the park.
+  'task/park': {
     reaching: { kind: 'needs', grant: 'tidy' },
     project: (p) => projectOfTask(p.task),
   },
@@ -606,7 +631,7 @@ export function allowMethod(
   if (reaching.kind === 'needs' && !armMay(arm, reaching.grant)) {
     return {
       ok: false,
-      said: `\`${method}\` needs this device to have been granted ${reaching.grant} at the machine, and it was not.`,
+      said: notGiven(method, reaching.grant),
     }
   }
   const named = project ?? found.project?.(params) ?? null
