@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { appendDevice, type PendingCode, readDevices } from './devices.ts'
+import { appendDevice, FOR_AN_OLDER_WINDOW, type PendingCode, readDevices } from './devices.ts'
 import { digestMatches, digestOf } from './sessions.ts'
 import { type NotClaimed, type Tickets, ticketValue } from './tickets.ts'
 
@@ -99,6 +99,10 @@ export async function writeCode(home: string, letting: Letting, now: number): Pr
     digest: digestOf(secret),
     host: letting.host,
     label: letting.label,
+    // A window opened before this Tade claims the code too (TADE-Y).
+    scopes: [...FOR_AN_OLDER_WINDOW.scopes],
+    projects: FOR_AN_OLDER_WINDOW.projects,
+    granted: [...FOR_AN_OLDER_WINDOW.granted],
   })
   return { device, secret, until }
 }

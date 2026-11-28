@@ -55,6 +55,46 @@ const Retired = {
 }
 
 /**
+ * What a `paired` or `pending` line written **outside the window** still
+ * carries, for a window opened before every device was the person's own.
+ *
+ * `tade web pair` runs the code installed now, and a window keeps the code it
+ * opened with for as long as it stays open — days, across an update. That
+ * window's schema is strict and *requires* `scopes`, `projects` and `granted`,
+ * so a line without them is a line it skips: the device `tade web pair` just
+ * let in is refused as having no session until the window restarts, and the
+ * only word of it is "1 line(s) of the paired-device list could not be read"
+ * (TADE-Y, 28 Nov). So the two lines a shell writes for the window to read —
+ * an owner (`mintOwner`) and a code (`writeCode`) — carry what that window's
+ * `tade web pair` wrote by default: every scope and every grant it knew, and
+ * every project. Nothing here reads them (`Retired`, `wasClear` does not look
+ * at an owner's), and a line the window itself writes needs none of this,
+ * because the window reads it with the same code that wrote it.
+ *
+ * Frozen: these are the older window's words, not this Tade's, and one it did
+ * not know would fail its parse as surely as a missing key.
+ */
+export const FOR_AN_OLDER_WINDOW = {
+  scopes: ['read', 'answer', 'steer', 'ask', 'draft', 'agents', 'projects', 'configure'],
+  projects: null,
+  granted: [
+    'titles',
+    'intent',
+    'notes',
+    'findings',
+    'spend',
+    'reviews',
+    'accounts',
+    'talk',
+    'requests',
+    'material',
+    'workflows',
+    'lanes',
+    'settings',
+  ],
+} as const
+
+/**
  * A device being paired.
  *
  * `label` is the phone's own suggestion and is **attacker-controlled text**:

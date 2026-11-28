@@ -1,4 +1,4 @@
-import { appendDevice } from './devices.ts'
+import { appendDevice, FOR_AN_OLDER_WINDOW } from './devices.ts'
 import { mint, SESSION_MS } from './sessions.ts'
 
 // An owner device: a session `tade web pair --owner` mints over SSH, bound to
@@ -79,6 +79,10 @@ export async function mintOwner(
     host,
     csrf: minted.csrf,
     until: new Date(until).toISOString(),
+    // A window opened before this Tade must still know the device (TADE-Y).
+    scopes: [...FOR_AN_OLDER_WINDOW.scopes],
+    projects: FOR_AN_OLDER_WINDOW.projects,
+    granted: [...FOR_AN_OLDER_WINDOW.granted],
     from: what.from,
     owner: true,
   })
