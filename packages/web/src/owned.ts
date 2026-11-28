@@ -1,11 +1,6 @@
 import type { IncomingMessage } from 'node:http'
 import type { DutiesAnswer } from '@tade/core'
-import {
-  type AccountSignInStanding,
-  type AccountsAnswer,
-  accountSignInHere,
-  accountsHere,
-} from './accounts.ts'
+import { type AccountsAnswer, accountsHere } from './accounts.ts'
 import { type AttachAnswer, attachHere } from './attached.ts'
 import { type Answering, type CarryAnswer, carryHere } from './carried.ts'
 import type { Device } from './devices.ts'
@@ -54,7 +49,7 @@ import { type WatchSeenAnswer, watchSeenHere } from './watch-seen.ts'
 // `tool-read.ts`), Tade started again on the code on disk now
 // (`restarted.ts`) or its orchestrator alone, its orchestrator's sign-in driven
 // from the phone (`signing-in.ts`), Settings › Accounts for this machine and
-// every one it links to, with an account's own sign-in (`accounts.ts`), what another machine of theirs has (`inventory-told.ts`), its whole projection for this machine's page to draw (`projection-told.ts`), what one of its watches has already found (`watch-seen.ts`), its public name's records looked at now (`records.ts`),
+// every one it links to (`accounts.ts`), what another machine of theirs has (`inventory-told.ts`), its whole projection for this machine's page to draw (`projection-told.ts`), what one of its watches has already found (`watch-seen.ts`), its public name's records looked at now (`records.ts`),
 // work it hands this machine to start here (`taken.ts`), a press on another
 // machine's row put in its outbox (`pressed-there.ts`), and
 // a project it is moving here, opened (`opened.ts`). One door in `server.ts` for all of them (`OWNED_DOOR`),
@@ -89,7 +84,6 @@ export const OWNED_DOOR: ReadonlySet<string> = new Set([
   'orchestrator restart',
   'orchestrator sign-in',
   'accounts',
-  'accounts sign-in',
   'inventory',
   'projection',
   'watch seen',
@@ -159,7 +153,6 @@ export async function carryOwned(
         | OrchestratorRestartAnswer
         | SignInStanding
         | AccountsAnswer
-        | AccountSignInStanding
         | InventoryToldAnswer
         | ProjectionAnswer
         | WatchSeenAnswer
@@ -191,7 +184,6 @@ export async function carryOwned(
   }
   if (route === 'orchestrator sign-in') return signInHere(req, device, opts.orchestratorSignIn)
   if (route === 'accounts') return accountsHere(req, device, opts.accounts)
-  if (route === 'accounts sign-in') return accountSignInHere(req, device, opts.accounts)
   if (route === 'inventory') return inventoryToldHere(req, device, opts.inventoryTold, now)
   if (route === 'projection') return projectionHere(req, device, opts.projectionTold)
   if (route === 'watch seen') return watchSeenHere(req, opts.watchSeen)

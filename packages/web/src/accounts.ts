@@ -3,7 +3,6 @@ import { z } from 'zod'
 import type { Device } from './devices.ts'
 import { type Refusal, refuse } from './errors.ts'
 import { readBody } from './request.ts'
-import { SIGN_IN_KEYS, SIGN_IN_TEXT_MAX, type SignInStanding } from './signing-in.ts'
 
 // Settings › Accounts, for every machine of the person's, from one place: the
 // person's own phone, and another of their machines' windows, which is how
@@ -22,12 +21,6 @@ import { SIGN_IN_KEYS, SIGN_IN_TEXT_MAX, type SignInStanding } from './signing-i
 // with what it said — so the phone, paired with one machine, reaches every
 // machine that one links to, as the window's tabs do. One that names none is
 // this machine's.
-//
-// **Signing in stays the harness's own** (`/api/accounts/sign-in`): its
-// sign-in for a machine nobody is at, run in a lane on the machine whose
-// account it is and typed into from the phone, as the orchestrator's is
-// (`signing-in.ts`). The token goes where that harness keeps it there and
-// never through Tade.
 //
 // **The person's, and never the orchestrator's.** A paired device's and an
 // owner's, as every route of the SSH key's is (`here` in `routes.ts`): adding
@@ -138,33 +131,10 @@ export const AccountsCall = z.discriminatedUnion('do', [
 ])
 export type AccountsCall = z.infer<typeof AccountsCall>
 
-const Whose = { machine: Machine, harness: Name, account: Name.nullable() }
-
-/** What a press on an account's sign-in asks: look at, start, type into, a key, or end it. */
-export const AccountSignInCall = z.discriminatedUnion('do', [
-  z.strictObject({ ...Whose, do: z.literal('look') }),
-  z.strictObject({ ...Whose, do: z.literal('start') }),
-  z.strictObject({
-    ...Whose,
-    do: z.literal('type'),
-    text: z.string().min(1).max(SIGN_IN_TEXT_MAX),
-  }),
-  z.strictObject({ ...Whose, do: z.literal('key'), key: z.enum(SIGN_IN_KEYS) }),
-  z.strictObject({ ...Whose, do: z.literal('cancel') }),
-])
-export type AccountSignInCall = z.infer<typeof AccountSignInCall>
-
-/** Where an account's sign-in stands, and whose it is: `harness:account`, null before one. */
-export interface AccountSignInStanding extends SignInStanding {
-  about: string | null
-}
-
-/** The window's half. Each answers what is true after it; neither throws. */
+/** The window's half. It answers what is true after it, and never throws. */
 export interface WebAccounts {
   /** A look or a press, on this machine or asked of the one it names; `device` is who pressed. */
   carry(call: AccountsCall, device: string): Promise<AccountsAnswer>
-  /** An account's sign-in, on this machine or the one it names. */
-  signIn(call: AccountSignInCall, device: string): Promise<AccountSignInStanding>
 }
 
 /** `POST /api/accounts`: a machine's accounts, and a press on them. */
@@ -181,20 +151,6 @@ export async function accountsHere(
   return { body: await accounts.carry(parsed.data, device.id) }
 }
 
-/** `POST /api/accounts/sign-in`: an account's own sign-in, run on the machine whose it is. */
-export async function accountSignInHere(
-  req: IncomingMessage,
-  device: Device,
-  accounts: WebAccounts | undefined,
-): Promise<{ body: AccountSignInStanding } | { refusal: Refusal }> {
-  if (accounts === undefined) return { refusal: refuse('no_such') }
-  const got = await readBody(req)
-  if (!got.read) return { refusal: got.refusal }
-  const parsed = AccountSignInCall.safeParse(got.body)
-  if (!parsed.success) return { refusal: refuse('malformed') }
-  return { body: await accounts.signIn(parsed.data, device.id) }
-}
-
 /** A call as it is sent on to the machine it names: that machine's own, so it names none. */
 export function forwardedCall<T extends { machine?: string | undefined }>(
   call: T,
@@ -208,12 +164,6 @@ export function accountsAnswerOf(
   body: unknown,
 ): Omit<AccountsAnswer, 'machine' | 'machines' | 'keys'> | null {
   const parsed = AnswerShape.safeParse(body)
-  return parsed.success ? parsed.data : null
-}
-
-/** A sign-in's standing another machine gave, if it is one Tade writes; null where it is not. */
-export function signInStandingOf(body: unknown): AccountSignInStanding | null {
-  const parsed = StandingShape.safeParse(body)
   return parsed.success ? parsed.data : null
 }
 
@@ -245,13 +195,4 @@ const AnswerShape = z.object({
   accounts: z.array(AccountShape).max(200).nullable(),
   said: Text.nullable(),
   trouble: z.boolean(),
-})
-const StandingShape = z.object({
-  state: z.enum(['idle', 'running', 'ended']),
-  who: Text.nullable(),
-  how: Text.nullable(),
-  rows: z.array(z.string().max(SIGN_IN_TEXT_MAX)).max(200),
-  link: z.string().max(SIGN_IN_TEXT_MAX).nullable(),
-  said: Text.nullable(),
-  about: Text.nullable(),
 })

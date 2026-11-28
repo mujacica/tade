@@ -630,7 +630,6 @@ export class Heart {
     this.accounts = new AccountsHere(this.wire, {
       use: () => this.settings.use(this.wire.opts.client.config),
       reread: () => face.settings.loadAccounts(),
-      known: () => knownHere(this.wire, this.wire.opts.config),
     })
     this.closing = new CloseWhenDone(this.wire, {
       orchestrator: this.orchestrator,
@@ -981,7 +980,7 @@ export class Heart {
         })
         void this.foldConfig()
         void this.taskRequests.beat()
-        this.accounts.beat(this.now())
+        this.accounts.beat()
         this.remotes.beat()
         face.beat(tasks, moved)
       },

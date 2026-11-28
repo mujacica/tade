@@ -1,13 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   type AccountAway,
-  type AccountSignInCall,
-  type AccountSignInStanding,
   type AccountsAnswer,
   type AccountsCall,
   accountsAnswerOf,
   forwardedCall,
-  signInStandingOf,
   type WebAccounts,
 } from '../src/accounts.ts'
 import { CSRF_HEADER } from '../src/request.ts'
@@ -51,16 +48,6 @@ const ANSWER: AccountsAnswer = {
   keys: 'An agent runs as you, whichever sign-in it is on.',
 }
 
-const STANDING: AccountSignInStanding = {
-  state: 'running',
-  who: 'work',
-  how: 'Claude Code prints a link.',
-  rows: ['Paste code here if prompted >'],
-  link: 'https://claude.ai/oauth/authorize?code=true',
-  said: null,
-  about: 'claude-code:work',
-}
-
 /** A window half recording every call, as it was handed over. */
 function half(): WebAccounts & { calls: unknown[][] } {
   const calls: unknown[][] = []
@@ -69,10 +56,6 @@ function half(): WebAccounts & { calls: unknown[][] } {
     carry: async (call: AccountsCall, device: string) => {
       calls.push(['carry', call, device])
       return ANSWER
-    },
-    signIn: async (call: AccountSignInCall, device: string) => {
-      calls.push(['signIn', call, device])
-      return STANDING
     },
   }
 }
@@ -118,26 +101,6 @@ describe('a machine’s accounts, asked from the person’s own phone', () => {
     expect(accounts.calls).toEqual(calls.map((call) => ['carry', call, phone.device]))
   })
 
-  it('hands an account’s sign-in to the window, on the machine it names', async () => {
-    const accounts = half()
-    const one = await start({}, { owned: { accounts } })
-    const phone = await theirs(one)
-    const whose = { machine: 'ipax', harness: 'claude-code', account: 'work' }
-    const calls = [
-      { ...whose, do: 'start' },
-      { ...whose, do: 'look' },
-      { ...whose, do: 'type', text: 'abc#def' },
-      { ...whose, do: 'key', key: 'down' },
-      { harness: 'pi', account: null, do: 'cancel' },
-    ]
-    for (const body of calls) {
-      const said = await post(one, phone, '/api/accounts/sign-in', body)
-      expect(said.status, said.text).toBe(200)
-      expect(JSON.parse(said.text)).toEqual(STANDING)
-    }
-    expect(accounts.calls).toEqual(calls.map((call) => ['signIn', call, phone.device]))
-  })
-
   it('takes nothing else, and is the 404 of a path nobody wired', async () => {
     const accounts = half()
     const one = await start({}, { owned: { accounts } })
@@ -156,26 +119,16 @@ describe('a machine’s accounts, asked from the person’s own phone', () => {
     ]) {
       expect((await post(one, mine, '/api/accounts', body)).status, JSON.stringify(body)).toBe(400)
     }
-    for (const body of [
-      { do: 'start' },
-      { harness: 'claude-code', account: null, do: 'type', text: '' },
-      { harness: 'claude-code', account: null, do: 'key', key: 'ctrl-c' },
-      { harness: 'claude-code', do: 'start' },
-    ]) {
-      const said = await post(one, mine, '/api/accounts/sign-in', body)
-      expect(said.status, JSON.stringify(body)).toBe(400)
-    }
     expect(accounts.calls).toEqual([])
     const none = await start()
     const nobody = await theirs(none)
     expect((await post(none, nobody, '/api/accounts', { do: 'look' })).status).toBe(404)
-    for (const name of ['accounts', 'accounts sign-in']) {
-      expect(OWNED.find((route) => route.name === name)).toMatchObject({
-        method: 'POST',
-        here: true,
-        mutates: true,
-      })
-    }
+    expect(OWNED.find((route) => route.name === 'accounts')).toMatchObject({
+      method: 'POST',
+      here: true,
+      mutates: true,
+    })
+    expect(OWNED.find((route) => route.name === 'accounts sign-in')).toBeUndefined()
   })
 })
 
@@ -205,14 +158,5 @@ describe('what another machine answers, read back', () => {
     expect(accountsAnswerOf({ ...ANSWER, said: 'x'.repeat(2001) })).toBeNull()
     const many = Array.from({ length: 201 }, () => ONE)
     expect(accountsAnswerOf({ ...ANSWER, accounts: many })).toBeNull()
-  })
-
-  it('reads a sign-in’s standing back bounded, its screen and link kept to their limits', () => {
-    expect(signInStandingOf({ ...STANDING, cookie: 'x' })).toEqual(STANDING)
-    expect(signInStandingOf({ ...STANDING, state: 'stolen' })).toBeNull()
-    expect(signInStandingOf({ ...STANDING, rows: ['x'.repeat(4097)] })).toBeNull()
-    expect(signInStandingOf({ ...STANDING, link: 'x'.repeat(4097) })).toBeNull()
-    expect(signInStandingOf({ ...STANDING, about: undefined })).toBeNull()
-    expect(signInStandingOf('nope')).toBeNull()
   })
 })

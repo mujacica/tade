@@ -9,14 +9,11 @@ import {
 import type { Answer } from '@tade/remotes-core'
 import {
   type AccountAway,
-  type AccountSignInCall,
-  type AccountSignInStanding,
   type AccountsAnswer,
   type AccountsCall,
   type AccountsTab,
   accountsAnswerOf,
   forwardedCall,
-  signInStandingOf,
   type WebAccounts,
 } from '@tade/web'
 import type { AccountView } from '@tade/workbench'
@@ -25,7 +22,6 @@ import { withTranscript } from '../model.ts'
 import { problem } from '../transcript.ts'
 import { type Wiring, why } from './context.ts'
 import type { ConversationReach } from './conversation.ts'
-import { SignInLane } from './sign-in-lane.ts'
 
 // Settings › Accounts for this machine and every one it links to, as this
 // window answers it (`@tade/web`'s `accounts.ts`) — for the person's own phone,
@@ -40,23 +36,11 @@ import { SignInLane } from './sign-in-lane.ts'
 // it said: the far side does it with its own workbench, and nothing of it is
 // kept here.
 //
-// **A sign-in is that machine's harness's own, in a lane there**
-// (`sign-in-lane.ts`): asked with `{ browser: false }`, it prints a link to open
-// on the phone and takes back the code that page gives. One at a time per
-// machine; the token goes where that harness keeps it there.
-//
 // **Written down as the device's**: a `web_did` line for every press, its verb
 // and how it went, never a name typed or a key.
 
-/** The lane an account's sign-in from away runs in: one at a time, under a task nobody's. */
-const TASK = 'tade/account-sign-in'
-
-/** The far side's doors (`@tade/web`'s `routes.ts`). */
+/** The far side's door (`@tade/web`'s `routes.ts`). */
 const ACCOUNTS_DOOR = '/api/accounts'
-const SIGN_IN_DOOR = '/api/accounts/sign-in'
-
-/** Said where a sign-in from away is ended from the phone. */
-export const CANCELLED = 'Cancelled: the account is as it was.'
 
 /** What the window gives it. */
 export interface AccountsHereDeps {
@@ -64,14 +48,11 @@ export interface AccountsHereDeps {
   use: () => void
   /** The window's own Accounts page read again; nothing where there is no page. */
   reread: () => void
-  /** The keys a screen is scrubbed of (`knownHere`). */
-  known: () => string[]
 }
 
 export class AccountsHere implements WebAccounts {
   private readonly wire: Wiring
   private readonly deps: AccountsHereDeps
-  private readonly lane: SignInLane
   private reach: ConversationReach | null = null
   /** One take of the spool at a time: an act can take longer than a beat. */
   private taking = false
@@ -81,13 +62,6 @@ export class AccountsHere implements WebAccounts {
   constructor(wire: Wiring, deps: AccountsHereDeps) {
     this.wire = wire
     this.deps = deps
-    this.lane = new SignInLane(wire, {
-      task: TASK,
-      title: 'account sign-in',
-      verb: 'account sign-in',
-      cancelled: CANCELLED,
-      known: deps.known,
-    })
   }
 
   /** How another machine is reached, once the window's links are made. */
@@ -140,45 +114,8 @@ export class AccountsHere implements WebAccounts {
     }
   }
 
-  async signIn(call: AccountSignInCall, device: string): Promise<AccountSignInStanding> {
-    const machine = call.machine ?? null
-    if (machine !== null) return this.signInThere(machine, call)
-    const key = `${call.harness}:${call.account ?? ''}`
-    if (call.do === 'start') {
-      const standing = this.lane.start(
-        device,
-        () => this.signing(call.harness, call.account, key),
-        (said) => `${this.whoOf(call.harness, call.account)} cannot be signed in here: ${said}`,
-      )
-      return { ...standing, about: this.lane.about() }
-    }
-    // Typed into, pressed or ended only where it is the one running: a phone
-    // that asks about another account is never handed this one's screen.
-    if (this.lane.about() !== key) {
-      return {
-        state: 'idle',
-        who: null,
-        how: null,
-        rows: [],
-        link: null,
-        said: null,
-        about: this.lane.about(),
-      }
-    }
-    const standing =
-      call.do === 'type'
-        ? this.lane.type(call.text)
-        : call.do === 'key'
-          ? this.lane.key(call.key)
-          : call.do === 'cancel'
-            ? this.lane.cancel(device)
-            : this.lane.look()
-    return { ...standing, about: key }
-  }
-
-  /** One beat: the sign-in from away, and what a terminal asked of the accounts. */
-  beat(now: number): void {
-    this.lane.beat(now)
+  /** One beat: what a terminal asked of the accounts. */
+  beat(): void {
     void this.takeRequests()
   }
 
@@ -257,24 +194,6 @@ export class AccountsHere implements WebAccounts {
     this.deps.reread()
   }
 
-  /** The harness's own sign-in for a machine nobody is at, for the lane. Throws where there is none. */
-  private signing(harness: string, account: string | null, key: string) {
-    const who = this.whoOf(harness, account)
-    const signing = this.wire.opts.client.signInFor(harness, account, { browser: false })
-    return {
-      key,
-      who,
-      how: signing.how,
-      launch: signing.launch,
-      couldNotStart: (said: string) => `${who}'s sign-in could not start here: ${said}`,
-      failed: `${who}'s sign-in ended before it finished: it is as it was.`,
-      done: () => {
-        this.deps.reread()
-        return `Signed in as ${who}: new agents that run as it use it from now on.`
-      },
-    }
-  }
-
   /** What an account is called: its name, its own sign-in's name, or its harness's own sign-in. */
   private whoOf(harness: string, account: string | null, own?: string): string {
     return (
@@ -297,26 +216,6 @@ export class AccountsHere implements WebAccounts {
       return { accounts: null, said: answeredBadly(machine, asked), trouble: true }
     }
     return answer
-  }
-
-  private async signInThere(
-    machine: string,
-    call: AccountSignInCall,
-  ): Promise<AccountSignInStanding> {
-    const ended = (said: string): AccountSignInStanding => ({
-      state: 'ended',
-      who: null,
-      how: null,
-      rows: [],
-      link: null,
-      said,
-      about: null,
-    })
-    const asked = await this.askThere(machine, SIGN_IN_DOOR, forwardedCall(call))
-    if (typeof asked === 'string') return ended(asked)
-    const standing = signInStandingOf(asked.body)
-    if (asked.status !== 200 || standing === null) return ended(answeredBadly(machine, asked))
-    return standing
   }
 
   /** What that machine answered, or why it could not be asked, in words. */

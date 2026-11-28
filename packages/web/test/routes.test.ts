@@ -320,11 +320,9 @@ describe('the five tables a setting turns on', () => {
     }
     // Accounts are added, signed in and chosen only by the person: at this
     // machine's door as the SSH key's, or from a device they paired.
-    for (const path of ['/api/accounts', '/api/accounts/sign-in']) {
-      const route = every.find((one) => one.path === path)
-      expect(OWNED, path).toContain(route)
-      expect(route, path).toMatchObject({ here: true })
-    }
+    const accounts = every.find((one) => one.path === '/api/accounts')
+    expect(OWNED).toContain(accounts)
+    expect(accounts).toMatchObject({ here: true })
     // **Everything under `/api/settings` with every capability on**: one read
     // and one change, and the change is the one that reaches `settingReach`'s
     // `open` tier and nothing else (`test/configured.test.ts` runs the tiers).
@@ -426,7 +424,6 @@ describe('the owner’s table', () => {
       'POST /api/orchestrator/restart',
       'POST /api/orchestrator/sign-in',
       'POST /api/accounts',
-      'POST /api/accounts/sign-in',
       'POST /api/inventory',
       'POST /api/watch/seen',
       'POST /api/duties',

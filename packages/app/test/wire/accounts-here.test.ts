@@ -4,16 +4,15 @@ import { awaitAccount, requestAccount } from '@tade/workbench/account-requests'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { type AppState, initialState } from '../../src/model.ts'
-import { AccountsHere, CANCELLED } from '../../src/wire/accounts-here.ts'
+import { AccountsHere } from '../../src/wire/accounts-here.ts'
 import type { Wiring } from '../../src/wire/context.ts'
 
 // Settings › Accounts for this machine and every one it links to, as this
 // window answers its door (`/api/accounts`): for the person's own phone, and
 // for another of their machines' window drawing this one's tab. This
 // machine's through the workbench's own acts; another's asked over the link
-// to it and answered with what it said; a sign-in run in a lane here for the
-// phone; and what a terminal beside a running `tade serve` asked, done on the
-// beat.
+// to it and answered with what it said; and what a terminal beside a running
+// `tade serve` asked, done on the beat.
 //
 // Built by hand, as `web-sign-in.test.ts` beside it is: what this subject does
 // is ask the client and the link, and a real window answers that with a real
@@ -52,8 +51,7 @@ function world(over: { refuse?: string; answer?: Answer | Error; noReach?: boole
   const journal: unknown[] = []
   const home = tmp('tade-accounts-here-')
   let state: AppState = initialState()
-  let now = 1_000
-  let lane: { alive: boolean; exitCode: number | null } | null = null
+  const now = 1_000
   const act =
     (what: string, returns: unknown = undefined) =>
     async (...args: unknown[]) => {
@@ -72,29 +70,6 @@ function world(over: { refuse?: string; answer?: Answer | Error; noReach?: boole
       return name
     },
     saveAccountKey: act('saveAccountKey', 'config.yaml'),
-    signInFor(harness: string, name: string | null, here: unknown) {
-      did.push({ what: 'signInFor', with: [harness, name, here] })
-      return {
-        how: 'Claude Code prints a link.',
-        launch: { command: 'claude', args: ['auth', 'login'], env: {} },
-      }
-    },
-    async spawn(spec: { id: string }) {
-      did.push({ what: 'spawn', with: [spec.id] })
-      lane = { alive: true, exitCode: null }
-      return spec
-    },
-    lane: () => lane,
-    async write(id: string, bytes: string) {
-      did.push({ what: 'write', with: [id, bytes] })
-    },
-    async capture() {
-      return 'Open https://claude.ai/oauth/authorize?x=1 to sign in'
-    },
-    async closeLane(id: string) {
-      did.push({ what: 'closeLane', with: [id] })
-      if (lane) lane = { alive: false, exitCode: 129 }
-    },
     log: { append: async (line: unknown) => void journal.push(line) },
   }
   const wire = {
@@ -119,7 +94,6 @@ function world(over: { refuse?: string; answer?: Answer | Error; noReach?: boole
   const subject = new AccountsHere(wire, {
     use: () => did.push({ what: 'use', with: [] }),
     reread: () => did.push({ what: 'reread', with: [] }),
-    known: () => [],
   })
   if (!over.noReach) {
     subject.withReach((name) =>
@@ -148,13 +122,6 @@ function world(over: { refuse?: string; answer?: Answer | Error; noReach?: boole
     did,
     journal,
     home,
-    exit: (code: number) => {
-      lane = { alive: false, exitCode: code }
-    },
-    later: (ms: number) => {
-      now += ms
-    },
-    now: () => now,
   }
 }
 
@@ -287,94 +254,6 @@ describe('another machine’s accounts, through this one’s door', () => {
       answer: { status: 200, body: { accounts: 'all of them' } },
     }).subject.carry({ machine: 'ipax', do: 'look' }, 'p')
     expect(odd).toMatchObject({ accounts: null, trouble: true, said: 'ipax answered 200.' })
-  })
-
-  it('hands an account’s sign-in to the machine whose account it is', async () => {
-    const standing = {
-      state: 'running',
-      who: 'work',
-      how: 'Claude Code prints a link.',
-      rows: [],
-      link: null,
-      said: null,
-      about: 'claude-code:work',
-    }
-    const { subject, did } = world({ answer: { status: 200, body: standing } })
-    expect(
-      await subject.signIn(
-        { machine: 'ipax', do: 'start', harness: 'claude-code', account: 'work' },
-        'phone1',
-      ),
-    ).toEqual(standing)
-    expect(did).toEqual([
-      {
-        what: 'call',
-        with: ['/api/accounts/sign-in', { do: 'start', harness: 'claude-code', account: 'work' }],
-      },
-    ])
-  })
-})
-
-describe('an account’s sign-in from the phone, run here', () => {
-  it('runs the harness’s own sign-in for a machine nobody is at, in its own lane', async () => {
-    const { subject, did, journal } = world()
-    const started = await subject.signIn(
-      { do: 'start', harness: 'claude-code', account: 'work' },
-      'phone1',
-    )
-    expect(started).toMatchObject({ state: 'running', who: 'work', about: 'claude-code:work' })
-    await settle()
-    expect(did.slice(0, 2)).toEqual([
-      { what: 'signInFor', with: ['claude-code', 'work', { browser: false }] },
-      { what: 'spawn', with: ['tade/account-sign-in/shell'] },
-    ])
-    expect(journal).toEqual([
-      { type: 'web_did', detail: { device: 'phone1', verb: 'account sign-in', state: 'started' } },
-    ])
-  })
-
-  it('types only into the sign-in it was asked about, never another account’s', async () => {
-    const { subject, did } = world()
-    await subject.signIn({ do: 'start', harness: 'claude-code', account: 'work' }, 'phone1')
-    await settle()
-    const other = await subject.signIn(
-      { do: 'type', harness: 'claude-code', account: null, text: 'code' },
-      'phone1',
-    )
-    expect(other).toMatchObject({ state: 'idle', about: 'claude-code:work' })
-    await subject.signIn(
-      { do: 'type', harness: 'claude-code', account: 'work', text: 'code' },
-      'phone1',
-    )
-    await settle()
-    expect(did.filter((one) => one.what === 'write').map((one) => one.with[1])).toEqual([
-      'code',
-      '\r',
-    ])
-  })
-
-  it('reads the accounts again once it ends signed in, and leaves them as they were when cancelled', async () => {
-    const signed = world()
-    await signed.subject.signIn({ do: 'start', harness: 'claude-code', account: 'work' }, 'p')
-    await settle()
-    signed.exit(0)
-    signed.subject.beat(signed.now())
-    expect(signed.did.some((one) => one.what === 'reread')).toBe(true)
-    expect(
-      await signed.subject.signIn({ do: 'look', harness: 'claude-code', account: 'work' }, 'p'),
-    ).toMatchObject({ state: 'ended', said: expect.stringContaining('Signed in as work') })
-
-    const cancelled = world()
-    await cancelled.subject.signIn({ do: 'start', harness: 'claude-code', account: 'work' }, 'p')
-    await settle()
-    expect(
-      await cancelled.subject.signIn(
-        { do: 'cancel', harness: 'claude-code', account: 'work' },
-        'p',
-      ),
-    ).toMatchObject({ state: 'ended', said: CANCELLED })
-    expect(cancelled.did.some((one) => one.what === 'closeLane')).toBe(true)
-    expect(cancelled.did.some((one) => one.what === 'reread')).toBe(false)
   })
 })
 

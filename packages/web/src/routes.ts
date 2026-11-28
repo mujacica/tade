@@ -781,21 +781,12 @@ export const OWNED: readonly Route[] = [
   },
   // Settings › Accounts for every machine of the person's (`accounts.ts`):
   // this machine's sign-ins and the presses on them, or another machine's,
-  // asked over this one's link to it as its owner; and an account's own
-  // sign-in, run on the machine whose it is and typed into from the phone.
-  // What the SSH key that reaches each machine may do there.
+  // asked over this one's link to it as its owner. What the SSH key that
+  // reaches each machine may do there.
   {
     method: 'POST',
     path: '/api/accounts',
     name: 'accounts',
-    needs: 'read',
-    mutates: true,
-    here: true,
-  },
-  {
-    method: 'POST',
-    path: '/api/accounts/sign-in',
-    name: 'accounts sign-in',
     needs: 'read',
     mutates: true,
     here: true,
