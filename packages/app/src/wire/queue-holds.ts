@@ -1,7 +1,5 @@
 import {
-  type InboxRow,
   type IntakeItem,
-  intakeFrom,
   intakeOf,
   type PlanChoice,
   type PlanStanding,
@@ -17,8 +15,7 @@ import type { Wiring } from './context.ts'
 
 // What holds queued work at the moment it would start, beyond what the queue's
 // own rule reads: the plan, for work nobody here asked for, and the grant and
-// the source, for work from outside. Asked by the queue's pass (`queue.ts`) and
-// by an inbox row being approved, so that the two are one answer.
+// the source, for work from outside. Asked by the queue's pass (`queue.ts`).
 
 /** How long a sign-in that can be asked for its plan has, before a start is let through to find out. */
 export const ASK_PLANS_MS = 10_000
@@ -143,39 +140,4 @@ export async function intakeSays(
       return host.recheck(one.watch, { project: one.project, input, key })
     },
   })
-}
-
-/**
- * The same question, asked of an inbox row rather than of a start.
- *
- * **Here because the rule has to be one rule.** A paired device asking to
- * approve a request that came from outside gets the grant, the plan and the
- * source asked again — which is what the queue asks at the moment it
- * would start one, and a second reading of it in the away view's own wiring
- * would be a second answer to one question. The window hands this to
- * `webActing` as `stands`.
- *
- * A row Tade has no record of holds: approving a request whose own item is
- * not in the journal is approving something nothing can check. Only a hold
- * refuses it — work that would wait its turn on an unknown plan, or be let
- * through to make one known, is the queue's to start as its rule says — and it
- * is asked as though nothing ran, so that the source is asked too.
- *
- * Folded from the lines the queue's own pass folds (`queueFacts().events`,
- * the whole journal), never `Live.events`: that is the last 500 lines, and a
- * request handed over before them was told it had no record here.
- */
-export async function standsFor(wire: Wiring, row: InboxRow): Promise<string | null> {
-  const events = wire.live?.queueFacts().events ?? (await wire.opts.client.events({}))
-  const one = intakeFrom(events).get(row.item) ?? null
-  if (!one) {
-    return `has no record on this machine that Tade can check: approve it at the machine`
-  }
-  const task = row.tasks[0] ?? ''
-  const spending = {
-    spends: await spentBy(wire, task),
-    plans: planStandings(wire.opts.client.planUsage(), wire.now()),
-  }
-  const says = await intakeSays(wire, one, task, spending, null)
-  return says?.kind === 'held' ? says.because : null
 }

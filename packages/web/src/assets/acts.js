@@ -89,18 +89,6 @@ export const QUEUE_ASKS = [
   { change: 'drop', said: 'Drop the wait', silent: true },
 ]
 
-/** The queue choices worth offering on this row. */
-export function asksFor(row) {
-  // Dropping a wait is offered only where a machine it waits on has been
-  // silent for days, and only ever tapped: nothing drops one by itself.
-  const asks = QUEUE_ASKS.filter((one) => one.silent !== true || row?.silentWaits === true)
-  if (row?.parked !== true) return asks
-  const outside = row.origin?.kind === 'intake'
-  return asks.filter(
-    (one) => one.ready !== true && one.change !== 'resume' && !(outside && one.change === 'start'),
-  )
-}
-
 /**
  * Which kinds of act this device's own session may ask for.
  *
@@ -252,57 +240,6 @@ export function confirms(verb) {
   // Removing an agent deletes its worktree and branch: not undone by asking
   // again.
   return verb === 'done' || verb === 'stop' || verb === 'close' || verb === 'remove'
-}
-
-/**
- * What one control's press says, in Tade's words.
- *
- * **Empty for `queue`, which has no single press**: its five choices are
- * `QUEUE_ASKS` and each carries its own word, so a word here would be one
- * nobody ever sees. Empty rather than a plausible default, because a default
- * is how a control ends up labelled *Do it*.
- */
-export function wordsFor(verb, row) {
-  switch (verb) {
-    case 'park':
-      return row.parked === true ? 'Pick this back up' : 'Set this aside'
-    case 'answer':
-      return `Allow ${row.approval?.tool ?? 'it'}`
-    case 'steer':
-      return 'Send'
-    case 'done':
-      return 'Mark it finished'
-    case 'stop':
-      return 'Stop its agent'
-    case 'close':
-      return 'Close this project'
-    case 'start':
-      return 'Start its agent'
-    case 'remove':
-      return 'Remove agent'
-    default:
-      return ''
-  }
-}
-
-/** The heading each control's block gets, so a screen reads as sections. */
-export function headingFor(verb) {
-  switch (verb) {
-    case 'answer':
-      return 'WAITING ON YOU'
-    case 'steer':
-      return 'TELL ITS AGENT'
-    case 'queue':
-      return 'IN THE QUEUE'
-    case 'done':
-      return 'FINISHED'
-    case 'stop':
-      return 'ITS AGENT'
-    case 'close':
-      return 'THIS PROJECT'
-    default:
-      return 'SET ASIDE'
-  }
 }
 
 /**

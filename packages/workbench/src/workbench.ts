@@ -84,7 +84,6 @@ import {
   type SignIn,
   type SignInHere,
   type Support,
-  type ToolAnswer,
   type WorkerAdapter,
   type WorkerCapabilities,
   type WorkerExtras,
@@ -120,7 +119,6 @@ import { type FoundWork, fireAgentSchedule, makeFoundWork } from './found.ts'
 import { accountKey, adapterKey, HARNESS_ADAPTERS, type HarnessOptions } from './harnesses.ts'
 import { takeBackOwnIgnore } from './ignore.ts'
 import { type Taken, takeIntake } from './intake.ts'
-import type { BeforeAsk } from './journal-away.ts'
 import { type HomeLock, lockHome } from './lock.ts'
 import { ensureMachine, type MachineFile } from './machine-file.ts'
 import { Memory, type Noted } from './memory.ts'
@@ -2057,19 +2055,6 @@ export class Workbench {
   }
 
   /**
-   * The whole of what one call in a task's agent's conversation answered, out
-   * of its harness's own record (`WorkerAdapter.callAnswer`): what a person
-   * reads when they open the call, where `agentHistory` holds only its start.
-   */
-  async agentAnswer(task: string, call: string): Promise<ToolAnswer | null> {
-    const lane = this.registry.get(`${task}/agent` as LaneId)
-    if (lane?.kind !== 'agent') return null
-    const harness = lane.harness ?? (await this.harnessOf(task))
-    const account = await this.accountOf(task, harness)
-    return this.adapterFor(harness, account).callAnswer(task as TaskId, lane.spec.cwd, call)
-  }
-
-  /**
    * The harness a task's agent runs in and what it can be asked to do there,
    * as the harness declares it: what the window shows and hides for it.
    */
@@ -2666,15 +2651,6 @@ export class Workbench {
 
   events(filter: EventFilter = {}): Promise<TadeEvent[]> {
     return this.log.read(filter)
-  }
-
-  /**
-   * One task's newest lines of some types from before a number in the journal,
-   * newest first, read on a thread of its own: what a page reads back as
-   * somebody scrolls an agent's timeline past what the window holds.
-   */
-  eventsBefore(ask: BeforeAsk): Promise<TadeEvent[]> {
-    return this.log.readBefore(ask)
   }
 
   subscribe(handler: (event: TadeEvent) => void, filter: EventFilter = {}): Unsubscribe {

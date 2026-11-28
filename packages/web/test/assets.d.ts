@@ -355,22 +355,9 @@ declare module '*/assets/sign-in.js' {
     ctx: unknown,
     later?: (run: () => void, ms: number) => unknown,
     unlater?: (timer: unknown) => void,
-    options?: {
-      path?: string
-      heading?: string
-      said?: (standing: unknown) => string
-      id?: string
-    },
   ): {
     node: unknown
-    open(
-      from?: unknown,
-      opening?: {
-        with?: Record<string, unknown>
-        heading?: string
-        ended?: (standing: unknown) => void
-      },
-    ): Promise<unknown>
+    open(from?: unknown): Promise<unknown>
     close(): void
   }
 }
@@ -386,7 +373,6 @@ declare module '*/assets/acts.js' {
   export const PROJECT_SHOWN: readonly string[]
   export const NEEDS: Readonly<Record<string, string>>
   export const QUEUE_ASKS: readonly { change: string; said: string; ready?: boolean }[]
-  export function asksFor(row: unknown): readonly { change: string; said: string }[]
   export function actsOf(session: unknown): {
     steer: boolean
     ask: boolean
@@ -428,8 +414,6 @@ declare module '*/assets/acts.js' {
     trouble: { title: string; fix: string } | null
   }
   export function confirms(verb: string): boolean
-  export function wordsFor(verb: string, row: unknown): string
-  export function headingFor(verb: string): string
   export function howSaid(how: string): string
 }
 

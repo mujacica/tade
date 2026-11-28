@@ -54,25 +54,11 @@ export function linkOf(standing) {
 /**
  * The sheet, built once. `open(from)` starts the sign-in, or comes back to the
  * one running; `later` and `cancel` are the clock, a test's own where given.
- *
- * **The orchestrator's by default, and any account's by its options** — the
- * Accounts page's (`pages/accounts.js`): `path` is where it is asked, `heading`
- * what the sheet is called, and `said` the words above the screen. What each
- * `open` adds — `with`, the fields every press carries (whose sign-in, and on
- * which machine), a `heading` of its own, and `ended`, told once when the
- * sign-in it opened on has ended — is that open's alone.
  */
-export function signInSheet(ctx, later = setTimeout, unlater = clearTimeout, options = {}) {
-  const path = options.path ?? SIGN_IN_PATH
-  const saidOf = options.said ?? signInSaid
-  const headed = options.heading ?? 'Sign the orchestrator in'
-  // Two sheets may be on one page — the talk line's and the Accounts page's.
-  const headId = options.id ?? 'signin-head'
-  let fields = {}
-  let onEnded = null
+export function signInSheet(ctx, later = setTimeout, unlater = clearTimeout) {
   const node = el('div', {
     class: 'amenu signin',
-    attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': headId },
+    attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'signin-head' },
   })
   node.hidden = true
   const scrim = el('div', { class: 'scrim', attrs: { 'aria-hidden': 'true' } })
@@ -80,8 +66,8 @@ export function signInSheet(ctx, later = setTimeout, unlater = clearTimeout, opt
   const top = el('div', { class: 'amenu-top' })
   const head = el('h2', {
     class: 'amenu-head',
-    text: headed,
-    attrs: { id: headId },
+    text: 'Sign the orchestrator in',
+    attrs: { id: 'signin-head' },
   })
   const close = el('button', {
     class: 'tap icon',
@@ -143,7 +129,7 @@ export function signInSheet(ctx, later = setTimeout, unlater = clearTimeout, opt
 
   const paint = () => {
     const running = standing?.state === 'running'
-    textIn(how, saidOf(standing))
+    textIn(how, signInSaid(standing))
     const href = linkOf(standing)
     link.hidden = href === null || !running
     if (href !== null) link.setAttribute('href', href)
@@ -163,16 +149,10 @@ export function signInSheet(ctx, later = setTimeout, unlater = clearTimeout, opt
   }
 
   async function post(call) {
-    const answer = await ctx.ask('POST', path, { ...fields, ...call })
+    const answer = await ctx.ask('POST', SIGN_IN_PATH, call)
     if (answer.status === 200 && typeof answer.body?.state === 'string') {
       standing = answer.body
       textIn(said, '')
-      // Told once, the moment the sign-in it was opened on is over.
-      if (standing.state !== 'running' && onEnded !== null) {
-        const told = onEnded
-        onEnded = null
-        told(standing)
-      }
     } else {
       const came = afterAnswer(answer, ctx.sentence(answer))
       answerIn(said, came.said, came.trouble)
@@ -211,14 +191,11 @@ export function signInSheet(ctx, later = setTimeout, unlater = clearTimeout, opt
   return {
     node,
     /** Open it: the sign-in started, or the one running come back to. */
-    open(from, opening = {}) {
+    open(from) {
       if (!mounted) {
         document.body.append(node)
         mounted = true
       }
-      fields = opening.with ?? {}
-      onEnded = opening.ended ?? null
-      textIn(head, opening.heading ?? headed)
       opener = from ?? null
       standing = null
       textIn(said, '')

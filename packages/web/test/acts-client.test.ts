@@ -3,11 +3,9 @@ import { QUEUE_ASKS as ASKS, HOWS } from '../src/acting.ts'
 import {
   actsOf,
   afterAnswer,
-  asksFor,
   bodyFor,
   confirms,
   controlsFor,
-  headingFor,
   howSaid,
   MENU_SHOWN,
   NEEDS,
@@ -15,7 +13,6 @@ import {
   QUEUE_ASKS,
   SHOWN,
   standingOf,
-  wordsFor,
 } from '../src/assets/acts.js'
 import { draftStore, reasonFor, saidOn, whoSaid } from '../src/assets/talk.js'
 import { ERRORS } from '../src/errors.ts'
@@ -85,32 +82,6 @@ describe('what kind of act each verb is, written twice', () => {
     expect(QUEUE_ASKS.map((one) => one.change).sort()).toEqual([...ASKS].sort())
     expect(QUEUE_ASKS.map((one) => one.change)).not.toContain('order')
     for (const one of QUEUE_ASKS) expect(one.said.length).toBeGreaterThan(3)
-  })
-
-  it('offers a start on parked work, which picks it up, but never on work from outside', () => {
-    const changes = (row: unknown) => asksFor(row).map((one) => one.change)
-    const all = QUEUE_ASKS.map((one) => one.change).filter((one) => one !== 'drop')
-    expect(changes({ parked: false, origin: { kind: 'schedule', name: 'jev' } })).toEqual(all)
-    // A watch's parked work: a start is the person saying go, and an order
-    // among what is ready is not something parked work can take.
-    const watched = changes({ parked: true, origin: { kind: 'schedule', name: 'jev' } })
-    expect(watched).toContain('start')
-    expect(watched).not.toContain('first')
-    // A resume lifts no park: a tap on it would do nothing.
-    expect(watched).not.toContain('resume')
-    // Picking up a request from outside is approving it, at the machine.
-    const outside = changes({ parked: true, origin: { kind: 'intake', name: 'github' } })
-    expect(outside).not.toContain('start')
-    expect(outside).not.toContain('first')
-    expect(outside).toContain('pause')
-  })
-
-  it('offers to drop a wait only where a machine it waits on has been silent for days', () => {
-    const changes = (row: unknown) => asksFor(row).map((one) => one.change)
-    expect(changes({ parked: false })).not.toContain('drop')
-    expect(changes({ parked: false, silentWaits: true })).toContain('drop')
-    // Parked work waiting on a quiet machine can still lose the wait.
-    expect(changes({ parked: true, silentWaits: true })).toContain('drop')
   })
 
   it('says what a wait means in words, for every way the wire can say one', () => {
@@ -193,23 +164,6 @@ describe('whether one control is drawn, and what is said instead', () => {
     const made = controlsFor(ROW, BOTH)
     expect(made.map((one) => one.verb)).toEqual([...SHOWN])
     expect(new Set(made.map((one) => one.verb)).size).toBe(SHOWN.length)
-  })
-
-  it('has a heading for every verb, and a word for every one with a single press', () => {
-    for (const verb of SHOWN) expect(headingFor(verb), verb).toMatch(/^[A-Z ]+$/)
-    // `queue` is the one with no single press: its five choices each carry
-    // their own word, so a word here would be one nobody ever sees. Empty
-    // rather than a plausible default, which is how a control ends up
-    // labelled *Do it*.
-    expect(SHOWN.filter((verb) => wordsFor(verb, ROW) === '')).toEqual(['queue'])
-    for (const verb of SHOWN.filter((one) => one !== 'queue')) {
-      expect(wordsFor(verb, ROW).length, verb).toBeGreaterThan(3)
-    }
-    // The one that reads both ways, because park is one toggle.
-    expect(wordsFor('park', { parked: false })).toBe('Set this aside')
-    expect(wordsFor('park', { parked: true })).toBe('Pick this back up')
-    // And the one that names what it is answering, so nobody allows blind.
-    expect(wordsFor('answer', ROW)).toBe('Allow Bash')
   })
 })
 
@@ -387,14 +341,6 @@ describe('the lifecycle, on a phone', () => {
     ] as const) {
       expect(verbFor(verb)?.read(made).ok, verb).toBe(true)
     }
-  })
-
-  it('says each press in Tade\u2019s words, under a heading of its own', () => {
-    for (const verb of ['stop', 'close']) {
-      expect(wordsFor(verb, task()).length, verb).toBeGreaterThan(5)
-    }
-    expect(headingFor('stop')).toBe('ITS AGENT')
-    expect(headingFor('close')).toBe('THIS PROJECT')
   })
 })
 

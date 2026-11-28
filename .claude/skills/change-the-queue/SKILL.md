@@ -37,7 +37,7 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | `packages/app/src/live.ts` | `QUEUE_READS`: what the rules read, from the whole journal; `lookAtTrees` at the moment of starting |
 | `packages/app/src/app.ts` | the passes: `advanceQueue`, `runSchedules`, `fire`, `lookWith`, and `queueTools` for the orchestrator |
 | `packages/app/src/wire/schedules.ts` | the one door: `Schedules.set`, `turnWatch`, `writeStanding`, and `where` |
-| `packages/app/src/wire/queue-holds.ts` | what holds work as it starts besides the rule: `planHold`, `intakeSays`, `plansFor` (asking first), `probingNow`, `standsFor` |
+| `packages/app/src/wire/queue-holds.ts` | what holds work as it starts besides the rule: `planHold`, `intakeSays`, `plansFor` (asking first), `probingNow` |
 | `packages/app/src/wire/watch-tools.ts` | the orchestrator's `tade_watches` and `tade_watch_change`, held to `WATCH_REACH` (`mayWatch`) |
 | `packages/core/src/watch-where.ts`, `app/src/wire/watch-where.ts` | one machine per repository: `watchWhere`, `watchingIn`; `whereNow`, `notLooking` |
 | `packages/core/src/duties.ts`, `app/src/wire/duties.ts`, `web/src/duties.ts` | whose each duty is across machines: `DutyBoard` (the hub's, beside the turn `Lease`), `compareRank`, `batchRank`, `standsIn`, `grantedUntil`; `FleetDuties`, `/api/duties` |
