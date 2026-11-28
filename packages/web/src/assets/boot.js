@@ -58,6 +58,7 @@ import {
   applyDelta,
   applySnapshot,
   asOf,
+  copiesBehind,
   emptyStore,
   streamPath,
   wantingIds,
@@ -447,7 +448,15 @@ function openStream() {
   source.addEventListener('snapshot', (event) => took(event, applySnapshot))
   source.addEventListener('delta', (event) => took(event, applyDelta))
   // Another machine of the person's, as this door holds it: only ever sent to their own device.
-  source.addEventListener('machine', (event) => took(event, applyCopy))
+  source.addEventListener('machine', (event) => {
+    const was = copiesBehind(held.store)
+    took(event, applyCopy)
+    // A change its copy is not at: only a stream opened again, which leaves that copy
+    // out of what it says it holds, is sent it whole. Kept open, the copy stays frozen.
+    if (copiesBehind(held.store) <= was) return
+    source?.close()
+    setTimeout(() => void again(), backoffAt(tries))
+  })
   source.addEventListener('resync', (event) => {
     // Said, not swallowed: this page fell behind and what follows replaces
     // what it held. A snapshot always follows one, so there is nothing to do

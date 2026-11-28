@@ -149,6 +149,13 @@ export function applyCopy(store, frame) {
   return applyDelta(copy, frame.delta)
 }
 
+/** How many copies are `behind`: one more after a frame is the page's cue to reopen its stream, which sends it whole. */
+export function copiesBehind(store) {
+  let behind = 0
+  for (const copy of store.copies.values()) if (copy.behind === true) behind += 1
+  return behind
+}
+
 /** Every other machine's copy the page holds, by name, in the order they were first heard. */
 export function copiesOf(store) {
   return [...store.copies].map(([machine, copy]) => ({ machine, copy }))

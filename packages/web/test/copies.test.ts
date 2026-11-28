@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { applyCopy, copiesOf, emptyStore, rowsOf, streamPath } from '../src/assets/store.js'
+import {
+  applyCopy,
+  copiesBehind,
+  copiesOf,
+  emptyStore,
+  rowsOf,
+  streamPath,
+} from '../src/assets/store.js'
 import { Copies, copiesHeldOf, copyOf } from '../src/copies.ts'
 import { applyDelta } from '../src/delta.ts'
 import type { Snapshot } from '../src/protocol.ts'
@@ -136,6 +143,28 @@ describe('what the page holds of each, frame by frame', () => {
     const [held] = copiesOf(store)
     expect(held?.copy.behind).toBe(true)
     expect(rowsOf(held?.copy ?? emptyStore(), 'tasks')[0]?.title?.words).toBe('Fix the parser')
+  })
+
+  it('gets a copy that fell behind whole from the stream it opens again, and is level after', () => {
+    const store = emptyStore()
+    const copies = new Copies()
+    copies.beat([{ name: 'box', projection: snapshot({ rev: 3, title: 'another' }) }])
+    for (const frame of wire(copies.resumed(null))) applyCopy(store, frame)
+    for (const frame of wire(copies.beat([{ name: 'ipax', projection: snapshot() }]))) {
+      applyCopy(store, frame)
+    }
+    const latest = snapshot({ rev: 14, title: 'Fix the parser for good' })
+    const [moved] = wire(copies.beat([{ name: 'ipax', projection: latest }]))
+    expect(copiesBehind(store)).toBe(0)
+    applyCopy(store, { ...moved, from: 3 })
+    // One more behind after the frame: what makes the page reopen its stream (`boot.js`).
+    expect(copiesBehind(store)).toBe(1)
+    const opening = wire(copies.resumed(copiesHeldOf(streamPath(store))))
+    expect(opening.map((one) => `${one.kind} ${one.machine}`)).toEqual(['whole ipax'])
+    for (const frame of opening) expect(applyCopy(store, frame)).toBeNull()
+    expect(copiesBehind(store)).toBe(0)
+    const ipax = copiesOf(store).find((one) => one.machine === 'ipax')
+    expect(rowsOf(ipax?.copy ?? emptyStore(), 'tasks')).toEqual(copyOf(latest).tasks)
   })
 
   it('lets go of a machine that is gone, and refuses a version it does not speak', () => {

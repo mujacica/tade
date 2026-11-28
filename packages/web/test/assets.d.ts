@@ -124,6 +124,7 @@ declare module '*/assets/store.js' {
   export function applySnapshot(store: Store, snapshot: unknown): string | null
   export function applyDelta(store: Store, delta: unknown): string | null
   export function applyCopy(store: Store, frame: unknown): string | null
+  export function copiesBehind(store: Store): number
   export function copiesOf(store: Store): readonly { machine: string; copy: Store }[]
   export function streamPath(store: Store): string
   export function rowsOf(store: Store, collection: string): readonly any[]
