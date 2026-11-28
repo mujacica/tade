@@ -153,21 +153,13 @@ const answering: WebActing = {
   steer: (call) => did(call),
   queue: (call) => did(call),
   done: (call) => did(call),
-  note: (call) => did(call),
-  context: (call) => did(call),
-  intake: (call) => did(call),
   stop: (call) => did(call),
-  reopen: (call) => did(call),
   close: (call) => did({ was: call.was }),
-  open: (call) => did({ was: call.was }),
   start: (call) => did(call),
   remove: (call) => did(call),
   rename: (call) => did(call),
   model: (call) => did(call),
-  thinking: (call) => did(call),
   account: (call) => did(call),
-  harness: (call) => did(call),
-  move: (call) => did(call),
 }
 
 function did(call: { was: string }): Promise<Outcome> {
@@ -193,14 +185,11 @@ function waiting(): TaskIn {
       { verb: 'answer', how: 'now' },
       { verb: 'steer', how: 'now' },
       { verb: 'done', how: 'now' },
-      { verb: 'note', how: 'now' },
-      { verb: 'context', how: 'now' },
       { verb: 'stop', how: 'now' },
     ],
     cannot: [
       { verb: 'queue', why: 'it is not queued work' },
-      { verb: 'intake', why: 'it did not come from outside this machine' },
-      { verb: 'reopen', why: 'its agent is running' },
+      { verb: 'start', why: 'its agent is running' },
     ],
   }
 }

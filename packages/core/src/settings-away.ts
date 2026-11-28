@@ -211,7 +211,7 @@ export function awayGroup(config: Config, keptBy: string | null = null): Setting
         title: 'Act',
         section: DEVICE_MAY,
         short: `answer, steer and queue; ${ACTING_IS_NOT_YOU_SHORT}`,
-        means: `on: a paired device can answer an approval, tell an agent something, change what is queued, mark work finished, write a note, add to what a task is told, approve a request a grant here already allowed, run its agents and close or reopen a project; off: there is no route to do any of it. ${ACTING_IS_NOT_YOU}`,
+        means: `on: a paired device can answer an approval, tell an agent something, change what is queued, mark work finished, run its agents and close a project; off: there is no route to do any of it. ${ACTING_IS_NOT_YOU}`,
         value: String(web.acting),
         fallback: 'true',
         type: { kind: 'flag' },

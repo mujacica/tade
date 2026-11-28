@@ -8,8 +8,8 @@ import { Receipts } from '../src/receipts.ts'
 import { ACTS, type Route } from '../src/routes.ts'
 import { actingStub, BASE, homeFor } from './harness.ts'
 
-// The rest of an agent's menu from away — start, remove, rename, model,
-// thinking, account, harness, move — each through the act door every verb
+// The rest of an agent's menu from away — start, remove, rename, model and
+// account — each through the act door every verb
 // goes through. Every paired device is the person's own and reaches each
 // one's door; a refused act reaches no door at all, and every one of them is a
 // line.
@@ -22,10 +22,7 @@ const BODIES: Readonly<Record<string, Record<string, unknown>>> = {
   remove: { ...EVERY, confirm: true },
   rename: { ...EVERY, title: 'the migration' },
   model: { ...EVERY, model: 'claude-opus-5' },
-  thinking: { ...EVERY, level: 'high' },
   account: { ...EVERY, account: 'work' },
-  harness: { ...EVERY, harness: 'codex' },
-  move: { ...EVERY, machine: 'vps', confirm: true },
 }
 
 /** What each verb hands its door, beyond the target. */
@@ -34,15 +31,12 @@ const HANDED: Readonly<Record<string, Record<string, unknown>>> = {
   remove: { confirm: true },
   rename: { title: 'the migration' },
   model: { model: 'claude-opus-5' },
-  thinking: { level: 'high' },
   account: { account: 'work' },
-  harness: { harness: 'codex' },
-  move: { machine: 'vps', confirm: true },
 }
 
-const ALL = ['start', 'rename', 'model', 'thinking', 'remove', 'account', 'harness', 'move']
+const ALL = ['start', 'rename', 'model', 'remove', 'account']
 
-/** A window answering each of the eight, and remembering which it was asked. */
+/** A window answering each of the five, and remembering which it was asked. */
 function windowOf(): { acting: WebActing; asked: { verb: string; call: unknown }[] } {
   const asked: { verb: string; call: unknown }[] = []
   const did =
@@ -125,8 +119,8 @@ describe('each of the rest of an agent’s menu, through the act door', () => {
     expect(made.asked).toHaveLength(1)
   })
 
-  it('refuses a body that says nothing about meaning it, for the two asking again does not undo', async () => {
-    for (const verb of ['remove', 'move']) {
+  it('refuses a body that says nothing about meaning it, for the one asking again does not undo', async () => {
+    for (const verb of ['remove']) {
       const made = windowOf()
       const { confirm: _, ...body } = BODIES[verb] as Record<string, unknown>
       const answered = await carryOut(
@@ -151,7 +145,7 @@ const MENU: MenuItemIn[] = [
   item('rename', { kind: 'type', verb: 'rename', value: 'agent' }),
   item('model', { kind: 'choose', verb: 'model', choices: [], why: null }),
   item('editor', { kind: 'here' }, { off: 'it opens an editor on the machine’s own screen' }),
-  item('hand:vps', { kind: 'verb', verb: 'move', with: { machine: 'vps' } }, { divider: true }),
+  item('hand:vps', { kind: 'here' }, { divider: true, off: 'done at the machine' }),
   item('park', { kind: 'verb', verb: 'park' }, { divider: true }),
   item('remove', { kind: 'verb', verb: 'remove' }, { danger: true }),
 ]
@@ -165,9 +159,16 @@ describe('an agent’s menu, for one device', () => {
 
   it('leaves out every act where acting is off, and never opens on a rule', () => {
     const kept = menuFor(MENU, { acting: false })
-    expect(kept.map((one) => one.id)).toEqual(['open', 'editor'])
+    expect(kept.map((one) => one.id)).toEqual(['open', 'editor', 'hand:vps'])
     const ruled = menuFor([MENU[5] as MenuItemIn, MENU[0] as MenuItemIn], { acting: true })
     expect(ruled[0]?.divider).toBe(false)
+  })
+
+  it('leaves out an item whose verb is not in the table, as from an older window', () => {
+    const older = item('thinking', { kind: 'choose', verb: 'thinking', choices: [], why: null })
+    expect(menuFor([older, ...MENU], { acting: true }).map((one) => one.id)).not.toContain(
+      'thinking',
+    )
   })
 })
 

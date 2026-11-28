@@ -9,46 +9,42 @@ import {
   taskDir,
   workspaceFor,
 } from '@tade/core'
+import { approveIntake, inboxFrom } from '@tade/workbench'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
-import {
-  act,
-  closeAll,
-  KEY,
-  type Machine,
-  machine,
-  paired,
-  parkedIn,
-  revOf,
-} from './away-harness.ts'
+import { closeAll, type Machine, machine, parkedIn } from './away-harness.ts'
 import { delivered } from './away-intake.ts'
 
-// **What happens to approved work after the phone has put its phone away.**
+// **What happens to approved work once somebody approved it.**
 //
-// `away-verbs.test.ts` ends where the away view's own responsibility ends:
-// approving lifts the park, and the journal says a device did it. That is the
-// right place for it to stop, and it leaves the half an owner actually cares
-// about untested — *does the queue then start it, in the right project, where
-// that project says agents work?* The two are owned by different subjects
-// (`wire/web.ts` and `wire/queue.ts`) and joined by nothing but a task file, so
-// the join is exactly where a slice test on either side sees nothing.
+// Approving lifts the park (`approveIntake`, the door the window's Intake
+// panel presses), and it leaves the half an owner actually cares about —
+// *does the queue then start it, in the right project, where that project
+// says agents work?* The two are joined by nothing but a task file, so the
+// join is exactly where a slice test on either side sees nothing.
 //
 // It is asked of the **rule** and not of a spawn. `readyToStart` and
 // `queueStateOf` are what the window asks before it starts anything, so a task
 // those two call ready is a task the queue starts; running a real agent would
 // need a real harness and would be testing pi. What is real here is everything
 // the rule reads: a real delivery through the door a watch uses, a real task
-// file the workbench wrote, the real journal, and the act made over a real
-// listener.
+// file the workbench wrote, the real journal, and the approval through the
+// workbench's own door.
 
 afterEach(closeAll)
 
-/** A device granted what approving needs, listening, with a real delivery parked. */
+/** A machine with an intake grant, and a real delivery parked in it. */
 async function proposal(): Promise<{ one: Machine; task: string }> {
   const one = await machine({ intake: true })
-  await paired(one.home, one.port)
-  await one.away.open()
   return { one, task: await delivered(one) }
+}
+
+/** Approved at the machine, through the door the window's Intake panel presses. */
+async function approve(one: Machine, task: string): Promise<void> {
+  const rows = await inboxFrom({ home: one.home, events: await one.client.log.read({}) })
+  const row = rows.find((each) => each.tasks.includes(task))
+  if (row === undefined) throw new Error(`nothing from outside made ${task}`)
+  await approveIntake(one.client, { item: row.item, by: 'you', config: one.client.config })
 }
 
 /** What a task's own file says, which is what the queue's rule reads. */
@@ -92,7 +88,7 @@ async function facts(one: Machine) {
   }
 }
 
-describe('what the queue does with a proposal approved from a phone', () => {
+describe('what the queue does with a proposal once it is approved', () => {
   it('will not start it while it is still waiting for somebody', async () => {
     const { one, task } = await proposal()
     expect(parkedIn(one.home, task)).toBe(true)
@@ -108,14 +104,7 @@ describe('what the queue does with a proposal approved from a phone', () => {
   it('starts it once it is approved, by the queue’s own rule and nothing else', async () => {
     const { one, task } = await proposal()
 
-    const answer = await act(one.port, 'intake', {
-      task,
-      was: revOf(one, task),
-      key: KEY,
-      rev: 0,
-      confirm: true,
-    })
-    expect(answer.status).toBe(200)
+    await approve(one, task)
     expect(parkedIn(one.home, task)).toBe(false)
 
     const item = queued(one.home, task)
@@ -125,13 +114,7 @@ describe('what the queue does with a proposal approved from a phone', () => {
 
   it('starts it in the project the request named, and nowhere else', async () => {
     const { one, task } = await proposal()
-    await act(one.port, 'intake', {
-      task,
-      was: revOf(one, task),
-      key: KEY,
-      rev: 0,
-      confirm: true,
-    })
+    await approve(one, task)
 
     // The grant names one project (`projects: [app]`), and the task the
     // delivery made is in it. The queue's own `room` is per project, so a task
@@ -145,13 +128,7 @@ describe('what the queue does with a proposal approved from a phone', () => {
 
   it('works where that project says agents work, which is the machine’s default here', async () => {
     const { one, task } = await proposal()
-    await act(one.port, 'intake', {
-      task,
-      was: revOf(one, task),
-      key: KEY,
-      rev: 0,
-      confirm: true,
-    })
+    await approve(one, task)
 
     // **Read through the one reader there is.** Nothing asks the machine:
     // `workspaceFor(config, project)` is the whole of where an agent works,
@@ -165,13 +142,7 @@ describe('what the queue does with a proposal approved from a phone', () => {
 
   it('leaves it unstartable again the moment the park goes back on', async () => {
     const { one, task } = await proposal()
-    await act(one.port, 'intake', {
-      task,
-      was: revOf(one, task),
-      key: KEY,
-      rev: 0,
-      confirm: true,
-    })
+    await approve(one, task)
     expect(readyToStart([queued(one.home, task)], await facts(one), new Map())).toEqual([task])
 
     // Through the workbench, which is what a person at the keyboard pressing

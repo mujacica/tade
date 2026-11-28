@@ -1,4 +1,3 @@
-import type { InboxRow } from '@tade/core'
 import type { CopyIn, WebAccounts, WindowDoor } from '@tade/web'
 import type { MachineActs } from './acts.ts'
 import type { FleetConversation } from './conversation.ts'
@@ -113,21 +112,9 @@ export interface AwayDeps {
    */
   earlier?: () => Promise<boolean>
   /**
-   * Why work that came from outside this machine may not go ahead now, or
-   * null — the queue's own question (`intakeStands`), asked at the moment a
-   * paired device asks to approve one.
-   *
-   * Handed in rather than asked here, because answering it needs the
-   * extension host that can reach the watch, and the subject that already
-   * does is the queue. **A throw holds**: a source nobody could ask has not
-   * said yes.
-   */
-  stands(row: InboxRow): Promise<string | null>
-  /**
    * The factory floor, as the subject that folds the inbox already holds it.
    *
-   * Handed in for `stands`' reason and one more: the away view may start no
-   * work to answer a request, so everything it reads has to be a value the
+   * Handed in because the away view may start no work to answer a request, so everything it reads has to be a value the
    * window keeps — and the inbox, the request bodies and the stored workflows
    * are three reads that belong to the subject which already does them. This
    * file knows nothing about any of the three.

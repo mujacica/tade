@@ -76,14 +76,13 @@ describe('an agent’s menu doors, asked by name', () => {
     expect(made.called).toEqual(['model claude-opus-5'])
   })
 
-  it('refuses a model, an account or a harness the machine does not offer, calling nothing', async () => {
+  it('refuses a model or an account the machine does not offer, calling nothing', async () => {
     const made = windowOf()
     const by = 'device 00112233445566aa'
     await expect(made.doors.model(TASK, 'gpt-9', by)).rejects.toBeInstanceOf(NotOffered)
     // Another harness's account is no account of this agent's.
     await expect(made.doors.account(TASK, 'other', by)).rejects.toBeInstanceOf(NotOffered)
     await expect(made.doors.account(TASK, 'nobody', by)).rejects.toBeInstanceOf(NotOffered)
-    await expect(made.doors.harness(TASK, 'nothing-here', by)).rejects.toBeInstanceOf(NotOffered)
     expect(made.called).toEqual([])
   })
 
@@ -92,15 +91,6 @@ describe('an agent’s menu doors, asked by name', () => {
     await made.doors.account(TASK, 'work', 'device 00112233445566aa')
     await made.doors.account(TASK, '', 'device 00112233445566aa')
     expect(made.called).toEqual(['account work', 'account null'])
-  })
-
-  it('hands work only to a machine its own menu offers it to now', async () => {
-    const made = windowOf()
-    const by = 'device 00112233445566aa'
-    await expect(made.doors.move(TASK, 'vps', by)).resolves.toBe('handed to vps')
-    await expect(made.doors.move(TASK, 'mini', by)).rejects.toBeInstanceOf(NotOffered)
-    await expect(made.doors.move(TASK, 'elsewhere', by)).rejects.toBeInstanceOf(NotOffered)
-    expect(made.handed).toEqual(['vps'])
   })
 })
 

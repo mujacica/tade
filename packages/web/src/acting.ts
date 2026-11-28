@@ -11,9 +11,7 @@ import type { Scope } from './surface.ts'
 //
 // **It is a method per verb, and that is the whole design.** There is no
 // `run(name, payload)`, no `call(tool, args)`, no path, no command and no
-// setting — not "they are refused", but *there is nowhere to put one*. (A
-// setting a request is enough for is a table of its own behind a setting of
-// its own, `configuring.ts`; nothing on this interface reaches it.)
+// setting — not "they are refused", but *there is nowhere to put one*.
 // A verb reaches the window only by somebody adding a method here and an entry
 // to `VERBS` (`verbs.ts`), which is two lines a reviewer reads in the same
 // diff as the argument for them. The `never remote` lines are
@@ -21,23 +19,19 @@ import type { Scope } from './surface.ts'
 //
 // - no opening instruction, which is the one thing that turns text into
 //   execution. `steer` is a message into a conversation that is **already**
-//   running and the window refuses it where no agent is; `reopen` brings back
-//   an agent that already has a conversation, and `start` is the window's own
-//   Start agent — both say **nothing** to it, so what an agent started from
+//   running and the window refuses it where no agent is, and `start` is the
+//   window's own Start agent — it says **nothing** to it, so what an agent started from
 //   away works on is what its task already said at the machine, and no field
 //   here could carry anything else;
-// - no file path. The one verb that writes a file (`context`) names a **task
-//   id** and the window works out where that task's own files are, so there
-//   is no path on the wire to contain, no `..` to refuse and no symlink to
-//   resolve — and the containment that is still owed is owed at the machine,
-//   where the folder could be a link to somewhere else;
+// - no file path: every verb names a **task id** or a project's name, and the
+//   window works out where that task's own files are, so there is no path on
+//   the wire to contain, no `..` to refuse and no symlink to resolve;
 // - no command, so nothing to run;
 // - no push, merge, review answer or check override;
 // - no setting, no credential, no extension, no MCP server, no device and no
 //   intake grant — the thing that grants authority is never reachable from
-//   inside the authority it granted. Running an agent as another account or
-//   in another harness names one **by its name**, among what this machine
-//   already set up;
+//   inside the authority it granted. Running an agent as another account
+//   names one **by its name**, among what this machine already set up;
 // - no reach into the `ToolHost`, which is a Unix socket in
 //   `@tade/orchestrator` for the window's own children and is not this
 //   (`test/separation.test.ts`).
@@ -157,37 +151,6 @@ export interface DoneCall extends Target {
   summary: string
 }
 
-/** Write something down about a task, exactly as it was sent. */
-export interface NoteCall extends Target {
-  text: string
-}
-
-/**
- * Add to what a task's agent is told.
- *
- * **An append, and the append is the design.** A replace would mean sending
- * the context's current text to the phone first, and this package has no way
- * to read one — `WebReading` answers out of what the window already holds
- * and no handler does any work — while for a task that came from outside
- * the machine the body is a stranger's words (`OUTSIDE_IS_MATERIAL`), which is
- * its own grant and its own conversation. So the act carries only what to add,
- * and what falls out is the property an If-Match was reaching for: **an append
- * cannot overwrite a local edit**, whatever somebody typed here meanwhile.
- */
-export interface ContextCall extends Target {
-  add: string
-}
-
-/** Approve a request that arrived from outside this machine. */
-export interface IntakeCall extends Target {
-  /**
-   * That somebody meant it, for the reason `DoneCall` carries one: approving
-   * a stranger's request into an agent on this machine is not a thing to do
-   * by a mis-tap, and asking again does not undo it.
-   */
-  confirm: true
-}
-
 /**
  * Stop a task's agent: its lane ends, and the lane's spec, the conversation,
  * the branch and the worktree all stay.
@@ -207,16 +170,6 @@ export interface StopAgentCall extends Target {
    */
   confirm: true
 }
-
-/**
- * Open a stopped agent again where it left off, and say nothing to it.
- *
- * **Never a new agent.** The window refuses it where no agent has ever run on
- * the task, and what it does is reattach the lane it kept to the conversation
- * its harness kept — no opening instruction, because an agent told its first
- * instruction a second time does the work twice.
- */
-export type ReopenAgentCall = Target
 
 /**
  * Start a task's agent: the window's own Start agent. Where one ran before it
@@ -254,11 +207,6 @@ export interface ModelAgentCall extends Target {
   model: string
 }
 
-/** How hard a running agent thinks, one of the levels its harness offers. */
-export interface ThinkingAgentCall extends Target {
-  level: string
-}
-
 /**
  * Run an agent as another account of its harness, by the account's **name**
  * — never a credential — or `''` for the harness's own sign-in. Its
@@ -266,21 +214,6 @@ export interface ThinkingAgentCall extends Target {
  */
 export interface AccountAgentCall extends Target {
   account: string
-}
-
-/** Run an agent in another harness, by its id; a running one starts again there. */
-export interface HarnessAgentCall extends Target {
-  harness: string
-}
-
-/**
- * Hand a running agent to another of the person's machines that holds its
- * project, as the window's own Hand to does: the work goes there and stops
- * here once it is running there.
- */
-export interface MoveAgentCall extends Target {
-  machine: string
-  confirm: true
 }
 
 /** What a project-wide act was about, and what the caller had seen. */
@@ -304,15 +237,6 @@ export interface CloseProjectCall extends ProjectTarget {
   /** That somebody meant it: what it costs is that nothing here draws its work until it is back. */
   confirm: true
 }
-
-/**
- * Put a closed project back, where the journal says it was.
- *
- * **There is no path in it, and that is the design.** The window reads where
- * the project lived out of the line its closing wrote, so a device can open a
- * project Tade has had and nothing else — never a folder it names.
- */
-export type OpenProjectCall = ProjectTarget
 
 /**
  * Where one task's agent stands, as its lane says.
@@ -405,21 +329,13 @@ export interface WebActing {
   steer(call: SteerCall, from: From): Promise<Outcome>
   queue(call: QueueCall, from: From): Promise<Outcome>
   done(call: DoneCall, from: From): Promise<Outcome>
-  note(call: NoteCall, from: From): Promise<Outcome>
-  context(call: ContextCall, from: From): Promise<Outcome>
-  intake(call: IntakeCall, from: From): Promise<Outcome>
   stop(call: StopAgentCall, from: From): Promise<Outcome>
-  reopen(call: ReopenAgentCall, from: From): Promise<Outcome>
   close(call: CloseProjectCall, from: From): Promise<Outcome>
-  open(call: OpenProjectCall, from: From): Promise<Outcome>
   start(call: StartAgentCall, from: From): Promise<Outcome>
   remove(call: RemoveAgentCall, from: From): Promise<Outcome>
   rename(call: RenameAgentCall, from: From): Promise<Outcome>
   model(call: ModelAgentCall, from: From): Promise<Outcome>
-  thinking(call: ThinkingAgentCall, from: From): Promise<Outcome>
   account(call: AccountAgentCall, from: From): Promise<Outcome>
-  harness(call: HarnessAgentCall, from: From): Promise<Outcome>
-  move(call: MoveAgentCall, from: From): Promise<Outcome>
 }
 
 /** That the thing moved on since the caller looked. Thrown by a verb. */
@@ -541,10 +457,8 @@ export interface Cannot {
 export const BOUNDS = {
   /** A message into a running turn. Longer than a sentence, shorter than a brief. */
   said: 2_000,
-  /** A note, which is the thing Tade is told rather than derives. */
+  /** A note pressed on another machine's row (`pressed-there.ts`), told rather than derived. */
   text: 4_000,
-  /** What a person adds to a task's context from a phone. */
-  add: 4_000,
   /** What a task finished as. A headline, not a report. */
   summary: 500,
   /** What an agent is called. A name, not a description. */

@@ -27,52 +27,21 @@
 import { troubleOf } from './trouble.js'
 
 /** The verbs a task's page draws a control for, in the order they are drawn. */
-export const SHOWN = [
-  'answer',
-  'steer',
-  'queue',
-  'done',
-  'note',
-  'context',
-  'intake',
-  'park',
-  'stop',
-  'reopen',
-]
+export const SHOWN = ['answer', 'steer', 'queue', 'done', 'park', 'stop']
 
 /**
  * The verbs an agent's menu carries (`agent-menu.js`) rather than a block of
  * their own on its page: the rest of what the window's own row offers. With
  * `SHOWN` they are every verb about a task, and neither list has the other's.
  */
-export const MENU_SHOWN = [
-  'start',
-  'remove',
-  'rename',
-  'model',
-  'thinking',
-  'account',
-  'harness',
-  'move',
-]
+export const MENU_SHOWN = ['start', 'remove', 'rename', 'model', 'account']
 
 /**
- * The verbs a project's page draws a control for: the two about the whole of
+ * The verb a project's page draws a control for: the one about the whole of
  * it. A project row carries `can` and `cannot` over exactly these, as a task
  * row does over `SHOWN`.
  */
-export const PROJECT_SHOWN = ['close', 'open']
-
-/**
- * The second of each pair, by the first: one block is drawn per pair.
- *
- * A stop and a reopen are one question from two sides — is its agent running
- * — and so are a close and an open. The row puts both in its lists, each with
- * its reason, and the page draws the half that can be asked: the other's
- * reason is the control beside it. Where neither can be, the first one's
- * reason stands for both rather than being said twice.
- */
-export const PAIRS = { reopen: 'stop', open: 'close' }
+export const PROJECT_SHOWN = ['close']
 
 /**
  * What kind of act each verb is (`SCOPES`), as the page's copy of `VERBS`.
@@ -89,23 +58,15 @@ export const NEEDS = {
   steer: 'steer',
   queue: 'steer',
   done: 'steer',
-  note: 'steer',
-  context: 'steer',
-  intake: 'steer',
   // The lifecycle.
   stop: 'agents',
-  reopen: 'agents',
   close: 'projects',
-  open: 'projects',
   // The rest of an agent's own menu.
   start: 'agents',
   remove: 'agents',
   rename: 'agents',
   model: 'agents',
-  thinking: 'agents',
   account: 'agents',
-  harness: 'agents',
-  move: 'agents',
 }
 
 /**
@@ -113,8 +74,8 @@ export const NEEDS = {
  *
  * On a parked row, a start picks the work up as well (`pickUpToStart` is the
  * rule), so it is offered — except on work from outside the machine, where
- * picking it up is approving somebody else's request, which is the `intake`
- * verb's. `ready` marks the one that is an order among what is ready, which
+ * picking it up is approving somebody else's request, which is done at the
+ * machine. `ready` marks the one that is an order among what is ready, which
  * parked work is not, so a tap on it could only be refused; and a resume lifts
  * no park, so on a parked row it would be a tap that did nothing. The machine
  * refuses the first two too — this is the page not asking.
@@ -206,20 +167,10 @@ export function standingOf(verb, row, acts) {
  *
  * One pass, so a screen cannot ask about one verb and forget another: the page
  * walks this, and the list is `SHOWN` for a task and `PROJECT_SHOWN` for a
- * project. **One block per pair** (`PAIRS`): the half that can be asked is
- * drawn, and the other is `off` — its reason is the control beside it.
+ * project.
  */
 export function controlsFor(row, acts, verbs = SHOWN) {
-  const made = verbs.map((verb) => ({ verb, ...standingOf(verb, row, acts) }))
-  return made.map((one) => {
-    const first = PAIRS[one.verb] ?? one.verb
-    const second = Object.keys(PAIRS).find((verb) => PAIRS[verb] === first) ?? one.verb
-    const pair = made.filter((each) => each.verb === first || each.verb === second)
-    if (pair.length < 2 || one.kind === 'off') return one
-    // The half that can be asked, or the first where neither can: one block.
-    const drawn = pair.find((each) => each.kind === 'yes') ?? pair[0]
-    return drawn.verb === one.verb ? one : { ...one, kind: 'off', why: '' }
-  })
+  return verbs.map((verb) => ({ verb, ...standingOf(verb, row, acts) }))
 }
 
 /**
@@ -233,7 +184,6 @@ export function controlsFor(row, acts, verbs = SHOWN) {
 export function bodyFor(verb, row, key, rev, typed) {
   // A project verb's target is the project, and its revision the project's own.
   if (verb === 'close') return { project: row.name, was: row.rev, key, rev, confirm: true }
-  if (verb === 'open') return { project: row.name, was: row.rev, key, rev }
   const every = { task: row.id, was: row.rev, key, rev }
   switch (verb) {
     case 'park':
@@ -246,12 +196,6 @@ export function bodyFor(verb, row, key, rev, typed) {
       return { ...every, change: typed.change ?? 'pause' }
     case 'done':
       return { ...every, confirm: true, summary: typed.summary ?? '' }
-    case 'note':
-      return { ...every, text: typed.text ?? '' }
-    case 'context':
-      return { ...every, add: typed.add ?? '' }
-    case 'intake':
-      return { ...every, confirm: true }
     case 'stop':
     case 'remove':
       return { ...every, confirm: true }
@@ -259,14 +203,8 @@ export function bodyFor(verb, row, key, rev, typed) {
       return { ...every, title: typed.title ?? '' }
     case 'model':
       return { ...every, model: typed.choice ?? '' }
-    case 'thinking':
-      return { ...every, level: typed.choice ?? '' }
     case 'account':
       return { ...every, account: typed.choice ?? '' }
-    case 'harness':
-      return { ...every, harness: typed.choice ?? '' }
-    case 'move':
-      return { ...every, machine: typed.machine ?? '', confirm: true }
     default:
       return every
   }
@@ -302,9 +240,8 @@ export function afterAnswer(answer, sentence) {
 /**
  * Whether a press needs asking again before it happens.
  *
- * Two of the verbs are not undoable by asking again — marking work finished
- * starts whatever waits on it, and approving a stranger's request puts an
- * agent on this machine to work on it — and two more are destructive-adjacent:
+ * One of the verbs is not undoable by asking again — marking work finished
+ * starts whatever waits on it — and two more are destructive-adjacent:
  * stopping an agent cuts off whatever turn it was in, and closing a project
  * takes its own settings with it. So each takes a second tap. The schema's own
  * `confirm` literal is the other half and neither stands in for the other:
@@ -312,17 +249,9 @@ export function afterAnswer(answer, sentence) {
  * means *do not*.
  */
 export function confirms(verb) {
-  // Removing an agent deletes its worktree and branch, and handing one to
-  // another machine stops it here once it runs there: neither is undone by
-  // asking again.
-  return (
-    verb === 'done' ||
-    verb === 'intake' ||
-    verb === 'stop' ||
-    verb === 'close' ||
-    verb === 'remove' ||
-    verb === 'move'
-  )
+  // Removing an agent deletes its worktree and branch: not undone by asking
+  // again.
+  return verb === 'done' || verb === 'stop' || verb === 'close' || verb === 'remove'
 }
 
 /**
@@ -343,20 +272,10 @@ export function wordsFor(verb, row) {
       return 'Send'
     case 'done':
       return 'Mark it finished'
-    case 'note':
-      return 'Write it down'
-    case 'context':
-      return 'Add to its context'
-    case 'intake':
-      return 'Approve this request'
     case 'stop':
       return 'Stop its agent'
-    case 'reopen':
-      return 'Open its agent again'
     case 'close':
       return 'Close this project'
-    case 'open':
-      return 'Open it again'
     case 'start':
       return 'Start its agent'
     case 'remove':
@@ -377,17 +296,9 @@ export function headingFor(verb) {
       return 'IN THE QUEUE'
     case 'done':
       return 'FINISHED'
-    case 'note':
-      return 'A NOTE'
-    case 'context':
-      return 'WHAT IT IS TOLD'
-    case 'intake':
-      return 'FROM OUTSIDE'
     case 'stop':
-    case 'reopen':
       return 'ITS AGENT'
     case 'close':
-    case 'open':
       return 'THIS PROJECT'
     default:
       return 'SET ASIDE'

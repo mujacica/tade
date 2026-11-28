@@ -543,16 +543,6 @@ describe('what may be asked of one task', () => {
     }
   })
 
-  it('offers a note and a context block whatever else is true', () => {
-    // Both are appends to files Tade owns: neither needs an agent, and neither
-    // can lose anything somebody wrote here. What they need is the grant,
-    // which is a different question.
-    for (const world of [{}, { finished: true }, { parked: true }, { origin: 'intake' }] as const) {
-      expect(can(world), JSON.stringify(world)).toContain('note')
-      expect(can(world), JSON.stringify(world)).toContain('context')
-    }
-  })
-
   it('offers an answer only where one is waiting', () => {
     expect(can({ approval: true })).toContain('answer')
     expect(can()).not.toContain('answer')
@@ -588,23 +578,13 @@ describe('what may be asked of one task', () => {
 
   it('names the other verb where park will not pick work from outside back up', () => {
     // **A proposed intake is a parked task**, so lifting the park is approving
-    // somebody else's request — which is the `intake` verb and its two
+    // somebody else's request — which is done at the machine, with its two
     // re-checks. The row says so rather than offering a control that is
     // refused.
     expect(can({ parked: true, origin: 'intake' })).not.toContain('park')
     expect(why('park', { parked: true, origin: 'intake' })).toContain('came from outside')
-    expect(can({ parked: true, origin: 'intake' })).toContain('intake')
     // Setting one aside is always safe: *not this one yet* is a hold.
     expect(can({ origin: 'intake' })).toContain('park')
-  })
-
-  it('offers an intake approval only for work from outside that is waiting for one', () => {
-    expect(can({ origin: 'intake', parked: true })).toContain('intake')
-    expect(why('intake')).toContain('did not come from outside')
-    expect(why('intake', { origin: 'intake' })).toContain('not waiting to be approved')
-    expect(why('intake', { origin: 'intake', parked: true, finished: true })).toContain(
-      'already says',
-    )
   })
 })
 

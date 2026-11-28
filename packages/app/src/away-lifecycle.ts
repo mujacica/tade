@@ -95,14 +95,8 @@ export function agentLaneOf(task: {
  */
 export function projectAble(open: boolean): { can: Can[]; cannot: Cannot[] } {
   return open
-    ? {
-        can: [{ verb: 'close', how: 'now' }],
-        cannot: [{ verb: 'open', why: 'it is open' }],
-      }
-    : {
-        can: [{ verb: 'open', how: 'now' }],
-        cannot: [{ verb: 'close', why: 'it is already closed' }],
-      }
+    ? { can: [{ verb: 'close', how: 'now' }], cannot: [] }
+    : { can: [], cannot: [{ verb: 'close', why: 'it is already closed' }] }
 }
 
 /**

@@ -197,24 +197,13 @@ const recording: WebActing = {
   steer: (call) => did('steer', call),
   queue: (call) => did('queue', call),
   done: (call) => did('done', call),
-  note: (call) => {
-    asked.push({ verb: 'note', task: call.task, said: (call as { text: string }).text })
-    return Promise.reject(new Moved('somebody wrote one here first', call.was))
-  },
-  context: (call) => did('context', call),
-  intake: (call) => did('intake', call),
   stop: (call) => did('stop', call),
-  reopen: (call) => did('reopen', call),
   close: (call) => did('close', { task: call.project, was: call.was }),
-  open: (call) => did('open', { task: call.project, was: call.was }),
   start: (call) => did('start', call),
   remove: (call) => did('remove', call),
   rename: (call) => did('rename', call),
   model: (call) => did('model', call),
-  thinking: (call) => did('thinking', call),
   account: (call) => did('account', call),
-  harness: (call) => did('harness', call),
-  move: (call) => did('move', call),
 }
 
 function did(verb: string, call: { task: string; was: string }): Promise<Outcome> {

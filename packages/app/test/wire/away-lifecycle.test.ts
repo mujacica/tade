@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { taskDir } from '@tade/core'
 import type { ProjectRow } from '@tade/web'
@@ -56,20 +56,6 @@ function projectsIn(one: Machine): Record<string, { root: string }> {
   return file.projects ?? {}
 }
 
-/**
- * Wait until the journal holds `count` lines about where a project lives, then
- * look again. The window writes them beside an act rather than before its
- * answer, so a look taken the moment the answer arrives can be a beat early.
- */
-async function settled(one: Machine, count: number): Promise<void> {
-  for (let tries = 0; tries < 50; tries++) {
-    const lines = await one.client.events({ types: ['config_changed'] })
-    if (lines.length >= count) break
-    await new Promise((done) => setTimeout(done, 10))
-  }
-  await one.refresh()
-}
-
 /** Every `web_did` line, as the journal has them. */
 async function did(
   one: Machine,
@@ -121,13 +107,13 @@ describe('stopping an agent and opening it again', () => {
     await one.refresh()
     const after = rowOf(one, one.task)
     expect(after.lane).toBe('stopped')
-    expect(after.can.map((each) => each.verb)).toContain('reopen')
+    expect(after.can.map((each) => each.verb)).toContain('start')
     expect(after.cannot.find((each) => each.verb === 'stop')?.why).toContain('already stopped')
 
-    const opened = await act(one.port, 'reopen', {
+    const opened = await act(one.port, 'start', {
       task: one.task,
       was: after.rev,
-      key: 'reopenkey1234567',
+      key: 'startkey12345678',
       rev: 0,
     })
     expect(opened.status).toBe(200)
@@ -146,8 +132,8 @@ describe('stopping an agent and opening it again', () => {
     const body = { task: one.task, was: first, key: KEY, rev: 0, confirm: true }
     expect((await act(one.port, 'stop', body)).status).toBe(200)
     await one.refresh()
-    const reopen = { task: one.task, was: revOf(one, one.task), key: 'reopenkey1234567', rev: 0 }
-    expect((await act(one.port, 'reopen', reopen)).status).toBe(200)
+    const start = { task: one.task, was: revOf(one, one.task), key: 'startkey12345678', rev: 0 }
+    expect((await act(one.port, 'start', start)).status).toBe(200)
     await one.refresh()
     expect(rowOf(one, one.task).lane).toBe('running')
 
@@ -175,16 +161,16 @@ describe('stopping an agent and opening it again', () => {
     expect(await one.client.events({ types: ['lane_closed'] })).toEqual([])
   })
 
-  it('never reopens a task no agent has run on: starting one is `start`, saying nothing to it', async () => {
+  it('has no reopen to craft: bringing an agent back is `start`, saying nothing to it', async () => {
     const one = await machine()
     await paired(one.home, one.port)
     await one.away.open()
     await one.refresh()
     const row = rowOf(one, one.task)
     expect(row.lane).toBe('none')
-    expect(row.cannot.find((each) => each.verb === 'reopen')?.why).toContain('Start starts one')
     expect(row.can.map((each) => each.verb)).toContain('start')
-    // Crafted anyway, with the row's own revision: nothing here by that name.
+    expect([...row.can, ...row.cannot].map((each) => each.verb)).not.toContain('reopen')
+    // Crafted anyway, with the row's own revision: no route by that name.
     const no = await act(one.port, 'reopen', { task: one.task, was: row.rev, key: KEY, rev: 0 })
     expect(no.status).toBe(404)
     expect(one.lane(one.task)).toBeUndefined()
@@ -200,8 +186,8 @@ describe('stopping an agent and opening it again', () => {
   })
 })
 
-describe('closing a project and opening it again', () => {
-  it('closes it with an agent working, deletes nothing, and opens it again with everything back', async () => {
+describe('closing a project', () => {
+  it('closes it with an agent working, and deletes nothing', async () => {
     const one = await ready()
     const root = projectsIn(one).app?.root
     expect(root).toBeDefined()
@@ -239,39 +225,9 @@ describe('closing a project and opening it again', () => {
 
     await one.refresh()
     const shut = projectRow(one)
-    expect(shut).toMatchObject({ open: false, can: [{ verb: 'open', how: 'now' }] })
+    expect(shut).toMatchObject({ open: false, can: [] })
+    expect(shut.cannot.map((each) => each.verb)).toEqual(['close'])
     expect(projectionOf(one).tasks.filter((task) => task.project === 'app')).toEqual([])
-
-    // **Restorable**, from the same phone, naming the project and no folder.
-    const opened = await act(one.port, 'open', {
-      project: 'app',
-      was: shut.rev,
-      key: 'openkey123456789',
-      rev: 0,
-    })
-    expect(opened.status).toBe(200)
-    expect(projectsIn(one).app?.root).toBe(root)
-    await one.refresh()
-    expect(projectRow(one).open).toBe(true)
-    expect(rowOf(one, one.task)).toMatchObject({ lane: 'running' })
-  })
-
-  it('refuses a close replayed after the project was opened again', async () => {
-    const one = await ready()
-    const first = projectRow(one).rev
-    const body = { project: 'app', was: first, key: KEY, rev: 0, confirm: true }
-    expect((await act(one.port, 'close', body)).status).toBe(200)
-    await settled(one, 1)
-    const open = { project: 'app', was: projectRow(one).rev, key: 'openkey123456789', rev: 0 }
-    expect((await act(one.port, 'open', open)).status).toBe(200)
-    await settled(one, 2)
-    expect(projectRow(one).open).toBe(true)
-    // Open exactly as the first screen said, and the count of lines about
-    // where it lives is what tells the two worlds apart.
-    const replay = await act(one.port, 'close', { ...body, key: 'replaykey1234567' })
-    expect(replay.status).toBe(409)
-    expect(replay.body.error).toBe('gone')
-    expect(projectsIn(one).app).toBeDefined()
   })
 
   it('answers a repeat across a restart from the receipts, and closes once', async () => {
@@ -289,55 +245,6 @@ describe('closing a project and opening it again', () => {
       (line) => (line.detail as { now?: string }).now === '',
     )
     expect(closes).toHaveLength(1)
-  })
-
-  it('does not open a project whose folder has gone, and says nothing about where it was', async () => {
-    const one = await ready()
-    const root = String(projectsIn(one).app?.root)
-    expect(
-      (
-        await act(one.port, 'close', {
-          project: 'app',
-          was: projectRow(one).rev,
-          key: KEY,
-          rev: 0,
-          confirm: true,
-        })
-      ).status,
-    ).toBe(200)
-    await settled(one, 1)
-    rmSync(join(root, '.git'), { recursive: true, force: true })
-    const no = await act(one.port, 'open', {
-      project: 'app',
-      was: projectRow(one).rev,
-      key: 'openkey123456789',
-      rev: 0,
-    })
-    expect(no.status).toBe(404)
-    expect(JSON.stringify(no.body)).not.toContain(root)
-    expect(projectsIn(one).app).toBeUndefined()
-  })
-})
-
-describe('a journal line nobody at this machine wrote', () => {
-  it('cannot make a device open a folder the close never named', async () => {
-    // The journal is a file anything running as you can append to. A line
-    // claiming a project closed from a relative path is not one the close
-    // wrote — it writes the config's own root — so opening it is refused, and
-    // nothing is resolved against wherever the window happens to be.
-    const one = await ready()
-    await one.client.log.append({
-      type: 'config_changed',
-      // `.` is this process's own folder — a git checkout, here — which is
-      // exactly what a check that resolved it would find and accept.
-      detail: { path: 'projects.ghost.root', was: '.', now: '', by: 'window' },
-    })
-    await one.refresh()
-    const ghost = projectRow(one, 'ghost')
-    expect(ghost.open).toBe(false)
-    const no = await act(one.port, 'open', { project: 'ghost', was: ghost.rev, key: KEY, rev: 0 })
-    expect(no.status).toBe(404)
-    expect(projectsIn(one).ghost).toBeUndefined()
   })
 })
 

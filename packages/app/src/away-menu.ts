@@ -24,19 +24,14 @@ export interface MenuExtras {
     current: string | null
     why: string | null
   } | null
-  /** How hard it thinks now, as it last said. */
-  thinking: string | null
-  /** The thinking levels its harness offers, as the window's menu has them (`thinkingMenuItems`). */
-  levels: readonly MenuItem[]
   /** The accounts it could run as (`accountMenuItems`); null where they were not read. */
   accounts: readonly MenuItem[] | null
-  /** The harnesses it could run in (`harnessMenuItems`). */
-  harnesses: readonly MenuItem[]
 }
 
 /** Why an item that is the machine's own is never sent: its words, by the window's id. */
 const AT_THE_MACHINE: Readonly<Record<string, string>> = {
   editor: 'it opens an editor on the machine’s own screen',
+  hand: 'handing work to another machine is done at the machine',
   'queue-after': 'what it waits on is changed at the machine',
   'queue-retell': 'what it is told is changed at the machine',
 }
@@ -51,46 +46,9 @@ const QUEUE: Readonly<Record<string, string>> = {
   'queue-drop': 'drop',
 }
 
-/**
- * The window's menu, each item with what a press does from away, and the two
- * controls the window draws in an agent's header rather than its menu —
- * how hard it thinks, and its harness — put after the model, where a phone
- * with no header looks for them.
- */
+/** The window's menu, each item with what a press does from away. */
 export function awayMenuOf(items: readonly MenuItem[], extras: MenuExtras): MenuItemIn[] {
-  const out: MenuItemIn[] = []
-  for (const item of items) {
-    out.push(itemOf(item, extras))
-    if (item.id === 'model') out.push(...headerItems(extras))
-  }
-  return out
-}
-
-/** How hard it thinks and which harness it is in: the header's two controls, as menu items. */
-function headerItems(extras: MenuExtras): MenuItemIn[] {
-  const thinking = extras.offers?.thinking ?? { shown: true, support: 'live', note: null }
-  const harness = extras.offers?.harness ?? 'this harness'
-  const thinkingOff = !thinking.shown ? `not in ${harness}` : !extras.running ? 'not running' : null
-  return [
-    {
-      id: 'thinking',
-      label: 'Thinking…',
-      off: thinkingOff,
-      note: extras.thinking,
-      danger: false,
-      divider: false,
-      act: { kind: 'choose', verb: 'thinking', choices: extras.levels.map(choiceOf), why: null },
-    },
-    {
-      id: 'harness',
-      label: 'Run in harness…',
-      off: null,
-      note: extras.offers?.harness ?? null,
-      danger: false,
-      divider: false,
-      act: { kind: 'choose', verb: 'harness', choices: extras.harnesses.map(choiceOf), why: null },
-    },
-  ]
+  return items.map((item) => itemOf(item, extras))
 }
 
 function itemOf(item: MenuItem, extras: MenuExtras): MenuItemIn {
@@ -105,9 +63,6 @@ function itemOf(item: MenuItem, extras: MenuExtras): MenuItemIn {
   const queue = QUEUE[item.id]
   if (queue !== undefined)
     return { ...base, act: { kind: 'verb', verb: 'queue', with: { change: queue } } }
-  if (item.id.startsWith('hand:')) {
-    return { ...base, act: { kind: 'verb', verb: 'move', with: { machine: item.id.slice(5) } } }
-  }
   switch (item.id) {
     case 'open':
       // On a phone, opening it is its page: its screen, timeline and controls.
@@ -160,7 +115,10 @@ function itemOf(item: MenuItem, extras: MenuExtras): MenuItemIn {
       return {
         ...base,
         // Already off with the window's word, or off with why it stays here.
-        off: base.off ?? AT_THE_MACHINE[item.id] ?? 'only at the machine',
+        off:
+          base.off ??
+          AT_THE_MACHINE[item.id.startsWith('hand:') ? 'hand' : item.id] ??
+          'only at the machine',
         act: { kind: 'here' },
       }
   }

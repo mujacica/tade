@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { admit, REVISIONS_BEHIND, type Standing } from '../src/acts.ts'
 import type { Origin, Surface } from '../src/surface.ts'
-import { type Asked, CLOSE, OPEN, PARK, REOPEN, STOP, type Verb } from '../src/verbs.ts'
+import { type Asked, CLOSE, PARK, STOP, type Verb } from '../src/verbs.ts'
 
 // What has to be true of an *act*, asked as the cross-product.
 //
@@ -166,12 +166,10 @@ describe('the lifecycle verbs, at the gate', () => {
     return got.asked
   }
   const stop = lifecycle(STOP, { task: 'tade/away-action-gate', was: 'p0', confirm: true })
-  const reopen = lifecycle(REOPEN, { task: 'tade/away-action-gate', was: 'p0' })
   const close = lifecycle(CLOSE, { project: 'tade', was: 'o1.c0', confirm: true })
-  const open = lifecycle(OPEN, { project: 'tade', was: 'o0.c1' })
 
   it('goes through for a paired device, for an agent and for a project alike', () => {
-    for (const asked of [stop, reopen, close, open]) {
+    for (const asked of [stop, close]) {
       expect(admit(asked, standing()), asked.verb).toEqual({ ok: true })
     }
   })

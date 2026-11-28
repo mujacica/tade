@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   act,
   closeAll,
-  contextIn,
   KEY,
   type Machine,
   type MachineOptions,
@@ -18,7 +17,7 @@ import {
 } from './away-harness.ts'
 import { delivered } from './away-intake.ts'
 
-// The seven verbs beyond park, each all the way through a real listener.
+// The verbs beyond park, each all the way through a real listener.
 //
 // **What these are about is the half a unit test cannot say.** That the
 // revision a phone echoes back is the value the projection put on the row;
@@ -29,8 +28,7 @@ import { delivered } from './away-intake.ts'
 //
 // The shape of every test is the shape of the act: read the row the page would
 // have read, send what it would have sent, and look at what moved — the task
-// file, the journal, the note, the context file — rather than at what the
-// answer said about itself.
+// file, the journal — rather than at what the answer said about itself.
 
 afterEach(closeAll)
 
@@ -262,7 +260,7 @@ describe('a choice about queued work', () => {
     expect(await one.client.events({ types: ['run_started'] })).toEqual([])
   })
 
-  it('leaves work from outside the machine parked, which is the intake verb’s to approve', async () => {
+  it('leaves work from outside the machine parked, which is approved at the machine', async () => {
     const one = await ready({ intake: true })
     const task = await delivered(one)
     one.queued(task)
@@ -379,160 +377,6 @@ describe('marking work finished', () => {
   })
 })
 
-describe('writing a note down', () => {
-  it('keeps it verbatim, with the device as who wrote it, and no summary', async () => {
-    const one = await ready()
-    await one.refresh()
-    const text = 'The Fix is in the ADAPTER\n\n  not the migration'
-
-    const answer = await act(one.port, 'note', { ...every(one), text })
-    expect(answer.status).toBe(200)
-    const notes = one.client.recall(one.task)
-    expect(notes).toHaveLength(1)
-    // **Never reworded, never lowercased, never summarised.** Its case, its
-    // blank line and its indentation all survive; the one note door trims the
-    // ends of every note, whichever door wrote it, and that is the only thing
-    // that happens to the text. A summary is only ever one somebody wrote
-    // beside a note, so a remote one has none at all.
-    expect(notes[0]?.text).toBe(text)
-    expect(notes[0]?.by).toBe('device 00112233445566aa')
-    expect(notes[0]?.summary ?? null).toBeNull()
-  })
-
-  it('is never a `said` line, which is what authorises a setting change', async () => {
-    // `said` has one writer and `namedBy` reads those lines to authorise an
-    // `asked`-tier setting change. A page that could put words in somebody's
-    // mouth would inherit authority over all of them.
-    const one = await ready()
-    await one.refresh()
-    await act(one.port, 'note', { ...every(one), text: 'turn the checks off' })
-    expect(await one.client.events({ types: ['said'] })).toEqual([])
-  })
-})
-
-describe('adding to what an agent is told', () => {
-  it('appends under a heading Tade wrote, with the words beneath it verbatim', async () => {
-    const one = await ready()
-    await one.refresh()
-    const add = 'The ticket says the column is nullable.'
-
-    const answer = await act(one.port, 'context', { ...every(one), add })
-    expect(answer.status).toBe(200)
-    const text = contextIn(one.home, one.task)
-    expect(text).toContain(add)
-    // The heading is Tade's and says where it came from, so an agent reading
-    // its context can tell what the owner wrote when the task was made from
-    // what arrived afterwards and from where.
-    expect(text).toContain('by device 00112233445566aa')
-    expect(text.indexOf('by device')).toBeLessThan(text.indexOf(add))
-  })
-
-  it('cannot overwrite what somebody typed here, because it only ever appends', async () => {
-    // The property an If-Match was reaching for, and an append has it by
-    // construction: there is no field in the body for what the context should
-    // *become*, so nothing a device sends can lose a local edit.
-    const one = await ready()
-    await one.refresh()
-    const drawn = every(one)
-    await act(one.port, 'context', { ...drawn, add: 'from the phone' })
-    // Somebody at the machine adds to it too, through the same door.
-    await one.client.log.read({})
-    await act(one.port, 'context', {
-      ...drawn,
-      key: 'second0012345678',
-      add: 'and this as well',
-    })
-    const text = contextIn(one.home, one.task)
-    expect(text).toContain('from the phone')
-    expect(text).toContain('and this as well')
-  })
-
-  it('writes down how much was added and never a word of it', async () => {
-    const one = await ready()
-    await one.refresh()
-    await act(one.port, 'context', { ...every(one), add: 'the column is nullable' })
-    const lines = await one.client.events({ types: ['context_added'] })
-    expect(lines).toHaveLength(1)
-    expect(lines[0]?.detail).toMatchObject({
-      by: 'device 00112233445566aa',
-      added: 'the column is nullable'.length,
-    })
-    expect(JSON.stringify(lines[0]?.detail)).not.toContain('nullable')
-  })
-
-  it('answers `404` for a task with no folder, and writes nothing', async () => {
-    const one = await ready()
-    await one.refresh()
-    const answer = await act(one.port, 'context', {
-      ...every(one),
-      task: 'app/nothing',
-      add: 'anything',
-    })
-    expect(answer.status).toBe(404)
-  })
-})
-
-describe('approving what came from outside this machine', () => {
-  /** A machine with an intake grant, and a real delivery parked in it. */
-  async function proposal(over: MachineOptions = {}): Promise<{ one: Machine; task: string }> {
-    const one = await ready({ intake: true, ...over })
-    return { one, task: await delivered(one) }
-  }
-
-  it('refuses one whose source cannot be reached, because that is not permission', async () => {
-    // **The one direction this has to get right.** A source nobody could ask
-    // has not said yes, so a throw out of the re-check holds rather than
-    // passing — and the park stays on.
-    const { one, task } = await proposal({
-      stands: () => Promise.reject(new Error('the tracker did not answer')),
-    })
-    const answer = await act(one.port, 'intake', { ...every(one, task), confirm: true })
-    expect(answer.status).toBe(403)
-    expect(answer.body.error).toBe('out_of_scope')
-    expect(parkedIn(one.home, task)).toBe(true)
-  })
-
-  it('refuses one the source has closed since, with the source’s own reason', async () => {
-    const { one, task } = await proposal({
-      stands: () => Promise.resolve('was closed at its source'),
-    })
-    const answer = await act(one.port, 'intake', { ...every(one, task), confirm: true })
-    expect(answer.status).toBe(403)
-    expect(parkedIn(one.home, task)).toBe(true)
-  })
-
-  it('refuses one whose grant has been turned off since, and starts nothing', async () => {
-    // **A grant is permission at the moment of acting.** The delivery was
-    // allowed an hour ago; the key is gone now, and the window's own config is
-    // what the approval is read against — not the one the workbench opened
-    // with.
-    const { one, task } = await proposal()
-    one.ungrant()
-    const answer = await act(one.port, 'intake', { ...every(one, task), confirm: true })
-    expect(answer.status).toBe(403)
-    expect(parkedIn(one.home, task)).toBe(true)
-  })
-
-  it('lifts the park where the grant and the source both still say so', async () => {
-    const { one, task } = await proposal()
-    const answer = await act(one.port, 'intake', { ...every(one, task), confirm: true })
-    expect(answer.status).toBe(200)
-    expect(parkedIn(one.home, task)).toBe(false)
-    // Approving lifts a hold; it does not start an agent. The queue starts
-    // what it starts by its own rule, on the window's own next pass.
-    expect(await one.client.events({ types: ['run_started'] })).toEqual([])
-    const did = await waitFor(one.client, 'web_did')
-    expect(did.at(-1)?.detail).toMatchObject({ tool: 'intake', why: 'done' })
-  })
-
-  it('is the verb the row names where park will not pick one up', async () => {
-    const { one, task } = await proposal()
-    const row = rowOf(one, task)
-    expect(row.can.map((each) => each.verb)).toContain('intake')
-    expect(row.cannot.find((each) => each.verb === 'park')?.why).toContain('came from outside')
-  })
-})
-
 describe('what is written down whatever happened', () => {
   it('is a line per act, refusals included, under the device that asked', async () => {
     // **A refusal is the case the audit matters most in**: a device that
@@ -540,12 +384,12 @@ describe('what is written down whatever happened', () => {
     // person reading back needs to see.
     const one = await ready()
     await one.refresh()
-    const answer = await act(one.port, 'note', { ...every(one), was: 'o1.c9', text: 'anything' })
+    const answer = await act(one.port, 'rename', { ...every(one), was: 'o1.c9', title: 'any' })
     expect(answer.status).toBe(409)
     const did = await waitFor(one.client, 'web_did')
     expect(did.at(-1)?.detail).toMatchObject({
       device: '00112233445566aa',
-      tool: 'note',
+      tool: 'rename',
       state: 'refused',
       why: 'gone',
     })
@@ -554,30 +398,30 @@ describe('what is written down whatever happened', () => {
   it('answers a repeat of one key with the first answer, and does nothing twice', async () => {
     const one = await ready()
     await one.refresh()
-    const body = { ...every(one), text: 'the fix is in the adapter' }
-    const first = await act(one.port, 'note', body)
-    const again = await act(one.port, 'note', body)
+    const body = { ...every(one), title: 'the ledger migration' }
+    const first = await act(one.port, 'rename', body)
+    const again = await act(one.port, 'rename', body)
     expect(again.status).toBe(200)
     expect(again.body).toEqual(first.body)
-    expect(one.client.recall(one.task)).toHaveLength(1)
+    expect(await one.client.events({ types: ['task_named'], task: one.task })).toHaveLength(1)
   })
 
   it('refuses one key used for a different act', async () => {
     // A key is bound to the device, the verb, the target and the payload, so
-    // the same key with different words is a `reused` and not a second note.
+    // the same key with different words is a `reused` and not a second rename.
     const one = await ready()
     await one.refresh()
-    await act(one.port, 'note', { ...every(one), text: 'the first thing' })
-    const other = await act(one.port, 'note', { ...every(one), text: 'something else' })
+    await act(one.port, 'rename', { ...every(one), title: 'the first name' })
+    const other = await act(one.port, 'rename', { ...every(one), title: 'another name' })
     expect(other.status).toBe(409)
     expect(other.body.error).toBe('reused')
-    expect(one.client.recall(one.task)).toHaveLength(1)
+    expect(await one.client.events({ types: ['task_named'], task: one.task })).toHaveLength(1)
   })
 
   it('has no route for any verb while the setting is off', async () => {
     const one = await ready({ acting: false })
     await one.refresh()
-    for (const verb of ['answer', 'steer', 'queue', 'done', 'note', 'context', 'intake']) {
+    for (const verb of ['answer', 'steer', 'queue', 'done', 'rename']) {
       const answer = await act(one.port, verb, { ...every(one), confirm: true })
       expect(answer.status, verb).toBe(404)
     }

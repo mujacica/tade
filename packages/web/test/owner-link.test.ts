@@ -38,21 +38,13 @@ const BODIES: Readonly<Record<string, Record<string, unknown>>> = {
   steer: { said: 'try the other migration' },
   queue: { change: 'pause' },
   done: { confirm: true, summary: 'the migration runs' },
-  note: { text: 'the fix is in the adapter' },
-  context: { add: 'the ticket says the column is nullable' },
-  intake: { confirm: true },
   stop: { confirm: true },
-  reopen: {},
   close: { confirm: true },
-  open: {},
   start: {},
   remove: { confirm: true },
   rename: { title: 'the migration agent' },
   model: { model: 'anthropic/claude-opus-5' },
-  thinking: { level: 'high' },
   account: { account: 'work' },
-  harness: { harness: 'claude-code' },
-  move: { machine: 'vps', confirm: true },
 }
 
 function bodyOf(verb: string, n: number): Record<string, unknown> {
@@ -151,11 +143,11 @@ describe('a machine the person paired as owner', () => {
     const owner = await pairedByAnOlderTade(one.home, port)
     const device = (await readDevices(one.home)).devices.find((d) => d.id === owner.device)
     expect(device).toMatchObject({ owner: true, clear: false })
-    for (const [n, verb] of ['remove', 'account', 'harness', 'move', 'stop'].entries()) {
+    for (const [n, verb] of ['remove', 'account', 'rename', 'model', 'stop'].entries()) {
       const answer = await actAs(one, owner, verb, n)
       expect(answer.status, `${verb}: ${answer.text}`).toBe(200)
     }
-    expect(asked).toEqual(['remove', 'account', 'harness', 'move', 'stop'])
+    expect(asked).toEqual(['remove', 'account', 'rename', 'model', 'stop'])
   })
 })
 
@@ -163,7 +155,7 @@ describe('a device that is not the owner’s link', () => {
   it('reaches the same verbs from a paired phone, every one being the person’s own', async () => {
     const { one, asked } = await listening()
     const phone = await pair(one)
-    for (const [n, verb] of ['remove', 'account', 'harness', 'move'].entries()) {
+    for (const [n, verb] of ['remove', 'account', 'rename', 'model'].entries()) {
       const answer = await ask(one, `/api/act/${verb}`, {
         method: 'POST',
         headers: {
@@ -176,7 +168,7 @@ describe('a device that is not the owner’s link', () => {
       })
       expect(answer.status, `${verb}: ${answer.text}`).toBe(200)
     }
-    expect(asked).toEqual(['remove', 'account', 'harness', 'move'])
+    expect(asked).toEqual(['remove', 'account', 'rename', 'model'])
   })
 
   it('is never widened by the owner rule: an owner line bound to a public name is read as written', async () => {

@@ -571,21 +571,13 @@ describe('the sentences', () => {
       steer: 'tell one something',
       queue: 'queued work',
       done: 'mark work finished',
-      note: 'a note',
-      context: 'what a task is told',
-      intake: 'approve a request',
       stop: 'stop an agent',
-      reopen: 'open a stopped one again',
       close: 'close a project',
-      open: 'open a closed one again',
       start: 'start one — saying nothing to it',
       remove: 'remove an agent with its worktree and branch',
       rename: 'rename it',
       model: 'switch its model',
-      thinking: 'how hard it thinks',
       account: 'another account',
-      harness: 'another harness',
-      move: 'hand it to another of your machines',
     }
     expect(Object.keys(names).sort()).toEqual(VERBS.map((verb) => verb.name).sort())
     for (const [verb, clause] of Object.entries(names)) {

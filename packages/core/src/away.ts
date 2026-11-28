@@ -108,23 +108,20 @@ export const AWAY_IS_WHILE_OPEN =
  *
  * **The lifecycle half says what closing costs**, because it is the one act
  * here that writes the config: a project's line leaves it, its own settings
- * with it, and opening it again puts back the root the journal kept — never a
- * path a device named.
+ * with it.
  */
 export const ACTING_IS_NOT_YOU =
   'Every device you pair is yours and acts as you. On the work here it can answer what an agent ' +
-  'is waiting on, tell one something, hold or release queued work, add a note or a line to what ' +
-  'a task is told, mark work finished, approve a request a grant here already allowed, stop an ' +
-  'agent or open a stopped one again where it left off, start one — saying nothing to it — ' +
-  'rename it, switch its model or how hard it thinks, run it as another account or in another ' +
-  'harness, remove an agent with its worktree and branch, hand it to another of your machines, ' +
-  'and close a project or open a closed one again: closing deletes nothing and stops nothing, but ' +
-  'the project’s own settings go with it and opening it puts back only where it lives. An ' +
-  'approval shows the command it is about, with this machine’s paths shortened — where the task ' +
-  'works as ./, your home as ~, any other path cut to its last name — and every key Tade holds ' +
-  'taken out. Acting can never change a setting, read a credential, run a command, start an ' +
-  'agent on words a device typed, push, merge or overrule a check; what your device reaches past that, it reaches by talking to Tade or on Settings, as ' +
-  'you would here. Acting needs this machine itself or an https origin you named in Trusted ' +
+  'is waiting on, tell one something, hold or release queued work, mark work finished, stop an ' +
+  'agent, start one — saying nothing to it, where it left off if it ran before — rename it, ' +
+  'switch its model, run it as another account, remove an agent with its worktree and branch, ' +
+  'and close a project: closing deletes nothing and stops nothing, but the project’s own ' +
+  'settings go with it. An approval shows the command it is about, with this machine’s paths ' +
+  'shortened — where the task works as ./, your home as ~, any other path cut to its last name ' +
+  '— and every key Tade holds taken out. Acting can never change a setting, read a credential, ' +
+  'run a command, start an agent on words a device typed, push, merge or overrule a check; what ' +
+  'your device reaches past that, it reaches by talking to Tade or in the full view, as you ' +
+  'would here. Acting needs this machine itself or an https origin you named in Trusted ' +
   'hostnames, so a device paired over a network in the clear only ever reads — and every act is ' +
   'in the journal under the device that took it.'
 

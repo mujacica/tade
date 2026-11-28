@@ -5,8 +5,9 @@ import type { AgentMenuDoors } from './agent-doors.ts'
 import { type ActingDeps, after, onTask } from './web-acting.ts'
 
 // The window's end of the rest of an agent's menu from away: start, remove,
-// rename, model, thinking, account, harness and move — eight verbs, each
-// through the door a press on the window's row goes through.
+// rename, model and account — five verbs, the ones another machine's window
+// presses there (`remote-agent.ts`), each through the door a press on the
+// window's row goes through.
 //
 // **The same two checks as every verb.** `onTask` first: the revision the
 // device echoed is the one the projection would put on that row now, so a
@@ -21,26 +22,22 @@ import { type ActingDeps, after, onTask } from './web-acting.ts'
 // | `start` | the lane is not running, and the count of starts is the screen's | `Agents.reopenExactly`: `reopenAgent`, nothing said to it |
 // | `remove` | nothing past `was`: removing what is already gone is a `404` | `Agents.removeExactly`: stopped on purpose, then `removeTask` |
 // | `rename` | nothing past `was`: the same name twice is one name | `renameAgent`, its `task_named` line by the device |
-// | `model`, `thinking` | the lane is running | `setAgentModel`/`setAgentThinking`, which ask its harness |
-// | `account`, `harness` | nothing past `was`: the door compares with where it is | `setAgentAccount`/`setAgentHarness` |
-// | `move` | the lane is running | `Moves.handOver`, which asks the machine there first |
+// | `model` | the lane is running | `setAgentModel`, which asks its harness |
+// | `account` | nothing past `was`: the door compares with where it is | `setAgentAccount` |
 //
 // **Who may ask is the gate's**: every paired device is the person's own and
-// may ask for all eight, under the origin and the passkey. Nothing here
+// may ask for all five, under the origin and the passkey. Nothing here
 // widens that.
 
-/** The eight verbs this file carries out, as `WebActing` declares them. */
-export type AgentActing = Pick<
-  WebActing,
-  'start' | 'remove' | 'rename' | 'model' | 'thinking' | 'account' | 'harness' | 'move'
->
+/** The five verbs this file carries out, as `WebActing` declares them. */
+export type AgentActing = Pick<WebActing, 'start' | 'remove' | 'rename' | 'model' | 'account'>
 
-/** What the eight need beyond `ActingDeps`: the window's doors for its agent menu. */
+/** What the five need beyond `ActingDeps`: the window's doors for its agent menu. */
 export interface AgentActingDeps extends ActingDeps {
   menus: () => AgentMenuDoors
 }
 
-/** The eight verbs over one window's doors, one act per task at a time. */
+/** The five verbs over one window's doors, one act per task at a time. */
 export function agentActing(deps: AgentActingDeps): AgentActing {
   const busy = new Set<string>()
   // `async`, so a refusal from `onTask` is always a rejection and never a throw
@@ -118,27 +115,10 @@ export function agentActing(deps: AgentActingDeps): AgentActing {
           said: `switching to ${id}; new agents keep the default`,
         }
       }),
-    thinking: (call, from) =>
-      alone(call, async (facts) => {
-        running(deps, call.task, facts)
-        const level = await menus().thinking(call.task, call.level, byOf(from))
-        return { did: true, rev: after(facts), said: `thinks at ${level} from its next turn` }
-      }),
     account: (call, from) =>
       alone(call, async (facts) => {
         const said = await menus().account(call.task, call.account, byOf(from))
         return { did: true, rev: afterNow(deps, call.task, facts), said: `it ${said}` }
-      }),
-    harness: (call, from) =>
-      alone(call, async (facts) => {
-        const said = await menus().harness(call.task, call.harness, byOf(from))
-        return { did: true, rev: afterNow(deps, call.task, facts), said: `it ${said}` }
-      }),
-    move: (call, from) =>
-      alone(call, async (facts) => {
-        running(deps, call.task, facts)
-        const said = await menus().move(call.task, call.machine, byOf(from))
-        return { did: true, rev: after(facts), said }
       }),
   }
 }

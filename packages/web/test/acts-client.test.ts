@@ -1,6 +1,5 @@
-import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { QUEUE_ASKS as ASKS, BOUNDS, HOWS } from '../src/acting.ts'
+import { QUEUE_ASKS as ASKS, HOWS } from '../src/acting.ts'
 import {
   actsOf,
   afterAnswer,
@@ -45,12 +44,8 @@ const ROW = {
   can: [
     { verb: 'answer', how: 'now' },
     { verb: 'steer', how: 'next-turn' },
-    { verb: 'note', how: 'now' },
   ],
-  cannot: [
-    { verb: 'queue', why: 'it is not queued work' },
-    { verb: 'intake', why: 'it did not come from outside this machine' },
-  ],
+  cannot: [{ verb: 'queue', why: 'it is not queued work' }],
 }
 
 const BOTH = { steer: true }
@@ -103,7 +98,7 @@ describe('what kind of act each verb is, written twice', () => {
     expect(watched).not.toContain('first')
     // A resume lifts no park: a tap on it would do nothing.
     expect(watched).not.toContain('resume')
-    // Picking up a request from outside is approving it: the intake verb's.
+    // Picking up a request from outside is approving it, at the machine.
     const outside = changes({ parked: true, origin: { kind: 'intake', name: 'github' } })
     expect(outside).not.toContain('start')
     expect(outside).not.toContain('first')
@@ -165,7 +160,6 @@ describe('whether one control is drawn, and what is said instead', () => {
     // acts, and every control on it is absent.
     const none = actsOf({ device: 'dev_7f3a9c21', clear: true })
     expect(standingOf('steer', ROW, none)).toEqual({ kind: 'off', why: '' })
-    expect(standingOf('note', ROW, none)).toEqual({ kind: 'off', why: '' })
     expect(standingOf('answer', ROW, none)).toEqual({ kind: 'off', why: '' })
   })
 
@@ -242,8 +236,6 @@ describe('what a press sends', () => {
       allow: true,
       said: 'try the other migration',
       change: 'pause',
-      text: 'the fix is in the adapter',
-      add: 'the column is nullable',
       summary: 'it runs',
     }
     for (const verb of SHOWN) {
@@ -270,7 +262,7 @@ describe('what a press sends', () => {
   })
 
   it('carries a confirmation that has no shape meaning *do not*', () => {
-    for (const verb of ['done', 'intake']) {
+    for (const verb of ['done', 'stop']) {
       expect(bodyFor(verb, ROW, 'k'.repeat(8), 0, {}).confirm, verb).toBe(true)
     }
   })
@@ -323,14 +315,12 @@ describe('what happens to what somebody typed', () => {
 })
 
 describe('which presses ask again first', () => {
-  it('is the two that asking again does not undo, the two that are destructive-adjacent, and no others', () => {
-    // Marking work finished starts whatever waits on it; approving a
-    // stranger's request puts an agent on this machine to work on it. Neither
-    // is undone by pressing the same thing twice, so each takes a second tap.
-    // Stopping an agent cuts off the turn it was in and closing a project takes
-    // its own settings with it: undone by the other half of the pair, but not
-    // all of the way, so they take a second tap too.
-    expect(SHOWN.filter((verb) => confirms(verb))).toEqual(['done', 'intake', 'stop'])
+  it('is the one that asking again does not undo, the two that are destructive-adjacent, and no others', () => {
+    // Marking work finished starts whatever waits on it, which pressing the
+    // same thing twice does not undo, so it takes a second tap. Stopping an
+    // agent cuts off the turn it was in and closing a project takes its own
+    // settings with it, so they take a second tap too.
+    expect(SHOWN.filter((verb) => confirms(verb))).toEqual(['done', 'stop'])
     expect(PROJECT_SHOWN.filter((verb) => confirms(verb))).toEqual(['close'])
   })
 })
@@ -341,9 +331,7 @@ describe('the lifecycle, on a phone', () => {
   it('draws nothing for a device that cannot act, whatever the row says', () => {
     // Paired in the clear: the controls are absent and so are their reasons.
     const none = actsOf({ device: 'dev_7f3a9c21', clear: true })
-    for (const one of controlsFor(task(), none).filter((each) =>
-      ['stop', 'reopen'].includes(each.verb),
-    )) {
+    for (const one of controlsFor(task(), none).filter((each) => ['stop'].includes(each.verb))) {
       expect(one.kind, one.verb).toBe('off')
     }
     const project = {
@@ -351,47 +339,30 @@ describe('the lifecycle, on a phone', () => {
       rev: 'o1.c0',
       open: true,
       can: [{ verb: 'close', how: 'now' }],
-      cannot: [{ verb: 'open', why: 'it is open' }],
+      cannot: [],
     }
     for (const one of controlsFor(project, none, PROJECT_SHOWN))
       expect(one.kind, one.verb).toBe('off')
   })
 
-  it('draws one block per pair: the half that can be asked, or the first where neither can', () => {
+  it('draws the stop where its agent runs, and its reason where it does not', () => {
     const running = controlsFor(task(), LIFE)
     expect(running.find((one) => one.verb === 'stop')?.kind).toBe('yes')
-    // Its reason is the stop control beside it, so it is not said twice.
-    expect(running.find((one) => one.verb === 'reopen')?.kind).toBe('off')
-
     const stopped = controlsFor(
       task({
         lane: 'stopped',
-        can: [{ verb: 'reopen', how: 'now' }],
+        can: [],
         cannot: [{ verb: 'stop', why: 'its agent is already stopped' }],
       }),
       LIFE,
     )
-    expect(stopped.find((one) => one.verb === 'stop')?.kind).toBe('off')
-    expect(stopped.find((one) => one.verb === 'reopen')?.kind).toBe('yes')
-
-    const never = 'no agent has run on it, and starting one is done at the machine'
-    const none = controlsFor(
-      task({
-        lane: 'none',
-        can: [],
-        cannot: [
-          { verb: 'stop', why: never },
-          { verb: 'reopen', why: never },
-        ],
-      }),
-      LIFE,
-    )
-    // Neither can: the first one's reason stands for both, once.
-    expect(none.find((one) => one.verb === 'stop')).toMatchObject({ kind: 'no', why: never })
-    expect(none.find((one) => one.verb === 'reopen')?.kind).toBe('off')
+    expect(stopped.find((one) => one.verb === 'stop')).toMatchObject({
+      kind: 'no',
+      why: 'its agent is already stopped',
+    })
   })
 
-  it('sends what each of the four declares, the literal included, and the row\u2019s own revision', () => {
+  it('sends what each of the two declares, the literal included, and the row\u2019s own revision', () => {
     // A row as the wire carries one, with its revision on it.
     const row = { ...task(), rev: 'p0.a0.q0.g1.f0.knone.lrunning.r1' }
     expect(bodyFor('stop', row, 'k'.repeat(16), 7, {})).toEqual({
@@ -401,12 +372,6 @@ describe('the lifecycle, on a phone', () => {
       rev: 7,
       confirm: true,
     })
-    expect(bodyFor('reopen', row, 'k'.repeat(16), 7, {})).toEqual({
-      task: row.id,
-      was: row.rev,
-      key: 'k'.repeat(16),
-      rev: 7,
-    })
     const project = { name: 'tade', rev: 'o1.c3' }
     expect(bodyFor('close', project, 'k'.repeat(16), 7, {})).toEqual({
       project: 'tade',
@@ -415,29 +380,21 @@ describe('the lifecycle, on a phone', () => {
       rev: 7,
       confirm: true,
     })
-    expect(bodyFor('open', project, 'k'.repeat(16), 7, {})).toEqual({
-      project: 'tade',
-      was: 'o1.c3',
-      key: 'k'.repeat(16),
-      rev: 7,
-    })
     // And the server reads each of them, so the page sends nothing it refuses.
     for (const [verb, made] of [
       ['stop', bodyFor('stop', row, 'k'.repeat(16), 7, {})],
-      ['reopen', bodyFor('reopen', row, 'k'.repeat(16), 7, {})],
       ['close', bodyFor('close', project, 'k'.repeat(16), 7, {})],
-      ['open', bodyFor('open', project, 'k'.repeat(16), 7, {})],
     ] as const) {
       expect(verbFor(verb)?.read(made).ok, verb).toBe(true)
     }
   })
 
-  it('says each press in Tade\u2019s words, under one heading per pair', () => {
-    for (const verb of ['stop', 'reopen', 'close', 'open']) {
+  it('says each press in Tade\u2019s words, under a heading of its own', () => {
+    for (const verb of ['stop', 'close']) {
       expect(wordsFor(verb, task()).length, verb).toBeGreaterThan(5)
     }
-    expect(headingFor('stop')).toBe(headingFor('reopen'))
-    expect(headingFor('close')).toBe(headingFor('open'))
+    expect(headingFor('stop')).toBe('ITS AGENT')
+    expect(headingFor('close')).toBe('THIS PROJECT')
   })
 })
 

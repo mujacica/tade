@@ -5,7 +5,6 @@ import {
   describeQueueState,
   expandHome,
   holdSaid,
-  type InboxRow,
   intakeFrom,
   intakeOf,
   inWrittenOrder,
@@ -66,7 +65,7 @@ import { Forecast } from './forecast.ts'
 import { type Tellable, tellOrKeep } from './handed.ts'
 import { type Places, placePlan } from './placing.ts'
 import { decideProposal, type ProposalRequest } from './proposals.ts'
-import { intakeSays, planHold, plansFor, probingNow, standsFor } from './queue-holds.ts'
+import { intakeSays, planHold, plansFor, probingNow } from './queue-holds.ts'
 import { type RaceTools, raceTools } from './races.ts'
 import type { ThereDoor } from './remote-agent.ts'
 import { type ReplayTools, replaysLook, replayTools } from './replays.ts'
@@ -438,11 +437,6 @@ export class Queue implements Subject {
     // (`said`), and a beat with nothing ready — nearly every beat — says nothing.
     if (started.length > 0 || this.wire.state.transcript !== transcript) this.wire.draw()
     return started
-  }
-
-  /** Whether approving an inbox row may go ahead: `queue-holds.ts`, one rule with the start's. */
-  standsFor(row: InboxRow): Promise<string | null> {
-    return standsFor(this.wire, row)
   }
 
   /**

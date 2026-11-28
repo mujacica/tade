@@ -27,10 +27,7 @@ function windowOf(lane: 'none' | 'running' | 'stopped', starts = 1) {
     remove: door('remove', undefined) as AgentMenuDoors['remove'],
     rename: door('rename', 'the migration') as AgentMenuDoors['rename'],
     model: door('model', 'anthropic/claude-opus-5') as AgentMenuDoors['model'],
-    thinking: door('thinking', 'high') as AgentMenuDoors['thinking'],
     account: door('account', 'runs as work') as AgentMenuDoors['account'],
-    harness: door('harness', 'runs in codex') as AgentMenuDoors['harness'],
-    move: door('move', 'handed to vps') as AgentMenuDoors['move'],
     menu: () => Promise.resolve(null),
   }
   const deps = {
@@ -60,10 +57,7 @@ describe('each verb of an agent’s menu, at the window', () => {
     const cases = [
       ['rename', { title: 'the migration' }, ['the migration']],
       ['model', { model: 'claude-opus-5' }, ['claude-opus-5']],
-      ['thinking', { level: 'high' }, ['high']],
       ['account', { account: 'work' }, ['work']],
-      ['harness', { harness: 'codex' }, ['codex']],
-      ['move', { machine: 'vps', confirm: true }, ['vps']],
       ['remove', { confirm: true }, []],
     ] as const
     for (const [verb, call, args] of cases) {
@@ -96,12 +90,8 @@ describe('each verb of an agent’s menu, at the window', () => {
     expect(made.calls).toEqual([])
   })
 
-  it('refuses a model, a level or a hand-over where nothing is running', async () => {
-    for (const [verb, call] of [
-      ['model', { model: 'claude-opus-5' }],
-      ['thinking', { level: 'high' }],
-      ['move', { machine: 'vps', confirm: true }],
-    ] as const) {
+  it('refuses a model where nothing is running', async () => {
+    for (const [verb, call] of [['model', { model: 'claude-opus-5' }]] as const) {
       const made = windowOf('stopped')
       await expect(
         (made.acting[verb] as (call: unknown, from: typeof DEVICE) => Promise<unknown>)(

@@ -47,10 +47,9 @@ import { aloneOn, taskContextPath } from './tasks.ts'
 /**
  * How big a task's context may get by being added to.
  *
- * A total and not a per-append bound: the per-act bound is `@tade/web`'s
- * (`BOUNDS.add`), and without a total a phone could add four thousand
- * characters a thousand times and rewrite an agent's instructions by
- * accumulation. Over it is a refusal and never a truncation.
+ * A total and not a per-append bound: without a total, a caller could add
+ * four thousand characters a thousand times and rewrite an agent's
+ * instructions by accumulation. Over it is a refusal and never a truncation.
  *
  * **In bytes**, because that is the only unit both halves of the arithmetic
  * can be in: what the file already holds comes from `stat`, which counts

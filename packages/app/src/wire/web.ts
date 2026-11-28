@@ -324,7 +324,6 @@ export class Away implements Subject {
         seen: (task) => this.factsOn(task),
         projects: () => this.collections().projects,
         lifecycle: this.deps.lifecycle,
-        stands: (row) => this.deps.stands(row),
         queue: () => ({
           items: this.wire.live?.queued ?? [],
           events: this.wire.live?.queueFacts().events ?? [],

@@ -70,7 +70,7 @@ function canOf(agent: FarAgent): Can[] {
       { verb: 'model', how: 'now' },
     )
   }
-  if (lane === 'stopped') can.push({ verb: 'reopen', how: 'now' })
+  if (lane === 'stopped') can.push({ verb: 'start', how: 'now' })
   if (agent.queued) can.push({ verb: 'queue', how: 'now' })
   return can
 }
@@ -203,20 +203,12 @@ export function farActing(acted: FarAct[]): WebActing {
     steer: did('steer'),
     queue: did('queue'),
     done: did('done'),
-    note: did('note'),
-    context: did('context'),
-    intake: did('intake'),
     stop: did('stop'),
-    reopen: did('reopen'),
     close: did('close'),
-    open: did('open'),
     start: did('start'),
     remove: did('remove'),
     rename: did('rename'),
     model: did('model'),
-    thinking: did('thinking'),
     account: did('account'),
-    harness: did('harness'),
-    move: did('move'),
   }
 }

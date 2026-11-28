@@ -99,7 +99,7 @@ describe('the projects that may be opened again', () => {
         changes: 2,
         // A closed project is looked at by no watch here.
         watching: [],
-        can: [{ verb: 'open', how: 'now' }],
+        can: [],
         cannot: [{ verb: 'close', why: 'it is already closed' }],
       },
     ])
@@ -108,11 +108,11 @@ describe('the projects that may be opened again', () => {
     expect(closedIn(lines, new Set(['app']))).toEqual([])
   })
 
-  it('offers exactly one of the two on every project, with the reason for the other', () => {
+  it('says on every project whether it may be closed, with the reason where not', () => {
     for (const open of [true, false]) {
       const made = projectAble(open)
       const named = [...made.can, ...made.cannot].map((one) => one.verb).sort()
-      expect(named).toEqual(['close', 'open'])
+      expect(named).toEqual(['close'])
       for (const one of made.cannot) expect(one.why.length).toBeGreaterThan(5)
     }
   })

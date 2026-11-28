@@ -129,7 +129,6 @@ export interface Steering {
 export interface AgentAble {
   harness: string
   model: Steering
-  thinking: Steering
   /** Whether it can be moved to another account of its harness. */
   accounts: boolean
 }
@@ -209,24 +208,11 @@ export function ableOn(task: AbleFacts): { can: Can[]; cannot: Cannot[] } {
   if (task.finished) no('done', 'the journal already says it is finished')
   else yes('done')
 
-  // A note and a context block are always possible: both are appends to files
-  // Tade owns, neither needs an agent and neither can lose anything somebody
-  // wrote here. What they need is the grant, which is not this question.
-  yes('note')
-  yes('context')
-
-  if (task.origin !== 'intake') no('intake', 'it did not come from outside this machine')
-  else if (task.finished) no('intake', 'the journal already says it is finished')
-  else if (!task.parked) no('intake', 'it is not waiting to be approved')
-  else yes('intake')
-
   // The lifecycle, read off the agent's **own lane** and never off `agents`,
-  // which counts a stopped lane as a signal too. `reopen` brings back one that
-  // ran; one that never ran is `start`'s, which is said.
+  // which counts a stopped lane as a signal too. `start` brings back one that
+  // ran, and starts one that never did.
   if (task.lane === 'running') yes('stop')
   else no('stop', task.lane === 'stopped' ? 'its agent is already stopped' : NEVER_RAN)
-  if (task.lane === 'stopped') yes('reopen')
-  else no('reopen', task.lane === 'running' ? 'its agent is running' : NEVER_RAN)
 
   // The rest of the window's own agent menu, each by the rule its item there is
   // drawn by (`menuItems`): what it needs of the lane, and what the harness
@@ -245,19 +231,14 @@ export function ableOn(task: AbleFacts): { can: Can[]; cannot: Cannot[] } {
   yes('remove')
   yes('rename')
   const offers = task.steering.offers
-  for (const verb of ['model', 'thinking'] as const) {
-    const offered = offers?.[verb] ?? { how: 'now' as How, why: '' }
-    if (!running) no(verb, 'its agent is not running')
-    else if (offered.how === null) no(verb, offered.why)
-    else yes(verb, offered.how)
-  }
-  // Another account or harness carries the conversation and starts a running
-  // agent again there; a stopped one takes it at its next start.
+  const model = offers?.model ?? { how: 'now' as How, why: '' }
+  if (!running) no('model', 'its agent is not running')
+  else if (model.how === null) no('model', model.why)
+  else yes('model', model.how)
+  // Another account carries the conversation and starts a running agent
+  // again there; a stopped one takes it at its next start.
   if (offers !== undefined && !offers.accounts) no('account', `one account in ${offers.harness}`)
   else yes('account', running ? 'restart' : 'now')
-  yes('harness', running ? 'restart' : 'now')
-  if (running) yes('move')
-  else no('move', 'its agent is not running: only running work is handed over')
 
   return { can, cannot }
 }

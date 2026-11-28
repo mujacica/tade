@@ -174,8 +174,6 @@ export interface Machine {
 
 export interface MachineOptions {
   acting?: boolean
-  /** Why work from outside may not go ahead, where a test wants it held. */
-  stands?: () => Promise<string | null>
   /** The factory floor, where a test wants requests, doors, runs or workflows in it. */
   factory?: () => FactoryHeld
   /** The config the window reads, where a test needs a grant in it. */
@@ -449,7 +447,6 @@ export async function machine(over: MachineOptions = {}): Promise<Machine> {
       remoteSaid: (text: string, device: string) => said.push({ text, device }),
       theirSaid: (text: string) => theirs.push(text),
     },
-    stands: over.stands ?? (() => Promise.resolve(null)),
     factory: over.factory ?? (() => nothingHandedOver()),
     // A fixture must not be kinder than reality: a key written here goes into
     // the harness's own config file, so a test that turns notifications on

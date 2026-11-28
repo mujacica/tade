@@ -118,8 +118,6 @@ describe('the rest of an agent’s menu, from away', () => {
       'mark-done',
       'rename',
       'model',
-      'thinking',
-      'harness',
       'account',
       'park',
       'remove',

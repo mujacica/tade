@@ -1,4 +1,4 @@
-import type { Config, InboxRow, Queued, TadeEvent } from '@tade/core'
+import type { Config, Queued, TadeEvent } from '@tade/core'
 import type {
   Device,
   ProjectIn,
@@ -43,10 +43,8 @@ export interface Halving {
   seen: (task: string) => TaskFacts | null
   /** The project rows the projection was built from: what a project verb's `was` is checked against. */
   projects: () => readonly ProjectIn[]
-  /** The agents and projects subjects, for the four lifecycle verbs. */
+  /** The agents and projects subjects, for the lifecycle verbs. */
   lifecycle: Lifecycle
-  /** Why work that came from outside may not go ahead now, or null. */
-  stands: (row: InboxRow) => Promise<string | null>
   queue: () => { items: readonly Queued[]; events: readonly TadeEvent[] }
   talking: () => boolean
   /** The devices as they are **now**, so a grant narrowed a second ago counts. */
@@ -142,10 +140,6 @@ function actingFor(deps: Halving): ServerOptions['acting'] {
     // revision.
     seen: (task) => deps.seen(task),
     steering: (task) => steeringFor(deps.tade, task),
-    // The queue's own rule asked of work that came from outside,
-    // which needs the extension host: only a window can ask a
-    // watch whether a request still stands.
-    stands: (row) => deps.stands(row),
     queue: deps.queue,
     // The window's own config, read at the act: a grant somebody
     // turned off a second ago has to mean something before the next

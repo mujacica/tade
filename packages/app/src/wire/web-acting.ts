@@ -1,20 +1,10 @@
-import {
-  type Asker,
-  type Config,
-  type InboxRow,
-  orderFirst,
-  type Queued,
-  type TadeEvent,
-} from '@tade/core'
+import { type Asker, type Config, orderFirst, type Queued, type TadeEvent } from '@tade/core'
 import {
   type AnswerCall,
   byOf,
-  type ContextCall,
   type DoneCall,
   type From,
-  type IntakeCall,
   Moved,
-  type NoteCall,
   NotOffered,
   NotThere,
   type Outcome,
@@ -23,22 +13,10 @@ import {
   type QueueCall,
   type SteerCall,
   type TaskFacts,
-  TooMuch,
   taskRev,
   type WebActing,
 } from '@tade/web'
-import {
-  addToContext,
-  approveIntake,
-  ContextNotOurs,
-  ContextTooBig,
-  type IntakeDoors,
-  inboxFrom,
-  NoTaskFile,
-  NoTaskFolder,
-  NotYours,
-  ParkMovedOn,
-} from '@tade/workbench'
+import { type IntakeDoors, NoTaskFile, NotYours, ParkMovedOn } from '@tade/workbench'
 import type { Steering } from '../away.ts'
 import type { AgentActing } from './web-agent.ts'
 import type { LifecycleActing, LifecycleDeps } from './web-lifecycle.ts'
@@ -79,10 +57,8 @@ import type { LifecycleActing, LifecycleDeps } from './web-lifecycle.ts'
 // | `steer` | the registry answers whether a lane is alive; a dead one is refused, never typed at |
 // | `queue` | nothing, and nothing is needed: every choice folds to the same answer twice |
 // | `done` | the journal, read here: a second `task_done` is refused rather than appended |
-// | `note`, `context` | an append, which cannot lose what somebody else wrote |
-// | `intake` | `whyNotAct` on the row, plus the grant and the source, all at the act |
-// | `stop`, `reopen` | the registry's own lane and the journal's count of starts, read at the act, one at a time per task (`web-lifecycle.ts`) |
-// | `close`, `open` | the window's config and the journal's lines about where the project lives, read at the act, one at a time per project |
+// | `stop` | the registry's own lane and the journal's count of starts, read at the act, one at a time per task (`web-lifecycle.ts`) |
+// | `close` | the window's config and the journal's lines about where the project lives, read at the act, one at a time per project |
 //
 // A verb whose answer to that column is "nothing" and whose effect is not
 // idempotent does not belong in this file.
@@ -114,14 +90,6 @@ export interface ActingDeps {
   /** How this task's agent may be told something, as its harness says. */
   steering: (task: string) => Steering
   /**
-   * Why work that came from outside may not go ahead now, or null.
-   *
-   * The queue's own question (`intakeStands`): the grant, the plan, and the
-   * source asked again. Only a window can answer it, because it needs the
-   * extension host that can reach the watch.
-   */
-  stands: (row: InboxRow) => Promise<string | null>
-  /**
    * The queue as the window holds it, for the one choice that needs the list.
    *
    * `first` is an order, and an order is a list of task ids — which is
@@ -137,9 +105,8 @@ export interface ActingDeps {
    *
    * A function and not a value, and the window's rather than the workbench's:
    * a setting changed while Tade has been open is in the window's config and
-   * not in the one the workbench was opened with, and a grant is permission at
-   * the moment of acting. The one verb that reads it is `intake`, where the
-   * answer decides whether a stranger's request goes ahead.
+   * not in the one the workbench was opened with. The one verb that reads it
+   * is `close`, which takes the project out of it.
    */
   config: () => Config
   /** The moment, so nothing here reads a clock of its own. */
@@ -158,8 +125,6 @@ export interface ActingDoors extends IntakeDoors {
   config: Config
   events(filter: { types?: readonly TadeEvent['type'][]; task?: string }): Promise<TadeEvent[]>
   markDone(task: string, how: { by: Asker; summary?: string }): Promise<void>
-  /** A note, verbatim, with who wrote it. Never a `said` line. */
-  remember(text: string, scope: string | null, by: string, summary: string | null): unknown
   steerAgent(task: string, message: string): Promise<void>
   /** The person dropping waits on machines silent for days (`dropSilentWaits`); absent, the phone cannot. */
   dropSilentWaits?(task: string, by: string): Promise<string[]>
@@ -195,9 +160,6 @@ export function webActing(
     steer: (call, from) => steer(deps, call, from),
     queue: (call, from) => queued(deps, call, from),
     done: (call, from) => done(deps, call, from),
-    note: (call, from) => note(deps, call, from),
-    context: (call, from) => context(deps, call, from),
-    intake: (call, from) => intake(deps, call, from),
   }
 }
 
@@ -514,106 +476,4 @@ export function done(deps: ActingDeps, call: DoneCall, from: From): Promise<Outc
     })
     return { did: true, rev: after(facts, { finished: true }), said: 'marked finished' }
   })
-}
-
-/**
- * Write a note down about a task, exactly as it arrived.
- *
- * **Verbatim, with its origin, and it is not a `said` line.** A note is the
- * thing Tade is *told* rather than derives: never reworded, never lowercased,
- * and a `summary` is only ever one somebody wrote beside it — so this writes
- * no summary at all, because a summary made out of the text is the one thing a
- * note may never carry. The `by` is the device, which is what keeps a remote
- * note from reading as the owner's own words, and `said` — whose one writer is
- * the keyboard, and which `namedBy` reads to authorise settings changes — is
- * not touched.
- */
-export function note(deps: ActingDeps, call: NoteCall, from: From): Promise<Outcome> {
-  return onTask(deps, call, async (facts) => {
-    // Scoped to the task it is about, which is how `recall` finds it for that
-    // task, for its project's pages, and for the agent that starts next.
-    deps.tade.remember(call.text, call.task, byOf(from), null)
-    return { did: true, rev: after(facts), said: 'written down' }
-  })
-}
-
-/**
- * Add to what a task's agent is told.
- *
- * `addToContext` is the whole of it, and the containment is there rather than
- * here: the id is validated, the task's folder is resolved and must come out
- * inside Tade's home, and the file is opened `O_NOFOLLOW`. What this adds is
- * the mapping from its three refusals onto the ones the page knows — and
- * `ContextNotOurs` is an `out_of_scope` rather than a `broke`, because a
- * context file that is a link is a fact about this machine and not a failure
- * of the request.
- */
-export function context(deps: ActingDeps, call: ContextCall, from: From): Promise<Outcome> {
-  return onTask(deps, call, async (facts) => {
-    try {
-      const added = await addToContext(deps.tade, {
-        task: call.task,
-        add: call.add,
-        by: byOf(from),
-        at: deps.now(),
-      })
-      return {
-        did: true,
-        rev: after(facts),
-        said: `added to its context (${added.bytes} bytes now)`,
-      }
-    } catch (err) {
-      if (err instanceof NoTaskFolder) throw new NotThere(err.message)
-      if (err instanceof ContextNotOurs) throw new OutOfScope(err.message)
-      if (err instanceof ContextTooBig) throw new TooMuch(err.message)
-      throw err
-    }
-  })
-}
-
-/**
- * Approve a request that arrived from outside this machine.
- *
- * **Everything that makes this safe is somewhere else, deliberately.** The row
- * is found by the task, `whyNotAct` refuses one that is not waiting to be
- * approved, the grant is read again out of the config as it stands, and the
- * source is asked whether the request still says what it said — all inside
- * `approveIntake`, which is the door a keypress goes through too. A check
- * written into this function would be a check the next surface has to
- * remember.
- *
- * What this verb adds is only that the asking was a device: `by` carries the
- * id, which is what makes `approveIntake` demand the source re-check at all,
- * and what makes the journal say who approved it. Nothing here creates a
- * grant, replies to anybody or starts work — approving lifts the park, and the
- * queue starts what it starts by its own rule.
- */
-export function intake(deps: ActingDeps, call: IntakeCall, from: From): Promise<Outcome> {
-  return onTask(deps, call, async (facts) => {
-    const row = await rowOf(deps, call.task)
-    if (row === null) throw new NotThere(`nothing from outside this machine made ${call.task}`)
-    try {
-      const acted = await approveIntake(deps.tade, {
-        item: row.item,
-        by: byOf(from) as Asker,
-        config: deps.config(),
-        stands: (one) => deps.stands(one),
-      })
-      return { did: true, rev: after(facts, { parked: false }), said: acted.said }
-    } catch (err) {
-      // **Every refusal here is `out_of_scope` with the door's own sentence**,
-      // and that is the honest word for all of them: the grant was turned off,
-      // the project came off its list, the source closed the ticket, or nobody
-      // could reach the source. None of them is a thing to retry and none is a
-      // failure of this machine — what they have in common is that *that* is
-      // not something a device may do, now.
-      throw new OutOfScope(err instanceof Error ? err.message : String(err))
-    }
-  })
-}
-
-/** The inbox row one task came from, or null for a task that came from here. */
-async function rowOf(deps: ActingDeps, task: string): Promise<InboxRow | null> {
-  const rows = await inboxFrom({ home: deps.tade.home, events: await deps.tade.log.read({}) })
-  return rows.find((row) => row.tasks.includes(task)) ?? null
 }

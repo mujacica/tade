@@ -1,4 +1,4 @@
-import { MACHINE_NAMED, TaskId, THINKING_LEVELS } from '@tade/core'
+import { TaskId } from '@tade/core'
 import { z } from 'zod'
 import {
   BOUNDS,
@@ -113,15 +113,7 @@ const DoneBody = z.strictObject({
   summary: z.string().max(BOUNDS.summary).default(''),
 })
 
-const NoteBody = z.strictObject({ ...Every, text: authored(BOUNDS.text) })
-
-const ContextBody = z.strictObject({ ...Every, add: authored(BOUNDS.add) })
-
-const IntakeBody = z.strictObject({ ...Every, confirm: z.literal(true) })
-
 const StopBody = z.strictObject({ ...Every, confirm: z.literal(true) })
-
-const ReopenBody = z.strictObject({ ...Every })
 
 const StartBody = z.strictObject({ ...Every })
 
@@ -142,24 +134,8 @@ const Named = z
 
 const ModelBody = z.strictObject({ ...Every, model: Named })
 
-const ThinkingBody = z.strictObject({ ...Every, level: z.enum(THINKING_LEVELS) })
-
 /** `''` is the harness's own sign-in, which has no name of Tade's. */
 const AccountBody = z.strictObject({ ...Every, account: z.union([z.literal(''), Named]) })
-
-const HarnessBody = z.strictObject({
-  ...Every,
-  harness: z
-    .string()
-    .max(40)
-    .regex(/^[a-z0-9][a-z0-9-]*$/),
-})
-
-const MoveBody = z.strictObject({
-  ...Every,
-  machine: z.string().regex(MACHINE_NAMED),
-  confirm: z.literal(true),
-})
 
 /**
  * What a verb about a whole project carries: the project instead of a task.
@@ -180,8 +156,6 @@ const OnProject = {
 }
 
 const CloseBody = z.strictObject({ ...OnProject, confirm: z.literal(true) })
-
-const OpenBody = z.strictObject({ ...OnProject })
 
 /**
  * One asked-for act, parsed, bound and ready.
@@ -449,124 +423,8 @@ export const DONE: Verb = {
 }
 
 /**
- * Write a note down about a task, exactly as it arrived.
- *
- * `steer`, because a note is read by every agent that starts afterwards
- * (`composeAgentPrompt`), which makes it the gentlest way to change what work
- * gets done.
- *
- * **It is a note and it is never a `said` line.** `said` has one writer and
- * `namedBy` reads those lines to authorise settings changes; a note is the
- * thing Tade is *told*, kept verbatim with who told it, and the `by` on this
- * one is the device. The two are different records and this is the second.
- */
-export const NOTE: Verb = {
-  name: 'note',
-  needs: 'steer',
-  about: 'write something down about a task, as you wrote it',
-  on: 'task',
-  read(body) {
-    const got = NoteBody.safeParse(body)
-    if (!got.success) return { ok: false }
-    const call = got.data
-    return {
-      ok: true,
-      asked: {
-        verb: 'note',
-        task: call.task,
-        project: projectOf(call.task),
-        was: call.was,
-        key: call.key,
-        rev: call.rev,
-        payload: `text=${call.text}`,
-        said: 'wrote a note',
-        run: (acting, from) =>
-          acting.note({ task: call.task, was: call.was, text: call.text }, from),
-      },
-    }
-  },
-}
-
-/**
- * Add to what a task's agent is told.
- *
- * `steer`, and an **append**: there is no field here for what the context
- * should become, so nothing a device sends can overwrite what somebody typed
- * at the machine. `acting.ts`'s `ContextCall` has the argument for why that is
- * the design rather than a limitation.
- */
-export const CONTEXT: Verb = {
-  name: 'context',
-  needs: 'steer',
-  about: 'add to what a task’s agent is told',
-  on: 'task',
-  read(body) {
-    const got = ContextBody.safeParse(body)
-    if (!got.success) return { ok: false }
-    const call = got.data
-    return {
-      ok: true,
-      asked: {
-        verb: 'context',
-        task: call.task,
-        project: projectOf(call.task),
-        was: call.was,
-        key: call.key,
-        rev: call.rev,
-        payload: `add=${call.add}`,
-        said: 'added to its context',
-        run: (acting, from) =>
-          acting.context({ task: call.task, was: call.was, add: call.add }, from),
-      },
-    }
-  },
-}
-
-/**
- * Approve work that arrived from outside this machine.
- *
- * `answer`, which is the tier for answering something that is already waiting
- * — and it is the one verb here whose target is somebody else's request, so
- * it carries two re-checks the others do not need and that only the machine
- * can make: **the local grant must still allow it**, and **the source must
- * still say what it said**. Both are asked at the moment of the act
- * (`intakeStands`), and a source that cannot be reached holds rather than
- * passes, which is the one direction this has to get right.
- *
- * It **creates no grant**: the thing that grants authority is never reachable
- * from inside the authority it granted. A device can approve what a person at
- * this machine already allowed, and nothing else.
- */
-export const INTAKE: Verb = {
-  name: 'intake',
-  needs: 'steer',
-  about: 'approve a request that came from outside this machine',
-  on: 'task',
-  read(body) {
-    const got = IntakeBody.safeParse(body)
-    if (!got.success) return { ok: false }
-    const call = got.data
-    return {
-      ok: true,
-      asked: {
-        verb: 'intake',
-        task: call.task,
-        project: projectOf(call.task),
-        was: call.was,
-        key: call.key,
-        rev: call.rev,
-        payload: 'approve',
-        said: 'approved what came from outside',
-        run: (acting, from) =>
-          acting.intake({ task: call.task, was: call.was, confirm: true }, from),
-      },
-    }
-  },
-}
-
-/**
  * Stop a task's agent. Its lane ends; the lane's spec, its conversation, its
- * branch and its worktree all stay, and `reopen` puts it back.
+ * branch and its worktree all stay, and `start` puts it back where it left off.
  *
  * **Two presses and a literal**, like `done`: what a turn was in the middle of
  * is not undone by opening the agent again.
@@ -592,39 +450,6 @@ export const STOP: Verb = {
         payload: 'stop',
         said: 'stopped its agent',
         run: (acting, from) => acting.stop({ task: call.task, was: call.was, confirm: true }, from),
-      },
-    }
-  },
-}
-
-/**
- * Open a task's stopped agent again where it left off, saying nothing to it.
- *
- * `agents`, the same decision as `stop` from the other side. **Never a new
- * agent**: the window refuses it where none has ever run, so what this can
- * bring up is a conversation that already existed and nothing else.
- */
-export const REOPEN: Verb = {
-  name: 'reopen',
-  needs: 'agents',
-  about: 'open a stopped agent again where it left off, saying nothing to it',
-  on: 'task',
-  read(body) {
-    const got = ReopenBody.safeParse(body)
-    if (!got.success) return { ok: false }
-    const call = got.data
-    return {
-      ok: true,
-      asked: {
-        verb: 'reopen',
-        task: call.task,
-        project: projectOf(call.task),
-        was: call.was,
-        key: call.key,
-        rev: call.rev,
-        payload: 'reopen',
-        said: 'opened its agent again',
-        run: (acting, from) => acting.reopen({ task: call.task, was: call.was }, from),
       },
     }
   },
@@ -670,38 +495,6 @@ export const CLOSE: Verb = {
   },
 }
 
-/**
- * Put a closed project back where the journal says it was.
- *
- * `projects`, the same decision as `close`. There is no path in the body, so
- * what a device can open is a project Tade has had and nothing else.
- */
-export const OPEN: Verb = {
-  name: 'open',
-  needs: 'projects',
-  about: 'open a closed project again, where it was when it closed',
-  on: 'project',
-  read(body) {
-    const got = OpenBody.safeParse(body)
-    if (!got.success) return { ok: false }
-    const call = got.data
-    return {
-      ok: true,
-      asked: {
-        verb: 'open',
-        task: '',
-        project: call.project,
-        was: call.was,
-        key: call.key,
-        rev: call.rev,
-        payload: 'open',
-        said: 'opened the project again',
-        run: (acting, from) => acting.open({ project: call.project, was: call.was }, from),
-      },
-    }
-  },
-}
-
 /** One task's own act, built the same way for every agent verb below. */
 function onTaskOf(
   verb: string,
@@ -729,8 +522,7 @@ function onTaskOf(
 /**
  * Start a task's agent: the window's own Start agent, saying nothing to it.
  *
- * `agents`, beside `stop` and `reopen`, and the same decision from its third
- * side. **There is no opening instruction in it** (`StartAgentCall`): where an
+ * `agents`, beside `stop`, and the same decision from its other side. **There is no opening instruction in it** (`StartAgentCall`): where an
  * agent ran it comes back where it left off, and where none did one starts on
  * what its task already said at the machine — so the text an agent acts on is
  * never a device's. Refused where it is running, for work that is queued (the
@@ -805,27 +597,6 @@ export const MODEL: Verb = {
   },
 }
 
-/** How hard a running agent thinks, among the levels its harness offers. */
-export const THINKING: Verb = {
-  name: 'thinking',
-  needs: 'agents',
-  about: 'change how hard a running agent thinks',
-  on: 'task',
-  read(body) {
-    const got = ThinkingBody.safeParse(body)
-    if (!got.success) return { ok: false }
-    const call = got.data
-    return onTaskOf(
-      'thinking',
-      call,
-      `level=${call.level}`,
-      'changed how hard it thinks',
-      (acting, from) =>
-        acting.thinking({ task: call.task, was: call.was, level: call.level }, from),
-    )
-  },
-}
-
 /**
  * Run an agent as another account of its harness, by name: it decides whose
  * sign-in and whose plan the work is paid from, and no credential crosses.
@@ -850,66 +621,20 @@ export const ACCOUNT: Verb = {
   },
 }
 
-/** Run an agent in another harness. */
-export const HARNESS: Verb = {
-  name: 'harness',
-  needs: 'agents',
-  about: 'run an agent in another harness, starting it again there if it is running',
-  on: 'task',
-  read(body) {
-    const got = HarnessBody.safeParse(body)
-    if (!got.success) return { ok: false }
-    const call = got.data
-    return onTaskOf(
-      'harness',
-      call,
-      `harness=${call.harness}`,
-      'moved it to another harness',
-      (acting, from) =>
-        acting.harness({ task: call.task, was: call.was, harness: call.harness }, from),
-    )
-  },
-}
-
-/**
- * Hand a running agent to another of the person's machines: the window's own
- * Hand to, in two presses: the work goes
- * to a machine the device names, which is where its project is checked out
- * already and nowhere else.
- */
-export const MOVE: Verb = {
-  name: 'move',
-  needs: 'agents',
-  about: 'hand a running agent to another of your machines that has its project',
-  on: 'task',
-  read(body) {
-    const got = MoveBody.safeParse(body)
-    if (!got.success) return { ok: false }
-    const call = got.data
-    return onTaskOf(
-      'move',
-      call,
-      `machine=${call.machine}`,
-      'handed it to another machine',
-      (acting, from) =>
-        acting.move({ task: call.task, was: call.was, machine: call.machine, confirm: true }, from),
-    )
-  },
-}
-
 /**
  * The verbs there are, and the whole of what a paired device may ever do.
  *
- * Twenty, and the order is the order they arrived in rather than a ranking:
+ * Twelve, and the order is the order they arrived in rather than a ranking:
  * park went first because it was the smallest act that proved the path, the
- * next seven are the scope matrix filled in, the next four are the lifecycle
- * — an agent stopped and opened again, a project closed and opened again —
- * and the last eight are the rest of the window's own agent menu, so a phone
- * can do to an agent what a press on its row can. What they have in common is
+ * next four are the scope matrix filled in, then an agent stopped and a
+ * project closed, and the last five are the rest of the window's own agent
+ * menu that another machine's window presses there (`remote-agent.ts`,
+ * `remote-project.ts`) and the overview's cards press here. The rest a phone
+ * does in the window's own panels, in the full view. What they have in common is
  * the shape the first one established — a target, the state it expects, and a
  * method on `WebActing` — and what they have in common is also the limit:
  * **none of them takes a path, a command, a credential, a setting or a
- * prompt**. A model, an account, a harness or a machine is a *name* out of
+ * prompt**. A model or an account is a *name* out of
  * what the machine itself offered, asked again at the act. There is no push, no merge, no check
  * override, no grant and no opening instruction, because there is no method
  * here one could be called through.
@@ -922,15 +647,13 @@ export const MOVE: Verb = {
  *   ask — `projectRev` is about whether a project is open, not its queue.
  * - **a diff, a review's text, a lane's output.** Each ships source or an
  *   agent's bytes to a phone and to a browser cache; that is a *reading*
- *   with its own threat model (`fields.ts`'s `NEVER_A_FIELD`), not a verb.
- *   The first and the third are now readings of their own (`changes.ts`,
- *   `screen.ts`, cleaned at the boundary) and are still no verb: nothing writes a file or types into a
- *   lane from away, and what a person says to an agent goes through `steer`
- *   or through Tade.
+ *   with its own threat model (`fields.ts`'s `NEVER_A_FIELD`), not a verb:
+ *   nothing writes a file or types into a lane from away, and what a person
+ *   says to an agent goes through `steer` or through Tade.
  *
  * **Stopping an agent used to be the third**, because it was not a hold and
- * not undoable by the same verb. It is here now as half of a pair: `reopen`
- * undoes it, the act names *which* run it stops (`TaskFacts.starts`) so a
+ * not undoable by the same verb. It is here now beside `start`, which
+ * undoes it, and the act names *which* run it stops (`TaskFacts.starts`) so a
  * replay cannot stop the agent somebody opened since, it takes two presses,
  * and it is a scope of its own that nothing implies.
  */
@@ -940,21 +663,13 @@ export const VERBS: readonly Verb[] = [
   STEER,
   QUEUE,
   DONE,
-  NOTE,
-  CONTEXT,
-  INTAKE,
   STOP,
-  REOPEN,
   CLOSE,
-  OPEN,
   START,
   REMOVE,
   RENAME,
   MODEL,
-  THINKING,
   ACCOUNT,
-  HARNESS,
-  MOVE,
 ]
 
 /** The verb of that name, or null. The one lookup, and it is closed. */

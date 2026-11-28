@@ -7,24 +7,16 @@ import {
   ANSWER,
   boundTo,
   CLOSE,
-  CONTEXT,
   DONE,
-  HARNESS,
-  INTAKE,
   KEY,
   MODEL,
-  MOVE,
-  NOTE,
-  OPEN,
   PARK,
   QUEUE,
   REMOVE,
   RENAME,
-  REOPEN,
   START,
   STEER,
   STOP,
-  THINKING,
   targetOf,
   VERBS,
   type Verb,
@@ -74,21 +66,13 @@ const BODIES: Readonly<Record<string, Record<string, unknown>>> = {
   steer: { ...EVERY, said: 'try the other migration' },
   queue: { ...EVERY, change: 'pause' },
   done: { ...EVERY, confirm: true, summary: 'the migration runs' },
-  note: { ...EVERY, text: 'the fix is in the adapter' },
-  context: { ...EVERY, add: 'the ticket says the column is nullable' },
-  intake: { ...EVERY, confirm: true },
   stop: { ...EVERY, confirm: true },
-  reopen: { ...EVERY },
   close: { ...PROJECT, confirm: true },
-  open: { ...PROJECT },
   start: { ...EVERY },
   remove: { ...EVERY, confirm: true },
   rename: { ...EVERY, title: 'the migration agent' },
   model: { ...EVERY, model: 'anthropic/claude-opus-5' },
-  thinking: { ...EVERY, level: 'high' },
   account: { ...EVERY, account: 'work' },
-  harness: { ...EVERY, harness: 'claude-code' },
-  move: { ...EVERY, machine: 'vps', confirm: true },
 }
 
 /** That verb's own valid body, with whatever a test wants changed. */
@@ -99,13 +83,7 @@ function bodyFor(verb: Verb, over: Record<string, unknown> = {}): Record<string,
 }
 
 /** Every word of free text any body above carries, for the leakage check. */
-const TYPED = [
-  'try the other migration',
-  'the migration runs',
-  'the fix is in the adapter',
-  'the ticket says the column is nullable',
-  'the migration agent',
-]
+const TYPED = ['try the other migration', 'the migration runs', 'the migration agent']
 
 function asked(over: Record<string, unknown> = {}) {
   const got = PARK.read({ ...BODY, ...over })
@@ -154,26 +132,18 @@ describe('the verb table', () => {
         ['steer', 'steer'],
         ['queue', 'steer'],
         ['done', 'steer'],
-        ['note', 'steer'],
-        ['context', 'steer'],
-        ['intake', 'steer'],
-        // The lifecycle, each pair at a scope of its own that neither acting
+        // The lifecycle, each at a scope of its own that neither acting
         // tier implies: stopping an agent is a say in whether it does anything
         // at all, and closing a project changes what every surface draws.
         ['stop', 'agents'],
-        ['reopen', 'agents'],
         ['close', 'projects'],
-        ['open', 'projects'],
         // The rest of an agent's own menu, at the agents scope: what may be
         // asked of an agent beyond telling it something.
         ['start', 'agents'],
         ['remove', 'agents'],
         ['rename', 'agents'],
         ['model', 'agents'],
-        ['thinking', 'agents'],
         ['account', 'agents'],
-        ['harness', 'agents'],
-        ['move', 'agents'],
       ]),
     )
     // And none of them is `read`, which would skip what an act is asked.
@@ -341,23 +311,14 @@ describe('what each verb will and will not read', () => {
     expect(DONE.read({ ...EVERY, confirm: true, summary: 'x'.repeat(501) }).ok).toBe(false)
   })
 
-  it('asks the same of an intake approval, because it cannot be undone either', () => {
-    expect(INTAKE.read({ ...EVERY, confirm: true }).ok).toBe(true)
-    for (const confirm of [false, 'true', null, undefined]) {
-      expect(INTAKE.read({ ...EVERY, confirm }).ok, String(confirm)).toBe(false)
-    }
-  })
-
-  it('asks the same of removing an agent and handing it away, which asking again does not undo', () => {
+  it('asks the same of removing an agent, which asking again does not undo', () => {
     expect(REMOVE.read({ ...EVERY, confirm: true }).ok).toBe(true)
-    expect(MOVE.read({ ...EVERY, machine: 'vps', confirm: true }).ok).toBe(true)
     for (const confirm of [false, 'true', null, undefined]) {
       expect(REMOVE.read({ ...EVERY, confirm }).ok, String(confirm)).toBe(false)
-      expect(MOVE.read({ ...EVERY, machine: 'vps', confirm }).ok, String(confirm)).toBe(false)
     }
   })
 
-  it('names a model, a level, an account, a harness and a machine, never a sentence', () => {
+  it('names a model and an account, never a sentence', () => {
     // A name out of a list the machine offered, asked again at the act: the
     // body bounds its shape so nothing that reads as an instruction or a path
     // from the root can arrive in one.
@@ -365,35 +326,12 @@ describe('what each verb will and will not read', () => {
     for (const model of ['', '/etc/passwd', 'opus 5', '-rf', 'x'.repeat(201), 'a\nb']) {
       expect(MODEL.read({ ...EVERY, model }).ok, model).toBe(false)
     }
-    expect(THINKING.read({ ...EVERY, level: 'xhigh' }).ok).toBe(true)
-    for (const level of ['ultra', 'High', '', null]) {
-      expect(THINKING.read({ ...EVERY, level }).ok, String(level)).toBe(false)
-    }
     // Its own sign-in has no name of Tade's: the empty string, and only it.
     expect(ACCOUNT.read({ ...EVERY, account: '' }).ok).toBe(true)
     expect(ACCOUNT.read({ ...EVERY, account: 'sk-ant-api03 key' }).ok).toBe(false)
-    expect(HARNESS.read({ ...EVERY, harness: 'codex' }).ok).toBe(true)
-    for (const harness of ['Claude Code', '../pi', '', 'x'.repeat(41)]) {
-      expect(HARNESS.read({ ...EVERY, harness }).ok, harness).toBe(false)
-    }
-    expect(MOVE.read({ ...EVERY, machine: 'home mac', confirm: true }).ok).toBe(true)
-    for (const machine of ['../../etc', '/root', '']) {
-      expect(MOVE.read({ ...EVERY, machine, confirm: true }).ok, machine).toBe(false)
-    }
-    // A name is a name: what a body that parses names is asked again of the
-    // machine, which offers its own machines and nothing a device typed.
     expect(RENAME.read({ ...EVERY, title: '   ' }).ok).toBe(false)
     expect(RENAME.read({ ...EVERY, title: 'x'.repeat(BOUNDS.title + 1) }).ok).toBe(false)
     expect(START.read({ ...EVERY, prompt: 'do the work' }).ok).toBe(false)
-  })
-
-  it('bounds a note and a context block, and refuses one made of nothing', () => {
-    expect(NOTE.read({ ...EVERY, text: 'the fix is in the adapter' }).ok).toBe(true)
-    expect(NOTE.read({ ...EVERY, text: 'x'.repeat(BOUNDS.text + 1) }).ok).toBe(false)
-    expect(NOTE.read({ ...EVERY, text: '   ' }).ok).toBe(false)
-    expect(CONTEXT.read({ ...EVERY, add: 'the column is nullable' }).ok).toBe(true)
-    expect(CONTEXT.read({ ...EVERY, add: 'x'.repeat(BOUNDS.add + 1) }).ok).toBe(false)
-    expect(CONTEXT.read({ ...EVERY, add: '\n' }).ok).toBe(false)
   })
 
   it('says what was asked for in Tade’s own words, never in the sender’s', () => {
@@ -425,14 +363,11 @@ describe('the lifecycle verbs', () => {
         expect(verb.read({ ...base, confirm }).ok, `${verb.name} ${String(confirm)}`).toBe(false)
       }
     }
-    // Opening again is restorative and takes one press, so it takes no literal.
-    expect(REOPEN.read({ ...EVERY, confirm: true }).ok).toBe(false)
-    expect(OPEN.read({ ...PROJECT, confirm: true }).ok).toBe(false)
   })
 
   it('names a project by the config\u2019s own rule for one, and never a path or a task', () => {
     for (const project of ['tade', 'my-app', 'a1']) {
-      expect(OPEN.read({ ...PROJECT, project }).ok, project).toBe(true)
+      expect(CLOSE.read({ ...PROJECT, project, confirm: true }).ok, project).toBe(true)
     }
     // A path, a task id, a key path into the config and a name the config
     // would refuse: none of them is a project a device may name.
@@ -448,7 +383,6 @@ describe('the lifecycle verbs', () => {
       'tade app',
       'a'.repeat(201),
     ]) {
-      expect(OPEN.read({ ...PROJECT, project }).ok, project).toBe(false)
       expect(CLOSE.read({ ...PROJECT, project, confirm: true }).ok, project).toBe(false)
     }
     // And a project verb takes no task, so a body cannot carry both.
@@ -458,7 +392,6 @@ describe('the lifecycle verbs', () => {
   it('is about a task or a whole project, and says which', () => {
     expect(VERBS.filter((verb) => verb.on === 'project').map((verb) => verb.name)).toEqual([
       'close',
-      'open',
     ])
     const got = CLOSE.read({ ...PROJECT, confirm: true })
     if (!got.ok) throw new Error('that body did not parse')
@@ -471,8 +404,8 @@ describe('the lifecycle verbs', () => {
   })
 
   it('binds a key to the target, so one project\u2019s close is not another\u2019s', () => {
-    const one = OPEN.read({ ...PROJECT, project: 'tade' })
-    const two = OPEN.read({ ...PROJECT, project: 'shop' })
+    const one = CLOSE.read({ ...PROJECT, project: 'tade', confirm: true })
+    const two = CLOSE.read({ ...PROJECT, project: 'shop', confirm: true })
     if (!one.ok || !two.ok) throw new Error('those bodies did not parse')
     expect(boundTo('00112233445566aa', one.asked)).not.toBe(boundTo('00112233445566aa', two.asked))
   })
@@ -487,21 +420,17 @@ describe('the lifecycle verbs', () => {
       }
     const acting = actingStub({
       stop: record('stop'),
-      reopen: record('reopen'),
       close: record('close'),
-      open: record('open'),
     })
     const from: From = { how: 'remote', device: '00112233445566aa' }
-    for (const verb of [STOP, REOPEN, CLOSE, OPEN]) {
+    for (const verb of [STOP, CLOSE]) {
       const got = verb.read(bodyFor(verb))
       if (!got.ok) throw new Error(`${verb.name} did not parse`)
       await got.asked.run(acting, from)
     }
     expect(calls).toEqual([
       { verb: 'stop', call: { task: EVERY.task, was: 'p0', confirm: true }, from },
-      { verb: 'reopen', call: { task: EVERY.task, was: 'p0' }, from },
       { verb: 'close', call: { project: 'tade', was: 'o1.c0', confirm: true }, from },
-      { verb: 'open', call: { project: 'tade', was: 'o1.c0' }, from },
     ])
   })
 })
@@ -575,21 +504,13 @@ describe('the route table', () => {
       '/api/act/steer',
       '/api/act/queue',
       '/api/act/done',
-      '/api/act/note',
-      '/api/act/context',
-      '/api/act/intake',
       '/api/act/stop',
-      '/api/act/reopen',
       '/api/act/close',
-      '/api/act/open',
       '/api/act/start',
       '/api/act/remove',
       '/api/act/rename',
       '/api/act/model',
-      '/api/act/thinking',
       '/api/act/account',
-      '/api/act/harness',
-      '/api/act/move',
     ])
     for (const route of ACTS) {
       expect(route.method).toBe('POST')

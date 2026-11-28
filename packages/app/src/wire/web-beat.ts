@@ -99,10 +99,6 @@ export function steeringFor(client: Harnessed, task: string): Steering {
     offers: {
       harness,
       model: offeredAs(offer(capabilities, 'model', capabilities.model), `not in ${harness}`),
-      thinking: offeredAs(
-        offer(capabilities, 'thinking', capabilities.thinking),
-        `not in ${harness}`,
-      ),
       accounts: capabilities.accounts,
     },
   }

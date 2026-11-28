@@ -1,30 +1,26 @@
-import { isAbsolute } from 'node:path'
-import { expandHome } from '@tade/core'
 import {
   type AgentLane,
   byOf,
   type CloseProjectCall,
   type From,
   Moved,
-  NotOffered,
   NotThere,
-  type OpenProjectCall,
   type Outcome,
   type ProjectFacts,
   type ProjectIn,
   projectFactsOf,
   projectRev,
-  type ReopenAgentCall,
   type StopAgentCall,
   type WebActing,
 } from '@tade/web'
 import { agentLaneOf, type ProjectLine, projectLines } from '../away-lifecycle.ts'
-import { isRepo, whatIsAt } from '../projects.ts'
 import type { AgentMenuDoors } from './agent-doors.ts'
 import { type ActingDeps, after, onTask } from './web-acting.ts'
 
-// The window's end of the four lifecycle verbs: an agent stopped and opened
-// again, a project closed and opened again.
+// The window's end of the two lifecycle verbs: an agent stopped and a project
+// closed — the two another machine's window presses there (`remote-agent.ts`,
+// `remote-project.ts`). Opening either again is the window's own, done in
+// the full view or at the machine.
 //
 // **Each one goes through the door the keyboard goes through**, and adds only
 // what a request from away needs on top: the re-check, the provenance and a
@@ -43,17 +39,15 @@ import { type ActingDeps, after, onTask } from './web-acting.ts'
 // | verb | read at the act |
 // |---|---|
 // | `stop` | the registry's own `<task>/agent` lane is alive, and the journal's count of starts is the one the screen was of |
-// | `reopen` | that lane is there and not alive — never a task no agent has run on — and the same count |
 // | `close` | the window's config still has the project, and the journal's count of lines about where it lives |
-// | `open` | the config does not, the journal says where it was, and that folder is a repository nobody else has open |
 //
 // **One at a time per target** (`busy`), because the door the keyboard uses
 // awaits between its own check and its write — a config written, then read
 // back — and two closes asked in that gap would both find the project still on
 // the list and both write a line saying they closed it.
 
-/** The four verbs this file carries out, as `WebActing` declares them. */
-export type LifecycleActing = Pick<WebActing, 'stop' | 'reopen' | 'close' | 'open'>
+/** The two verbs this file carries out, as `WebActing` declares them. */
+export type LifecycleActing = Pick<WebActing, 'stop' | 'close'>
 
 /** What stopping and opening an agent needs of the window's `Agents` subject. */
 export interface AgentDoors {
@@ -87,7 +81,7 @@ export interface Lifecycle {
   menus?(): AgentMenuDoors
 }
 
-/** What the four verbs need beyond `ActingDeps`: the subjects, and the project rows. */
+/** What the lifecycle verbs need beyond `ActingDeps`: the subjects, and the project rows. */
 export interface LifecycleDeps extends Lifecycle {
   /**
    * What the projection last said about one project, as the facts a verb
@@ -102,7 +96,7 @@ export function projectSeen(rows: readonly ProjectIn[], name: string): ProjectFa
   return row === undefined ? null : projectFactsOf(row)
 }
 
-/** The four verbs, over one window's doors. One `busy` set for all four. */
+/** The two verbs, over one window's doors. One `busy` set for both. */
 export function lifecycleActing(deps: ActingDeps): LifecycleActing {
   const busy = new Set<string>()
   const alone = <T>(target: string, work: () => Promise<T>, rev: () => string): Promise<T> => {
@@ -121,27 +115,11 @@ export function lifecycleActing(deps: ActingDeps): LifecycleActing {
           () => after(facts),
         ),
       ),
-    reopen: (call, from) =>
-      onTask(deps, call, (facts) =>
-        alone(
-          call.task,
-          () => reopen(deps, call, from, facts),
-          () => after(facts),
-        ),
-      ),
     close: (call, from) =>
       onProject(deps, call, (facts) =>
         alone(
           call.project,
           () => close(deps, call, from, facts),
-          () => projectRev(facts),
-        ),
-      ),
-    open: (call, from) =>
-      onProject(deps, call, (facts) =>
-        alone(
-          call.project,
-          () => open(deps, call, from, facts),
           () => projectRev(facts),
         ),
       ),
@@ -185,44 +163,6 @@ async function stop(
     said:
       'stopped its agent: its lane is closed and its spec kept, so it can be opened again ' +
       'where it left off — its conversation, branch and worktree stay',
-  }
-}
-
-/**
- * Open a task's stopped agent again: a lane the registry kept, never a task no
- * agent has run on.
- */
-async function reopen(
-  deps: ActingDeps,
-  call: ReopenAgentCall,
-  from: From,
-  facts: Facts,
-): Promise<Outcome> {
-  const starts = await startsNow(deps, call.task)
-  if (starts !== facts.starts) {
-    throw new Moved(
-      `${call.task}'s agent was started again since that screen was drawn`,
-      after(facts, { starts }),
-    )
-  }
-  const lane = laneNow(deps, call.task)
-  if (lane === 'running') throw new Moved(`${call.task}'s agent is running`, after(facts, { lane }))
-  // **Never a new agent.** A task with no lane of its own has nothing to bring
-  // back, and making one is the opening instruction a device may not give.
-  if (lane === 'none') {
-    throw new NotOffered(`no agent has run on ${call.task}: starting one is done at the machine`)
-  }
-  const came = await deps.lifecycle.agents().reopenExactly(call.task, byOf(from))
-  if (came === 'nowhere') throw new NotThere(`the window does not know where ${call.task} works`)
-  if (came === 'busy') throw new Moved(`${call.task}'s agent is being opened already`, after(facts))
-  return {
-    did: true,
-    // What the registry and the journal say now, rather than what was asked
-    // for: guessing would be a revision nothing confirmed.
-    rev: after(facts, { lane: laneNow(deps, call.task), starts: await startsNow(deps, call.task) }),
-    said:
-      'opened its agent again where it left off: the lane spec it kept and the same ' +
-      'conversation, with nothing said to it',
   }
 }
 
@@ -272,61 +212,6 @@ function closedSaid(working: number): string {
     'branches, worktrees, tasks and notes all stay, and opening it again brings them back; ' +
     'its own settings went with it'
   )
-}
-
-/**
- * Open a closed project again where the journal says it was — and only there,
- * so a device can bring back a project Tade has had and never name a folder.
- */
-async function open(
-  deps: ActingDeps,
-  call: OpenProjectCall,
-  from: From,
-  facts: ProjectFacts,
-): Promise<Outcome> {
-  const line = (await linesNow(deps)).get(call.project)
-  const changes = line?.changes ?? 0
-  const config = deps.config()
-  if (Object.hasOwn(config.projects, call.project)) {
-    throw new Moved(`${call.project} is open already`, projectRev({ open: true, changes }))
-  }
-  if (changes !== facts.changes || line?.closedFrom == null) {
-    throw new Moved(
-      `${call.project} was moved or opened since that screen was drawn`,
-      projectRev({ open: false, changes }),
-    )
-  }
-  const root = line.closedFrom
-  const full = expandHome(root)
-  // **Only a root the close itself could have written.** The journal is a file
-  // anything running as you can append to, so a line naming a relative path
-  // is not one `closeProject` wrote — it writes the config's own root, which
-  // is absolute or under `~`. Refused rather than resolved against wherever
-  // this process happens to be.
-  if (!isAbsolute(full)) {
-    throw new NotThere(`nothing says where ${call.project} was in a form it could be put back`)
-  }
-  // **Somebody else's now**: the folder was opened under another name since,
-  // and the keyboard's door would quietly go to that one instead.
-  const other = Object.entries(config.projects).find(([, one]) => expandHome(one.root) === full)
-  if (other !== undefined)
-    throw new NotOffered(`the folder ${call.project} was in is open as ${other[0]}`)
-  // **Not there, or not a repository any more**: opening never makes a
-  // folder or a repository from away, which the keyboard's door would ask about.
-  if (whatIsAt(full) !== 'folder' || !isRepo(full)) {
-    throw new NotThere(`the folder ${call.project} was in is not a repository there any more`)
-  }
-  await deps.lifecycle
-    .projects()
-    .openAt({ path: root, name: call.project, create: false, by: byOf(from) })
-  return {
-    did: true,
-    // One line more than was read, for the reason `close` gives.
-    rev: projectRev({ open: true, changes: changes + 1 }),
-    said:
-      'opened it again where it was: its tasks, notes and agents are back on its page — its own ' +
-      'settings are not, and are set again at the machine',
-  }
 }
 
 /**

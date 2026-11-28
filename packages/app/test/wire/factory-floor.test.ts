@@ -15,7 +15,6 @@ import {
   paired,
   parkedIn,
   projectionOf,
-  waitFor,
 } from './away-harness.ts'
 import { delivered } from './away-intake.ts'
 
@@ -243,76 +242,6 @@ describe('a request from outside, as a phone reads it', () => {
     // And what the last look that **worked** found is still there, which is
     // the shape of a connector that has just broken.
     expect(broken?.workedAt).not.toBeNull()
-  })
-})
-
-describe('approving it from the phone', () => {
-  it('lifts the park the delivery wrote, and starts nothing', async () => {
-    const { one, fold } = await floorMachine()
-    const task = await delivered(one)
-    await fold()
-    await paired(one.home, one.port)
-
-    const seen = projectionOf(one)
-    const row = seen.tasks.find((each) => each.id === task)
-    expect(row?.can.map((each) => each.verb)).toContain('intake')
-    // The row the inbox points at is the row the control is on: one answer to
-    // *what would approving be about*, rather than two.
-    expect(seen.intake[0]?.approve).toBe(row?.id)
-
-    // **The revision the screen said, echoed back.** What makes a captured
-    // request safe to replay is that the window re-checks the state at the
-    // moment of the write against this same value.
-    const answer = await act(one.port, 'intake', {
-      task,
-      was: row?.rev ?? '',
-      key: 'abcdefgh12345678',
-      rev: seen.fresh.rev,
-      confirm: true,
-    })
-    expect(answer.status).toBe(200)
-    expect(parkedIn(one.home, task)).toBe(false)
-
-    // Approving lifts a hold; it does not start an agent. The queue starts
-    // what it starts by its own rule, on the window's own next pass.
-    expect(await one.client.events({ types: ['run_started'] })).toEqual([])
-    const did = await waitFor(one.client, 'web_did')
-    const last = did.at(-1)?.detail as { tool?: string; why?: string; device?: string } | undefined
-    expect(last).toMatchObject({ tool: 'intake', why: 'done' })
-    // And the **device** is who did it, never the person at the keyboard.
-    expect(last?.device).toBe('00112233445566aa')
-
-    // The inbox moves with it: the proposal is accepted, and there is nothing
-    // left to approve.
-    const after = await fold()
-    expect(after.intake[0]?.state).toBe('accepted')
-    expect(after.intake[0]?.approve).toBe('')
-  })
-
-  it('is refused where the source cannot be reached, because that is not permission', async () => {
-    // **The one direction this has to get right.** A source nobody could ask
-    // has not said yes, so a throw out of the re-check holds rather than
-    // passing — and the park stays on.
-    let held: FactoryHeld = { intake: [], sources: [], workflows: [], runFrom: new Map() }
-    const one = await machine({
-      intake: true,
-      factory: () => held,
-      stands: () => Promise.reject(new Error('the spool did not answer')),
-    })
-    await one.away.open()
-    const task = await delivered(one)
-    held = await foldOf(one)
-    await paired(one.home, one.port)
-    const seen = projectionOf(one)
-    const answer = await act(one.port, 'intake', {
-      task,
-      was: seen.tasks.find((each) => each.id === task)?.rev ?? '',
-      key: 'abcdefgh12345678',
-      rev: seen.fresh.rev,
-      confirm: true,
-    })
-    expect(answer.status).toBe(403)
-    expect(parkedIn(one.home, task)).toBe(true)
   })
 })
 

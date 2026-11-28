@@ -694,9 +694,6 @@ export class Heart {
       // The conversation, through the one subject that holds it: `Talking` is
       // five methods, so what a route can reach is that list and not `say`.
       talk: talkingThrough(() => this.orchestrator),
-      // The queue's own rule, so a device approving work that came from
-      // outside meets the same grant, plan and source checks a start does.
-      stands: (row) => this.queue.standsFor(row),
       // The factory floor, as the inbox subject already folds it: no page starts work.
       factory: () => this.intake.factory(),
       // The one door a setting is written by: the key nothing types, a carry, a connect page.
