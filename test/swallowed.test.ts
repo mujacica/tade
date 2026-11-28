@@ -353,6 +353,7 @@ const ALLOWED: Record<string, number> = {
   // catch, which says nothing whatever the update failed on, and both of
   // `forget()`'s, which cannot know that what they failed to delete is gone.
   'packages/web/src/assets/install.js': 5,
+  'packages/web/src/assets/mode.js': 2,
   'packages/web/src/assets/offline.js': 3,
   // Two of these are still the finding on tade/away-push-notifications:
   // `pushState` and the `registered()` it reads both turn a browser that would
@@ -360,6 +361,7 @@ const ALLOWED: Record<string, number> = {
   'packages/web/src/assets/push.js': 6,
   'packages/web/src/assets/routes.js': 2,
   'packages/web/src/assets/sw.js': 1,
+  'packages/web/src/assets/switch.js': 1,
   'packages/web/src/configured.ts': 1,
   // `held`: a line that is not JSON is skipped, as a journal's bad line is —
   // a ticket lost to it is refused like a run-out one, and a new link mints another.

@@ -88,12 +88,18 @@ async function ask(method, path, body) {
     let got = null
     try {
       got = await answer.json()
-    } catch {
-      got = null
+    } catch (problem) {
+      // An answer that is not JSON is still its status; what it was is said
+      // where a refusal is, so a broken answer is never a silent one.
+      got = { said: `The machine’s answer could not be read: ${String(problem).slice(0, 120)}` }
     }
     return { status: answer.status, body: got }
-  } catch {
-    return { status: 0, body: null }
+  } catch (problem) {
+    // Unreachable, which is a state and not an exception: said with its why.
+    return {
+      status: 0,
+      body: { said: `The machine is not answering: ${String(problem).slice(0, 120)}` },
+    }
   }
 }
 
@@ -123,8 +129,8 @@ function act(intent) {
 
 /** Tade's own sentence for a refusal, or the page's for one it cannot name. */
 function refusalOf(answer) {
-  if (answer.status === 0) return 'The machine is not answering.'
   if (typeof answer.body?.said === 'string') return answer.body.said
+  if (answer.status === 0) return 'The machine is not answering.'
   if (typeof answer.body?.error === 'string') return `Refused: ${answer.body.error}`
   return 'Something went wrong here.'
 }
@@ -149,8 +155,8 @@ function openStream() {
     let message = null
     try {
       message = JSON.parse(event.data)
-    } catch {
-      say('A frame from the machine could not be read.')
+    } catch (problem) {
+      say(`A frame from the machine could not be read: ${String(problem).slice(0, 120)}`)
       return
     }
     if (held.face === null) return
@@ -273,8 +279,10 @@ copy.addEventListener('click', async () => {
   try {
     await navigator.clipboard.writeText(text)
     say('Copied.')
-  } catch {
-    say('This browser would not let the page copy: hold the selection and copy from its menu.')
+  } catch (problem) {
+    say(
+      `This browser would not let the page copy (${String(problem).slice(0, 80)}): hold the selection and copy from its menu.`,
+    )
     return
   }
   stopSelecting()
@@ -386,8 +394,10 @@ async function colours() {
     held.tade.colourWith(() => core)
     held.last = new held.tade.LastFrame()
     soon()
-  } catch {
-    // Code is plain where highlight.js did not load, as it is on a machine without it.
+  } catch (problem) {
+    // Code is plain where highlight.js did not load, as on a machine without
+    // it — and said, so plain code is never mistaken for the colours.
+    say(`Code is drawn plain here: highlight.js did not load (${String(problem).slice(0, 80)}).`)
   }
 }
 
