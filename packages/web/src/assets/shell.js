@@ -1,6 +1,7 @@
-// The frame every screen is drawn inside: the wordmark, the freshness clock, the
-// navigation, the bars that say how the page stands to the machine, and the
-// region a screen reader is told about.
+// The frame the overview is drawn inside: the wordmark, the switch to the full
+// view, each machine's up or down, the freshness clock, the bars that say how
+// the page stands to the machine, and the region a screen reader is told
+// about.
 //
 // **The freshness line is the most important thing on the page**, and this is
 // why: when the stream drops, every row keeps its last state and the page gains
@@ -9,22 +10,21 @@
 // that drew `0 working` because it could not ask would be lying about
 // somebody's morning.
 //
-// Two accessibility decisions are structural rather than attributes sprinkled
-// on afterwards:
+// **There is no navigation.** The page has one screen (§10 T5 of the Duo
+// plan): everything else Tade shows is a panel of the window, one press away
+// in the full view, so a menu here would be a second way to the same places.
 //
-// - **One `aria-live` region, and it announces only what crossed into wanting
-//   you and what stopped.** Announcing the snapshot would read the whole page
-//   aloud every two seconds, which is worse than announcing nothing.
-// - **The navigation is a real `<nav>` with `aria-current` on where you are**,
-//   and **an update never moves it**: the tab you are on changes when you
-//   navigate and at no other time.
+// **One `aria-live` region, and it announces only what crossed into wanting
+// you and what stopped.** Announcing the snapshot would read the whole page
+// aloud every two seconds, which is worse than announcing nothing.
 
-import { classOn, el, hintOf, into, textIn, toneOn } from './dom.js'
+import { classOn, el, hintOf, into, keyed, textIn, toneOn } from './dom.js'
 import { clockOf, duration, shortClockOf } from './figures.js'
 import { freshMark } from './glyphs.js'
 import { icon, wordmark } from './icons.js'
 import { backoffAt, partsOf } from './live.js'
-import { GROUPS, MORE_TAB, NAV, navFor, pathOf, placeOf, TITLES } from './routes.js'
+import { machinesUpOf } from './machines.js'
+import { TITLES } from './routes.js'
 import { modeSwitch } from './switch.js'
 
 /**
@@ -32,18 +32,8 @@ import { modeSwitch } from './switch.js'
  *
  * Returns the parts the wiring writes into. Nothing here is rebuilt: a screen
  * is swapped inside `main`, and everything else is patched.
- *
- * **The window's own arrangement** (`desk.js`): the places down the left, the
- * work down the right — a project at a time, its agents and its queue — and
- * Tade docked at the foot of the middle, under whatever screen is open. The
- * reading order is the window's too: the places, the screen, Tade, the work.
- * Each of the three folds (`docks.js`), and its press is at its own foot.
- *
- * **Tade is one press from anywhere**: the dock at the foot, the command bar
- * in the header at every width (`⌘K` at a keyboard), and the middle of the tab
- * bar on a phone, which raises the dock as a sheet.
  */
-export function shell(desk = null) {
+export function shell() {
   const skip = el('a', {
     class: 'skip',
     text: 'skip to what wants you',
@@ -53,269 +43,111 @@ export function shell(desk = null) {
   const top = el('header', { class: 'top' })
   const brand = el('a', { class: 'brand', attrs: { href: '/', 'aria-label': 'Tade, overview' } })
   into(brand, wordmark())
-  const askSaid = 'Go anywhere, or ask Tade'
-  const ask = el('button', {
-    class: 'cmd',
-    attrs: {
-      type: 'button',
-      // What it shows, key included, so a voice control reaches it by what it says.
-      'aria-label': `${askSaid}, ⌘K`,
-      'aria-haspopup': 'dialog',
-      'aria-keyshortcuts': 'Meta+K Control+K',
-    },
-  })
-  into(
-    ask,
-    icon('search'),
-    el('span', {
-      class: 'cmd-said',
-      text: askSaid,
-      attrs: { 'aria-hidden': 'true' },
-    }),
-    el('kbd', { text: '⌘K', attrs: { 'aria-hidden': 'true' } }),
-  )
-  const fresh = el('p', { class: 'fresh', attrs: { role: 'status' } })
-  const dot = el('span', { class: 'dot', attrs: { 'aria-hidden': 'true' } })
-  const freshSaid = el('span', { class: 'fresh-said' })
-  into(fresh, dot, freshSaid)
-  const tools = el('div', { class: 'tools' })
-  const again = el('button', {
-    class: 'tap icon',
-    attrs: { type: 'button', 'aria-label': 'Ask the machine again' },
-  })
-  into(again, icon('refresh'))
-  const keys = el('button', {
-    class: 'tap icon',
-    attrs: { type: 'button', 'aria-label': 'Keyboard keys' },
-  })
-  into(keys, icon('help'))
-  // The side's door where it is a drawer: a tablet's header. A desk has it
-  // docked and a phone has it in the tab bar, so the stylesheet shows this
-  // between the two and nowhere else.
-  const sideDoor = el('button', {
-    class: 'tap icon side-door',
-    attrs: { type: 'button', 'aria-controls': 'side' },
-  })
-  into(sideDoor, icon('agents'))
-  into(tools, sideDoor, again, keys)
   // Overview and Full view (`switch.js`): drawn once the machine has said it
   // draws a window to share (`boot.js`), and not before — a switch to a view
   // that cannot load is a press that goes nowhere.
   const modes = modeSwitch('overview')
   modes.hidden = true
-  into(top, brand, modes, ask, fresh, tools)
+  // Each machine, up or not, as a dot and its name: the machine this page
+  // talks to and every other one it has seen (`machinesUpOf`).
+  const machines = el('ul', { class: 'machines', attrs: { 'aria-label': 'Machines' } })
+  const fresh = el('p', { class: 'fresh', attrs: { role: 'status' } })
+  const dot = el('span', { class: 'dot', attrs: { 'aria-hidden': 'true' } })
+  const freshSaid = el('span', { class: 'fresh-said' })
+  into(fresh, dot, freshSaid)
+  const again = el('button', {
+    class: 'tap icon',
+    attrs: { type: 'button', 'aria-label': 'Ask the machine again' },
+  })
+  into(again, icon('refresh'))
+  into(top, brand, modes, machines, fresh, again)
 
   const bars = el('div', { class: 'bars' })
-
-  const frame = el('div', { class: 'frame' })
-  const rail = el('nav', { class: 'rail', attrs: { 'aria-label': 'Sections' } })
   const main = el('main', { attrs: { id: 'main' } })
-  // The middle column: what the page says about itself, the screen, and Tade
-  // docked at its foot — so the docks either side run from the header to the
-  // bottom of the screen with nothing above them.
-  const work = el('div', { class: 'work' })
-  into(work, bars, main, desk?.dock)
-  const side = desk?.side ?? null
-  if (side !== null) side.setAttribute('id', 'side')
-  into(frame, rail, work, side)
-  // What a drawer is opened over: a press anywhere on it closes the drawer.
-  const scrim = el('div', { class: 'scrim', attrs: { 'aria-hidden': 'true' } })
-  scrim.hidden = true
-
-  const tabs = el('nav', { class: 'tabs', attrs: { 'aria-label': 'Sections' } })
-  const tabSide = el('button', {
-    class: 'tab',
-    attrs: { type: 'button', 'aria-controls': 'side' },
-  })
-  const sideFigure = el('span', { class: 'count ui-count' })
-  into(tabSide, icon('agents'), el('span', { class: 'label', text: 'Agents' }), sideFigure)
-  const tabTade = el('button', {
-    class: 'tab tab-ask',
-    attrs: { type: 'button' },
-  })
-  const disc = el('span', { class: 'ask-disc' })
-  into(disc, icon('spark'))
-  // The disc is the whole of what shows, so the word is for a screen reader:
-  // the tab is named by it, as every other tab is by its own.
-  into(tabTade, disc, el('span', { class: 'label sr-only', text: 'Tade' }))
-
-  const sheet = el('div', {
-    class: 'sheet',
-    attrs: { role: 'dialog', 'aria-label': 'Keyboard keys' },
-  })
-  sheet.hidden = true
-  into(sheet, keySheet())
+  const frame = el('div', { class: 'frame' })
+  into(frame, bars, main)
 
   const announce = el('p', {
     class: 'sr-only',
     attrs: { 'aria-live': 'polite', 'aria-atomic': 'false' },
   })
 
-  const links = navLinks(rail, tabs, tabSide, tabTade)
-  // The drawer's press carries the count its screen would: agents running.
-  links.push({ link: tabSide, figure: sideFigure, view: null, counts: 'agents', where: 'tab' })
-  // The press at each docked part's foot that folds it, and says so in a word.
-  const railFold = foldPress('rail-fold', 'back')
-  rail.append(railFold)
-  const sideFold = foldPress('side-fold', 'back')
-  side?.append(sideFold)
-
   return {
-    parts: [skip, top, frame, scrim, tabs, sheet, announce].filter(
-      (one) => one !== null && one !== undefined,
-    ),
+    parts: [skip, top, frame, announce],
     // What only a device with a session is drawn (`insideIn`).
-    inside: [rail, tabs, again, ask, sideDoor, side, desk?.dock].filter(
-      (one) => one !== null && one !== undefined,
-    ),
+    inside: [again, machines],
     frame,
     main,
-    side,
-    dock: desk?.dock ?? null,
-    scrim,
     bars,
     dot,
     freshSaid,
     announce,
-    sheet,
     again,
-    keys,
-    links,
     modes,
-    // Every press that folds or opens a dock, by the dock (`docks.js`).
-    folds: {
-      menu: [railFold],
-      side: [sideFold, sideDoor, tabSide],
-      tade: [desk?.fold, tabTade].filter((one) => one !== null && one !== undefined),
-    },
-    // The press that opens the command bar; `boot.js` wires it.
-    asks: [ask],
+    machines,
   }
 }
 
-/** A dock's own fold: an icon and the word for what pressing it does, written by `docks.js`. */
-function foldPress(klass, glyph) {
-  const press = el('button', { class: `${klass} dock-press`, attrs: { type: 'button' } })
-  into(press, icon(glyph), el('span', { class: 'fold-said' }))
-  return press
-}
-
 /**
- * The navigation, drawn twice: a menu for a tablet and up, a bottom bar for a
- * phone.
- *
- * Twice rather than one list moved by CSS, because the two are different
- * shapes. The menu carries every place in its categories (`GROUPS`). The bar
- * is the phone's whole frame in four presses — the overview, **the side** (the
- * agents and the queue, as a drawer), **Tade** in the middle (the dock, as a
- * sheet) and More — which is the window's arrangement folded to a thumb, and
- * the only one that fits 360px with 44px targets. Both are in the DOM, one is
- * displayed, and each is a `<nav>` a screen reader can jump to.
+ * Each machine's up or down in the header, as `machinesUpOf` says it: a dot
+ * in its tone and its name, and what it is in a word or two when it is not up
+ * — a colour is never the only word — with the whole sentence as its label. `live` is whether this page hears the machine it talks
+ * to, which is the one row nothing on the snapshot can say.
  */
-function navLinks(rail, tabs, tabSide, tabTade) {
-  const made = []
-  made.push(entry(tabs, NAV[0], 'tab'))
-  tabs.append(tabSide, tabTade)
-  made.push(entry(tabs, MORE_TAB, 'tab'))
-  // **The menu, in its categories.** A group with a title has a header that
-  // folds it — a press, with `aria-expanded`, never a hover.
-  for (const group of GROUPS) {
-    const node = el('div', { class: `rail-group rail-${group.key}` })
-    const items = el('div', { class: 'rail-items', attrs: { id: `rail-${group.key}` } })
-    if (group.title !== '') {
-      const head = el('button', {
-        class: 'rail-head',
-        attrs: { type: 'button', 'aria-expanded': 'true', 'aria-controls': `rail-${group.key}` },
-      })
-      into(head, el('span', { text: group.title }), icon('chevron', 'twist'))
-      head.addEventListener('click', () => {
-        items.hidden = !items.hidden
-        head.setAttribute('aria-expanded', items.hidden ? 'false' : 'true')
-      })
-      into(node, head)
-    }
-    for (const view of group.views) {
-      const one = placeOf(view)
-      if (one !== null) made.push(entry(items, one, 'rail'))
-    }
-    into(node, items)
-    rail.append(node)
-  }
-  return made
+export function machinesIn(shown, store, live) {
+  const rows = machinesUpOf(store, live)
+  // One machine and it up is the freshness line's to say; a strip of one dot is noise.
+  shown.machines.hidden = rows.length < 2
+  keyed(shown.machines, rows, (one) => one.key, createMachine, fillMachine)
 }
 
-function entry(parent, one, where) {
-  // The bottom bar's rows are styled by class and the rail's by descendant, so
-  // the class is what the bar needs and the rail does not.
-  const link = el('a', {
-    class: where === 'tab' ? 'tab' : '',
-    attrs: { href: pathOf({ view: one.view }), 'data-label': one.label },
-  })
-  const label = el('span', { class: 'label', text: one.label })
-  // Violet means *waiting on you* and nothing else, so only the two counts of
-  // that wear it; every other count is a neutral figure.
-  const wants = one.counts === 'wantsYou' || one.counts === 'intake'
-  const figure = el('span', { class: wants ? 'count ui-count is-loud' : 'count ui-count' })
-  into(link, icon(one.icon), label, figure)
-  parent.append(link)
-  return { link, figure, view: one.view, counts: one.counts, where }
+function createMachine() {
+  const node = el('li', { class: 'machine' })
+  into(
+    node,
+    el('span', { class: 'glyph', text: '●', attrs: { 'aria-hidden': 'true' } }),
+    el('span', { class: 'machine-name' }),
+    el('span', { class: 'machine-said' }),
+  )
+  return node
+}
+
+function fillMachine(node, one) {
+  const [dot, name, said] = node.children
+  toneOn(dot, one.tone)
+  textIn(name, one.name)
+  textIn(said, one.up ? '' : one.short)
+  said.hidden = one.up
+  node.setAttribute('aria-label', `${one.name}, ${one.said}`)
+  classOn(node, 'is-down', !one.up)
+}
+
+/** The screen for a path this page does not know: an old bookmark of a page that went. */
+export function nowhereScreen() {
+  const node = el('div', { class: 'column' })
+  into(
+    node,
+    el('h1', { text: 'Not found' }),
+    el('p', {
+      text: 'Everything but the overview is in the full view now, as a panel of the window.',
+    }),
+    el('a', { class: 'press', text: 'Overview', attrs: { href: '/' } }),
+  )
+  return { node, update() {} }
 }
 
 /**
- * The navigation, the desk and the retry, drawn only for a device with a
- * session.
+ * The machines and the retry, drawn only for a device with a session.
  *
  * Without one the page is the pairing screen or the last view it kept, and
- * nothing around it may say otherwise: a rail into screens it cannot read, an
- * agents list saying *no agent is running* and a strip saying talking is *not
- * turned on* were each a claim about a machine this page never asked — and
- * together they read as a broken connection rather than *pair first*.
+ * nothing around it may say otherwise: a machine drawn up, or a retry, would
+ * each be a claim about a machine this page never asked — and together they
+ * read as a broken connection rather than *pair first*.
  */
 export function insideIn(shown, inside) {
-  for (const part of shown.inside) part.hidden = !inside
-  // Outside, the frame is one column: no rail beside the screen to centre against.
+  for (const part of shown.inside) if (!inside) part.hidden = true
+  shown.again.hidden = !inside
   shown.frame?.classList.toggle('is-outside', !inside)
-}
-
-/**
- * Where you are, written into the navigation.
- *
- * **Only navigation calls this.** A delta never moves the current tab: the one
- * thing worse than a page that does not update is a page that moves the thing
- * you were about to press.
- */
-export function navOn(links, where) {
-  const here = navFor(where)
-  for (const one of links) {
-    if (one.view === here) one.link.setAttribute('aria-current', 'page')
-    else one.link.removeAttribute('aria-current')
-  }
-}
-
-/** What each count is a count *of*, because `5` alone is read aloud as "five". */
-const NOUNS = {
-  wantsYou: 'wanting you',
-  agents: 'agents running',
-  queue: 'queued',
-  reviews: 'offered for merge',
-  findings: 'findings unanswered',
-  notes: 'notes',
-  // Waiting on somebody, not handed over: a badge counting answered requests
-  // is a badge nobody looks at twice.
-  intake: 'requests waiting on you',
-  runs: 'runs',
-  workflows: 'workflows',
-}
-
-/** The counts beside the navigation, which a delta does move. */
-export function navCounts(links, counts) {
-  for (const one of links) {
-    if (one.counts === null) continue
-    const n = counts[one.counts] ?? 0
-    // Nothing at nought: a badge of `0` on an icon is a badge nobody reads.
-    textIn(one.figure, n === 0 ? '' : n > 99 ? '99+' : String(n))
-    one.figure.setAttribute('aria-label', `${n} ${NOUNS[one.counts] ?? one.counts}`)
-  }
 }
 
 /**
@@ -459,31 +291,6 @@ export function endingBar(until, now) {
   }
 }
 
-/** The keys, listed where `?` and the header button both reach them. */
-function keySheet() {
-  const list = el('dl')
-  for (const [key, what] of [
-    ['⌘ K', 'ask Tade, or go anywhere'],
-    ['/', 'the same, from anywhere but a box'],
-    ['g n', 'Overview'],
-    ['g a', 'Agents'],
-    ['g q', 'Queue'],
-    ['g t', 'the whole conversation'],
-    ['[', 'fold the menu'],
-    [']', 'fold the agents and queue'],
-    ['\\', 'fold Tade'],
-    ['g s', 'Spend'],
-    ['g c', 'Checks'],
-    ['j / k', 'move through rows'],
-    ['Enter', 'open the row'],
-    ['Escape', 'go back'],
-    ['?', 'these keys'],
-  ]) {
-    into(list, el('dt', { text: key }), el('dd', { text: what }))
-  }
-  return list
-}
-
 /**
  * What crossed into wanting you, and what stopped — the only thing announced.
  *
@@ -505,12 +312,7 @@ const said = (n) => `${n} task${n === 1 ? '' : 's'}`
 
 /** The document title, which is what a screen reader announces on navigation. */
 export function titleFor(where) {
-  const name = TITLES[where.view] ?? 'Tade'
-  // Another machine's screen says whose, so two tabs of one task on two machines read apart.
-  const on = typeof where.machine === 'string' ? ` · ${where.machine}` : ''
-  if (where.view === 'project') return `${where.project}${on} · Tade`
-  if (where.view === 'task') return `${where.task} · ${where.project}${on} · Tade`
-  return `${name} · Tade`
+  return `${TITLES[where.view] ?? 'Tade'} · Tade`
 }
 
 /** Whether a region should be dimmed, which is the whole of what stale looks like. */

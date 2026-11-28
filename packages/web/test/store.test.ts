@@ -1,37 +1,21 @@
 import { IDLE_REASON as CORE_IDLE, WAITING_STATES } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import { noAgentsSaid } from '../src/assets/desk.js'
 import {
   applyDelta,
   applySnapshot,
   asOf,
-  checksFold,
-  checksWord,
   emptyStore,
-  intakeAt,
   intakeOf,
   intakeWaiting,
-  notesOf,
   omitted,
-  projectAt,
-  projectsOf,
   queueIn,
-  reviewsOf,
   rowsOf,
-  runAt,
-  runsOf,
   SPEAKS,
-  sourcesOf,
-  spendFold,
-  spendSince,
   talkOf,
   taskAt,
-  tasksIn,
   WAITING,
   wantingIds,
   wantsYou,
-  workflowAt,
-  workflowsOf,
 } from '../src/assets/store.js'
 import { PROTOCOL_VERSION } from '../src/protocol.ts'
 import { projector } from '../src/reading.ts'
@@ -65,10 +49,8 @@ describe('what is said before anything was read', () => {
     // `undefined` and not `null`: a page with no snapshot yet said *talking to
     // Tade is not turned on* off its own empty store.
     expect(talkOf(emptyStore())).toBeUndefined()
-    expect(noAgentsSaid(emptyStore())).toBe('not read yet')
     const { store } = held()
     expect(talkOf(store)).not.toBeUndefined()
-    expect(noAgentsSaid(store)).toBe('no agent is running')
   })
 })
 
@@ -294,115 +276,6 @@ describe('the queue', () => {
   })
 })
 
-describe('folding the money', () => {
-  it('counts a task with no spend row as unknown, never as nought', () => {
-    const fold = spendFold([
-      { spend: { ...zero, usd: 1, usdExact: 1, hasCost: true } },
-      { spend: null },
-    ])
-    expect(fold.usd).toBe(1)
-    expect(fold.unknown).toBe(1)
-    expect(fold.hasCost).toBe(true)
-  })
-
-  it('is a floor whenever the snapshot left tasks out', () => {
-    expect(spendFold([], false).partial).toBe(false)
-    expect(spendFold([], true).partial).toBe(true)
-  })
-
-  it('keeps the three kinds of dollar claim apart', () => {
-    const fold = spendFold([
-      { spend: { ...zero, usd: 1, usdExact: 1, hasCost: true } },
-      { spend: { ...zero, usd: 2, usdEstimated: 2, usdOnPlan: 9, hasCost: true } },
-    ])
-    expect(fold.usd).toBe(3)
-    expect(fold.usdExact).toBe(1)
-    expect(fold.usdEstimated).toBe(2)
-    // A plan's equivalent is folded **beside** the money and never into it.
-    expect(fold.usdOnPlan).toBe(9)
-    expect(fold.usd).not.toBe(12)
-  })
-
-  it('says nothing was reported where nothing was', () => {
-    const fold = spendFold([{ spend: { ...zero } }])
-    expect(fold.hasCost).toBe(false)
-    expect(fold.usd).toBe(0)
-  })
-})
-
-const zero = {
-  usd: 0,
-  usdExact: 0,
-  usdEstimated: 0,
-  usdListed: 0,
-  usdOnPlan: 0,
-  tokens: 0,
-  tokensUnpriced: 0,
-  tokensOnPlanUnrated: 0,
-  hasCost: false,
-}
-
-describe('folding the checks', () => {
-  const checks = (state: string, over = {}) => ({
-    checks: { state, failed: [], missing: [], overridden: false, ...over },
-  })
-
-  it('is red the moment anything is red', () => {
-    expect(checksWord(checksFold([checks('pass'), checks('fail')]))).toBe('fail')
-  })
-
-  it('is never green while anything is unknown', () => {
-    // A check nobody ran here is not a check that passed, and three greens
-    // plus an unknown folded into "green" is the claim `deriveState` refuses.
-    expect(checksWord(checksFold([checks('pass'), checks('unknown')]))).toBe('unknown')
-    expect(checksWord(checksFold([]))).toBe('unknown')
-    expect(checksWord(checksFold([checks('pass'), checks('pass')]))).toBe('pass')
-  })
-
-  it('gathers the names once each, sorted', () => {
-    const fold = checksFold([
-      checks('fail', { failed: ['types'], missing: ['tests'] }),
-      checks('fail', { failed: ['types', 'format'] }),
-    ])
-    expect(fold.failed).toEqual(['format', 'types'])
-    expect(fold.missing).toEqual(['tests'])
-  })
-
-  it('counts an overruled run, which is still recorded red', () => {
-    expect(checksFold([checks('fail', { overridden: true })]).overridden).toBe(1)
-  })
-})
-
-describe('the reviews', () => {
-  it('separates what is offered from what is finished and nobody asked about', () => {
-    const store = emptyStore()
-    applySnapshot(
-      store,
-      projector(
-        input({
-          tasks: [
-            task({ id: 'a/offered' }),
-            task({ id: 'a/quiet', review: null, ahead: 2 }),
-            task({ id: 'a/nothing', review: null, ahead: 0 }),
-          ],
-        }),
-        NOW,
-      ).snapshot(),
-    )
-    const { offered, unoffered } = reviewsOf(store)
-    expect(offered.map((one: { id: string }) => one.id)).toEqual(['a/offered'])
-    expect(unoffered.map((one: { id: string }) => one.id)).toEqual(['a/quiet'])
-  })
-})
-
-describe('the notes', () => {
-  it('reads newest first, which is the one collection read that way', () => {
-    const { store } = held()
-    const ids = notesOf(store).map((one: { id: string }) => one.id)
-    expect(ids).toEqual([...ids].sort().reverse())
-  })
-})
-
 describe('what a paired device holds', () => {
   it('is every row and figure the machine has: nothing is kept back from a device', () => {
     const store = emptyStore()
@@ -441,30 +314,19 @@ describe('the clock an age is counted against', () => {
   it('is the device’s own when there is no snapshot to freeze against', () => {
     expect(asOf(emptyStore(), 'unreachable', NOW)).toEqual({ at: NOW, frozen: false })
   })
-
-  it('reads the period the money covers off the snapshot, never off the device', () => {
-    // The window folds from its own midnight and the phone is somewhere else,
-    // so the page may not work this out: it reads the instant the server sent
-    // and says that. With no snapshot there is nothing to say.
-    const { store } = held()
-    // The fixture's own moment, written out, so this says what the value is
-    // rather than that one field equals the field it is read from — which is
-    // an assertion that holds however wrong both of them are.
-    expect(spendSince(store)).toBe('2026-10-08T00:00:00.000Z')
-    expect(spendSince(emptyStore())).toBeNull()
-  })
 })
 
-describe('the projects and the tasks in them', () => {
-  it('finds one by name, and answers nothing for one that is not there', () => {
-    const { store } = held()
-    expect(projectAt(store, 'sentry')?.name).toBe('sentry')
-    expect(projectAt(store, 'nope')).toBeNull()
-    expect(projectsOf(store).map((one: { name: string }) => one.name)).toEqual(['sentry', 'tade'])
-    expect(tasksIn(store, 'tade')).toHaveLength(1)
-    expect(tasksIn(store, 'nope')).toEqual([])
-  })
-})
+/** One row of a collection by its key, or null: what the deleted pages' selectors read. */
+const rowAt = (store: ReturnType<typeof emptyStore>, collection: string, key: string) =>
+  store.rows[collection]?.get(key) ?? null
+const intakeAt = (store: ReturnType<typeof emptyStore>, item: string) =>
+  rowAt(store, 'intake', item)
+const runAt = (store: ReturnType<typeof emptyStore>, run: string) => rowAt(store, 'runs', run)
+const workflowAt = (store: ReturnType<typeof emptyStore>, name: string) =>
+  rowAt(store, 'workflows', name)
+const sourcesOf = (store: ReturnType<typeof emptyStore>) => rowsOf(store, 'sources')
+const runsOf = (store: ReturnType<typeof emptyStore>) => rowsOf(store, 'runs')
+const workflowsOf = (store: ReturnType<typeof emptyStore>) => rowsOf(store, 'workflows')
 
 describe('the factory floor, as the page holds it', () => {
   const held = () => {
@@ -510,23 +372,6 @@ describe('the factory floor, as the page holds it', () => {
 
   it('reads the doors in the order the wire sent them', () => {
     expect(sourcesOf(held()).map((one) => one.source)).toEqual(['cli', 'github'])
-  })
-
-  it('reads the runs with the unfinished ones first', () => {
-    // A run every step of which has finished is a thing to look back at, not a
-    // thing to look at — so it sorts after whatever is still going.
-    const store = held()
-    expect(runsOf(store).map((one) => one.run)).toEqual(['shop-1402'])
-    expect(runAt(store, 'shop-1402')?.total).toBe(2)
-    expect(runAt(store, 'nothing')).toBeNull()
-    expect(runsOf(store, 'tade')).toHaveLength(0)
-  })
-
-  it('reads the workflows by name', () => {
-    const store = held()
-    expect(workflowsOf(store).map((one) => one.name)).toEqual(['reproduce-and-fix'])
-    expect(workflowAt(store, 'reproduce-and-fix')?.shows).toBe('draft')
-    expect(workflowAt(store, 'nothing')).toBeNull()
   })
 
   it('merges a delta into each of them rather than replacing the row', () => {

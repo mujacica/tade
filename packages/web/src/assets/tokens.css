@@ -70,7 +70,6 @@
   --surface: #303030; /* 236 · a row under the pointer, where you are, a tile */
   --raised: #3a3a3a; /* 237 · a field; anything above a card */
   --line: #303030; /* 236 · the hairline round a card: one step above it, and no more */
-  --chosen: #444444; /* 238 · the row you are on */
   --control: #4e4e4e; /* 239 · a button at rest */
   --hovered: #585858; /* 240 · a control under the pointer */
   --chrome: #626262; /* 241 · a field's edge; a rule that has to be seen */
@@ -150,13 +149,6 @@
   --stack: var(--s5);
   --bar: calc(var(--tap) + 2 * var(--s1));
   /*
-    The icon rail's column: a press a thumb's width with the rail's own
-    padding either side and its rule, and never narrower than a mouse's 56px.
-  */
-  --rail: max(3.5rem, calc(var(--tap) + 2 * var(--s2) + 1px));
-  /* The tab bar stood down the left edge of a phone held sideways (`frame.css`). */
-  --side-tabs: 4.5rem;
-  /*
     The room above the keyboard and how much the keys cover, which `room.js`
     sets while the keyboard is up: the screen, and nothing, otherwise.
   */
@@ -189,34 +181,17 @@
   --lift: 0 16px 48px #000000b3;
   /* The wordmark's height, which sizes all of it (`frame.css`). */
   --word: 1.375rem;
-  /*
-    A chart's stops: where each part of a ring ends, set per element by
-    `charts.js` through the CSSOM and nought until it does.
-  */
-  --p1: 0%;
-  --p2: 0%;
-  --p3: 0%;
-  /* Where an agent's menu opens at a desk, beside what was pressed (`agent-menu.js`). */
+  /* Where the sign-in's sheet opens at a desk, beside what was pressed (`sign-in.js`). */
   --mx: 0px;
   --my: 0px;
   /*
-    The rest of a chart's geometry (`charts.js`), each set per element through
-    the CSSOM and nought until it is: a mark's tone (a `tone-*` class sets it),
-    where a dot is (`--x`, `--y`), where a span starts and ends on a track
-    (`--a`, `--b`), a bar's share (`--w`), a flow's canvas and box (`--fw`,
-    `--fh`, `--nw`, `--nh`) and a heat strip's rows.
+    A chart's geometry (`charts.js`), each set per element through the CSSOM
+    and nought until it is: a mark's tone (a `tone-*` class sets it), where a
+    sparkline's dot is (`--x`, `--y`).
   */
   --tone: var(--amber);
   --x: 0%;
   --y: 0%;
-  --a: 0%;
-  --b: 0%;
-  --w: 0%;
-  --fw: 0px;
-  --fh: 0px;
-  --nw: 0px;
-  --nh: 0px;
-  --rows: 1;
   --ease: 140ms cubic-bezier(0.2, 0, 0, 1);
   --ease-sheet: 220ms cubic-bezier(0.2, 0, 0, 1);
 }
@@ -271,6 +246,7 @@ body {
   color: var(--bright);
   font-family: var(--font-ui);
   font-size: var(--step-0);
+  font-weight: var(--w-body);
   line-height: var(--lead);
   -webkit-font-smoothing: antialiased;
   /*

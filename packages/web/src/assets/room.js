@@ -24,10 +24,15 @@ const KEYBOARD_PX = 120
 export function roomOn(root = document.documentElement) {
   const view = globalThis.visualViewport
   if (view === undefined || view === null) return
+  /** Whether the keys were up at the last look, or null before one. */
+  let was = null
   const fit = () => {
     const zoomed = view.scale > 1.01
     const up = !zoomed && globalThis.innerHeight - view.height > KEYBOARD_PX
     root.classList.toggle('keyboard-up', up)
+    // Said once a change, for what lays itself out again around the keys (`talkPart`).
+    if (was !== null && was !== up) globalThis.dispatchEvent?.(new Event('tade:room'))
+    was = up
     if (!up) {
       root.style.removeProperty('--room')
       root.style.removeProperty('--keys')

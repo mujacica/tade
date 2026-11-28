@@ -24,22 +24,18 @@ import { contrast, hexOf } from './colour.ts'
 const DIR = assetsDir()
 const read = (name: string) => readFileSync(join(DIR, name), 'utf8')
 const TOKENS = read('tokens.css')
-// The frame, the screens, the overview, the command bar and the dock, which are
-// five files for length and one stylesheet for every rule here: a selector is
-// in whichever of them it belongs to, and nothing in this file cares which —
-// except the breakpoints, which are in order within each file.
+// The frame, the screen's pieces, the conversation, the sign-in, pairing and
+// the motion, which are several files for length and one stylesheet for every
+// rule here: a selector is in whichever of them it belongs to, and nothing in
+// this file cares which — except the breakpoints, which are in order within
+// each file.
 const SHEETS = [
   'ui.css',
   'charts.css',
   'frame.css',
-  'rail.css',
   'away.css',
-  'pages.css',
-  'dash.css',
-  'palette.css',
+  'talk.css',
   'sign-in.css',
-  'dock.css',
-  'page.css',
   'pair.css',
   'motion.css',
   // **Each page's own sheet, last**, so a page's rule wins over every shared
@@ -163,7 +159,7 @@ describe('the palette is the window’s own', () => {
     expect(ground).toBe(pictured)
     expect(HTML).toContain(`<meta name="theme-color" content="${ground}" />`)
     // And the shell's own regions are on it rather than a grey of their own.
-    for (const selector of ['.top', '.tabs']) {
+    for (const selector of ['.top']) {
       const rule = new RegExp(`\\n\\${selector} \\{([^}]*)\\}`).exec(AWAY)?.[1] ?? ''
       expect(rule, selector).toContain('background: var(--ground)')
     }
@@ -290,8 +286,6 @@ describe('the layout', () => {
       all.push(...widths)
     }
     expect(all).toContain(768)
-    expect(all).toContain(1100)
-    expect(all).toContain(1280)
     // And they are linked in that order, so a desk's rules come after a tablet's.
     const linked = [...HTML.matchAll(/href="\/assets\/([\w/-]+\.css)"/g)].map((one) => one[1])
     expect(linked).toEqual(['tokens.css', ...SHEETS])
@@ -306,23 +300,19 @@ describe('the layout', () => {
     for (const owner of owners) expect(['.scrolls', '.tabstrip'], String(owner)).toContain(owner)
   })
 
-  it('keeps room for the tab bar and the phone’s own safe area', () => {
+  it('keeps room for the phone’s own safe area', () => {
     expect(AWAY).toContain('env(safe-area-inset-bottom)')
     expect(HTML).toContain('viewport-fit=cover')
   })
 
   it('gives a phone held sideways a phone’s frame, however wide it is', () => {
     // An iPhone sideways is 844 to 932 wide and under 430 tall: past the
-    // tablet's width, it got the icon rail, a two-line command field and Tade
-    // docked under half a screen. The tablet's query is one, in three files.
-    const tablet = [...read('frame.css').matchAll(/@media (\(min-width: 768px\)[^{]*)\{/g)]
-    const tablets = [
-      ...tablet,
-      ...read('dock.css').matchAll(/@media (\(min-width: 768px\)[^{]*)\{/g),
-    ]
+    // tablet's width, it got the tablet's gutters and a header two lines tall
+    // over half a screen. The tablet's query is one, however often it is written.
+    const tablets = [...read('frame.css').matchAll(/@media (\(min-width: 768px\)[^{]*)\{/g)]
     const query = tablets[0]?.[1]?.trim() ?? ''
-    expect(tablets.map((one) => one[1]?.trim())).toEqual([query, query, query])
-    expect(read('docks.js')).toContain(`tade: '${query}'`)
+    expect(tablets.length).toBeGreaterThan(0)
+    for (const one of tablets) expect(one[1]?.trim()).toBe(query)
     const sideways =
       /@media ([^{]*\(orientation: landscape\)[^{]*)\{/.exec(read('frame.css'))?.[1] ?? ''
     const at = (width: number, height: number, pointer: 'fine' | 'coarse') => ({
@@ -335,15 +325,15 @@ describe('the layout', () => {
     // The Duo's inner screen sideways and a tablet either way up keep the tablet's.
     expect(at(951, 669, 'coarse')).toEqual({ tablet: true, sideways: false })
     expect(at(1024, 768, 'coarse')).toEqual({ tablet: true, sideways: false })
-    // A desk's short window has a pointer, and keeps its rail.
+    // A desk's short window has a pointer, and keeps the tablet's frame.
     expect(at(1280, 500, 'fine')).toEqual({ tablet: true, sideways: false })
   })
 
   it('pins the frame to the screen, and scrolls only the regions inside it', () => {
-    // The document scrolling is what carried the header, the menu, the side
-    // and Tade away, and let the page run on past the end of the work. Where
-    // each part actually lands is `scripts/browser-frame.ts`'s to say; this is
-    // the half that can be read without laying anything out.
+    // The document scrolling is what carried the header away, and let the
+    // page run on past the end of the work. Where each part actually lands is
+    // the browser harnesses' to say; this is the half that can be read
+    // without laying anything out.
     const rule = (selector: string) =>
       new RegExp(`(?:^|\\n)${selector}\\s*\\{([^}]*)\\}`).exec(AWAY)?.[1] ?? ''
     expect(rule('html')).toMatch(/overflow:\s*hidden/)
@@ -360,7 +350,7 @@ describe('the layout', () => {
 describe('reach and motion', () => {
   it('has a 44px floor and uses it on every control', () => {
     expect(TOKENS).toContain('--tap: 44px')
-    for (const selector of ['.press', '.tab', '.back', '.more', '.tabstrip a', 'input', 'select']) {
+    for (const selector of ['.press', '.more', 'input', 'select']) {
       // The exact selector at the start of a rule, so `.tab` is not answered by
       // `.tabs` — which is the bar itself and has no height of its own.
       const block =
@@ -446,8 +436,6 @@ describe('the shell’s own semantics', () => {
   it('builds the landmarks, the skip link and one live region', () => {
     const frame = read('shell.js')
     expect(frame).toContain("el('header'")
-    expect(frame).toContain("el('nav'")
-    expect(frame).toContain("'aria-label': 'Sections'")
     expect(frame).toContain("attrs: { id: 'main' }")
     expect(frame).toContain('skip to what wants you')
     // **One** live region, announcing only what crossed into wanting you.
@@ -467,18 +455,14 @@ describe('the shell’s own semantics', () => {
 
   it('claims no key it does not answer', () => {
     // A key that looks like it works and does not is worse than one that was
-    // never offered. `/` opens the command bar, which is the page's search,
-    // so the sheet may offer it only where the handler answers it.
-    const entry = read('boot.js')
-    const sheet = read('shell.js')
-    const offered = [...sheet.matchAll(/\['(g [a-z]|[jk?] \/ [jk?]|\w+)',/g)].map((one) => one[1])
-    expect(offered.length).toBeGreaterThan(4)
-    for (const key of offered) {
-      if (key === undefined) continue
-      const letter = key.startsWith('g ') ? key.slice(2) : key
-      expect(entry, `the sheet offers ${key}`).toContain(letter.split(' ')[0] ?? letter)
+    // never offered. The overview has no keys of its own — no menu to go
+    // through, no command bar — so neither the entry nor the frame listens for
+    // one, and nothing offers a sheet of them. The full view's keys are the
+    // window's own (`full-keys.js`).
+    for (const name of ['boot.js', 'shell.js']) {
+      expect(read(name), name).not.toContain("'keydown'")
+      expect(read(name), name).not.toContain('aria-keyshortcuts')
     }
-    if (sheet.includes("['/',")) expect(entry).toContain("case '/':")
   })
 })
 

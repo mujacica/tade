@@ -42,7 +42,7 @@ export const SCRIPT_LINES = Array.from(
 export const ONE_LINE = `run ${Array.from({ length: 12 }, (_, n) => `--flag-${n}=value`).join(' ')}`
 
 const DRAWN = `(() => {
-  const live = document.querySelector('main .ask-live')
+  const live = document.querySelector('main .talk .ask-live')
   if (!live || live.hidden) return null
   const doing = live.querySelector('.ask-doing')
   const block = live.querySelector('.ask-block')
@@ -73,7 +73,7 @@ interface Drawn {
 }
 
 /**
- * `doing`, on the conversation's own screen: `busy` makes the machine say Tade
+ * `doing`, in the overview's conversation: `busy` makes the machine say Tade
  * is answering with this call still running, and `idle` says it stopped.
  */
 export async function doingAt(
@@ -87,8 +87,8 @@ export async function doingAt(
   let step = ''
   let idled = false
   try {
-    await page.goto(`${origin}/talk`, { waitUntil: READY })
-    await page.waitForSelector('main .ask-field', { timeout: 10_000 })
+    await page.goto(`${origin}/`, { waitUntil: READY })
+    await page.waitForSelector('main .talk .ask-field', { timeout: 10_000 })
     const problems: string[] = []
 
     step = 'a running command of many lines was never drawn'

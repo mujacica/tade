@@ -38,22 +38,8 @@ describe('the Duo plan', () => {
         look.path,
       ).toBe(true)
     }
-    const named = DUO_LOOKS.map((look) => look.name)
-    for (const page of [
-      'pairing',
-      'overview',
-      'agent',
-      'queue',
-      'plans',
-      'plan',
-      'spend',
-      'findings',
-      'notes',
-      'talk-keyboard',
-      'settings',
-    ]) {
-      expect(named).toContain(page)
-    }
+    // The page's two screens, and the box to Tade with the keyboard up.
+    expect(DUO_LOOKS.map((look) => look.name)).toEqual(['pairing', 'overview', 'overview-keyboard'])
   })
 })
 
@@ -104,12 +90,19 @@ describe('the full view’s sizes', () => {
     expect(FULL_SIZES.filter((one) => one.fold).map((one) => one.name)).toEqual([
       'duo-inner-sideways',
     ])
-    // The Duo's four Home Screen sizes are the overview harness's own.
+    // The Duo's four Home Screen sizes are among them, and the overview is held at every one.
     for (const screen of DUO) {
       const same = FULL_SIZES.find(
         (one) => one.width === screen.width && one.height === screen.height,
       )
       expect(same?.insets, screen.name).toEqual(screen.insets)
     }
+    const { OVERVIEW_SIZES } = await import('./browser-duo-plan.ts')
+    expect(OVERVIEW_SIZES.map((one) => [one.name, one.width, one.height])).toEqual(
+      FULL_SIZES.map((one) => [one.name, one.width, one.height]),
+    )
+    // A keyboard always leaves room for the box and something above it.
+    for (const one of OVERVIEW_SIZES)
+      expect(one.height - one.keyboard, one.name).toBeGreaterThan(190)
   })
 })

@@ -191,65 +191,22 @@ function shellAt(path: string, name: string): Route {
 }
 
 export const ROUTES: readonly Route[] = [
-  // **Every screen's own path, and all of them answered with the same bytes.**
-  // Public, and the thing that makes that safe is that the shell carries no
-  // data at all: it is a script that asks `/api/snapshot`, and that route is a
-  // `401` without a session. `test/server.test.ts` asserts the bytes of every
-  // public answer contain nothing of the projection.
+  // **The page's two screens, both answered with the same bytes**: the
+  // overview and pairing (§10 T5 of the Duo plan — everything else is a panel
+  // of the window, in the full view at `/draw/`). Public, and the thing that
+  // makes that safe is that the shell carries no data at all: it is a script
+  // that asks `/api/snapshot`, and that route is a `401` without a session.
+  // `test/server.test.ts` asserts the bytes of every public answer contain
+  // nothing of the projection.
   //
-  // They are enumerated rather than matched with a wildcard for two reasons. A
-  // wildcard would make this table stop being the list of what the away view
-  // answers — which is the thing somebody checks read-only against in forty
-  // lines — and it would turn every mistyped path into a page that loads and
-  // then says it knows nothing, instead of the `404` it is.
-  //
-  // `:project` and `:task` are read and **not used**: the handler serves a file
-  // out of a map. So a deep link to a project that is not there, or that this
-  // device may not read, is byte-identical to one that is — which is the only
-  // way a public route can carry a name in its path without answering a
-  // question about it.
+  // Enumerated rather than matched with a wildcard: a wildcard would make this
+  // table stop being the list of what the away view answers — which is the
+  // thing somebody checks read-only against in forty lines — and it would turn
+  // every mistyped path, an old bookmark of a page that went among them, into
+  // a page that loads and then says it knows nothing, instead of the `404` it
+  // is.
   shellAt('/', 'shell'),
   shellAt('/pair', 'pair page'),
-  shellAt('/p/:project', 'project page'),
-  shellAt('/t/:project/:task', 'task page'),
-  // What that agent has changed, every file and its diff: the window's Show changes.
-  shellAt('/t/:project/:task/changes', 'changes page'),
-  // Another machine's project and task, drawn out of the copy of it this door
-  // keeps (`copies.ts`, ONE-AWAY-VIEW §2.4). The shell as ever: the name of the
-  // machine is one more segment the page looks up in what it holds.
-  shellAt('/m/:machine/p/:project', 'project page there'),
-  shellAt('/m/:machine/t/:project/:task', 'task page there'),
-  // Every agent running, across every project this device may read: the
-  // window's own side list, as a page of its own on a phone and a tablet.
-  shellAt('/agents', 'agents page'),
-  shellAt('/queue', 'queue page'),
-  // The factory floor. `:source`, `:id`, `:run` and `:name` are read and **not
-  // used**, exactly as `:project` and `:task` are: the handler serves a file
-  // out of a map, so a deep link to a request this device may not read is
-  // byte-identical to one it may.
-  shellAt('/inbox', 'inbox page'),
-  shellAt('/i/:source/:id', 'request page'),
-  shellAt('/plans', 'plans page'),
-  shellAt('/plans/:run', 'plan page'),
-  // The plans' old addresses, from before a run of a workflow was called a
-  // plan: still the shell, so a bookmark or a pushed link lands, and the page
-  // writes the new address over it (`movedFrom` in `assets/routes.js`).
-  shellAt('/runs', 'old plans page'),
-  shellAt('/r/:run', 'old plan page'),
-  shellAt('/workflows', 'workflows page'),
-  shellAt('/w/:name', 'workflow page'),
-  shellAt('/checks', 'checks page'),
-  shellAt('/evals', 'evaluations page'),
-  shellAt('/reviews', 'reviews page'),
-  shellAt('/spend', 'spend page'),
-  shellAt('/findings', 'findings page'),
-  shellAt('/notes', 'notes page'),
-  shellAt('/talk', 'talk page'),
-  shellAt('/devices', 'devices page'),
-  shellAt('/machines', 'machines page'),
-  shellAt('/accounts', 'accounts page'),
-  shellAt('/settings', 'settings page'),
-  shellAt('/more', 'more page'),
   // The service worker, at the root because that is what decides its scope: a
   // worker is only allowed to control paths under the folder it was served
   // from, so one served out of `/assets/` could never answer for `/`. Public

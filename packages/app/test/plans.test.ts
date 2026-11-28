@@ -1,6 +1,5 @@
 import { BUDGET, type RunIn, type RunStepIn, runRow } from '@tade/web'
 import { describe, expect, it } from 'vitest'
-import * as page from '../../web/src/assets/pages/runs-shape.js'
 import { runsIn } from '../src/away-factory.ts'
 import {
   GROUPS,
@@ -22,11 +21,11 @@ import {
 import { planEntries } from '../src/search.ts'
 import { planRowsOf } from '../src/wire/plans.ts'
 
-// The window's Plans screen and the away view's Plans page are one answer to
-// "which plan wants me, and how far along is each": the rules are the page's
-// (`runs-shape.js`), copied into `plans.ts` because a browser cannot import a
-// `.ts` file. These hold the copy to the page on the same rows, so the two can
-// never drift — and the rows to `runRow`'s own rollups.
+// The window's Plans screen: "which plan wants me, and how far along is each".
+// Its rules were once held equal to the away view's Plans page; that page went
+// with §10 T5 of the Duo plan (a phone reads plans in the full view, which is
+// this screen), so they are held here to what they say on the same rows — and
+// the rows to `runRow`'s own rollups.
 
 const step = (over: Partial<RunStepIn> = {}): RunStepIn => ({
   task: 'sentry/ship-a',
@@ -139,87 +138,714 @@ const REVIEWING = run('in-review', [
 
 const ROWS: PlanRow[] = planRowsOf([CHECKOUT, RELEASE, SLOW, REVIEWING])
 
-describe("the window's plans are the away page's", () => {
-  it('names the parts, the standings and the groups the same', () => {
-    expect(PARTS.map((one) => [one.key, one.label, one.always])).toEqual(
-      page.PARTS.map((one) => [one.key, one.label, one.always]),
-    )
-    // A plan with no steps left is the window's alone: every run a device is
-    // sent has a step, since every paired device reads every project.
-    expect(GROUPS.slice(0, 3)).toEqual(page.GROUPS)
-    for (const [key, one] of Object.entries(STANDINGS)) {
-      if (key === 'unseen') continue
-      expect(one.group).toBe(page.STANDINGS[key]?.group)
-      expect(one.word).toBe(page.STANDINGS[key]?.word)
-    }
+describe("the window's plans", () => {
+  it('names the parts, the standings and the groups', () => {
+    expect(PARTS.map((one) => [one.key, one.label, one.always])).toMatchInlineSnapshot(`
+      [
+        [
+          "finished",
+          "finished",
+          true,
+        ],
+        [
+          "review",
+          "in review",
+          false,
+        ],
+        [
+          "working",
+          "working",
+          true,
+        ],
+        [
+          "wants",
+          "wants you",
+          true,
+        ],
+        [
+          "failed",
+          "failed",
+          true,
+        ],
+        [
+          "waiting",
+          "waiting",
+          true,
+        ],
+        [
+          "parked",
+          "parked",
+          false,
+        ],
+      ]
+    `)
+    expect(GROUPS).toMatchInlineSnapshot(`
+      [
+        {
+          "heading": "NEEDS YOU",
+          "key": "needs",
+        },
+        {
+          "heading": "UNDER WAY",
+          "key": "going",
+        },
+        {
+          "heading": "FINISHED",
+          "key": "finished",
+        },
+        {
+          "heading": "NOTHING LEFT",
+          "key": "unseen",
+        },
+      ]
+    `)
+    expect(
+      Object.entries(STANDINGS).map(([key, one]) => [key, one.group, one.word]),
+    ).toMatchInlineSnapshot(`
+      [
+        [
+          "wants",
+          "needs",
+          "wants you",
+        ],
+        [
+          "failed",
+          "needs",
+          "a step failed",
+        ],
+        [
+          "working",
+          "going",
+          "working",
+        ],
+        [
+          "review",
+          "going",
+          "in review",
+        ],
+        [
+          "waiting",
+          "going",
+          "waiting",
+        ],
+        [
+          "finished",
+          "finished",
+          "finished",
+        ],
+        [
+          "unseen",
+          "unseen",
+          "no steps left",
+        ],
+      ]
+    `)
   })
 
-  it('puts every step in the part the page does', () => {
+  it('puts every step in its part', () => {
     const states = ['queued', 'working', 'blocked', 'failed', 'review', 'merged', 'parked'] as const
+    const table: string[] = []
     for (const state of states) {
       for (const finished of [false, true]) {
         for (const active of [false, true]) {
-          const one = step({ state, finished, active })
-          expect([state, finished, active, partOf(one)]).toEqual([
-            state,
-            finished,
-            active,
-            page.partOf(one),
-          ])
+          table.push(
+            `${state} ${finished} ${active} → ${partOf(step({ state, finished, active }))}`,
+          )
         }
       }
     }
+    expect(table).toMatchInlineSnapshot(`
+      [
+        "queued false false → waiting",
+        "queued false true → working",
+        "queued true false → finished",
+        "queued true true → finished",
+        "working false false → working",
+        "working false true → working",
+        "working true false → finished",
+        "working true true → finished",
+        "blocked false false → wants",
+        "blocked false true → working",
+        "blocked true false → finished",
+        "blocked true true → finished",
+        "failed false false → failed",
+        "failed false true → working",
+        "failed true false → finished",
+        "failed true true → finished",
+        "review false false → review",
+        "review false true → working",
+        "review true false → finished",
+        "review true true → finished",
+        "merged false false → review",
+        "merged false true → working",
+        "merged true false → finished",
+        "merged true true → finished",
+        "parked false false → parked",
+        "parked false true → working",
+        "parked true false → finished",
+        "parked true true → finished",
+      ]
+    `)
   })
 
-  it('stands, groups, counts and says what is happening as the page does', () => {
-    for (const row of ROWS) {
-      expect(standingOf(row)).toBe(page.standingOf(row))
-      expect(partsOf(row.steps)).toEqual(
-        page.partsOf(row.steps).map(({ key, label, n }) => ({ key, label, n })),
-      )
-      expect(nowOf(row)).toEqual(page.nowOf(row))
-      expect(nowOf(row, 1)).toEqual(page.nowOf(row, 1))
-      expect([...shortNamesOf(row.steps)]).toEqual([...page.shortNamesOf(row.steps)])
-      for (const one of row.steps) {
-        expect(waitsOf(one, row)).toEqual(page.waitsOf(one, row))
-        expect(stepSays(one)).toBe(page.stepSays(one))
-      }
-      const stages = stagesOf(row).map((one) => ({
-        ...one,
-        steps: one.steps.map((s) => s.task).sort(),
-      }))
-      expect(stages).toEqual(
-        page.stagesOf(row).map(({ part: _part, ...one }) => ({
-          ...one,
-          steps: one.steps.map((s: RunStepIn) => s.task).sort(),
-        })),
-      )
-    }
+  it('stands, groups, counts and says what is happening', () => {
+    const said = ROWS.map((row) => ({
+      run: row.run,
+      standing: standingOf(row),
+      parts: partsOf(row.steps),
+      now: nowOf(row),
+      nowOne: nowOf(row, 1),
+      short: [...shortNamesOf(row.steps)],
+      steps: row.steps.map((one) => [one.task, stepSays(one), waitsOf(one, row)]),
+      stages: stagesOf(row).map((one) => ({ ...one, steps: one.steps.map((s) => s.task).sort() })),
+    }))
+    expect(said).toMatchInlineSnapshot(`
+      [
+        {
+          "now": {
+            "lines": [
+              {
+                "name": "form",
+                "part": "wants",
+                "project": "web",
+                "said": "wants you",
+                "task": "web/checkout-v2-form",
+              },
+              {
+                "name": "faq",
+                "part": "failed",
+                "project": "docs",
+                "said": "failed",
+                "task": "docs/checkout-v2-faq",
+              },
+              {
+                "name": "client",
+                "part": "working",
+                "project": "api",
+                "said": "working",
+                "task": "api/checkout-v2-client",
+              },
+            ],
+            "more": 2,
+          },
+          "nowOne": {
+            "lines": [
+              {
+                "name": "form",
+                "part": "wants",
+                "project": "web",
+                "said": "wants you",
+                "task": "web/checkout-v2-form",
+              },
+            ],
+            "more": 4,
+          },
+          "parts": [
+            {
+              "key": "finished",
+              "label": "finished",
+              "n": 1,
+            },
+            {
+              "key": "working",
+              "label": "working",
+              "n": 1,
+            },
+            {
+              "key": "wants",
+              "label": "wants you",
+              "n": 1,
+            },
+            {
+              "key": "failed",
+              "label": "failed",
+              "n": 1,
+            },
+            {
+              "key": "waiting",
+              "label": "waiting",
+              "n": 1,
+            },
+            {
+              "key": "parked",
+              "label": "parked",
+              "n": 1,
+            },
+          ],
+          "run": "checkout-v2",
+          "short": [
+            [
+              "api/checkout-v2-schema",
+              "schema",
+            ],
+            [
+              "api/checkout-v2-client",
+              "client",
+            ],
+            [
+              "web/checkout-v2-form",
+              "form",
+            ],
+            [
+              "web/checkout-v2-page",
+              "page",
+            ],
+            [
+              "docs/checkout-v2-notes",
+              "notes",
+            ],
+            [
+              "docs/checkout-v2-faq",
+              "faq",
+            ],
+          ],
+          "stages": [
+            {
+              "done": 1,
+              "layer": 0,
+              "name": "Stage 1",
+              "said": "can go first",
+              "steps": [
+                "api/checkout-v2-schema",
+              ],
+            },
+            {
+              "done": 0,
+              "layer": 1,
+              "name": "Stage 2",
+              "said": "after stage 1",
+              "steps": [
+                "api/checkout-v2-client",
+                "web/checkout-v2-form",
+              ],
+            },
+            {
+              "done": 0,
+              "layer": 2,
+              "name": "Stage 3",
+              "said": "after stage 2",
+              "steps": [
+                "web/checkout-v2-page",
+              ],
+            },
+            {
+              "done": 0,
+              "layer": 3,
+              "name": "Stage 4",
+              "said": "after stage 3 and outside/thing",
+              "steps": [
+                "docs/checkout-v2-faq",
+                "docs/checkout-v2-notes",
+              ],
+            },
+          ],
+          "standing": "wants",
+          "steps": [
+            [
+              "api/checkout-v2-schema",
+              "checks green · review merged · 2 agents have been on it",
+              [],
+            ],
+            [
+              "api/checkout-v2-client",
+              "checks not run here",
+              [
+                {
+                  "finished": true,
+                  "name": "schema",
+                  "part": "finished",
+                  "seen": true,
+                  "task": "api/checkout-v2-schema",
+                  "why": "the schema first",
+                },
+              ],
+            ],
+            [
+              "web/checkout-v2-form",
+              "checks not run here",
+              [
+                {
+                  "finished": true,
+                  "name": "schema",
+                  "part": "finished",
+                  "seen": true,
+                  "task": "api/checkout-v2-schema",
+                  "why": "",
+                },
+              ],
+            ],
+            [
+              "web/checkout-v2-page",
+              "checks not run here",
+              [
+                {
+                  "finished": false,
+                  "name": "form",
+                  "part": "wants",
+                  "seen": true,
+                  "task": "web/checkout-v2-form",
+                  "why": "the form goes on the page",
+                },
+                {
+                  "finished": false,
+                  "name": "client",
+                  "part": "working",
+                  "seen": true,
+                  "task": "api/checkout-v2-client",
+                  "why": "it calls the client",
+                },
+              ],
+            ],
+            [
+              "docs/checkout-v2-notes",
+              "checks not run here · set aside",
+              [
+                {
+                  "finished": false,
+                  "name": "page",
+                  "part": "waiting",
+                  "seen": true,
+                  "task": "web/checkout-v2-page",
+                  "why": "notes last",
+                },
+              ],
+            ],
+            [
+              "docs/checkout-v2-faq",
+              "checks red",
+              [
+                {
+                  "finished": false,
+                  "name": "outside/thing",
+                  "part": "unseen",
+                  "seen": false,
+                  "task": "outside/thing",
+                  "why": "not in this plan",
+                },
+              ],
+            ],
+          ],
+        },
+        {
+          "now": {
+            "lines": [],
+            "more": 0,
+          },
+          "nowOne": {
+            "lines": [],
+            "more": 0,
+          },
+          "parts": [
+            {
+              "key": "finished",
+              "label": "finished",
+              "n": 2,
+            },
+            {
+              "key": "working",
+              "label": "working",
+              "n": 0,
+            },
+            {
+              "key": "wants",
+              "label": "wants you",
+              "n": 0,
+            },
+            {
+              "key": "failed",
+              "label": "failed",
+              "n": 0,
+            },
+            {
+              "key": "waiting",
+              "label": "waiting",
+              "n": 0,
+            },
+          ],
+          "run": "release-notes",
+          "short": [
+            [
+              "docs/release-a",
+              "a",
+            ],
+            [
+              "docs/release-b",
+              "b",
+            ],
+          ],
+          "stages": [
+            {
+              "done": 2,
+              "layer": 0,
+              "name": "Stage 1",
+              "said": "can go first",
+              "steps": [
+                "docs/release-a",
+                "docs/release-b",
+              ],
+            },
+          ],
+          "standing": "finished",
+          "steps": [
+            [
+              "docs/release-a",
+              "checks not run here",
+              [],
+            ],
+            [
+              "docs/release-b",
+              "checks not run here",
+              [],
+            ],
+          ],
+        },
+        {
+          "now": {
+            "lines": [
+              {
+                "name": "one",
+                "part": "waiting",
+                "project": "app",
+                "said": "queued",
+                "task": "app/slow-one",
+              },
+              {
+                "name": "two",
+                "part": "waiting",
+                "project": "app",
+                "said": "waits on 1",
+                "task": "app/slow-two",
+              },
+            ],
+            "more": 0,
+          },
+          "nowOne": {
+            "lines": [
+              {
+                "name": "one",
+                "part": "waiting",
+                "project": "app",
+                "said": "queued",
+                "task": "app/slow-one",
+              },
+            ],
+            "more": 1,
+          },
+          "parts": [
+            {
+              "key": "finished",
+              "label": "finished",
+              "n": 0,
+            },
+            {
+              "key": "working",
+              "label": "working",
+              "n": 0,
+            },
+            {
+              "key": "wants",
+              "label": "wants you",
+              "n": 0,
+            },
+            {
+              "key": "failed",
+              "label": "failed",
+              "n": 0,
+            },
+            {
+              "key": "waiting",
+              "label": "waiting",
+              "n": 2,
+            },
+          ],
+          "run": "slow-burn",
+          "short": [
+            [
+              "app/slow-one",
+              "one",
+            ],
+            [
+              "app/slow-two",
+              "two",
+            ],
+          ],
+          "stages": [
+            {
+              "done": 0,
+              "layer": 0,
+              "name": "Stage 1",
+              "said": "can go first",
+              "steps": [
+                "app/slow-one",
+              ],
+            },
+            {
+              "done": 0,
+              "layer": 1,
+              "name": "Stage 2",
+              "said": "after stage 1",
+              "steps": [
+                "app/slow-two",
+              ],
+            },
+          ],
+          "standing": "waiting",
+          "steps": [
+            [
+              "app/slow-one",
+              "checks not run here",
+              [],
+            ],
+            [
+              "app/slow-two",
+              "checks not run here",
+              [
+                {
+                  "finished": false,
+                  "name": "one",
+                  "part": "waiting",
+                  "seen": true,
+                  "task": "app/slow-one",
+                  "why": "",
+                },
+              ],
+            ],
+          ],
+        },
+        {
+          "now": {
+            "lines": [],
+            "more": 1,
+          },
+          "nowOne": {
+            "lines": [],
+            "more": 1,
+          },
+          "parts": [
+            {
+              "key": "finished",
+              "label": "finished",
+              "n": 1,
+            },
+            {
+              "key": "review",
+              "label": "in review",
+              "n": 1,
+            },
+            {
+              "key": "working",
+              "label": "working",
+              "n": 0,
+            },
+            {
+              "key": "wants",
+              "label": "wants you",
+              "n": 0,
+            },
+            {
+              "key": "failed",
+              "label": "failed",
+              "n": 0,
+            },
+            {
+              "key": "waiting",
+              "label": "waiting",
+              "n": 0,
+            },
+          ],
+          "run": "in-review",
+          "short": [
+            [
+              "app/rev-a",
+              "a",
+            ],
+            [
+              "app/rev-b",
+              "b",
+            ],
+          ],
+          "stages": [
+            {
+              "done": 1,
+              "layer": 0,
+              "name": "Stage 1",
+              "said": "can go first",
+              "steps": [
+                "app/rev-a",
+                "app/rev-b",
+              ],
+            },
+          ],
+          "standing": "review",
+          "steps": [
+            [
+              "app/rev-a",
+              "checks not run here",
+              [],
+            ],
+            [
+              "app/rev-b",
+              "checks not run here",
+              [],
+            ],
+          ],
+        },
+      ]
+    `)
     const all = overallOf(ROWS)
-    const theirs = page.overallOf(ROWS)
     expect(all.unseen).toBe(0)
-    expect({ ...all, plans: undefined, unseen: undefined }).toEqual({
-      ...theirs,
-      runs: undefined,
-      plans: undefined,
-      parts: theirs.parts.map(({ key, label, n }) => ({ key, label, n })),
-    })
-    expect(all.plans).toBe(theirs.runs)
+    expect(all).toMatchInlineSnapshot(`
+      {
+        "done": 4,
+        "finished": 1,
+        "going": 2,
+        "needs": 1,
+        "parts": [
+          {
+            "key": "finished",
+            "label": "finished",
+            "n": 4,
+          },
+          {
+            "key": "review",
+            "label": "in review",
+            "n": 1,
+          },
+          {
+            "key": "working",
+            "label": "working",
+            "n": 1,
+          },
+          {
+            "key": "wants",
+            "label": "wants you",
+            "n": 1,
+          },
+          {
+            "key": "failed",
+            "label": "failed",
+            "n": 1,
+          },
+          {
+            "key": "waiting",
+            "label": "waiting",
+            "n": 3,
+          },
+          {
+            "key": "parked",
+            "label": "parked",
+            "n": 1,
+          },
+        ],
+        "plans": 4,
+        "steps": 12,
+        "unseen": 0,
+      }
+    `)
   })
 
-  it('lists what wants you first, then what is moving, then what is done — in the page’s order', () => {
+  it('lists what wants you first, then what is moving, then what is done', () => {
     const groups = groupsOf(ROWS)
-    // The page's store sorts what is not finished first and then by name,
-    // and its groups keep that order (`runsOf`).
-    const sorted = [...ROWS].sort(
-      (a, b) =>
-        Number(a.finished === a.total) - Number(b.finished === b.total) ||
-        a.run.localeCompare(b.run),
-    )
-    const theirs = page.groupsOf(sorted)
-    expect(groups.slice(0, 3).map((one) => [one.key, one.plans.map((plan) => plan.run)])).toEqual(
-      theirs.map((one) => [one.key, one.runs.map((plan: PlanRow) => plan.run)]),
-    )
     expect(groups.map((one) => one.plans.map((plan) => plan.run))).toEqual([
       ['checkout-v2'],
       ['in-review', 'slow-burn'],

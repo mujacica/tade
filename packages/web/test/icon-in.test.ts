@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { agentPresses } from '../src/assets/agent-menu.js'
 import { icon, iconIn } from '../src/assets/icons.js'
 
 // The drawn glyph follows the verb.
@@ -104,52 +103,20 @@ function drawnOf(node: unknown): { href: string | null; marks: string[] } {
   }
 }
 
-/** An agent row's presses, on a device granted the agents scope. */
-function agentRow() {
-  const acting = {
-    ctx: { session: () => null },
-    menu: { open: () => {} },
-    rowOf: () => null,
-  }
-  const presses = agentPresses(acting, () => new Element('p', null)) as {
-    node: Element
-    update(row: unknown, acts: unknown): void
-  }
-  const toggle = presses.node.children[0] as Element
-  const redraw = (verb: 'stop' | 'start') =>
-    presses.update({ id: 't1', name: 'fixer', can: [{ verb }] }, { agents: true })
-  return { toggle, redraw }
-}
-
 describe('the drawn glyph follows the verb', () => {
-  it('draws ■ on an agent row whose press is Stop, and ▷ again when it is Start', () => {
+  it('moves an icon handed itself, as pairing hands its own', () => {
     g.document = documentWith(true)
-    const { toggle, redraw } = agentRow()
-
-    redraw('stop')
-    expect(toggle.getAttribute('aria-label')).toBe('Stop fixer')
-    expect(drawnOf(toggle.firstChild)).toEqual({ href: '#i-stop', marks: ['ic-stop'] })
-    // The `<svg>` itself is never pointed at anything: that is what drew nothing.
-    expect(toggle.firstChild?.getAttribute('href')).toBeNull()
-
-    redraw('start')
-    expect(toggle.getAttribute('aria-label')).toBe('Start fixer')
-    expect(drawnOf(toggle.firstChild)).toEqual({ href: '#i-play', marks: ['ic-play'] })
-  })
-
-  it('moves an icon handed itself, as the palette and pairing hand theirs', () => {
-    g.document = documentWith(true)
-    const made = icon('bolt', 'pal-mark')
+    const made = icon('scan', 'pair-mark')
     iconIn(made, 'check')
     expect(drawnOf(made)).toEqual({ href: '#i-check', marks: ['ic-check'] })
     // A class the caller added is the caller's, and stays.
-    expect((made as unknown as Element).classList.contains('pal-mark')).toBe(true)
+    expect((made as unknown as Element).classList.contains('pair-mark')).toBe(true)
   })
 
   it('moves an icon handed what holds it, rather than the svg', () => {
     g.document = documentWith(true)
     const holder = new Element('button', null)
-    holder.append(icon('play') as unknown as Element)
+    holder.append(icon('check') as unknown as Element)
     iconIn(holder, 'stop')
     expect(drawnOf(holder.firstChild)).toEqual({ href: '#i-stop', marks: ['ic-stop'] })
     expect(holder.getAttribute('href')).toBeNull()
@@ -157,7 +124,7 @@ describe('the drawn glyph follows the verb', () => {
 
   it('moves only the class where there is no sprite, and never throws', () => {
     g.document = documentWith(false)
-    const made = icon('play') as unknown as Element
+    const made = icon('check') as unknown as Element
     expect(made.tagName).toBe('span')
     iconIn(made, 'stop')
     expect([...made.classList]).toEqual(['ic', 'ic-stop'])

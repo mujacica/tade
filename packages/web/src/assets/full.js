@@ -43,6 +43,18 @@ const held = {
   tries: 0,
   source: null,
   drawing: false,
+  /**
+   * The agent the overview opened this page on (`/draw/?agent=<id>`, §10 T5
+   * of the Duo plan), until the first window has arrived to open it in.
+   */
+  opening: agentAsked(),
+}
+
+/** The agent named in the address, taken out of it as it is read so a reload does not open it again. */
+function agentAsked() {
+  const asked = new URLSearchParams(location.search).get('agent')
+  if (location.search !== '') history.replaceState(history.state, '', location.pathname)
+  return asked === null || asked === '' ? null : asked
 }
 
 /* ── the page ─────────────────────────────────────────────────────────────── */
@@ -161,6 +173,7 @@ function openStream() {
     }
     if (held.face === null) return
     if (!held.face.take(message)) void look(true)
+    else if (held.opening !== null) opened()
     soon()
   })
   source.addEventListener('revoked', () => {
@@ -192,6 +205,15 @@ function openStream() {
 function openAgain() {
   held.tries += 1
   openStream()
+}
+
+/** The agent the overview asked for, opened as a tap on its row would open it. */
+function opened() {
+  const task = held.opening
+  held.opening = null
+  const press = held.face.open(task)
+  if (press.intents.length === 0 && !press.draw) say('That agent is not in the window any more.')
+  pressed(press)
 }
 
 /* ── drawing ──────────────────────────────────────────────────────────────── */

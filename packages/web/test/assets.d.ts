@@ -101,46 +101,14 @@ declare module '*/assets/glyphs.js' {
 
 declare module '*/assets/routes.js' {
   export const TITLES: Readonly<Record<string, string>>
-  type Place = { view: string; icon: string; mark: string; label: string; counts: string | null }
-  export const NAV: readonly Place[]
-  export const MORE: readonly Place[]
-  export const MORE_TAB: Place
-  /** The menu's categories, and the places in each. */
-  export const GROUPS: readonly { key: string; title: string; views: readonly string[] }[]
-  /** The places that are the frame's own parts — the side and the dock — rather than menu entries. */
-  export const DOCKED: readonly string[]
   /** Which page's own files (`pages/<page>.js`, `.css`) draw a view. */
   export const PAGE_OF: Readonly<Record<string, string>>
-  export function viewOf(path: string): {
-    view: string
-    project?: string
-    task?: string
-    source?: string
-    id?: string
-    run?: string
-    name?: string
-    machine?: string
-  }
-  export function pathOf(where: {
-    view: string
-    project?: string
-    task?: string
-    source?: string
-    id?: string
-    run?: string
-    name?: string
-    machine?: string
-  }): string
-  /** The screens another machine's copy draws, under `/m/<machine>/`. */
-  export const THERE: readonly string[]
-  export function thereHref(machine: string, href: string): string | null
-  export function taskPath(id: string): string
-  export function changesPath(id: string): string
-  /** Where an address from before a rename lives now: `/runs` is `/plans`. */
-  export function movedFrom(path: string): string | null
-  export function requestPath(item: string): string
-  export function navFor(where: { view: string }): string
-  export function safeHref(url: unknown): string | null
+  /** The screens with a path of their own, beside the overview's `/`. */
+  export const PLAIN: readonly string[]
+  export function viewOf(path: string): { view: string }
+  export function pathOf(where: { view: string }): string
+  /** The full view, opened on one agent: `machine` is `''` for this one. */
+  export function agentPath(id: string, machine?: string): string
 }
 
 declare module '*/assets/store.js' {
@@ -162,32 +130,15 @@ declare module '*/assets/store.js' {
   export function wantsYou(store: Store): readonly any[]
   export function wantingIds(store: Store): Set<string>
   export function projectsOf(store: Store): readonly any[]
-  export function tasksIn(store: Store, project: string): readonly any[]
   export function taskAt(store: Store, project: string, name: string): any
-  export function projectAt(store: Store, name: string): any
   export function queueIn(store: Store, project: string | null): readonly any[]
-  export function notesOf(store: Store): readonly any[]
   export function chatOf(store: Store): readonly any[]
-  export function findingsOf(store: Store): readonly any[]
-  export function findingsUnanswered(store: Store): readonly any[]
-  export function plansOf(store: Store): readonly any[]
-  export function spendFold(tasks: readonly any[], partial?: boolean): Record<string, any>
-  export function checksFold(tasks: readonly any[]): Record<string, any>
-  export function checksWord(fold: Record<string, any>): string
-  export function reviewsOf(store: Store): { offered: readonly any[]; unoffered: readonly any[] }
   export function talkOf(store: Store): any
   export const WAITING: readonly string[]
   export function intakeOf(store: Store, project?: string | null): readonly any[]
-  export function intakeAt(store: Store, item: string): any
   export function intakeWaiting(store: Store, project?: string | null): readonly any[]
-  export function sourcesOf(store: Store): readonly any[]
-  export function runsOf(store: Store, project?: string | null): readonly any[]
-  export function runAt(store: Store, name: string): any
-  export function workflowsOf(store: Store): readonly any[]
-  export function workflowAt(store: Store, name: string): any
   export function omitted(store: Store, collection: string): number
   export function asOf(store: Store, kind: string, now: number): { at: number; frozen: boolean }
-  export function spendSince(store: Store): string | null
 }
 
 declare module '*/assets/controls.js' {
@@ -232,16 +183,7 @@ declare module '*/assets/shell.js' {
     now: number,
   ): { key: string; lead: string; under: string } | null
   export function crossing(was: Set<string> | null, is: Set<string>): string
-  export function titleFor(where: {
-    view: string
-    project?: string
-    task?: string
-    machine?: string
-  }): string
-  export function navCounts(
-    links: readonly { figure: unknown; counts: string | null }[],
-    counts: Record<string, number>,
-  ): void
+  export function titleFor(where: { view: string }): string
 }
 
 /**
@@ -266,7 +208,12 @@ declare module '*/assets/talk.js' {
   export function callDoing(tool: unknown, brief: string | null): string
   export function doingBlock(lines: readonly unknown[]): string
   // biome-ignore lint/suspicious/noExplicitAny: a node of whichever document a test installs
-  export function talkScreen(ctx: unknown): { node: any; update(view: unknown): void }
+  export function talkPart(ctx: unknown): {
+    // biome-ignore lint/suspicious/noExplicitAny: a node of whichever document a test installs
+    node: any
+    update(view: unknown): void
+    leave(): void
+  }
   export function offerToAsk(words: string): void
 }
 
@@ -328,111 +275,15 @@ declare module '*/assets/icons.js' {
 
 declare module '*/assets/charts.js' {
   /**
-   * Only the geometry is declared: each is pure arithmetic a test can hold.
-   * What the components *draw* is checked in a browser.
+   * Only the geometry is declared: pure arithmetic a test can hold. What the
+   * components *draw* is checked in a browser.
    */
   export const TONES: readonly string[]
-  export function stopsOf(parts: readonly number[]): number[]
   export function sparkPath(
     values: readonly (number | null)[],
     w?: number,
     h?: number,
   ): { lines: string[]; areas: string[]; last: { x: number; y: number } | null }
-  export function donutParts(
-    parts: readonly (number | null)[],
-    gap?: number,
-  ): ({ start: number; length: number } | null)[]
-  export function placeOf(at: number | null, from: number, to: number): number | null
-  export function levelsOf(values: readonly (number | null)[], levels?: number): (number | null)[]
-}
-
-declare module '*/assets/flow.js' {
-  /** The layout of a flow, which is pure arithmetic a test can hold. */
-  export function layered(
-    nodes: readonly { id: string }[],
-    edges: readonly { from: string; to: string }[],
-  ): { at: Map<string, { layer: number; row: number }>; layers: number; rows: number }
-  export function linesOf(text: unknown): number
-  export function flowGeometry(
-    nodes: readonly { id: string; label?: string; under?: string }[],
-    edges: readonly { from: string; to: string }[],
-    direction?: 'right' | 'down',
-  ): {
-    boxes: Map<string, { x: number; y: number; h: number }>
-    paths: { from: string; to: string; d: string; head: string }[]
-    width: number
-    height: number
-    size: { w: number; h: number; gapX: number; gapY: number }
-  }
-}
-
-declare module '*/assets/commands.js' {
-  export const GROUP_MOST: number
-  export const RECENT_MOST: number
-  export function matchOf(label: string, query: string): { score: number; at: number[] } | null
-  export function scoreOf(label: string, query: string): number | null
-  export function commandsFor(
-    query: string,
-    from: {
-      talk?: { mine?: boolean; busy?: boolean } | null
-      tasks?: readonly {
-        id: string
-        path: string
-        title?: string | null
-        icon?: string
-        tone?: string
-        wants?: boolean
-        acts?: readonly { verb: string; word: string; typed?: object; icon: string }[]
-      }[]
-      projects?: readonly string[]
-      screens?: readonly { label: string; icon: string; path: string; hint?: string }[]
-      recent?: readonly { path: string; label: string; icon?: string }[]
-    },
-  ): {
-    kind: 'ask' | 'go' | 'act' | 'tell'
-    group: string
-    label: string
-    icon: string
-    path?: string
-    task?: string
-    match: number[]
-    key: string
-  }[]
-  export function movedTo(at: number, rows: number, by: number): number
-  export function rememberedWith(
-    recent: readonly { path: string; label: string; icon?: string }[],
-    one: { path: string; label: string; icon?: string },
-  ): { path: string; label: string; icon?: string }[]
-  export function litOf(label: string, at: readonly number[]): { text: string; on: boolean }[]
-}
-
-declare module '*/assets/glance.js' {
-  export function glanceOf(store: unknown): {
-    wants: { n: number; blocked: number; failed: number; review: number }
-    working: { n: number; stalled: number }
-    queue: { n: number; ready: number }
-    checks: { pass: number; fail: number; unknown: number }
-    spend: { usd: number; partial: boolean; hasCost: boolean }
-    plan: { used: number; label: string; harness: string } | null
-  }
-  export function projectShape(counts: {
-    tasks?: number
-    wantsYou?: number
-    working?: number
-    queued?: number
-  }): number[]
-}
-
-declare module '*/assets/palette.js' {
-  export function actsOn(task: unknown, acts: unknown): { verb: string; word: string }[]
-  export function jumpsOf(
-    store: unknown,
-    acts?: unknown,
-  ): {
-    tasks: { id: string; path: string; icon: string; tone: string }[]
-    projects: string[]
-    screens: { label: string; icon: string; path: string }[]
-  }
 }
 
 declare module '*/assets/shell-bars.js' {
@@ -524,24 +375,6 @@ declare module '*/assets/sign-in.js' {
   }
 }
 
-declare module '*/assets/agent-menu.js' {
-  export const HOLD_MS: number
-  export function menuPath(task: string): string
-  export function menuTyped(
-    act: { with?: Readonly<Record<string, string>> } | null | undefined,
-    choice?: string,
-    typed?: string,
-  ): Record<string, string>
-  export function agentPresses(
-    acting: unknown,
-    saidOf: () => unknown,
-  ): { node: unknown; openMenu(from: unknown): void; update(row: unknown, acts: unknown): void }
-}
-
-declare module '*/assets/ui.js' {
-  export function notShownSaid(n: number): string
-}
-
 declare module '*/assets/quick.js' {
   export const QUICK: readonly string[]
   export function quickWord(verb: string, row: unknown, asked?: boolean): string
@@ -615,27 +448,6 @@ declare module '*/assets/acts.js' {
   export function wordsFor(verb: string, row: unknown): string
   export function headingFor(verb: string): string
   export function howSaid(how: string): string
-}
-
-declare module '*/assets/pages/inbox.js' {
-  /**
-   * Deliberately loose, for `store.js`' reason: these declarations exist so a
-   * test can *call* the browser's own copy of a sentence, and a second typed
-   * description of a projected row here would be a second schema that nothing
-   * holds to `protocol.ts`.
-   */
-  export function emptySays(sources: readonly any[]): string
-  export function factsOf(row: any): readonly [string, string][]
-  export function materialIn(nodes: any, row: any): void
-}
-
-declare module '*/assets/pages/runs.js' {
-  export function runSays(row: any, view: any): string
-  export function stepSays(step: any, view: any): string
-}
-
-declare module '*/assets/pages/workflows.js' {
-  export function workflowSays(row: any): string
 }
 
 declare module '*/assets/install.js' {
@@ -772,79 +584,6 @@ declare module '*/assets/passkey.js' {
   export function refusedBy(error: unknown): string
 }
 
-declare module '*/assets/tree.js' {
-  interface Piece {
-    task: string
-    project: string
-    state: { kind: string; [field: string]: unknown }
-    order: number | null
-    waitsOn: readonly { task: string; why: unknown }[]
-  }
-  interface Node<R> {
-    row: R
-    depth: number
-    children: Node<R>[]
-  }
-  export function queueTree<R extends Piece>(rows: readonly R[]): Node<R>[]
-  export function queueAt(state: unknown, clock: (at: string) => string): string
-  export function queueLine(state: unknown, project: string): string
-  export function queueName(row: { task: string; state: unknown }): string
-  export function queuePaused(rows: readonly { state: unknown }[]): boolean
-  export function sideAgents<
-    T extends { state: string; name: string; createdAt?: string; agents?: number; lanes?: number },
-  >(tasks: readonly T[]): T[]
-  export function agentGroups<T extends { effort?: string | null }>(
-    agents: readonly T[],
-  ): { effort: string | null; agents: T[] }[]
-  export const FOLDS: readonly string[]
-  export function foldsFrom(kept: unknown): Record<string, boolean>
-  export function foldsTo(folds: Record<string, boolean>): string
-}
-
-declare module '*/assets/desk.js' {
-  export function noAgentsSaid(store: unknown): string
-  // biome-ignore lint/suspicious/noExplicitAny: a node of whichever document a test installs
-  export function deskParts(ctx: unknown): { dock: any; update(view: unknown): void }
-}
-
-declare module '*/assets/agents.js' {
-  export function agentsScreen(ctx?: null): {
-    node: any
-    update(view: unknown): void
-  }
-  export function byProject<T extends { project: string }>(
-    agents: readonly T[],
-  ): { project: string; agents: T[] }[]
-  export function runsOn(task: {
-    project: string
-    harness: string | null
-    model: string | null
-    account: { words: string } | null
-  }): string
-}
-
-declare module '*/assets/toasts.js' {
-  export const MOST: number
-  export const LOG_MOST: number
-  export function loggedWith(
-    log: readonly { id: string; kind: string; at: number; key: string }[],
-    changes: readonly { id: string; kind: string }[],
-    at: number,
-    most?: number,
-  ): { id: string; kind: string; at: number; key: string }[]
-  export const STANDS_MS: number
-  export function statesOf(
-    tasks: readonly { id: string; state: string; agents?: number }[],
-  ): Map<string, { state: string; running: boolean }>
-  export function transitionsOf(
-    was: Map<string, { state: string; running: boolean }> | null,
-    is: Map<string, { state: string; running: boolean }>,
-  ): { id: string; kind: string }[]
-  export function shownOf(
-    changes: readonly { id: string; kind: string }[],
-  ): { id: string; kind: string; word: string; icon: string; tone: string }[]
-}
-
 declare module '*/assets/pair.js' {
   type Step = { key: string; title: string; sub: string; icon: string }
   export const FLOWS: { handheld: readonly Step[]; computer: readonly Step[] }
@@ -877,61 +616,24 @@ declare module '*/assets/trouble.js' {
 
 declare module '*/assets/pages/overview-figures.js' {
   /**
-   * The landing screen's figures: pure folds over the store, so a test holds
-   * every count and word the board, the money, the plan windows and the
-   * projects' grid say. How they are drawn is the browser's to check.
+   * The overview's figures: pure folds over the store, so a test holds every
+   * count and word the tiles and the two lists say. How they are drawn is the
+   * browser's to check.
    */
   type Dots = { dots: { tone: string; hollow: boolean }[]; more: number }
-  type Cell = { n: number; under: string; dots: Dots }
+  type Tile = { n: number; under: string; dots: Dots }
   export const DOTS: number
-  export const TOP: number
-  export function boardOf(
+  export function sameDay(at: string | null, now: number): boolean
+  export function tilesOf(
     store: Record<string, any>,
-    picked?: string | null,
-  ): {
-    wants: Cell & { approvals: number; questions: number; deciding: number; requests: number }
-    working: Cell & { stalled: number }
-    queue: Cell & { ready: number }
-    checks: Cell & { pass: number; unknown: number }
-  }
+    now: number,
+  ): { working: Tile; wants: Tile; queue: Tile; finished: Tile }
+  export function waitingOf(store: Record<string, any>): { machine: string; task: any }[]
+  export function workingOf(store: Record<string, any>): { machine: string; task: any }[]
   export function dotsOf(
     parts: readonly { n: number; tone: string; hollow?: boolean }[],
     most?: number,
   ): Dots
-  export function moneyOf(store: Record<string, any>): {
-    value: string | null
-    under: string
-    top: { key: string; label: string; value: number; said: string; href: string; tone: string }[]
-  }
-  export function gaugesOf(
-    store: Record<string, any>,
-    now: number,
-  ): {
-    key: string
-    label: string
-    window: string | null
-    who: string
-    marks: string
-    share: number | null
-    said: string | null
-    under: string
-    pressure: string | null
-  }[]
-  export function projectRowsOf(store: Record<string, any>): {
-    name: string
-    machine: string | null
-    key: string
-    href: string
-    shape: number[]
-    wants: number
-    working: number
-    queued: number
-    checks: { parts: number[]; said: string; tone: string }
-    spend: string | null
-    spendWhy: string
-  }[]
-  export function failedOf(store: Record<string, any>): readonly any[]
-  export function workingOf(store: Record<string, any>): readonly any[]
 }
 
 declare module '*/assets/machines.js' {
@@ -940,83 +642,25 @@ declare module '*/assets/machines.js' {
     way: 'to' | 'from' | 'here'
     state: 'up' | 'asleep' | 'closed' | 'lost'
     since: string | null
-    host?: unknown
   }
-  type Pressure = 'fine' | 'warm' | 'tight'
-  interface Tile {
-    label: string
-    said: string
-    under: string
-    pressure: Pressure
-  }
-  interface Figures {
-    cpu: Tile & { trail: (number | null)[] }
-    memory: Tile & { trail: (number | null)[] }
-    disk: Tile & { used: number | null }
-    tade: string
-    at: string | null
-  }
+  type Seen = { machines?: readonly MachineRowIn[]; copies?: Map<string, unknown> } | null
   export function machinesOf(store: { machines?: readonly MachineRowIn[] } | null): MachineRowIn[]
   export function machineSaid(row: MachineRowIn): string
-  export function machineWay(row: MachineRowIn): string
   export function machineTone(row: MachineRowIn): string
-  export function machineFix(row: MachineRowIn): string | null
-  export function hereOf(store: { host?: unknown } | null): MachineRowIn | null
-  export function figuresOf(host: unknown): Figures | null
-  export function noFiguresSaid(row: MachineRowIn): string
-  export function figuresAsOf(row: MachineRowIn, figures: Figures | null): string | null
-  export function megabytesSaid(bytes: number): string
-  export function roomSaid(bytes: number): string
-  export function percentSaid(value: number): string
-  interface CopyIn {
-    rows?: { tasks?: Map<string, { mark?: string }> }
-    fresh?: { detach?: boolean | null }
-  }
-  export function wasWorking(copy: CopyIn | null | undefined): { mark?: string }[]
-  export function wasDoingSaid(row: MachineRowIn, copy: CopyIn | null | undefined): string | null
-  export function lastWordSaid(row: MachineRowIn, copy: CopyIn | null | undefined): string | null
-  export function wantsElsewhere(
-    store: { machines?: readonly MachineRowIn[]; copies?: Map<string, unknown> } | null,
-  ): { machine: string; task: { id: string } }[]
-  export function agentsElsewhere(
-    store: { machines?: readonly MachineRowIn[]; copies?: Map<string, unknown> } | null,
-  ): {
-    machine: string
-    up: boolean
-    asOf: number | null
-    said: string | null
-    working: string | null
-    agents: { id: string }[]
-  }[]
-  export function thereOf(
-    store: Record<string, any> | null,
-    machine: string,
+  export function machinesUpOf(
+    store: Seen | Record<string, unknown>,
     live: boolean,
-    now: number,
-  ): { store: Record<string, any>; asOf: number; frozen: boolean; up: boolean; line: string }
-}
-
-declare module '*/assets/pages/agent.js' {
-  export function taskScreen(
-    where: { view: string; project?: string; task?: string; machine?: string },
-    ctx: null,
-  ): { node: any; update(view: unknown): void; leave(): void }
-}
-
-declare module '*/assets/pages/project.js' {
-  export function projectScreen(
-    where: { view: string; project?: string; machine?: string },
-    ctx: null,
-  ): { node: any; update(view: unknown): void; leave?(): void }
+  ): { key: string; name: string; up: boolean; said: string; short: string; tone: string }[]
+  export const HERE: string
+  export function storesDrawn(
+    store: Seen | Record<string, unknown>,
+    picked?: string | null,
+  ): { machine: string; store: Record<string, any>; up: boolean }[]
+  export function wantsElsewhere(store: Seen): { machine: string; task: { id: string } }[]
+  export function wantsAnywhere(store: Seen | Record<string, unknown>): number
 }
 
 declare module '*/assets/there.js' {
-  type Screen = { node: any; update(view: unknown): void; leave?(): void }
-  export function thereOn(
-    at: { view: string; project?: string; task?: string; machine?: string },
-    screen: Screen,
-  ): Screen
-  export function linksThere(node: any, machine: string): void
   export const THERE_VERBS: string[]
   export function thereCtx(ctx: any, machine: string): any
 }
@@ -1033,8 +677,9 @@ declare module '*/assets/room.js' {
 }
 
 declare module '*/assets/pages/overview.js' {
-  export function nowScreen(ctx?: null): {
+  export function nowScreen(ctx?: unknown): {
     node: any
     update(view: unknown): void
+    leave(): void
   }
 }

@@ -1,22 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ICONS } from '../src/assets/icons.js'
-import {
-  DOCKED,
-  GROUPS,
-  MORE,
-  MORE_TAB,
-  movedFrom,
-  NAV,
-  navFor,
-  pathOf,
-  requestPath,
-  safeHref,
-  THERE,
-  TITLES,
-  taskPath,
-  thereHref,
-  viewOf,
-} from '../src/assets/routes.js'
+import { agentPath, PAGE_OF, PLAIN, pathOf, TITLES, viewOf } from '../src/assets/routes.js'
 import { titleFor } from '../src/assets/shell.js'
 import { ROUTES, routeFor } from '../src/routes.ts'
 
@@ -27,45 +10,34 @@ import { ROUTES, routeFor } from '../src/routes.ts'
 // somebody reloads it or opens the link on another device, and then `404`s.
 // That is the worst kind of broken, because every test that never reloads
 // passes. So the two tables are asserted equal here, in both directions.
+//
+// The page has two screens (§10 T5 of the Duo plan): the overview and
+// pairing. Everything else is a panel of the window, in the full view.
 
 /**
  * The views that are not places, and so have no path on either side.
  *
- * `nowhere` is a path this router does not know — a version mismatch, drawn
- * rather than guessed at — and `lastSeen` is a cold open with nothing
- * answering, drawn out of what this device kept. Neither can be linked to,
- * neither is ever handed to `pathOf`, and a `<title>` is still owed for both,
- * which is why they are in `TITLES` and named here instead.
+ * `nowhere` is a path this router does not know — an old bookmark of a page
+ * that went, drawn rather than guessed at — and `lastSeen` is a cold open with
+ * nothing answering, drawn out of what this device kept. Neither can be
+ * linked to, and a `<title>` is still owed for both, which is why they are in
+ * `TITLES` and named here instead.
  */
 const NOT_A_PLACE = ['nowhere', 'lastSeen']
 
 /** The views the router can be on, read off the titles it has words for. */
 const VIEWS = Object.keys(TITLES).filter((view) => !NOT_A_PLACE.includes(view))
 
-/**
- * One value per parameter a screen's path can carry.
- *
- * Every one of them filled, rather than the two somebody remembered: a path
- * built with `undefined` in a segment still matches its route and still
- * round-trips, so a screen whose parameter nobody filled in would pass both
- * directions of this file while `/r/undefined` was what was being checked.
- */
-const WHERE = {
-  machine: 'ipax',
-  project: 'tade',
-  task: 'away-readonly-ui',
-  source: 'github',
-  id: '1402',
-  run: 'shop-1402',
-  name: 'reproduce-and-fix',
-} as const
-
 describe('every screen is a path the machine serves', () => {
+  it('is the overview and pairing, and nothing else', () => {
+    expect(VIEWS.sort()).toEqual(['now', 'pair'])
+    expect(PLAIN).toEqual(['pair'])
+    expect(PAGE_OF).toEqual({ now: 'overview' })
+  })
+
   it('serves the shell at every view the router knows', () => {
     for (const view of VIEWS) {
-      const path = pathOf({ view, ...WHERE })
-      // Nothing was left to be filled in by accident.
-      expect(path, view).not.toContain('undefined')
+      const path = pathOf({ view })
       const found = routeFor('GET', path)
       expect(found, `${view} → ${path}`).not.toBeNull()
       expect(found?.route.document, `${view} → ${path}`).toBe(true)
@@ -75,14 +47,9 @@ describe('every screen is a path the machine serves', () => {
   it('knows a screen for every document path the machine serves', () => {
     // The other direction: a path the server answers with the shell and the
     // router does not know is a page that loads and then says it knows nothing.
-    for (const route of ROUTES.filter((one) => one.document === true)) {
-      const path = route.path
-        .split('/')
-        .map((part) => (part.startsWith(':') ? WHERE[part.slice(1) as keyof typeof WHERE] : part))
-        .join('/')
-      expect(path, route.path).not.toContain(':')
-      expect(viewOf(path).view, route.path).not.toBe('nowhere')
-    }
+    const documents = ROUTES.filter((one) => one.document === true)
+    expect(documents.map((one) => one.path)).toEqual(['/', '/pair'])
+    for (const route of documents) expect(viewOf(route.path).view, route.path).not.toBe('nowhere')
   })
 
   it('serves no document route under any method but GET', () => {
@@ -94,78 +61,10 @@ describe('every screen is a path the machine serves', () => {
     }
   })
 
-  it('navigates to a view every navigation entry names', () => {
-    for (const one of [...NAV, ...MORE]) {
-      expect(VIEWS, one.view).toContain(one.view)
-      expect(routeFor('GET', pathOf({ view: one.view })), one.view).not.toBeNull()
+  it('serves no page that went: an old bookmark is a 404, not a shell that says nothing', () => {
+    for (const path of ['/spend', '/t/tade/window', '/p/tade', '/talk', '/settings', '/plans']) {
+      expect(routeFor('GET', path), path).toBeNull()
     }
-  })
-})
-
-describe('another machine’s screens', () => {
-  it('reads a project and a task under /m/<machine>/, and writes them back the same', () => {
-    for (const path of ['/m/ipax/p/tade', '/m/ipax/t/tade/away-readonly-ui']) {
-      const where = viewOf(path)
-      expect(where.machine, path).toBe('ipax')
-      expect(pathOf(where), path).toBe(path)
-      expect(routeFor('GET', path)?.route.document, path).toBe(true)
-    }
-    expect(viewOf('/m/my%20mac/p/tade')).toEqual({
-      view: 'project',
-      project: 'tade',
-      machine: 'my mac',
-    })
-  })
-
-  it('is nowhere for a screen no copy draws, an empty or smuggled name, and a bare machine', () => {
-    for (const path of [
-      '/m/ipax/findings',
-      '/m/ipax/t/tade/one/changes',
-      '/m/ipax',
-      '/m/ipax/',
-      '/m//p/tade',
-      '/m/a%2Fb/p/tade',
-      '/m/ipax/m/mac/p/tade',
-    ]) {
-      expect(viewOf(path).view, path).toBe('nowhere')
-    }
-  })
-
-  it('serves exactly the screens the page draws there', () => {
-    const served = ROUTES.filter((one) => one.document === true && one.path.startsWith('/m/'))
-    expect(
-      served
-        .map(
-          (one) =>
-            viewOf(
-              one.path
-                .replace(':machine', 'ipax')
-                .replace(':project', 'tade')
-                .replace(':task', 'one'),
-            ).view,
-        )
-        .sort(),
-    ).toEqual([...THERE].sort())
-  })
-
-  it('makes a link on a machine’s screen that machine’s, or words where this door’s screen is not it', () => {
-    expect(thereHref('mac', '/t/tade/one')).toBe('/m/mac/t/tade/one')
-    expect(thereHref('mac', '/p/tade#pj-checks')).toBe('/m/mac/p/tade#pj-checks')
-    expect(thereHref('mac', '/m/mac/t/tade/one')).toBe('/m/mac/t/tade/one')
-    expect(thereHref('mac', '/')).toBe('/')
-    expect(thereHref('mac', '#pj-checks')).toBe('#pj-checks')
-    expect(thereHref('mac', 'https://github.com/a/b/pull/1')).toBe('https://github.com/a/b/pull/1')
-    expect(thereHref('mac', '//elsewhere.example/x')).toBe('//elsewhere.example/x')
-    expect(thereHref('mac', '/findings')).toBeNull()
-    expect(thereHref('mac', '/plans/shop-1402')).toBeNull()
-    expect(thereHref('my mac', '/t/tade/one')).toBe('/m/my%20mac/t/tade/one')
-  })
-
-  it('names the machine in the title of its screens', () => {
-    expect(titleFor({ view: 'task', project: 'tade', task: 'one', machine: 'mac' })).toBe(
-      'one · tade · mac · Tade',
-    )
-    expect(titleFor({ view: 'task', project: 'tade', task: 'one' })).toBe('one · tade · Tade')
   })
 })
 
@@ -173,194 +72,41 @@ describe('reading a path', () => {
   it('reads the overview, with or without a trailing slash', () => {
     expect(viewOf('/')).toEqual({ view: 'now' })
     expect(viewOf('')).toEqual({ view: 'now' })
-  })
-
-  it('reads a project and a task out of their paths', () => {
-    expect(viewOf('/p/tade')).toEqual({ view: 'project', project: 'tade' })
-    expect(viewOf('/t/tade/away-readonly-ui')).toEqual({
-      view: 'task',
-      project: 'tade',
-      task: 'away-readonly-ui',
-    })
-  })
-
-  it('decodes a name that had to be escaped, and refuses one that smuggles a path', () => {
-    expect(viewOf('/p/my%20project')).toEqual({ view: 'project', project: 'my project' })
-    // A name is **one segment**. A decoded slash would be a second segment
-    // arriving through a parameter, which is the shape every path bug has.
-    expect(viewOf('/p/a%2Fb').view).toBe('nowhere')
-    expect(viewOf('/t/a%2Fb/c').view).toBe('nowhere')
-    expect(viewOf('/p/%E0%A4%A').view).toBe('nowhere')
+    expect(viewOf('/pair')).toEqual({ view: 'pair' })
+    expect(viewOf('/pair/')).toEqual({ view: 'pair' })
   })
 
   it('is nowhere for a path it does not know, rather than the overview', () => {
-    // Quietly landing on the overview is a link that looks like it worked.
-    for (const path of ['/nope', '/p', '/p/a/b', '/t/a', '/t/a/b/c', '/queue/x']) {
+    for (const path of ['/spend', '/t/tade/window', '/pair/x', '/draw/']) {
       expect(viewOf(path).view, path).toBe('nowhere')
     }
   })
 
   it('round-trips every view it can be on', () => {
-    for (const view of VIEWS) {
-      const where = { view, ...WHERE }
-      expect(viewOf(pathOf(where)), view).toMatchObject({ view })
-    }
+    for (const view of VIEWS) expect(viewOf(pathOf({ view }))).toEqual({ view })
   })
 
-  it('reads a task id into its own screen’s path', () => {
-    expect(taskPath('tade/away-readonly-ui')).toBe('/t/tade/away-readonly-ui')
-    // A task id is `<project>/<task>` and the task half may itself hold a
-    // slash, so the split is at the first one and the rest is escaped.
-    expect(taskPath('tade/a/b')).toBe('/t/tade/a%2Fb')
-    expect(taskPath('nothing')).toBe('/')
-  })
-
-  it('lights the overview’s own entry for a project and a task', () => {
-    expect(navFor({ view: 'project' })).toBe('now')
-    expect(navFor({ view: 'task' })).toBe('now')
-    expect(navFor({ view: 'queue' })).toBe('queue')
-  })
-
-  it('lights a list’s entry for the screen that is one row of it', () => {
-    // So the back arrow and the lit tab agree about where somebody is.
-    expect(navFor({ view: 'request' })).toBe('inbox')
-    expect(navFor({ view: 'run' })).toBe('runs')
-    expect(navFor({ view: 'workflow' })).toBe('workflows')
-  })
-
-  it('calls the plans plans, and keeps their old addresses answering', () => {
-    // A run of a workflow came to be called a plan. The screens' paths moved
-    // with the word; a bookmark or a pushed link from before still lands on
-    // the same screen, and `movedFrom` says where to write it instead.
-    expect(pathOf({ view: 'runs' })).toBe('/plans')
-    expect(pathOf({ view: 'run', run: 'shop-1402' })).toBe('/plans/shop-1402')
-    expect(viewOf('/plans')).toEqual({ view: 'runs' })
-    expect(viewOf('/plans/shop-1402')).toEqual({ view: 'run', run: 'shop-1402' })
-    expect(viewOf('/runs')).toEqual({ view: 'runs' })
-    expect(viewOf('/r/shop-1402')).toEqual({ view: 'run', run: 'shop-1402' })
-    expect(movedFrom('/runs')).toBe('/plans')
-    expect(movedFrom('/runs/')).toBe('/plans')
-    expect(movedFrom('/r/shop-1402')).toBe('/plans/shop-1402')
-    expect(movedFrom('/r/my%20plan')).toBe('/plans/my%20plan')
-    // Nothing else moved, and an old address that never was one stays where
-    // it is to be drawn as nowhere.
-    for (const path of ['/', '/plans', '/plans/shop-1402', '/p/tade', '/r', '/r/a/b', '/runs/x']) {
-      expect(movedFrom(path), path).toBeNull()
-    }
-    for (const path of ['/runs', '/r/shop-1402']) {
-      expect(routeFor('GET', path)?.route.document, path).toBe(true)
-    }
-    expect(TITLES.runs).toBe('Plans')
-    expect(MORE.find((one) => one.view === 'runs')?.label).toBe('Plans')
-  })
-
-  it('reads a request’s item key into its own screen’s path', () => {
-    expect(requestPath('github:1402')).toBe('/i/github/1402')
-    // An external id may itself hold a colon, so the split is at the first one
-    // and the rest is escaped — the rule `taskPath` already follows.
-    expect(requestPath('slack:C123:1699999999.000100')).toBe('/i/slack/C123%3A1699999999.000100')
-    expect(requestPath('nothing')).toBe('/inbox')
+  it('titles every view, and the two that are not places', () => {
+    expect(titleFor({ view: 'now' })).toBe('Overview · Tade')
+    expect(titleFor({ view: 'nowhere' })).toBe('Nothing here · Tade')
+    expect(titleFor({ view: 'lastSeen' })).toBe('Last seen · Tade')
   })
 })
 
-describe('the navigation', () => {
-  it('is three places, Tade in the middle and More: what fits 360px with 44px targets', () => {
-    // Five slots under a thumb. Ask is not a place but the command bar, so it
-    // is not in this table: `shell.js` puts a button between the second and
-    // third entries.
-    expect(NAV).toHaveLength(3)
-    expect(MORE_TAB.view).toBe('more')
+describe('an agent, opened in the full view', () => {
+  it('is the full view with the agent named, its id escaped', () => {
+    expect(agentPath('tade/window')).toBe('/draw/?agent=tade%2Fwindow')
+    // A name with what a query would read as its own, escaped whole.
+    expect(agentPath('tade/a&b=c')).toBe('/draw/?agent=tade%2Fa%26b%3Dc')
   })
 
-  it('puts in the thumb row what is read because something is happening', () => {
-    // **The one judgement in that table.** The overview answers *is anything
-    // stopped* across every project, the agents are what is spending money
-    // right now, and the queue is what starts them. Spend, Checks and the
-    // inbox keep their place one tap away under More, with their counts.
-    expect(NAV.map((one) => one.view)).toEqual(['now', 'agents', 'queue'])
-    expect(MORE.map((one) => one.view)).toContain('spend')
-    expect(MORE.map((one) => one.view)).toContain('checks')
-    expect(MORE[0]?.view).toBe('inbox')
+  it('carries another machine in front of the id, as the window’s own rows do', () => {
+    // `there.ts` in `@tade/app`: `@` the machine, the unit separator, the id there.
+    const path = agentPath('tade/window', 'vps')
+    expect(new URL(path, 'http://here').searchParams.get('agent')).toBe('@vps\u001ftade/window')
   })
 
-  it('counts what is waiting on somebody rather than what has arrived', () => {
-    // A badge counting forty answered requests is a badge nobody looks at
-    // twice — and the More tab carries it, so it is a thumb's reach away.
-    expect(MORE.find((one) => one.view === 'inbox')?.counts).toBe('intake')
-    expect(MORE_TAB.counts).toBe('intake')
-  })
-
-  it('draws every place with an icon the sprite has', () => {
-    for (const one of [...NAV, ...MORE, MORE_TAB]) expect(ICONS, one.view).toContain(one.icon)
-  })
-
-  it('puts every place in exactly one menu group, but the frame’s own parts', () => {
-    // **The left is places, the right is the work, the foot is Tade.** The
-    // agents and the queue are the side and the conversation is the dock, so
-    // a menu entry for either is the same thing twice on one screen; every
-    // other place is in one category, at a desk and under More alike.
-    const grouped = GROUPS.flatMap((group) => group.views)
-    expect(new Set(grouped).size).toBe(grouped.length)
-    for (const one of [...NAV, ...MORE]) {
-      const times = grouped.filter((view) => view === one.view).length
-      expect(times, one.view).toBe(DOCKED.includes(one.view) ? 0 : 1)
-    }
-    expect([...DOCKED].sort()).toEqual(['agents', 'queue', 'talk'])
-  })
-
-  it('names each view once across both lists', () => {
-    const views = [...NAV, ...MORE].map((one) => one.view)
-    expect(new Set(views).size).toBe(views.length)
-  })
-
-  it('gives every entry a word, never a glyph alone', () => {
-    for (const one of [...NAV, ...MORE]) {
-      expect(one.label, one.view).not.toBe('')
-      expect(one.mark, one.view).not.toBe('')
-    }
-  })
-})
-
-describe('the one outbound link in the design', () => {
-  it('allows https and nothing else', () => {
-    expect(safeHref('https://github.com/mujacica/tade/pull/412')).toBe(
-      'https://github.com/mujacica/tade/pull/412',
-    )
-  })
-
-  it('refuses every scheme that would turn a link into script or a payload', () => {
-    // The URL came from the forge, which makes it the one string on the page
-    // written by something off this machine. Parsed rather than prefix-matched,
-    // because `HtTpS:` and `https:/\evil` are both things a prefix check gets
-    // wrong.
-    for (const url of [
-      'javascript:alert(1)',
-      'JavaScript:alert(1)',
-      'data:text/html,<script>x</script>',
-      'vbscript:x',
-      'file:///etc/passwd',
-      'http://github.com/x',
-      'blob:https://github.com/x',
-      '//github.com/x',
-      '',
-      'not a url',
-    ]) {
-      expect(safeHref(url), url).toBeNull()
-    }
-  })
-
-  it('hands back what the parser made of it, never the string it was given', () => {
-    // A `javascript:` URL is not the only way an `href` goes wrong: the raw
-    // string a forge sent must not reach the attribute even when its scheme is
-    // fine, because every browser normalises one differently. What goes in the
-    // `href` is what `URL` made of it.
-    expect(safeHref('https:/\\github.com')).toBe('https://github.com/')
-    expect(safeHref('HTTPS://GitHub.com/x')).toBe('https://github.com/x')
-  })
-
-  it('refuses anything that is not a string', () => {
-    for (const value of [null, undefined, 42, {}, ['https://x']]) {
-      expect(safeHref(value as unknown as string), String(value)).toBeNull()
-    }
+  it('is a path this page does not draw, so a press on it goes to the full view’s document', () => {
+    expect(viewOf(agentPath('tade/window').replace(/\?.*$/, '')).view).toBe('nowhere')
   })
 })

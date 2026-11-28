@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { viewOf } from '../../web/src/assets/routes.js'
-import { drawPictures, MACHINES_PAGE, PAGE_REEL, PICTURES, REEL } from '../scripts/pictures.ts'
+import { drawPictures, PAGE_REEL, PICTURES, REEL } from '../scripts/pictures.ts'
 import { SCENARIOS } from './screens/scenarios.ts'
 
 // The README's pictures.
@@ -42,12 +42,7 @@ const wanted = [
     /raw\.githubusercontent\.com\/mujacica\/tade\/main\/images\/([a-z0-9-]+\.svg)/g,
   ),
 ].map((match) => match[1])
-const drawn = [
-  REEL.file,
-  ...PICTURES.map((picture) => picture.file),
-  PAGE_REEL.file,
-  MACHINES_PAGE.file,
-]
+const drawn = [REEL.file, ...PICTURES.map((picture) => picture.file), PAGE_REEL.file]
 
 describe('the pictures the README is made of', () => {
   it('draws each one from a scenario that still exists', () => {
@@ -62,12 +57,12 @@ describe('the pictures the README is made of', () => {
   it('takes the away view only on screens its page routes to', () => {
     // A path the router does not know is drawn by the page as *nothing here*,
     // which is a real screen and a picture of a broken link.
-    const paths = [...PAGE_REEL.desk.paths, ...PAGE_REEL.phone.paths, ...MACHINES_PAGE.visit.paths]
+    const paths = [...PAGE_REEL.desk.paths, ...PAGE_REEL.phone.paths]
     expect(paths.filter((path) => viewOf(path).view === 'nowhere')).toEqual([])
   })
 
   it('says what each one shows, for anybody who cannot see it', () => {
-    for (const picture of [...PICTURES, REEL, PAGE_REEL, MACHINES_PAGE])
+    for (const picture of [...PICTURES, REEL, PAGE_REEL])
       expect(picture.about.length).toBeGreaterThan(40)
   })
 

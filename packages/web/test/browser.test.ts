@@ -48,11 +48,10 @@ describe('the plan', () => {
     }
   })
 
-  it('fills a parameter with a name the fixtures actually have', () => {
-    // Otherwise the project and the task screen are looked at empty, which is
-    // the one state that cannot show a layout problem.
-    const task = LOOKS.find((look) => look.name === 'task-page')
-    expect(task?.path).toBe('/t/sentry/away-projection')
+  it("looks at the page's two screens, at the paths the server serves them at", () => {
+    // The overview and pairing: everything else is a panel of the window, in
+    // the full view (§10 T5 of the Duo plan).
+    expect(LOOKS.map((look) => look.path)).toEqual(['/', '/pair'])
     expect(LOOKS.every((look) => !look.path.includes(':'))).toBe(true)
   })
 
@@ -60,7 +59,8 @@ describe('the plan', () => {
     const narrow = WIDTHS.filter((one) => one.narrow === true)
     expect(narrow).toHaveLength(1)
     expect(narrow[0]?.width).toBe(360)
-    // And the two the rail changes shape at, so both arrangements are looked at.
+    // And two past the 34rem the overview turns into two columns at, at a
+    // tablet's height and a laptop's, so both arrangements are looked at.
     expect(WIDTHS.map((one) => one.width)).toEqual([360, 834, 1440])
   })
 })
@@ -165,21 +165,14 @@ describe('what a browser cannot be asked', () => {
     expect(counted).toContain(`${CHECKS.length} unrun`)
   })
 
-  it('names reading a conversation back to its first line, a timeline on to its first moment, and a long text whole', () => {
-    for (const check of ['chat', 'back', 'call', 'brief', 'moments', 'whole'])
+  it('names reading a conversation back to its first line, and a long call whole', () => {
+    for (const check of ['chat', 'back', 'call', 'brief'])
       expect(CHECKS as readonly string[], check).toContain(check)
   })
 
-  it('names queued work pressed from the side, on both phones', () => {
-    expect(CHECKS as readonly string[]).toContain('queue')
-  })
-
-  it("names the Machines page drawn for the person's own device", () => {
-    expect(CHECKS as readonly string[]).toContain('machines')
-  })
-
-  it("names the Accounts page drawn for the person's own device, a tab per machine", () => {
-    expect(CHECKS as readonly string[]).toContain('accounts')
+  it("names the overview's presses: drawn, tapped, and what was typed kept", () => {
+    for (const check of ['controls', 'touch', 'typing'])
+      expect(CHECKS as readonly string[], check).toContain(check)
   })
 
   it('names nothing cut to fit, and what Tade is doing said whole', () => {

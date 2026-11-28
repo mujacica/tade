@@ -40,7 +40,7 @@
   a `w-` symbol: letters drawn as outlines, because no webfont loads.
 
   `<body>` is otherwise empty on purpose. `boot.js` decides which of two pages this is —
-  pair this device, or the control room — and building the frame in script keeps
+  pair this device, or the overview — and building the frame in script keeps
   one description of it instead of one here and one there that drift. What a
   person sees before the script runs is the one line below, which is replaced
   rather than hidden.
@@ -57,71 +57,30 @@
 <link rel="stylesheet" href="/assets/ui.css" />
 <link rel="stylesheet" href="/assets/charts.css" />
 <link rel="stylesheet" href="/assets/frame.css" />
-<link rel="stylesheet" href="/assets/rail.css" />
 <link rel="stylesheet" href="/assets/away.css" />
-<link rel="stylesheet" href="/assets/pages.css" />
-<link rel="stylesheet" href="/assets/dash.css" />
-<link rel="stylesheet" href="/assets/palette.css" />
+<link rel="stylesheet" href="/assets/talk.css" />
 <link rel="stylesheet" href="/assets/sign-in.css" />
-<link rel="stylesheet" href="/assets/dock.css" />
-<link rel="stylesheet" href="/assets/page.css" />
 <link rel="stylesheet" href="/assets/pair.css" />
 <link rel="stylesheet" href="/assets/motion.css" />
-<link rel="stylesheet" href="/assets/pages/accounts.css" />
-<link rel="stylesheet" href="/assets/pages/agent.css" />
-<link rel="stylesheet" href="/assets/pages/checks.css" />
-<link rel="stylesheet" href="/assets/pages/devices.css" />
-<link rel="stylesheet" href="/assets/pages/evaluations.css" />
-<link rel="stylesheet" href="/assets/pages/findings.css" />
-<link rel="stylesheet" href="/assets/pages/inbox.css" />
-<link rel="stylesheet" href="/assets/pages/machines.css" />
-<link rel="stylesheet" href="/assets/pages/more.css" />
-<link rel="stylesheet" href="/assets/pages/notes.css" />
 <link rel="stylesheet" href="/assets/pages/overview.css" />
-<link rel="stylesheet" href="/assets/pages/project.css" />
-<link rel="stylesheet" href="/assets/pages/queue.css" />
-<link rel="stylesheet" href="/assets/pages/reviews.css" />
-<link rel="stylesheet" href="/assets/pages/runs.css" />
-<link rel="stylesheet" href="/assets/pages/settings.css" />
-<link rel="stylesheet" href="/assets/pages/spend.css" />
-<link rel="stylesheet" href="/assets/pages/workflows.css" />
 <svg class="sprite" aria-hidden="true" focusable="false">
-  <symbol id="i-overview" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.75"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.75"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.75"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.75"/></symbol>
-  <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3 13l2.4-7.2A2 2 0 0 1 7.3 4.4h9.4a2 2 0 0 1 1.9 1.4L21 13v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13h5l1.5 2.5h5L16 13h5"/></symbol>
-  <symbol id="i-queue" viewBox="0 0 24 24"><path d="M12 3.5l8.5 4.5-8.5 4.5L3.5 8z"/><path d="M3.5 12.5l8.5 4.5 8.5-4.5"/><path d="M3.5 16.5l8.5 4.5 8.5-4.5"/></symbol>
-  <symbol id="i-runs" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.25"/><circle cx="6" cy="18" r="2.25"/><circle cx="18" cy="8" r="2.25"/><path d="M6 8.25v7.5"/><path d="M18 10.25c0 4.5-5 4.5-9.75 6.6"/></symbol>
-  <symbol id="i-agents" viewBox="0 0 24 24"><rect x="4.5" y="7.5" width="15" height="12" rx="3.5"/><path d="M12 3.5v4"/><circle cx="12" cy="3.5" r=".5"/><path d="M9.5 13v1.5M14.5 13v1.5"/><path d="M2.5 12.5v3M21.5 12.5v3"/></symbol>
   <symbol id="i-talk" viewBox="0 0 24 24"><path d="M5 4.5h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-7.5L7 21v-3.5H5a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z"/></symbol>
-  <symbol id="i-spend" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.75"/><path d="M14.75 9.5c-.45-.95-1.45-1.5-2.75-1.5-1.6 0-2.75.8-2.75 2s1.15 1.6 2.75 1.95 2.75.85 2.75 2.05-1.15 2-2.75 2c-1.3 0-2.3-.55-2.75-1.5"/><path d="M12 6.5v1.5M12 16v1.5"/></symbol>
   <symbol id="i-checks" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.75"/><path d="M8.25 12.25l2.5 2.5 5-5.25"/></symbol>
-  <symbol id="i-evals" viewBox="0 0 24 24"><path d="M4 20.5h16"/><path d="M6.5 17v-5"/><path d="M11 17V7"/><path d="M15.5 17v-8"/><path d="M20 17v-3"/></symbol>
-  <symbol id="i-workflows" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="6" rx="1.5"/><rect x="13.5" y="14.5" width="7" height="6" rx="1.5"/><path d="M7 9.5v4a4 4 0 0 0 4 4h2.5"/></symbol>
-  <symbol id="i-reviews" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.25"/><circle cx="6" cy="18" r="2.25"/><circle cx="18" cy="18" r="2.25"/><path d="M6 8.25v7.5"/><path d="M18 15.75V9.5a2.5 2.5 0 0 0-2.5-2.5H12"/><path d="M14 5l-2 2 2 2"/></symbol>
-  <symbol id="i-findings" viewBox="0 0 24 24"><path d="M12 3l7.5 3v5.5c0 4.4-3.1 8.1-7.5 9.5-4.4-1.4-7.5-5.1-7.5-9.5V6z"/><path d="M12 8.5v4"/><path d="M12 15.75v.01"/></symbol>
   <symbol id="i-notes" viewBox="0 0 24 24"><path d="M4 20h4L19.2 8.8a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14.5 7.5l3 3"/></symbol>
   <symbol id="i-devices" viewBox="0 0 24 24"><rect x="6.5" y="2.75" width="11" height="18.5" rx="2.5"/><path d="M10.75 17.75h2.5"/></symbol>
-  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.25"/><circle cx="9" cy="17" r="2.25"/></symbol>
-  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.25"/><circle cx="12" cy="12" r="1.25"/><circle cx="18.5" cy="12" r="1.25"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.35-5.65"/><path d="M20 4.5v5h-5"/></symbol>
-  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.75"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.35c-.6.25-1 .8-1 1.45v.55"/><path d="M12 16.75v.01"/></symbol>
-  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.25-4.25"/></symbol>
-  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9-1.9 5.1-1.9-5.1-5.1-1.9 5.1-1.9z"/><path d="M18.5 15.5l.75 2 2 .75-2 .75-.75 2-.75-2-2-.75 2-.75z"/></symbol>
   <symbol id="i-send" viewBox="0 0 24 24"><path d="M4.5 11.5l15-7-5.5 15-2.5-6z"/><path d="M11.5 13.5l8-9"/></symbol>
   <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></symbol>
-  <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 6l-6 6 6 6"/></symbol>
   <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
   <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></symbol>
-  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></symbol>
-  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3L5.5 13H11l-1 8 7.5-10H12z"/></symbol>
   <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 6.5v11M15 6.5v11"/></symbol>
-  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5l10.5 6.5L8 18.5z"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 2h-14z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
   <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4l8.66 15H3.34z"/><path d="M12 10v4"/><path d="M12 16.75v.01"/></symbol>
   <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.75"/><path d="M12 7.5V12l3 2"/></symbol>
   <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5.5 21V4.5"/><path d="M5.5 4.5h11l-2.5 4 2.5 4h-11"/></symbol>
   <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 17L17 7"/><path d="M9 7h8v8"/></symbol>
   <symbol id="i-laptop" viewBox="0 0 24 24"><rect x="4.5" y="5" width="15" height="10.5" rx="1.75"/><path d="M2.5 19h19"/></symbol>
-  <symbol id="i-account" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.75"/><path d="M4.75 20c.6-3.9 3.6-6.25 7.25-6.25s6.65 2.35 7.25 6.25"/></symbol>
   <symbol id="i-scan" viewBox="0 0 24 24"><path d="M4 8.5V6a2 2 0 0 1 2-2h2.5M15.5 4H18a2 2 0 0 1 2 2v2.5M20 15.5V18a2 2 0 0 1-2 2h-2.5M8.5 20H6a2 2 0 0 1-2-2v-2.5"/><path d="M8 12h8"/></symbol>
   <symbol id="i-mark" viewBox="0 0 2 2"><rect x="1" width="1" height="1"/><rect y="1" width="1" height="1"/></symbol>
   <symbol id="w-tade" viewBox="0 0 5500 1500"><rect width="5500" height="1500"/><g fill="currentColor"><path d="M1194 1118L1194 479L1053 479L1053 383L1447 383L1447 479L1306 479L1306 1118Z"/><path d="M2038 1118L2186 383L2314 383L2462 1118L2348 1118L2320 954L2180 954L2152 1118ZM2196 858L2304 858L2264 628Q2261 607 2257.5 586.5Q2254 566 2250 546Q2246 566 2242.5 586.5Q2239 607 2236 628Z"/><path d="M3059 1118L3059 383L3215 383Q3246 383 3276.5 388Q3307 393 3335 406Q3363 419 3386 440.5Q3409 462 3423.5 489.5Q3438 517 3443.5 547.5Q3449 578 3449 609L3449 892Q3449 923 3443.5 953.5Q3438 984 3423.5 1011.5Q3409 1039 3386 1060.5Q3363 1082 3335 1095Q3307 1108 3276.5 1113Q3246 1118 3215 1118ZM3215 1022Q3232 1022 3249 1018.5Q3266 1015 3280.5 1007Q3295 999 3306.5 986.5Q3318 974 3325 958.5Q3332 943 3335 926Q3338 909 3338 892L3338 609Q3338 592 3335 575Q3332 558 3325 542.5Q3318 527 3306.5 514.5Q3295 502 3280.5 494Q3266 486 3249 482.5Q3232 479 3215 479L3170 479L3170 1022Z"/><path d="M4067 1118L4067 383L4441 383L4441 479L4178 479L4178 688L4384 688L4384 784L4178 784L4178 1022L4441 1022L4441 1118Z"/></g></symbol>

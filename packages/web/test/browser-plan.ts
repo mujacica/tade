@@ -32,11 +32,11 @@ export interface Width {
 /**
  * Three widths, content-driven like the breakpoints themselves.
  *
- * 360 is the floor the brief names and the one a phone in a case actually has;
- * 834 is a tablet in portrait, where the glyph rail, Tade at the foot and the
- * work as a drawer have to work; 1440 is a laptop, where the page is the
- * window's own shape — the menu, the work down the right and Tade docked at the
- * foot of the middle (`desk.js`).
+ * 360 is the floor the brief names and the one a phone in a case actually has,
+ * where the overview is one column and `main` scrolls; 834 is a tablet in
+ * portrait and 1440 a laptop, both past the 34rem the overview turns into two
+ * columns at — the agents beside the conversation, each scrolling itself
+ * (`pages/overview.css`) — at a tablet's height and at a laptop's.
  */
 export const WIDTHS: readonly Width[] = [
   { name: 'phone', width: 360, height: 780, narrow: true },
@@ -102,7 +102,7 @@ export interface Finding {
 
 /** The checks a full run makes, named so an `unrun` report can list them all. */
 export const CHECKS = [
-  // A browser with no session is the pairing screen alone (`browser-desk.ts`).
+  // A browser with no session is the pairing screen alone (`unpairedAt`, `browser.ts`).
   'unpaired',
   'pairing',
   'landmarks',
@@ -113,31 +113,13 @@ export const CHECKS = [
   'granted',
   'quiet',
   'delta',
-  // The desk and an agent looked into (`browser-desk.ts`): which of the
-  // frame's parts each width draws, and that an agent's screen is drawn
-  // scrubbed and no longer asked for once its page is left.
-  'desk',
-  // The frame pinned to the screen's edges (`browser-frame.ts`): the document
-  // never scrolls, and the screen, the menu and the side each scroll alone.
-  'frame',
-  // The command bar (`browser-desk.ts`): opened, filtered and left by the
-  // keys at every width, and on the touch phone opened and gone through by taps.
-  'palette',
-  'lanes',
-  // The conversation with Tade read as a chat (`browser-chat.ts`): it opens
+  // The conversation with Tade read as a chat, in its own region of the
+  // overview (`browser-chat.ts`): it opens
   // and follows at the newest line, lets go when scrolled up, and — `back` —
   // a conversation longer than a page reads back to its first line, the view
   // held still, with nothing missing and nothing saying it is elsewhere.
   'chat',
   'back',
-  // An agent's timeline read on to its first moment (`browser-moments.ts`):
-  // scrolled with the wheel, every moment of its life is drawn, newest first,
-  // down to its making, and nothing says older ones were not sent.
-  'moments',
-  // A note of over ten thousand characters (`browser-whole.ts`): every
-  // character drawn, its box scrolling in place where the keyboard reaches it,
-  // and nothing saying more was written somewhere else.
-  'whole',
   // A call with no id to ask its answer by, opened with a tap: the whole of a
   // long answer it came with, and nothing saying the rest is elsewhere.
   'call',
@@ -161,19 +143,6 @@ export const CHECKS = [
   'controls',
   'touch',
   'typing',
-  // Queued work down the side, at a small phone's width and a large one's
-  // (`browser-queue.ts`): a whole-target ⋯ and a hold each open the window's
-  // own queued-work menu, a tap on Pause asks for one queue act, and what the
-  // device may not ask (Remove, the person's own device's) is not on it.
-  'queue',
-  // The Machines page for the person's own device, at both phones' widths
-  // (`browser-machines.ts`): the grid drawn, a line per machine for every item
-  // and nothing refused, fitting the screen with every control a thumb's size.
-  'machines',
-  // The Accounts page for the person's own device, at both phones' widths
-  // (`browser-accounts.ts`): a tab per machine, each one's accounts drawn when
-  // it is pressed, fitting the screen with every control a thumb's size.
-  'accounts',
   // The three an installed shell owns. `install` is a real registration in a
   // real browser; `offline-cold` is a deep link opened with the network off,
   // which is the whole point of the thing; `no-api-cache` enumerates every
@@ -216,14 +185,6 @@ export const CUT_ALLOWED: readonly Cut[] = [
   // A call's line of over 240 characters while its row is closed, with `more`
   // beside it; opening the row opens the line whole (`foldIn`, conversation.js).
   { selector: '.ui-call-words.is-folded', how: 'clamp', mark: '.ui-call-more' },
-  // A folded dock's heading: what was said last, on one line, because a
-  // paragraph wrapped into a heading is the dock unfolded. The fold beside it
-  // opens the dock onto that same line, drawn whole (`dockIn`, desk.js).
-  { selector: '.dock-last', how: 'ellipsis', mark: null },
-  // A step's name under its dot on a workflow's track, which is laid out at
-  // fixed places: two lines, and a cut one takes a tap or the pointer and is
-  // drawn whole over the track (`.is-cut`, `.is-open`, workflows-draw.js).
-  { selector: '.wf-track-name', how: 'clamp', mark: null },
 ]
 
 /**
@@ -262,7 +223,7 @@ export const MANUAL: readonly string[] = [
   // `node:crypto` and `web-push.test.ts` checks the wiring against a push
   // service that is not one; what is left is whether Apple accepts it, which
   // is this.
-  'Turn Get notifications on at the machine. On the installed app, Devices → NOTIFICATIONS → Tell this device. iOS should raise its own permission prompt — in Safari’s tab rather than the installed app it should not, and the page should say so instead of looking broken.',
+  'Turn Get notifications on at the machine. On the installed app, press the bell in the header. iOS should raise its own permission prompt — in Safari’s tab rather than the installed app it should not, and the bell should raise a bar saying why instead of looking broken.',
   'Lock the phone and make something want you: start an agent on a task whose tools need approving. One notification should arrive, saying how many pieces of work want you and naming nothing — no project, no task, no title.',
   'Turn Get work names in them on at the machine and do it again. The name should appear; with it off, it should not.',
   'Tap the notification. It should open the app where it was, not a new window and not the root of a browser.',

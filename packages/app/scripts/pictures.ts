@@ -84,21 +84,22 @@ export const REEL: Reel = {
 }
 
 /**
- * The away view's page, as the README shows it: a desk and then a phone.
+ * The away view's page, as the README shows it: the overview on a desk and
+ * then on a phone (§10 T5 of the Duo plan) — the agents beside the
+ * conversation, then the one column a phone upright has.
  *
  * Every frame is a path the page routes, on a device of `PAGE_WORLD`'s, at the
  * size it is drawn; `pictures.test.ts` holds each path to a screen the page
- * knows. The desk keeps Tade folded to its line at the foot — one press of `\`
- * — so each screen has the room to be seen; the phone has it in the tab bar.
+ * knows. The page has one screen and pairing, so each visit is the overview.
  */
 export const PAGE_REEL = {
   file: 'away-page.svg',
   about:
-    'The away view on a laptop and then a phone, each screen the page itself drawing the same ' +
-    'morning as the window: the overview with what needs you and its presses, the agent ' +
-    'waiting on `npm i stripe@15` with Allow and Deny and its screen, two plans with their ' +
-    'steps, what the morning cost against each plan’s limits, and three phones — the ' +
-    'overview, that agent and the conversation with Tade.',
+    'The away view’s overview on a laptop and then a phone, the page itself drawing the same ' +
+    'morning as the window: the machines up or down in the header, four tiles — working, ' +
+    'waiting on you, queued and finished today — the agent waiting on `npm i stripe@15` with ' +
+    'Allow and Deny, the agents working one line each, and the conversation with Tade beside ' +
+    'them on the laptop and under them on the phone.',
   width: 1280,
   height: 800,
   /** Where a phone would type it, which is where `tade web` says it listens. */
@@ -113,12 +114,7 @@ export const PAGE_REEL = {
     width: 1280,
     height: 800,
     pointer: 'fine',
-    folded: ['tade'],
-    // What Chromium measures a plan's map at in a 1280 desk with the menu and
-    // the side open, which the map spreads its steps across. `pnpm screens
-    // --page` says the new number when the layout moves.
-    measured: { '.runs-map': 510 },
-    paths: ['/', '/t/checkout/stripe-v15', '/plans', '/spend'],
+    paths: ['/'],
   } satisfies Visit,
   deskHold: 4,
   phone: {
@@ -126,38 +122,9 @@ export const PAGE_REEL = {
     width: 360,
     height: 744,
     pointer: 'coarse',
-    paths: ['/', '/t/checkout/stripe-v15', '/talk'],
-  } satisfies Visit,
-  phoneHold: 6,
-} as const
-
-/**
- * The away view's Machines, alone: the overview's section of that name on a
- * laptop with the menu folded to its rail, over a world where the laptop is
- * busy and the server it links to is quiet (`scenarios/away-machines.ts`).
- */
-export const MACHINES_PAGE = {
-  file: 'away-machines.svg',
-  about:
-    'The away view’s Machines: this laptop, busy, with its processors at 92% in red and its ' +
-    'memory at 84% in amber, and the server it links to, quiet at 4% and 11% with 1.6 TB of ' +
-    'its disk free — each with a sparkline, its disk, and what Tade and its agents use of it.',
-  width: 960,
-  height: 560,
-  at: 'localhost:7654',
-  world: {
-    module: new URL('../test/screens/scenarios/away-machines.ts', import.meta.url).href,
-    name: 'MACHINES_WORLD',
-  } satisfies WorldAt,
-  visit: {
-    device: DESK.id,
-    width: 960,
-    height: 560,
-    pointer: 'fine',
-    folded: ['menu', 'side', 'tade'],
-    only: 'MACHINES',
     paths: ['/'],
   } satisfies Visit,
+  phoneHold: 6,
 } as const
 
 export const PICTURES: readonly Picture[] = [
@@ -434,22 +401,6 @@ async function drawPage(): Promise<Drawn> {
   }
 }
 
-/** The away view's Machines: one still, one frame. */
-async function drawMachines(): Promise<Drawn> {
-  const stills = await stillsOf(MACHINES_PAGE.world, [MACHINES_PAGE.visit])
-  return {
-    file: MACHINES_PAGE.file,
-    svg: pageReel(
-      [{ stills, hold: 1, caption: `${MACHINES_PAGE.at}/`, about: 'Machines on a laptop' }],
-      {
-        width: MACHINES_PAGE.width,
-        height: MACHINES_PAGE.height,
-        label: 'Tade’s away view: Machines',
-      },
-    ),
-  }
-}
-
 /**
  * Every picture the README uses, drawn.
  *
@@ -479,7 +430,7 @@ export async function drawPictures(): Promise<Drawn[]> {
       ),
     })
   }
-  drawn.push(...(await Promise.all([drawPage(), drawMachines()])))
+  drawn.push(await drawPage())
   return drawn
 }
 

@@ -299,27 +299,6 @@ describe('what a press sends', () => {
       }
     }
   })
-
-  it('lets somebody type exactly as much as the machine will take', () => {
-    // **Four numbers written twice**, so this reads them out of the file the
-    // boxes are built in and compares them with the bound the server refuses
-    // at. A box that let somebody type more would be a paragraph typed on a
-    // phone and then refused whole; one that let them type less would be the
-    // page inventing a limit nobody decided. The machine still refuses one
-    // past the bound either way: a client bound is a courtesy, never a check.
-    const text = readFileSync(new URL('../src/assets/controls.js', import.meta.url), 'utf8')
-    const block = /const TYPES = \{([^}]*(?:\}[^}]*)*?)\n\}/.exec(text)?.[1] ?? ''
-    expect(block, 'the TYPES block in controls.js').not.toBe('')
-    const found = new Map<string, number>()
-    for (const one of block.matchAll(/([a-z]+): \{[^}]*?maxlength: '(\d+)'/g)) {
-      found.set(one[1] ?? '', Number(one[2]))
-    }
-    expect([...found.keys()].sort()).toEqual(['context', 'done', 'note', 'steer'])
-    expect(found.get('steer')).toBe(BOUNDS.said)
-    expect(found.get('note')).toBe(BOUNDS.text)
-    expect(found.get('context')).toBe(BOUNDS.add)
-    expect(found.get('done')).toBe(BOUNDS.summary)
-  })
 })
 
 describe('what happens to what somebody typed', () => {

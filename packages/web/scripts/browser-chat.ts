@@ -3,7 +3,10 @@ import { READY, said } from '../test/browser-plan.ts'
 import { talk } from '../test/fixtures.ts'
 import { until } from './browser-until.ts'
 
-// The conversation with Tade read as a chat, in a real browser.
+// The conversation with Tade read as a chat, in a real browser: the overview's
+// own part (`talkPart`), whose lines scroll in a region of their own
+// (`.talk-lines`) — beside the agents from 34rem up, under them below that,
+// and never the page's scrolling in either.
 //
 // **On a device `browser.ts` already paired**, never a new one:
 // the server lets one address pair five times in ten minutes and the harness
@@ -113,10 +116,13 @@ export function harnessTalk(more = 0): TalkIn {
   return { ...fixture, lines: [...filler, ...fixture.lines, ...after] }
 }
 
-/** Where `main` is scrolled, and whether the press back down is showing. */
+/** The region the conversation's lines scroll in, which is the overview's own part. */
+const REGION = `document.querySelector('main .talk-lines')`
+
+/** Where the conversation is scrolled, and whether the press back down is showing. */
 const WHERE = `(() => {
-  const main = document.querySelector('main')
-  const press = document.querySelector('main .jump-latest')
+  const main = ${REGION}
+  const press = document.querySelector('main .talk .jump-latest')
   return {
     room: main.scrollHeight - main.clientHeight,
     top: main.scrollTop,
@@ -134,7 +140,21 @@ interface Where {
   lines: number
 }
 
-const AT_FOOT = `(() => { const m = document.querySelector('main'); return m.scrollHeight - m.scrollTop - m.clientHeight <= 48 })()`
+const AT_FOOT = `(() => { const m = ${REGION}; return m.scrollHeight - m.scrollTop - m.clientHeight <= 48 })()`
+
+/**
+ * Where to put the wheel over the conversation: its region brought into view
+ * — on a phone it is under the agents, and `main` scrolls to it — and a point
+ * inside what of it shows.
+ */
+const OVER_IT = `(() => {
+  const region = ${REGION}
+  region.scrollIntoView({ block: 'nearest' })
+  const r = region.getBoundingClientRect()
+  const top = Math.max(r.top, 0)
+  const bottom = Math.min(r.bottom, innerHeight)
+  return { x: r.left + r.width / 2, y: top + Math.min(120, (bottom - top) / 2) }
+})()`
 
 /**
  * The whole of `chat` at one width. `arrive` makes the machine send one more
@@ -152,8 +172,8 @@ export async function chatAt(
   const where = `the conversation @ ${at}`
   const read = async () => (await page.evaluate(WHERE)) as Where
   try {
-    await page.goto(`${origin}/talk`, { waitUntil: READY })
-    await page.waitForSelector('main ul.chat > li', { timeout: 10_000 })
+    await page.goto(`${origin}/`, { waitUntil: READY })
+    await page.waitForSelector('main .talk-lines ul.chat > li', { timeout: 10_000 })
     const first = await read()
     if (first.room <= 0) {
       found('chat', where, 'unrun', `${first.lines} lines fit on the screen: nothing to scroll`)
@@ -163,7 +183,7 @@ export async function chatAt(
       throw new Error(`opened ${String(first.gap)}px above the newest line`)
     })
     await page.reload({ waitUntil: READY })
-    await page.waitForSelector('main ul.chat > li', { timeout: 10_000 })
+    await page.waitForSelector('main .talk-lines ul.chat > li', { timeout: 10_000 })
     await until(page, AT_FOOT, 5_000).catch(() => {
       throw new Error('a reload did not open at the newest line')
     })
@@ -183,9 +203,7 @@ export async function chatAt(
 
     // Scrolled up, as a person scrolls — the wheel over the conversation —
     // it lets go: the press shows, and what arrives moves nothing.
-    const box = (await page.evaluate(
-      `(() => { const r = document.querySelector('main ul.chat').getBoundingClientRect(); return { x: r.left + r.width / 2, y: Math.max(r.top, 0) + 120 } })()`,
-    )) as { x: number; y: number }
+    const box = (await page.evaluate(OVER_IT)) as { x: number; y: number }
     await page.mouse.move(box.x, box.y)
     // A long conversation is more than one turn of the wheel: as many as it takes.
     for (let notch = 0; notch < 40; notch += 1) {
@@ -207,7 +225,7 @@ export async function chatAt(
     }
 
     // The press goes back down, hides, and follows again.
-    await page.evaluate(`document.querySelector('main .jump-latest').click()`)
+    await page.evaluate(`document.querySelector('main .talk .jump-latest').click()`)
     await until(page, AT_FOOT, 5_000).catch(() => {
       throw new Error('the press did not go back to the newest line')
     })
@@ -365,8 +383,8 @@ async function callAt(page: Page, where: string, found: Found): Promise<void> {
 /** The ids of the lines drawn, in the order they are drawn, and whether a page is being read. */
 const DRAWN = `(() => ({
   ids: [...document.querySelectorAll('main ul.chat > li')].map((li) => li.getAttribute('data-key')),
-  reading: [...document.querySelectorAll('main .chat-reading')].some((one) => !one.hidden),
-  said: document.querySelector('main').textContent,
+  reading: [...document.querySelectorAll('main .talk .chat-reading')].some((one) => !one.hidden),
+  said: document.querySelector('main .talk').textContent,
 }))()`
 
 /**
@@ -375,7 +393,7 @@ const DRAWN = `(() => ({
  * answer to the read this scroll asks for can have arrived.
  */
 const NEAR_THE_TOP = `(() => {
-  const main = document.querySelector('main')
+  const main = ${REGION}
   main.scrollTop = 120
   const top = main.getBoundingClientRect().top
   const rows = [...document.querySelectorAll('main ul.chat > li')]
@@ -387,7 +405,7 @@ const NEAR_THE_TOP = `(() => {
 /** Where the noted line is now, from the top of the view. */
 const ANCHOR_NOW = `(() => {
   const li = document.querySelector('main ul.chat > li[data-key="' + window.__anchor.key + '"]')
-  const top = document.querySelector('main').getBoundingClientRect().top
+  const top = ${REGION}.getBoundingClientRect().top
   return li === null ? null : li.getBoundingClientRect().top - top
 })()`
 
@@ -397,8 +415,8 @@ const ANCHOR_NOW = `(() => {
  * view having moved.
  */
 const AT_REST = `(() => {
-  const main = document.querySelector('main')
-  const screen = main.querySelector('.enter')
+  const main = ${REGION}
+  const screen = document.querySelector('main .enter')
   const moving = screen !== null && screen.getAnimations().some((one) => one.playState === 'running')
   return !moving && main.scrollHeight - main.scrollTop - main.clientHeight <= 48
 })()`
@@ -451,9 +469,7 @@ async function backAt(
       )
     }
     // Then the wheel, as a person scrolls, until it reaches the first line said.
-    const box = (await page.evaluate(
-      `(() => { const r = document.querySelector('main ul.chat').getBoundingClientRect(); return { x: r.left + r.width / 2, y: Math.max(r.top, 0) + 120 } })()`,
-    )) as { x: number; y: number }
+    const box = (await page.evaluate(OVER_IT)) as { x: number; y: number }
     await page.mouse.move(box.x, box.y)
     for (let notch = 0; notch < 80; notch += 1) {
       const now = await drawn()

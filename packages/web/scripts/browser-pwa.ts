@@ -162,16 +162,18 @@ async function installed(run: PwaRun, page: Page): Promise<void> {
 /**
  * The whole point: a tap on the home screen with nothing answering.
  *
- * A navigation to a screen's own deep path, with the network off — so this is
- * the cold load it claims to be: every byte of it has to come off the disk,
+ * A navigation to the overview — the page's one screen, so the one a home
+ * screen opens — with the network off, from a page that is somewhere else
+ * (`about:blank`) so it is a real load: every byte of it has to come off the disk,
  * including the document, which the worker answers for any navigation. What it
  * must not be is the browser's own offline page, and what it must say is that
  * it cannot reach the machine.
  */
 async function coldOffline(run: PwaRun, page: Page): Promise<void> {
   try {
+    await page.goto('about:blank')
     await run.context.setOffline(true)
-    await page.goto(`${run.origin}/queue`, { waitUntil: 'commit' })
+    await page.goto(`${run.origin}/`, { waitUntil: 'commit' })
     await page.waitForSelector('header .brand', { timeout: 10_000 })
     const title = await page.title()
     if (!title.includes('Tade')) throw new Error(`the browser's own page, titled ${title}`)
@@ -199,14 +201,16 @@ async function coldOffline(run: PwaRun, page: Page): Promise<void> {
  * Nothing authenticated on the disk, asked of the disk.
  *
  * The page is walked around first so that every read it makes has been made —
- * a snapshot, the notes, the device list, the stream. Then every cache on the
+ * a snapshot, the conversation, the stream. Then every cache on the
  * origin is enumerated, by name and by entry, and the two things that must be
  * true of all of them: ours are named under one prefix, and not one of them
  * holds an answer from `/api`.
  */
 async function nothingOfTheWork(run: PwaRun, page: Page): Promise<void> {
   try {
-    for (const path of ['/', '/queue', '/notes', '/devices', '/spend']) {
+    // The overview is every read the page makes — the snapshot, the
+    // conversation, the stream — and pairing is the only other document.
+    for (const path of ['/', '/pair', '/']) {
       await page.goto(`${run.origin}${path}`, { waitUntil: READY })
     }
     const held = (await page.evaluate(CACHED)) as Cached

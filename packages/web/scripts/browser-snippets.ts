@@ -24,74 +24,57 @@ const SETTLED = `Promise.all(document.getAnimations()
   .map((one) => one.finished.catch(() => null)))`
 
 /**
- * What one task screen's control blocks look like.
+ * What two cards waiting on you on the overview draw: which quick presses are
+ * showing on each, the command above the first's, and which are too small to
+ * hit.
  *
- * Which verbs have a control, which have a reason instead, which targets are
- * too small to hit, and which blocks are showing a reason that says nothing —
- * the last because a visible empty line under a heading reads as something
- * that failed to load, and there is no offline way to see one.
- *
- * **What `blank` can and cannot see, said rather than assumed.** A reason with
- * nothing in it needs a row that names a verb in neither `can` nor `cannot`,
- * and `ableOn` puts every verb in one of them — so the only way to get one
- * is an older server talking to a newer page, which no fixture here models.
- * It is a guard against that, not a covered behaviour, and reintroducing the
- * drawing bug it is about does **not** turn it red.
+ * **Named by what each press says**, because that is what a person reads:
+ * `Allow <tool>`, `Deny`, `Done`, `Set aside`, `Tell` (`quick.js`). A press a
+ * card does not draw is `hidden`, so what is counted is what is laid out.
  *
  * **Measured once the screen has risen** (`SETTLED`), as `SHAPE` is: the
  * acting pass's phone keeps its motion, and a press caught mid-`rise` sits at
  * a fractional offset and measures 69.906×43.99988 — one run in five, on a
  * button that is 44px tall.
  */
-export const CONTROLS = `${SETTLED}.then(() => {
+export function CONTROLS(card: string, other: string): string {
+  return `${SETTLED}.then(() => {
   const TAP = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tap')) || 44
-  const NAMED = {
-    'SET ASIDE': 'park',
-    'TELL ITS AGENT': 'steer',
-    'FINISHED': 'done',
-    'A NOTE': 'note',
-    'WHAT IT IS TOLD': 'context',
-    'WAITING ON YOU': 'answer',
-    'IN THE QUEUE': 'queue',
-    'FROM OUTSIDE': 'intake',
-  }
-  const drawn = []
-  const reasons = []
+  const named = (words) =>
+    words.startsWith('Allow') ? 'allow'
+      : words === 'Deny' ? 'deny'
+      : words === 'Done' ? 'done'
+      : words === 'Set aside' ? 'park'
+      : words === 'Tell' ? 'tell'
+      : words
   const small = []
-  const blank = []
-  for (const part of document.querySelectorAll('main .section')) {
-    const head = (part.querySelector('h2')?.textContent || '').trim()
-    const press = [...part.querySelectorAll('button')].filter((one) => one.offsetParent !== null)
-    const why = [...part.querySelectorAll('.empty')].filter(
-      (one) => one.offsetParent !== null && (one.textContent || '').trim() !== '',
-    )
-    if (!(head in NAMED)) continue
-    if (press.length > 0) drawn.push(head)
-    if (why.length > 0 && press.length === 0) reasons.push(head)
-    // A reason that is visible and says nothing, which reads as something that
-    // failed to load. The reason's own class and not every paragraph: the
-    // status line beside a control is a paragraph too, and is correctly empty
-    // until somebody presses something, so a check over both would flag a
-    // page that is right.
-    for (const one of part.querySelectorAll('p.empty')) {
-      if (one.offsetParent !== null && (one.textContent || '').trim() === '') blank.push(head)
-    }
-    for (const one of press) {
-      const box = one.getBoundingClientRect()
-      if (box.height < TAP || box.width < TAP) {
-        small.push(head + ': ' + Math.round(box.width) + 'x' + Math.round(box.height))
-      }
-    }
+  const presses = (selector) => {
+    const one = document.querySelector(selector)
+    if (one === null) return []
+    return [...one.querySelectorAll('.quick button, .quick a')]
+      .filter((press) => press.offsetParent !== null && !press.hidden)
+      .map((press) => {
+        const words = (press.textContent || '').trim()
+        const box = press.getBoundingClientRect()
+        if (box.height < TAP || box.width < TAP) {
+          small.push(words + ': ' + Math.round(box.width) + 'x' + Math.round(box.height))
+        }
+        return named(words)
+      })
   }
+  const drawn = presses(${JSON.stringify(card)})
+  const others = presses(${JSON.stringify(other)})
+  const command = document.querySelector(${JSON.stringify(`${card} .quick-command`)})
   return {
-    drawn: drawn.map((one) => NAMED[one]).filter(Boolean),
-    reasons: reasons.map((one) => NAMED[one]).filter(Boolean),
+    drawn,
+    other: others,
+    command: command === null || command.offsetParent === null ? '' : (command.textContent || '').trim(),
     small,
-    blank: [...new Set(blank)],
   }
 })`
+}
 
-/** That some control answered at all. */
+/** That some press answered at all: the harness's window answers `<verb>: done`. */
 export const SAID_SOMETHING = `[...document.querySelectorAll('main [role="status"]')].some(
   (one) => (one.textContent || '').includes('done')
 )`
@@ -112,7 +95,7 @@ export const STATUS = `[...document.querySelectorAll('main [role="status"]')]
   .filter((one) => one !== '')
   .join(' | ')`
 
-/** That the note control was refused, in Tade's own sentence. */
+/** That a press or the composer was refused as the world having moved, in Tade's own sentence. */
 export const SAID_MOVED = `[...document.querySelectorAll('main [role="status"]')].some(
   (one) => (one.textContent || '').includes('changed while you were looking')
 )`
@@ -177,13 +160,16 @@ export const AXE = `${SETTLED}.then(() => axe.run({ runOnly: { type: 'tag',
     .map((one) => ({ id: one.id, impact: one.impact, nodes: one.nodes.length,
       at: one.nodes.map((node) => node.target.join(' ')).slice(0, 2).join(', ') })))`
 
-/** Focus a row and select inside it, and say which row and what was selected. */
+/**
+ * Focus a row of the agents working and select its name, and say which row,
+ * what was selected and what the row says.
+ */
 export const HOLD = `(() => {
-  const rows = [...document.querySelectorAll('main .rows li > a')]
+  const rows = [...document.querySelectorAll('main .ov-agents li > a')]
   const one = rows[1] || rows[0]
-  if (!one) return { key: '', words: '' }
+  if (!one) return { key: '', words: '', said: '' }
   one.focus()
-  const name = one.querySelector('.name')
+  const name = one.querySelector('.ov-agent-name')
   const range = document.createRange()
   range.selectNodeContents(name || one)
   const picked = window.getSelection()
@@ -192,6 +178,7 @@ export const HOLD = `(() => {
   return {
     key: one.closest('li').getAttribute('data-key') || '',
     words: String(picked),
+    said: one.textContent,
   }
 })()`
 
@@ -205,14 +192,33 @@ export const HOLD = `(() => {
  */
 export const RECEIVED = `document.body.innerText.includes('moved under your hands')`
 
-/** What is focused and selected now. */
+/** What is focused and selected now, and what the focused row says. */
 export const HOLD_AGAIN = `(() => {
   const on = document.activeElement
   const row = on && on.closest ? on.closest('li') : null
   return {
     key: row ? row.getAttribute('data-key') || '' : '',
     words: String(window.getSelection()),
-    rows: document.querySelectorAll('main .rows li').length,
+    said: row ? row.textContent : '',
+    rows: document.querySelectorAll('main .ov-agents li').length,
+  }
+})()`
+
+/**
+ * What a page with no session draws around the pairing form: any of the
+ * overview's own parts, or the header's that only a device with a session is
+ * drawn (`insideIn`).
+ */
+export const OUTSIDE = `(() => {
+  const shown = (selector) => {
+    const one = document.querySelector(selector)
+    return one !== null && getComputedStyle(one).display !== 'none' && !one.hidden
+  }
+  return {
+    drawn: ['header ul.machines', 'header button.tap', 'nav.mode-switch', '.overview', '.talk']
+      .filter(shown),
+    words: document.body.innerText,
+    path: location.pathname,
   }
 })()`
 

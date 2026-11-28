@@ -1,28 +1,29 @@
-import { describe, expect, it } from 'vitest'
-import { shortClockOf } from '../src/assets/figures.js'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { StillDocument, type StillElement } from '../scripts/still-dom.ts'
+import { actsOf } from '../src/assets/acts.js'
+import { nowScreen } from '../src/assets/pages/overview.js'
 import {
-  boardOf,
   DOTS,
   dotsOf,
-  failedOf,
-  gaugesOf,
-  moneyOf,
-  projectRowsOf,
-  TOP,
+  sameDay,
+  tilesOf,
+  waitingOf,
   workingOf,
 } from '../src/assets/pages/overview-figures.js'
 import { applyCopy, applySnapshot, emptyStore } from '../src/assets/store.js'
 import { PROTOCOL_VERSION } from '../src/protocol.ts'
 import { projector } from '../src/reading.ts'
-import { blocked, input, NOW, plan, project, queued, reach, spend, task } from './fixtures.ts'
+import { blocked, input, NOW, queued, reach, task } from './fixtures.ts'
 
-// The overview's figures — the board, the money, the plan windows and the
-// projects' grid — held here with no browser.
+// The overview (§10 T5 of the Duo plan): the four tiles, the agents waiting on
+// you with their answers, the agents working one line each, and the
+// conversation — held here with no browser.
 //
 // **What this cannot see is how any of it looks**, which is the browser
-// harness's (`scripts/browser.ts`). What it can see is that every figure is the
-// projection's own count, grouped and worded and never decided again; that a
-// figure nobody could read is a dash with *which* dash, never a nought.
+// harness's (`scripts/browser-duo.ts`, at the full view's sizes). What it can
+// see is that every figure is the projection's own count, grouped and worded
+// and never decided again, that every machine's agents are on it, and that
+// every agent leads to the full view.
 
 /** A page's store, filled from the real projection. */
 function held(over = {}) {
@@ -32,30 +33,32 @@ function held(over = {}) {
   return store
 }
 
-const green = { state: 'pass' as const, failed: [], missing: [], overridden: false }
-const red = { state: 'fail' as const, failed: ['tests'], missing: [], overridden: false }
+/** Another machine's copy, held by `store`, and that machine seen up or not. */
+function withCopy(
+  store: ReturnType<typeof emptyStore>,
+  machine: string,
+  tasks: ReturnType<typeof task>[],
+  state: 'up' | 'closed' = 'up',
+) {
+  const snapshot = projector(input({ reach: reach(), tasks, queue: [] }), NOW).snapshot()
+  expect(applyCopy(store, { v: PROTOCOL_VERSION, machine, kind: 'whole', snapshot })).toBeNull()
+  const seen = Array.isArray(store.machines) ? store.machines : []
+  store.machines = [
+    ...seen,
+    { name: machine, way: 'to', state, since: new Date(NOW).toISOString() },
+  ]
+  return store
+}
 
-describe('the board', () => {
-  it('counts what needs you, what works, what waits and the checks, out of the fixture', () => {
+describe('the tiles', () => {
+  it('count what works, what waits on you, what is queued and what finished, out of the fixture', () => {
     // Four tasks: three working, one held on an approval; one queued row
-    // waiting on another task; one request proposed from outside.
-    const board = boardOf(held())
-    expect(board.wants.n).toBe(1)
-    expect(board.wants.approvals).toBe(1)
-    expect(board.wants.under).toBe('1 approval · 1 request')
-    expect(board.working.n).toBe(3)
-    expect(board.working.under).toBe('running')
-    expect(board.queue.n).toBe(1)
-    expect(board.queue.under).toBe('1 waiting')
-    expect(board.checks.n).toBe(0)
-    expect(board.checks.under).toBe('4 not run')
-  })
-
-  it('says a request in the inbox in the line, and never adds it to what needs you', () => {
-    const board = boardOf(held({ tasks: [task()] }))
-    expect(board.wants.n).toBe(0)
-    expect(board.wants.dots.dots).toEqual([])
-    expect(board.wants.under).toBe('1 request')
+    // waiting on another task.
+    const tiles = tilesOf(held(), NOW)
+    expect(tiles.working).toMatchObject({ n: 3, under: 'running' })
+    expect(tiles.wants).toMatchObject({ n: 1, under: '1 approval' })
+    expect(tiles.queue).toMatchObject({ n: 1, under: '1 waiting' })
+    expect(tiles.finished).toMatchObject({ n: 0, under: 'none yet' })
   })
 
   it('tells approvals, questions and the rest apart, and says nothing waiting when nothing is', () => {
@@ -72,29 +75,27 @@ describe('the board', () => {
       reason: { kind: 'clause', said: 'ended its turn on a choice' },
       mark: 'needs-you',
     })
-    const board = boardOf(held({ tasks: [blocked(), asked, deciding], intake: [] }))
-    expect(board.wants.n).toBe(3)
-    expect(board.wants.under).toBe('1 approval · 1 question · 1 to decide')
-    expect(board.wants.dots.dots.every((one) => one.tone === 'wants')).toBe(true)
-
-    expect(boardOf(held({ tasks: [task()], intake: [] })).wants.under).toBe('nothing waiting')
+    const tiles = tilesOf(held({ tasks: [blocked(), asked, deciding] }), NOW)
+    expect(tiles.wants.n).toBe(3)
+    expect(tiles.wants.under).toBe('1 approval · 1 question · 1 to decide')
+    expect(tiles.wants.dots.dots.every((one) => one.tone === 'wants')).toBe(true)
+    expect(tilesOf(held({ tasks: [task()] }), NOW).wants.under).toBe('nothing waiting')
   })
 
-  it('draws a stalled agent as a hollow mark, says so, and leaves it out of the figure', () => {
+  it('draws a stalled agent as a hollow mark among the working, and says so', () => {
     const quiet = task({ id: 'sentry/quiet', stalled: true })
-    const board = boardOf(held({ tasks: [task(), quiet] }))
-    expect(board.working.n).toBe(1)
-    expect(board.working.stalled).toBe(1)
-    expect(board.working.under).toBe('1 stalled')
-    expect(board.working.dots.dots).toEqual([
+    const tiles = tilesOf(held({ tasks: [task(), quiet] }), NOW)
+    expect(tiles.working.n).toBe(2)
+    expect(tiles.working.under).toBe('1 stalled')
+    expect(tiles.working.dots.dots).toEqual([
       { tone: 'working', hollow: false },
       { tone: 'working', hollow: true },
     ])
-    expect(boardOf(held({ tasks: [] })).working.under).toBe('idle')
+    expect(tilesOf(held({ tasks: [] }), NOW).working.under).toBe('idle')
   })
 
   it('breaks the queue down by standing, ready first and filled, the rest hollow', () => {
-    const board = boardOf(
+    const tiles = tilesOf(
       held({
         queue: [
           queued(),
@@ -106,37 +107,42 @@ describe('the board', () => {
           }),
         ],
       }),
+      NOW,
     )
-    expect(board.queue.n).toBe(3)
-    expect(board.queue.ready).toBe(1)
-    expect(board.queue.under).toBe('1 ready · 1 waiting · 1 scheduled')
-    expect(board.queue.dots.dots.map((one) => one.hollow)).toEqual([false, true, true])
-    expect(boardOf(held({ queue: [] })).queue.under).toBe('empty')
+    expect(tiles.queue.n).toBe(3)
+    expect(tiles.queue.under).toBe('1 ready · 1 waiting · 1 scheduled')
+    expect(tiles.queue.dots.dots.map((one) => one.hollow)).toEqual([false, true, true])
+    expect(tilesOf(held({ queue: [] }), NOW).queue.under).toBe('empty')
   })
 
-  it('counts the queue on the page, and says nothing is somewhere else', () => {
-    // Every list goes out whole, so the figure is a count of what is drawn.
-    const store = held()
-    store.pages.queue = { total: 3, omitted: 2, next: null, restarted: false }
-    const board = boardOf(store)
-    expect(board.queue.n).toBe(1)
-    expect(board.queue.under).toBe('1 waiting')
+  it('counts what the journal says finished, on the reader’s today and no other day', () => {
+    const today = task({ id: 'sentry/today', state: 'review', finished: true })
+    const before = task({
+      id: 'sentry/before',
+      state: 'review',
+      finished: true,
+      movedAt: NOW - 3 * 24 * 60 * 60 * 1000,
+    })
+    // Finished is the journal's record, never a state that looks like it.
+    const looks = task({ id: 'sentry/looks', state: 'review', finished: false })
+    const tiles = tilesOf(held({ tasks: [today, before, looks] }), NOW)
+    expect(tiles.finished).toMatchObject({ n: 1, under: 'still held' })
+    expect(tiles.finished.dots.dots).toEqual([{ tone: 'done', hollow: false }])
   })
 
-  it('puts the red checks in the figure, and green only where nothing is unknown', () => {
-    const tasks = [
-      task({ id: 'sentry/a', checks: red }),
-      task({ id: 'sentry/b', checks: green }),
-      task({ id: 'sentry/c' }),
-    ]
-    const board = boardOf(held({ tasks }))
-    expect(board.checks.n).toBe(1)
-    expect(board.checks.under).toBe('1 green · 1 not run')
-    expect(board.checks.dots.dots.map((one) => one.tone)).toEqual(['failed', 'done', 'unknown'])
+  it('reads a day as the reader’s own, and nothing it cannot read as today', () => {
+    expect(sameDay(new Date(NOW).toISOString(), NOW)).toBe(true)
+    expect(sameDay(new Date(NOW - 2 * 24 * 60 * 60 * 1000).toISOString(), NOW)).toBe(false)
+    for (const at of [null, '', 'never', 42]) expect(sameDay(at as never, NOW)).toBe(false)
+  })
 
-    const all = boardOf(held({ tasks: [task({ checks: green })] }))
-    expect(all.checks.under).toBe('all green')
-    expect(boardOf(held({ tasks: [] })).checks.under).toBe('no work')
+  it('counts every machine that is up, and what was queued or finished on every machine', () => {
+    const store = withCopy(held(), 'mac', [blocked(), task({ id: 'tade/x', project: 'tade' })])
+    withCopy(store, 'box', [blocked()], 'closed')
+    const tiles = tilesOf(store, NOW)
+    // box is closed: what it said wanted you or worked is its last word, not now.
+    expect(tiles.wants.n).toBe(2)
+    expect(tiles.working.n).toBe(4)
   })
 })
 
@@ -169,208 +175,118 @@ describe('a mark per thing', () => {
     ])
     expect(over.dots).toHaveLength(DOTS - 1)
     expect(over.more).toBe(15 - (DOTS - 1))
-    // The ones it draws are the first ones: red is never what gets cut.
     expect(over.dots.slice(0, 3).every((one) => one.tone === 'failed')).toBe(true)
   })
 })
 
-describe('the money', () => {
-  it('is the fold over every task, since when, and the tokens', () => {
-    const paid = moneyOf(held())
-    // Four tasks at the fixture's $1.25 each, 15,400 tokens each.
-    expect(paid.value).toBe('$5.00')
-    expect(paid.under).toBe(`since ${shortClockOf('2026-10-08T00:00:00.000Z')} · 62k tokens`)
+describe('the two lists', () => {
+  it('waits on you with what the window marked, this machine’s first, then each up machine’s', () => {
+    const store = withCopy(held(), 'mac', [blocked()])
+    withCopy(store, 'box', [blocked()], 'closed')
+    expect(waitingOf(store).map((one) => `${one.machine}|${one.task.id}`)).toEqual([
+      '|sentry/blocked',
+      'mac|sentry/blocked',
+    ])
   })
 
-  it('names the projects most of it went to, largest first, at most a few, none at nought', () => {
-    const store = held({
-      projects: [
-        project(),
-        project({ name: 'tade' }),
-        project({ name: 'folio' }),
-        project({ name: 'rotwall' }),
-        project({ name: 'quiet' }),
-      ],
-      tasks: [
-        task({ id: 'sentry/a', spend: spend(2) }),
-        task({ id: 'tade/a', project: 'tade', spend: spend(9) }),
-        task({ id: 'folio/a', project: 'folio', spend: spend(4) }),
-        task({ id: 'rotwall/a', project: 'rotwall', spend: spend(1) }),
-        task({ id: 'quiet/a', project: 'quiet', spend: spend(0) }),
-      ],
-    })
-    const top = moneyOf(store).top
-    expect(top.map((one) => one.key)).toEqual(['tade', 'folio', 'sentry'])
-    expect(top).toHaveLength(TOP)
-    expect(top[0]).toMatchObject({ value: 9, said: '$9.00', href: '/p/tade', tone: 'queued' })
-  })
-
-  it('is a floor where the snapshot left tasks out', () => {
-    const store = held()
-    store.pages.tasks = { total: 9, omitted: 5, next: null, restarted: false }
-    expect(moneyOf(store).value).toBe('≥$5.00')
-  })
-
-  it('is a dash and the words for it where nobody wrote any down', () => {
-    const paid = moneyOf(held({ tasks: [task({ spend: spend(0) })] }))
-    expect(paid.value).toBeNull()
-    expect(paid.under).toBe('not recorded')
+  it('works with what deriveState said is working, the longest at it first', () => {
+    const early = task({ id: 'sentry/early', movedAt: NOW - 60 * 60 * 1000 })
+    const late = task({ id: 'sentry/late', movedAt: NOW - 60 * 1000 })
+    const done = task({ id: 'sentry/done', state: 'review', finished: true })
+    const store = held({ tasks: [late, done, early] })
+    expect(workingOf(store).map((one) => one.task.id)).toEqual(['sentry/early', 'sentry/late'])
   })
 })
 
-describe('the plan windows', () => {
-  it('are every window, fullest first, with whose, how full and when it starts over', () => {
-    const store = held({
-      plans: [
-        plan({ account: 'work', uses: { newAgents: false, projects: [] } }),
-        plan({
-          harness: 'codex',
-          account: 'me',
-          uses: { newAgents: false, projects: [] },
-          windows: [
-            { label: '5h', used: 93, resetsAt: Date.parse('2026-10-08T15:00:00.000Z') },
-            { label: 'week', used: 10, resetsAt: 0 },
-          ],
-        }),
-      ],
-    })
-    const gauges = gaugesOf(store, NOW)
-    expect(gauges.map((one) => [one.who, one.window, one.share, one.pressure])).toEqual([
-      ['codex @me', '5h', 93, 'tight'],
-      ['claude-code @work', '5h', 42, 'fine'],
-      ['codex @me', 'week', 10, 'fine'],
-    ])
-    expect(gauges[0]?.said).toBe('93%')
-    // The account on a line of its own, so a gauge narrower than the name
-    // wraps it there and never through it.
-    expect(gauges[0]?.under).toBe('5h · codex\n@me\nresets in 30m')
-    expect(gauges[1]?.under).toBe('5h · claude-code\n@work\nresets in 3h 30m')
-    // A window whose harness did not say when it starts over says nothing about it.
-    expect(gauges[2]?.under).toBe('week · codex\n@me')
+/* ── the screen, drawn ─────────────────────────────────────────────────────── */
+
+const was = {
+  document: Reflect.get(globalThis, 'document'),
+  raf: Reflect.get(globalThis, 'requestAnimationFrame'),
+}
+
+beforeEach(() => {
+  Object.defineProperty(globalThis, 'document', {
+    value: new StillDocument(),
+    configurable: true,
+    writable: true,
+  })
+  Reflect.set(globalThis, 'requestAnimationFrame', (run: (at: number) => void) => {
+    run(0)
+    return 0
+  })
+})
+
+afterEach(() => {
+  Object.defineProperty(globalThis, 'document', {
+    value: was.document,
+    configurable: true,
+    writable: true,
+  })
+  Reflect.set(globalThis, 'requestAnimationFrame', was.raf)
+})
+
+const ctx = {
+  ask: () => Promise.resolve({ status: 200, body: { did: true, said: '' } }),
+  sentence: () => '',
+  revOf: () => 0,
+}
+
+function drawn(store: ReturnType<typeof emptyStore>) {
+  const screen = nowScreen(ctx)
+  screen.update({
+    store,
+    standing: 'live',
+    asOf: NOW,
+    frozen: false,
+    now: NOW,
+    where: { view: 'now' },
+    may: { acts: actsOf({ device: 'phone', clear: false }) },
+  })
+  return screen.node as unknown as StillElement
+}
+
+describe('the overview, drawn', () => {
+  it('is the tiles, the agents waiting on you, the agents working and Tade, and nothing else', () => {
+    const node = drawn(held())
+    const headings = (node.querySelectorAll('h2') as StillElement[]).map((one) => one.textContent)
+    expect(headings).toEqual(['WAITING ON YOU', 'WORKING', 'TADE'])
+    expect(node.querySelectorAll('.ov-tile')).toHaveLength(4)
+    expect(node.querySelector('.talk textarea')).not.toBeNull()
   })
 
-  it('names two sign-ins of one harness apart, and marks who runs as each by default', () => {
-    const windows = (used: number) => [{ label: '7d', used, resetsAt: 0 }]
-    const plans = [
-      plan({ account: null, windows: [], cannotTell: 'has not said yet', uses: undefined }),
-      plan({
-        account: 'personal',
-        windows: windows(93),
-        uses: { newAgents: true, projects: [] },
-      }),
-      plan({
-        account: 'vrolta',
-        windows: windows(2),
-        uses: { newAgents: false, projects: [], orchestrator: true },
-      }),
-      plan({ harness: 'codex', account: null, windows: [], cannotTell: 'quiet', uses: undefined }),
-    ]
-    const gauges = gaugesOf(held({ plans }), NOW)
-    expect(gauges.map((one) => one.who)).toEqual([
-      'claude-code @personal',
-      'claude-code @vrolta',
-      'claude-code · cannot tell',
-      'codex · cannot tell',
-    ])
-    expect(new Set(gauges.map((one) => one.label)).size).toBe(gauges.length)
-    expect(gauges.map((one) => one.marks)).toEqual(['new agents', 'orchestrator', '', ''])
-    expect(gauges[0]?.under).toBe('7d · claude-code\n@personal\nnew agents')
-    expect(gauges[1]?.under).toBe('7d · claude-code\n@vrolta\norchestrator')
-    expect(gauges[2]?.under).toBe('claude-code · cannot tell')
-  })
-
-  it('says none reported and cannot tell as two dashes, never a gauge at nought', () => {
-    expect(gaugesOf(held({ plans: [] }), NOW)).toMatchObject([
-      { share: null, under: 'none reported' },
-    ])
-    const told = gaugesOf(
-      held({
-        plans: [plan({ account: null, windows: [], cannotTell: 'the harness reports no plan' })],
-      }),
-      NOW,
+  it('opens every agent in the full view, another machine’s with its machine in front', () => {
+    const node = drawn(withCopy(held(), 'mac', [blocked()]))
+    const hrefs = (node.querySelectorAll('.ov-want-link, .ov-agent > a') as StillElement[]).map(
+      (one) => one.getAttribute('href'),
     )
-    expect(told).toMatchObject([
-      {
-        share: null,
-        window: null,
-        who: 'claude-code · cannot tell',
-        under: 'claude-code · cannot tell\nnew agents',
-      },
-    ])
+    expect(hrefs.length).toBeGreaterThan(2)
+    for (const href of hrefs) expect(href).toMatch(/^\/draw\/\?agent=/)
+    expect(hrefs).toContain(`/draw/?agent=${encodeURIComponent('@mac\u001fsentry/blocked')}`)
+    // Nothing on it leads to a page that went.
+    for (const link of node.querySelectorAll('a[href]') as StillElement[]) {
+      const href = link.getAttribute('href') ?? ''
+      expect(href, href).toMatch(/^(\/draw\/|#)/)
+    }
   })
 
-  it('leaves out an account that pays per token, which has no window to run out of', () => {
-    const store = held({ plans: [plan({ pays: 'per-token', windows: [] })] })
-    expect(gaugesOf(store, NOW)).toMatchObject([{ share: null, under: 'none reported' }])
-  })
-})
-
-describe('the projects’ grid', () => {
-  it('is busiest first, with the projection’s own counts and the shape of all its work', () => {
-    const rows = projectRowsOf(held())
-    expect(rows.map((one) => one.name)).toEqual(['sentry', 'tade'])
-    expect(rows[0]).toMatchObject({ wants: 1, working: 2, queued: 0, href: '/p/sentry' })
-    expect(rows[0]?.shape).toEqual([1, 2, 0, 0])
-    expect(rows[1]).toMatchObject({ wants: 0, working: 1 })
+  it('puts the answers on an agent waiting on you, and the command they answer, whole', () => {
+    const node = drawn(held({ tasks: [blocked()] }))
+    const card = node.querySelector('.ov-want') as StillElement
+    expect(card.querySelector('.ov-want-why')?.textContent).not.toBe('')
+    expect(card.querySelector('.quick')).not.toBeNull()
   })
 
-  it('says the checks as counts, red first, green only where nothing is unknown', () => {
-    const said = (tasks: ReturnType<typeof task>[]) =>
-      projectRowsOf(held({ projects: [project()], tasks }))[0]?.checks
-    expect(said([task({ id: 'sentry/a', checks: red }), task({ id: 'sentry/b' })])).toMatchObject({
-      said: '1 red',
-      tone: 't-failed',
-    })
-    expect(said([task({ checks: green })])).toMatchObject({ said: 'all green', tone: 't-done' })
-    expect(said([task({ id: 'sentry/a', checks: green }), task({ id: 'sentry/b' })])).toMatchObject(
-      { said: '1/2 green', tone: '' },
-    )
-    expect(said([])).toMatchObject({ said: 'no work', tone: '' })
+  it('says nothing needs you, in words, where nothing does', () => {
+    const node = drawn(held({ tasks: [task()] }))
+    expect((node.querySelector('.ov-clear') as StillElement).hidden).toBe(false)
+    expect(node.querySelectorAll('.ov-want')).toHaveLength(0)
   })
 
-  it('groups one repository on several machines, each other machine’s line under this one’s', () => {
-    const store = held()
-    const theirs = (projects: string[]) =>
-      projector(
-        input({
-          reach: reach(),
-          projects: projects.map((name) => project({ name })),
-          tasks: projects.map((name) => task({ id: `${name}/x`, project: name })),
-        }),
-        NOW,
-      ).snapshot()
-    applyCopy(store, {
-      v: PROTOCOL_VERSION,
-      machine: 'mac',
-      kind: 'whole',
-      snapshot: theirs(['tade', 'folio']),
-    })
-    const rows = projectRowsOf(store)
-    expect(rows.map((one) => [one.name, one.machine, one.href])).toEqual([
-      ['sentry', null, '/p/sentry'],
-      ['tade', null, '/p/tade'],
-      ['tade', 'mac', '/m/mac/p/tade'],
-      // Only there: after every project here, still that machine's.
-      ['folio', 'mac', '/m/mac/p/folio'],
-    ])
-    expect(new Set(rows.map((one) => one.key)).size).toBe(rows.length)
-  })
-
-  it('says its money', () => {
-    expect(projectRowsOf(held())[0]).toMatchObject({ spend: '$3.75', spendWhy: '' })
-  })
-})
-
-describe('the lists under the board', () => {
-  it('reads failed off the window’s own mark, and working off deriveState’s state', () => {
-    const store = held({
-      tasks: [
-        task(),
-        task({ id: 'sentry/broke', state: 'failed', reason: { kind: 'clause', said: 'red' } }),
-        task({ id: 'sentry/done', state: 'review', finished: true }),
-      ],
-    })
-    expect(failedOf(store).map((one) => one.id)).toEqual(['sentry/broke'])
-    expect(workingOf(store).map((one) => one.id)).toEqual(['sentry/away-projection'])
+  it('says no agent is working, in words, where none is', () => {
+    const node = drawn(held({ tasks: [blocked()] }))
+    const idle = node.querySelector('#working .empty') as StillElement
+    expect(idle.hidden).toBe(false)
+    expect(idle.textContent).toBe('No agent is working')
   })
 })

@@ -34,10 +34,7 @@ const ALL = files()
 const TEXT = ALL.filter((name) => /\.(html|css|js|json|webmanifest|svg)$/.test(name))
 
 /** The files that keep something on a device, and the one key each keeps it under. */
-const KEEPERS = new Map([
-  ['docks.js', 'FOLDS_KEY'],
-  ['mode.js', 'MODE_KEY'],
-])
+const KEEPERS = new Map([['mode.js', 'MODE_KEY']])
 
 describe('what may be in the folder', () => {
   it('has the shell, the tokens and the entry in it', () => {
@@ -182,16 +179,16 @@ describe('what the client may never do', () => {
       const text = readFileSync(join(DIR, name), 'utf8')
       expect(text, name).not.toContain('document.cookie')
       expect(text, name).not.toContain('sessionStorage')
-      // **Two files keep something in `localStorage`: the docks' three folds,
-      // and which mode each way up the screen is in** (the overview or the
-      // full view, `mode.js`) — words the page wrote, about the layout, never
-      // about anybody's work. A third file reaching for it is a third thing on
-      // a device's disk that nobody listed.
+      // **One file keeps something in `localStorage`: which mode each way up
+      // the screen is in** (the overview or the full view, `mode.js`) — words
+      // the page wrote, about the layout, never about anybody's work. A second
+      // file reaching for it is a second thing on a device's disk that nobody
+      // listed.
       if (!KEEPERS.has(name)) expect(text, name).not.toContain('localStorage')
     }
   })
 
-  it('keeps nothing in localStorage but the folds and the modes, each under one key', () => {
+  it('keeps nothing in localStorage but the modes, under one key', () => {
     for (const [name, named] of KEEPERS) {
       const text = readFileSync(join(DIR, name), 'utf8')
       const uses = [...text.matchAll(/localStorage\?\.(\w+)\(([^)]*)\)/g)].map((one) => [

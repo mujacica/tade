@@ -99,6 +99,45 @@ describe('a tap on the phone', () => {
   })
 })
 
+describe('an agent opened from the overview', () => {
+  it('is looked at at once where it is running, as a tap on its row would', () => {
+    const { face } = holding()
+    const opened = face.open('checkout/refunds')
+    expect(opened.intents).toEqual([])
+    expect(opened.looked, 'the machine is told where the phone looks').toBe(true)
+    expect(face.state()?.focused).toBe('checkout/refunds')
+  })
+
+  it('is the same row’s click where only the machine can open it', () => {
+    const { face } = holding()
+    const resting = face
+      .state()
+      ?.panes.find((one) => !one.queued && !one.lane && one.state !== 'parked')
+    expect(resting, 'an agent whose session would be resumed').toBeDefined()
+    if (resting === undefined) return
+    const opened = face.open(resting.task)
+    expect(opened.intents).toEqual([
+      {
+        kind: 'click',
+        target: { kind: 'task', task: resting.task },
+        button: 'left',
+        at: { x: 0, y: 0, cell: 0, clicks: 1 },
+      },
+    ])
+    expect(face.state()?.focused).toBe(resting.task)
+  })
+
+  it('does nothing for an agent the window has no pane for, and nothing before a window', () => {
+    const { face } = holding()
+    expect(face.open('nowhere/at-all')).toEqual({ intents: [], looked: false, draw: false })
+    expect(new FarFace().open('checkout/refunds')).toEqual({
+      intents: [],
+      looked: false,
+      draw: false,
+    })
+  })
+})
+
 describe('a swipe on the phone', () => {
   it('moves nothing and asks nothing where nothing scrolls', () => {
     const { face, hits } = holding()

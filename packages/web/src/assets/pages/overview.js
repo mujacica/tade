@@ -1,424 +1,152 @@
-// The overview: every project at a glance, and what wants you before anything
-// that is merely true.
+// The overview: the one screen the page has (§10 T5 of the Duo plan), cut down
+// to the basics and the conversation with Tade.
 //
-// The landing screen, read in the order somebody opening it asks: **is anything
-// waiting on me, is the work moving, what is next, and what is it costing —
-// how close is a plan to stopping it.** So it is drawn in that order:
+// Read in the order somebody opening it on a phone asks: **is anything
+// waiting on me, is the work moving, and what is Tade saying.** So it is drawn
+// in that order:
 //
-// 1. **The board**, one panel under the bar: four cells — what needs you, what
-//    is working, what is queued, the checks — each a figure, a mark per thing
-//    and the line that breaks it down, and under them the money with where
-//    most of it went and a gauge per plan window, fullest first. Every cell is
-//    a press to the screen with the whole of it.
-// 2. **What needs you**, with the presses this device may ask for on each row;
-//    what failed under it, red; a calm line when nothing does.
-// 3. **Every project as one row of a grid**, every column on the same line as
-//    the one above it: the shape of its work, its counts, its checks, its money.
-// 4. The agents at work (on a phone and a tablet — at a desk they are down the
-//    side), what changed while the page was open, and what was closed.
+// 1. **Four tiles** — working, waiting on you, queued, finished today — each a
+//    figure, a mark per thing and the line that breaks it down.
+// 2. **Waiting on you**, every machine's that is up, each with its question —
+//    the command it would run, whole — and its answers (`quick.js`).
+// 3. **Working**, one line each: the agent, its state, how long since it moved.
+// 4. **Tade**: the conversation and the box to type in (`talkPart`).
+//
+// **Tapping an agent opens it in the full view** (`agentPath`): the window
+// itself, focused on it, where its screen, its lane to type into, its changes
+// and every panel are. There is no second agent page here, and nothing else
+// Tade shows is drawn twice: spend, checks, the queue, settings and the rest
+// are panels of the window.
+//
+// The large screen upright and anything wider draws the agents beside the
+// conversation (`overview.css`); the small screen upright is one column.
 //
 // **Nothing here derives a state.** Every figure is `overview-figures.js`'s
 // fold over what came off the wire, held by `test/overview.test.ts`; every
 // reason is `deriveState`'s clause verbatim; a figure nobody could read is a
-// dash with its word. A chart is decoration over a number that is on the page
-// as text beside it.
-//
-// **Built once and then patched**, like every screen: a figure is one text
-// write, a row is filled in place (`keyed`), and a delta never moves where
-// somebody's thumb is.
+// dash. **Built once and then patched**, like every screen: a figure is one
+// text write, a row is filled in place (`keyed`), and a delta never moves
+// where somebody's thumb is.
 
-import { createAgentRow, fillAgentRow } from '../agents.js'
-import {
-  barIn,
-  barOf,
-  bars,
-  barsIn,
-  gauge,
-  gaugeIn,
-  ringIn,
-  ringOf,
-  spark,
-  sparkIn,
-  stat,
-  statIn,
-  stats,
-  toneIn,
-} from '../charts.js'
-import {
-  classOn,
-  el,
-  foldable,
-  glyphOf,
-  hintOf,
-  into,
-  keyed,
-  markIn,
-  stateIn,
-  textIn,
-  toneOn,
-} from '../dom.js'
+import { stat, statIn, stats, toneIn } from '../charts.js'
+import { classOn, el, glyphOf, into, keyed, markIn, stateIn, textIn, toneOn } from '../dom.js'
 import { ageSaid } from '../figures.js'
-import { rowMark, taskMark } from '../glyphs.js'
+import { AGENT_MARKS, rowMark, taskMark } from '../glyphs.js'
 import { icon } from '../icons.js'
-import {
-  drawsOf,
-  figuresAsOf,
-  figuresOf,
-  HERE,
-  hereOf,
-  lastWordSaid,
-  machineFix,
-  machineSaid,
-  machinesOf,
-  machineTone,
-  machineWay,
-  noFiguresSaid,
-  wantsElsewhere,
-} from '../machines.js'
 import { quickActs } from '../quick.js'
-import { pathOf, taskPath, thereHref } from '../routes.js'
+import { agentPath } from '../routes.js'
 import { section } from '../rows.js'
-import { closedOf, intakeWaiting, projectsOf, wantsYou } from '../store.js'
-import { machineChips, machinePicked } from '../there.js'
-import { changesSeen, KINDS } from '../toasts.js'
-import { meter, meterIn, panel, stateBox, stateBoxIn } from '../ui.js'
-import {
-  boardOf,
-  failedOf,
-  gaugesOf,
-  moneyOf,
-  projectRowsOf,
-  workingOf,
-} from './overview-figures.js'
+import { talkPart } from '../talk.js'
+import { thereCtx } from '../there.js'
+import { tilesOf, waitingOf, workingOf } from './overview-figures.js'
 
 /* ── the screen ────────────────────────────────────────────────────────────── */
 
 export function nowScreen(ctx = null) {
   const node = el('div', { class: 'overview' })
+  const work = el('div', { class: 'ov-work' })
 
-  const top = section('OVERVIEW', { top: true })
-  const board = boardView()
-  // The machine chips: what needs you, failed, the projects and the agents are the picked machine's.
-  const chips = machineChips()
-  into(top.body, chips.node, board.node)
+  const tiles = tilesView()
 
-  const wants = section('NEEDS YOU')
-  wants.node.setAttribute('id', 'wants')
-  const wantList = el('ol', { class: 'ov-wants ui-panel' })
-  // What wants you on every other machine that is up, under this one's.
-  const elseList = el('ol', { class: 'ov-wants ov-elsewhere ui-panel' })
-  elseList.hidden = true
-  const inbox = inboxRow()
+  const waiting = section('WAITING ON YOU')
+  waiting.node.setAttribute('id', 'waiting')
+  const waitList = el('ol', { class: 'ov-wants ui-panel' })
   const clear = clearLine()
-  into(wants.body, wantList, elseList, inbox.node, clear.node)
+  into(waiting.body, waitList, clear.node)
 
-  const failed = section('FAILED')
-  const failList = el('ol', { class: 'ov-wants ov-failed ui-panel' })
-  into(failed.body, failList)
-
-  const projects = section('PROJECTS')
-  foldable(projects, 'overview:projects')
-  const table = projectTable()
-  const projectsState = stateBox()
-  const shut = el('div', { class: 'ov-closed' })
-  const shutList = el('div', { class: 'ov-closed-list' })
-  into(shut, el('span', { class: 'ov-closed-label', text: 'Closed' }), shutList)
-  into(projects.body, table.node, projectsState, shut)
-
-  // Every agent at work, here on a phone and a tablet; at a desk the side
-  // beside the work has the same list (`side.js`), and this one steps aside.
   const working = section('WORKING')
-  foldable(working, 'overview:agents')
-  working.node.classList.add('ov-agents')
-  const agentList = panel('ul', 'rows')
-  into(working.body, agentList)
+  working.node.setAttribute('id', 'working')
+  const workList = el('ul', { class: 'ov-agents ui-panel rows' })
+  const idle = el('p', { class: 'empty nothing', text: 'No agent is working' })
+  into(working.body, workList, idle)
 
-  // **What changed while this page was open**, newest first: the toasts'
-  // own crossings, kept for a glance back — and only those, so a reload
-  // starts it over and its `?` says so.
-  const recent = section('CHANGES')
-  foldable(recent, 'overview:changes')
-  const recentWhy = hintOf('Since this page opened. A reload starts it over.')
-  recent.figure.before(recentWhy.press)
-  const recentList = panel('ul', 'rows')
-  into(recent.body, recentWhy.body, recentList)
-
-  // **The person's machines**: this one first, with its processors, memory and
-  // disk, then the others as this one has seen them — which are up and which
-  // closed, slept or went quiet — each with the figures it last said.
-  const machines = section('MACHINES')
-  foldable(machines, 'overview:machines')
-  const machineList = panel('ul', 'rows')
-  into(machines.body, machineList)
-
-  into(
-    node,
-    top.node,
-    wants.node,
-    failed.node,
-    projects.node,
-    machines.node,
-    working.node,
-    recent.node,
-  )
+  into(work, tiles.node, waiting.node, working.node)
+  const talk = talkPart(ctx)
+  into(node, work, talk.node)
 
   return {
     node,
+    leave: () => talk.leave(),
     update(view) {
       const store = view.store
       const had = store.had
-      const open = projectsOf(store)
-      textIn(top.figure, had ? countSaid(open.length, 'project', 'projects') : '')
-      const pick = machinePicked(store)
-      // One fold per beat, read by the board and by the calm line alike, of the machines picked.
-      const figures = had ? boardOf(store, pick) : null
-      board.update(view, figures)
-      const mine = drawsOf(pick, HERE)
-      chips.update(store)
+      tiles.update(had ? tilesOf(store, view.asOf) : null)
 
-      // What needs you: the rows, the inbox's requests under them, and a
-      // calm line where there is neither.
-      const rows = mine ? wantsYou(store) : []
-      const others = wantsElsewhere(store).filter((one) => drawsOf(pick, one.machine))
-      const all = rows.length + others.length
-      const waiting = mine ? intakeWaiting(store).length : 0
-      textIn(wants.figure, all === 0 ? '' : String(all))
-      toneOn(wants.figure, all > 0 ? 't-wants' : '')
-      wants.figure.setAttribute('aria-label', `${all} wanting you`)
+      const wanting = had ? waitingOf(store) : []
+      textIn(waiting.figure, wanting.length === 0 ? '' : String(wanting.length))
+      toneOn(waiting.figure, wanting.length > 0 ? 't-wants' : '')
+      waiting.figure.setAttribute('aria-label', `${wanting.length} waiting on you`)
       keyed(
-        wantList,
-        rows,
-        (task) => task.id,
-        () => createWant(ctx),
-        (one, task) => fillWant(one, task, view),
-      )
-      elseList.hidden = others.length === 0
-      keyed(
-        elseList,
-        others,
+        waitList,
+        wanting,
         (one) => `${one.machine}\u0000${one.task.id}`,
-        () => createWant(null),
-        (node, one) => fillElsewhere(node, one, view),
+        (one) => createWant(ctxFor(ctx, one.machine)),
+        (item, one) => fillWant(item, one, view),
       )
-      inbox.update(waiting)
-      // Calm only where nothing wants you on any machine, whichever is picked.
-      const calm = pick === null || wantsYou(store).length + wantsElsewhere(store).length === 0
-      clear.update(figures, had && calm && all === 0 && waiting === 0)
+      clear.update(had && wanting.length === 0)
 
-      const broke = mine ? failedOf(store) : []
-      failed.node.hidden = broke.length === 0
-      textIn(failed.figure, broke.length === 0 ? '' : String(broke.length))
-      toneOn(failed.figure, broke.length > 0 ? 't-failed' : '')
-      keyed(
-        failList,
-        broke,
-        (task) => task.id,
-        () => createWant(ctx),
-        (one, task) => fillWant(one, task, view),
-      )
-
-      const lines = had ? projectRowsOf(store).filter((one) => drawsOf(pick, one.machine)) : []
-      const named = new Set(lines.map((one) => one.name)).size
-      textIn(projects.figure, named === 0 ? '' : String(named))
-      table.update(lines)
-      table.node.hidden = lines.length === 0
-      stateBoxIn(
-        projectsState,
-        !had
-          ? boxOf('loading', 'Reading the projects')
-          : lines.length === 0
-            ? boxOf(
-                'empty',
-                'No project is open',
-                'Open a project in Tade at the machine and its work shows here.',
-                'folder',
-              )
-            : null,
-      )
-      const closed = closedOf(store)
-      shut.hidden = closed.length === 0
-      keyed(
-        shutList,
-        closed,
-        (row) => row.name,
-        () => {
-          const link = el('a', { class: 'ui-chip', attrs: { href: '/' } })
-          into(link, icon('folder'), el('span'))
-          return link
-        },
-        (one, row) => {
-          one.setAttribute('href', pathOf({ view: 'project', project: row.name }))
-          textIn(one.lastChild, row.name)
-        },
-      )
-
-      const here = hereOf(store)
-      const seen = [...(here === null ? [] : [here]), ...machinesOf(store)]
-      machines.node.hidden = seen.length === 0
-      textIn(machines.figure, seen.length === 0 ? '' : String(seen.length))
-      keyed(
-        machineList,
-        seen,
-        (row) => `${row.way} ${row.name}`,
-        createMachine,
-        (one, row) => fillMachine(one, row, store.copies?.get(row.name)),
-      )
-
-      const agents = mine ? workingOf(store) : []
-      working.node.hidden = agents.length === 0
+      const agents = had ? workingOf(store) : []
       textIn(working.figure, agents.length === 0 ? '' : String(agents.length))
       keyed(
-        agentList,
+        workList,
         agents,
-        (task) => task.id,
-        createAgentRow,
-        (one, task) => fillAgentRow(one, task, view),
+        (one) => `${one.machine}\u0000${one.task.id}`,
+        createAgent,
+        (item, one) => fillAgent(item, one, view),
       )
+      idle.hidden = !had || agents.length > 0
 
-      const log = changesSeen()
-      recent.node.hidden = log.length === 0
-      textIn(recent.figure, log.length === 0 ? '' : String(log.length))
-      keyed(
-        recentList,
-        log,
-        (one) => one.key,
-        createChange,
-        (one, change) => fillChange(one, change, view),
-      )
+      talk.update(view)
     },
   }
 }
 
-const countSaid = (n, one, many) => `${n} ${n === 1 ? one : many}`
-
-/** A region's state, in `stateBoxIn`'s shape. */
-const boxOf = (kind, title, line = null, drawn = undefined) => ({ kind, title, line, icon: drawn })
-
-/* ── the board ─────────────────────────────────────────────────────────────── */
+/* ── the tiles ─────────────────────────────────────────────────────────────── */
 
 /**
- * The four cells, each the shared stat with a mark per thing under its
- * figure; a press to where the whole of it is.
+ * The four tiles, each the shared stat with a mark per thing under its
+ * figure. Working and waiting are presses to their own lists below; queued
+ * and finished are the window's to show whole, in the full view.
  */
-const CELLS = [
-  { key: 'wants', label: 'Needs you', href: '#wants', tone: 'wants' },
-  { key: 'working', label: 'Working', href: '/agents', tone: 'working' },
-  { key: 'queue', label: 'Queued', href: '/queue', tone: null },
-  { key: 'checks', label: 'Checks', href: '/checks', tone: 'failed', unit: 'red' },
+const TILES = [
+  { key: 'working', label: 'Working', href: '#working', tone: 'working' },
+  { key: 'wants', label: 'Waiting on you', href: '#waiting', tone: 'wants' },
+  { key: 'queue', label: 'Queued', href: null, tone: 'queued' },
+  { key: 'finished', label: 'Finished today', href: null, tone: 'done' },
 ]
 
-function boardView() {
-  const node = el('div', { class: 'ov-board ui-panel' })
-  const work = stats('The work, right now')
-  work.classList.add('ov-cells')
-  const cells = CELLS.map((spec) => {
+function tilesView() {
+  const node = stats('The work, right now')
+  node.classList.add('ov-tiles')
+  const made = TILES.map((spec) => {
     const one = stat(spec.label, spec.href)
-    one.classList.add('ov-cell')
+    one.classList.add('ov-tile')
     const dots = dotsView()
     one.append(dots)
-    work.append(one)
+    node.append(one)
     return { spec, node: one, dots }
   })
-
-  // The money: the figure is a press to the Spend screen, and where most of
-  // it went is a press to each project.
-  const money = el('div', { class: 'ov-money' })
-  const spent = stat('Spend', '/spend')
-  spent.classList.add('ov-cell')
-  const most = bars('Most spent, by project')
-  most.classList.add('ov-most')
-  into(money, spent, most)
-
-  // The plan windows, fullest first: the one that runs out first is the one
-  // that stops the work. Every account's windows are a press away.
-  const plan = el('div', {
-    class: 'ov-plan',
-    attrs: { role: 'group', 'aria-label': 'Plan limits' },
-  })
-  const head = el('a', { class: 'ov-plan-head', attrs: { href: '/spend#quotas' } })
-  into(head, el('span', { text: 'Plan limits' }), icon('chevron', 'ov-go'))
-  // A gauge per window where there is the room; on a phone, a line each —
-  // the name, the share and a bar — so every window fits beside the money.
-  const gauges = el('div', { class: 'ov-gauges' })
-  const lines = el('ul', { class: 'ov-meters' })
-  into(plan, head, gauges, lines)
-
-  const below = el('div', { class: 'ov-budget' })
-  into(below, money, plan)
-  into(node, work, below)
-
   return {
     node,
-    update(view, figures) {
-      // Nothing read yet is a shimmer where each figure will be, never a
-      // dash that reads as *nobody recorded it* and never a nought.
-      if (figures === null) {
-        gaugesIn(gauges, lines, [])
-        return
-      }
-      for (const { spec, node: one, dots } of cells) {
-        const cell = figures[spec.key]
-        const hot = cell.n > 0
-        statIn(one, {
-          value: String(cell.n),
-          unit: spec.unit,
-          under: cell.under,
-          tone: hot ? spec.tone : null,
-        })
+    update(figures) {
+      // Nothing read yet is a shimmer where each figure will be, never a dash
+      // that reads as *nobody recorded it* and never a nought.
+      if (figures === null) return
+      for (const { spec, node: one, dots } of made) {
+        const tile = figures[spec.key]
+        const hot = tile.n > 0
+        statIn(one, { value: String(tile.n), under: tile.under, tone: hot ? spec.tone : null })
         classOn(one, 'is-hot', hot && spec.key === 'wants')
-        dotsIn(dots, cell.dots)
+        dotsIn(dots, tile.dots)
       }
-      const paid = moneyOf(view.store)
-      statIn(spent, { value: paid.value, under: paid.under })
-      most.hidden = paid.top.length === 0
-      barsIn(most, paid.top)
-      gaugesIn(gauges, lines, gaugesOf(view.store, view.asOf))
     },
   }
 }
 
-/** The plan windows, as gauges and as lines, each reused by key. */
-function gaugesIn(node, lines, list) {
-  keyed(
-    node,
-    list,
-    (one) => one.key,
-    (one) => gauge(one.label),
-    (item, one) => {
-      gaugeIn(item, one)
-      classOn(item, 'is-unread', one.share === null)
-    },
-  )
-  keyed(lines, list, (one) => one.key, createMeter, fillMeter)
-}
-
-function createMeter() {
-  const node = el('li', { class: 'ov-meter' })
-  const name = el('span', { class: 'ov-meter-name' })
-  into(name, el('strong'), el('span'))
-  into(node, name, el('span', { class: 'ov-meter-value' }), meter())
-  return node
-}
-
 /**
- * The window first — `5h`, `week` — then whose, the whole name, and who runs
- * as it by default: a name is wrapped on a phone, never cut.
- */
-function fillMeter(node, one) {
-  const [name, value, bar] = node.children
-  textIn(name.firstChild, one.window ?? '')
-  name.firstChild.hidden = one.window === null
-  textIn(name.lastChild, one.marks === '' ? one.who : `${one.who} · ${one.marks}`)
-  textIn(value, one.share === null ? '—' : one.said)
-  bar.hidden = one.share === null
-  if (one.share !== null) meterIn(bar, one.share, one.pressure)
-  classOn(node, 'is-unread', one.share === null)
-}
-
-/**
- * A mark per thing — an agent, a task, a request — in its tone; hollow for
- * one still waiting on something, and the count of the rest where they do not
- * fit. `aria-hidden`: the figure and the line beside it say it in words.
+ * A mark per thing — an agent, a task — in its tone; hollow for one still
+ * waiting on something, and the count of the rest where they do not fit.
+ * `aria-hidden`: the figure and the line beside it say it in words.
  */
 function dotsView() {
   const node = el('span', { class: 'ov-dots', attrs: { 'aria-hidden': 'true' } })
@@ -441,16 +169,15 @@ function dotsIn(node, drawn) {
   more.hidden = drawn.more === 0
 }
 
-/* ── a row that wants somebody ─────────────────────────────────────────────── */
+/* ── an agent waiting on you ───────────────────────────────────────────────── */
 
 /**
- * One piece of work that wants somebody — or that failed: its mark, its name
- * and project, why in `deriveState`'s own words, how long ago, and the
- * presses this device may ask for.
+ * One agent waiting on you: its mark, its name and where it is, why in
+ * `deriveState`'s own words, how long ago, and its answers.
  *
  * The row is not a link: it holds buttons, and a button inside a link is two
- * targets in one place. Its name is the link, stretched over the row by the
- * stylesheet, and the presses sit above that.
+ * targets in one place. Its name is the link — to the agent in the full view —
+ * and the presses sit beside it.
  */
 function createWant(ctx) {
   const node = el('li', { class: 'ov-want' })
@@ -466,13 +193,14 @@ function createWant(ctx) {
   return node
 }
 
-function fillWant(node, task, view) {
+function fillWant(node, one, view) {
+  const { task, machine } = one
   const [glyph, link, age, why] = node.children
   markIn(glyph, rowMark(task))
   stateIn(node, task.state)
-  link.setAttribute('href', taskPath(task.id))
+  link.setAttribute('href', agentPath(task.id, machine))
   textIn(link.children[0], task.name)
-  textIn(link.children[1], task.project)
+  textIn(link.children[1], whereSaid(task, machine))
   const moved = ageSaid(task.movedAt, view.asOf, view.frozen)
   textIn(age, moved ?? '')
   age.setAttribute('aria-label', moved === null ? 'never moved' : `moved ${moved} ago`)
@@ -480,234 +208,61 @@ function fillWant(node, task, view) {
   node.quick?.update(task, view)
 }
 
-/** Another machine's row that wants you: its page there, no presses, its machine before its project. */
-function fillElsewhere(node, one, view) {
-  fillWant(node, one.task, view)
-  const [, link] = node.children
-  link.setAttribute('href', thereHref(one.machine, link.getAttribute('href')) ?? '/')
-  textIn(link.children[1], `${one.machine} · ${one.task.project}`)
-}
-
-/** The inbox's requests, waiting for a yes: somebody else blocked on this machine. */
-function inboxRow() {
-  const node = el('a', { class: 'ov-inbox ui-panel', attrs: { href: '/inbox' } })
-  const mark = el('span', { class: 'ov-inbox-mark t-wants' })
-  mark.append(icon('inbox'))
-  const words = el('span', { class: 'ov-inbox-words' })
-  into(node, mark, words, icon('chevron', 'ov-go'))
-  node.hidden = true
-  return {
-    node,
-    update(n) {
-      node.hidden = n === 0
-      textIn(words, `${countSaid(n, 'request', 'requests')} waiting in the inbox`)
-    },
-  }
-}
-
-/** Nothing waiting on anybody: one calm line, and what is going on instead. */
+/** Nothing waiting on you on any machine: one calm line. */
 function clearLine() {
   const node = el('div', { class: 'ov-clear ui-panel', attrs: { role: 'status' } })
   const mark = el('span', { class: 'ov-clear-mark t-done' })
   mark.append(icon('check'))
-  const words = el('span', { class: 'ov-clear-words' })
-  const line = el('span', { class: 'ov-clear-line' })
-  into(words, el('strong', { text: 'Nothing needs you' }), line)
-  into(node, mark, words)
+  into(node, mark, el('strong', { text: 'Nothing needs you' }))
   node.hidden = true
   return {
     node,
-    update(figures, shown) {
+    update(shown) {
       node.hidden = !shown
-      if (!shown) return
-      const going = [
-        figures.working.n > 0 ? `${figures.working.n} working` : null,
-        figures.queue.n > 0 ? `${figures.queue.n} queued` : null,
-      ].filter(Boolean)
-      textIn(line, going.length === 0 ? 'and nothing is running' : going.join(' · '))
     },
   }
 }
 
-/* ── the projects: one grid, every column on one line ──────────────────────── */
+/* ── an agent working ──────────────────────────────────────────────────────── */
 
-/**
- * The projects as one table drawn as a grid: a head naming the columns at a
- * desk, and a row per project whose cells sit under them. On a phone the head
- * steps aside and each row is three lines — name and money, the shape of its
- * work, its counts and checks — with each count's word beside it.
- */
-function projectTable() {
-  const node = el('div', { class: 'ov-table ui-panel' })
-  const head = el('div', { class: 'ov-proj-head', attrs: { 'aria-hidden': 'true' } })
-  for (const [word, klass] of PROJECT_COLUMNS) into(head, el('span', { class: klass, text: word }))
-  const list = el('ol', { class: 'ov-projects', attrs: { 'aria-label': 'Projects' } })
-  into(node, head, list)
-  return {
-    node,
-    update(lines) {
-      keyed(list, lines, (row) => row.key, createProject, fillProject)
-    },
-  }
-}
-
-const PROJECT_COLUMNS = [
-  ['Project', 'ov-c-name'],
-  ['Work', 'ov-c-bar'],
-  ['Needs you', 'ov-c-n'],
-  ['Working', 'ov-c-n'],
-  ['Queued', 'ov-c-n'],
-  ['Checks', 'ov-c-checks'],
-  ['Spend', 'ov-c-spend'],
-]
-
-/** Each count's word, said beside it on a phone and read aloud everywhere. */
-const COUNT_WORDS = [
-  ['needs you', 'need you', 'wants'],
-  ['working', 'working', 'working'],
-  ['queued', 'queued', 'queued'],
-]
-
-function createProject() {
-  const node = el('li')
-  const link = el('a', { class: 'ov-proj', attrs: { href: '/' } })
-  const name = el('span', { class: 'ov-proj-name' })
-  const bar = barOf(['wants', 'working', 'queued', 'rest'])
-  bar.classList.add('ov-proj-bar')
-  const counts = COUNT_WORDS.map(([, , kind]) => {
-    const one = el('span', { class: `ov-n ov-n-${kind}` })
-    into(one, el('span', { class: 'ov-n-value' }), el('span', { class: 'ov-n-word' }))
-    return one
-  })
-  const checks = el('span', { class: 'ov-proj-checks' })
-  into(checks, ringOf('checks'), el('span'))
-  const spend = el('span', { class: 'ov-proj-spend' })
-  into(link, name, bar, ...counts, checks, spend)
-  return into(node, link)
-}
-
-function fillProject(node, row) {
-  const [link] = node.children
-  const [name, bar, ...rest] = link.children
-  const counts = rest.slice(0, 3)
-  const [checks, spend] = rest.slice(3)
-  link.setAttribute('href', row.href)
-  textIn(name, row.machine ? `${row.name} · ${row.machine}` : row.name)
-  barIn(bar, row.shape)
-  ;[row.wants, row.working, row.queued].forEach((n, at) => {
-    const [value, word] = counts[at].children
-    const [one, many] = COUNT_WORDS[at]
-    textIn(value, String(n))
-    textIn(word, ` ${n === 1 ? one : many}`)
-    classOn(counts[at], 'is-zero', n === 0)
-  })
-  const [ring, said] = checks.children
-  ringIn(ring, row.checks.parts)
-  textIn(said, row.checks.said)
-  toneOn(said, row.checks.tone)
-  textIn(spend, row.spend ?? `— ${row.spendWhy}`)
-  classOn(spend, 'is-unknown', row.spend === null)
-}
-
-/* ── what changed ──────────────────────────────────────────────────────────── */
-
-function createMachine() {
-  const node = el('li', { class: 'ov-machine' })
-  // A span: a `div` straight under a row is drawn as a row of its own (`.rows > li > div`).
-  const figs = el('span', { class: 'ov-figs' })
-  into(figs, figTile('CPU', true), figTile('Memory', true), figTile('Disk', false))
-  into(
-    node,
-    el('span', { class: 'glyph' }),
-    el('span', { class: 'name' }),
-    el('span', { class: 'aside' }),
-    el('span', { class: 'under' }),
-    el('span', { class: 'under ov-fix' }),
-    el('span', { class: 'under ov-last' }),
-    figs,
-    el('span', { class: 'ov-figs-line' }),
-  )
-  return node
-}
-
-/** One figure: its label, its value, the line under it, and a trail or a meter beneath. */
-function figTile(label, trail) {
-  const node = el('div', { class: 'ov-fig', attrs: { role: 'group', 'aria-label': label } })
-  into(
-    node,
-    el('span', { class: 'ov-fig-label', text: label }),
-    el('span', { class: 'ov-fig-value' }),
-    el('span', { class: 'ov-fig-under' }),
-    trail ? spark() : meter(),
-  )
-  return node
-}
-
-function fillTile(node, one, drawn) {
-  const [, value, under, shape] = node.children
-  textIn(value, one.said)
-  textIn(under, one.under)
-  classOn(value, 'is-unknown', one.said === '—')
-  const tone = one.pressure === 'tight' ? 'failed' : one.pressure === 'warm' ? 'here' : ''
-  // Red past nine tenths, amber past three quarters, and the word says it too.
-  toneOn(value, tone ? `t-${tone}` : '')
-  if ('trail' in one) sparkIn(shape, one.trail, tone || 'working')
-  else meterIn(shape, one.used ?? 0, one.pressure)
-  shape.hidden = drawn === false
-}
-
-function fillMachine(node, row, copy) {
-  const [glyph, name, said, way, fix, last, figs, line] = node.children
-  textIn(glyph, row.state === 'up' ? '●' : '○')
-  toneOn(glyph, machineTone(row))
-  textIn(name, row.name)
-  textIn(said, machineSaid(row))
-  textIn(way, machineWay(row))
-  textIn(fix, machineFix(row) ?? '')
-  fix.hidden = fix.textContent === ''
-  // Not up, what its work was at its last word (`copies.ts`), where this page holds a copy.
-  textIn(last, lastWordSaid(row, copy) ?? '')
-  last.hidden = last.textContent === ''
-  const figures = figuresOf(row.host ?? null)
-  figs.hidden = figures === null
-  if (figures !== null) {
-    const [cpu, memory, disk] = figs.children
-    fillTile(cpu, figures.cpu)
-    fillTile(memory, figures.memory)
-    fillTile(disk, figures.disk, figures.disk.used !== null)
-  }
-  // Not up, what it last said is drawn as of then, and quieter.
-  const asOf = figures === null ? null : figuresAsOf(row, figures)
-  classOn(figs, 'is-stale', asOf !== null)
-  textIn(
-    line,
-    figures === null ? noFiguresSaid(row) : [figures.tade, asOf].filter(Boolean).join(' — '),
-  )
-}
-
-function createChange() {
-  const node = el('li')
+/** One working agent, one line: its mark, its name and where, its state, its age. */
+function createAgent() {
+  const node = el('li', { class: 'ov-agent' })
   const link = el('a', { attrs: { href: '/' } })
+  const who = el('span', { class: 'ov-agent-who' })
+  into(who, el('span', { class: 'ov-agent-name' }), el('span', { class: 'ov-agent-project' }))
   into(
     link,
-    el('span', { class: 'glyph' }),
-    el('span', { class: 'name' }),
-    el('span', { class: 'aside' }),
-    el('span', { class: 'under' }),
+    glyphOf(AGENT_MARKS.working, 'ov-agent-mark'),
+    who,
+    el('span', { class: 'ov-agent-state' }),
+    el('span', { class: 'ov-agent-age' }),
   )
-  return into(node, link)
+  into(node, link)
+  return node
 }
 
-function fillChange(node, change, view) {
+function fillAgent(node, one, view) {
+  const { task, machine } = one
   const [link] = node.children
-  const [glyph, name, age, word] = link.children
-  const kind = KINDS[change.kind]
-  link.setAttribute('href', taskPath(change.id))
-  glyph.textContent = ''
-  glyph.append(icon(kind?.icon ?? 'bolt'))
-  toneOn(glyph, kind?.tone ?? '')
-  textIn(name, change.id)
-  textIn(word, kind?.word ?? change.kind)
-  toneOn(word, kind?.tone ?? '')
-  textIn(age, ageSaid(new Date(change.at).toISOString(), view.asOf, view.frozen) ?? '')
+  const [glyph, who, state, age] = link.children
+  const [name, project] = who.children
+  link.setAttribute('href', agentPath(task.id, machine))
+  markIn(glyph, rowMark(task))
+  stateIn(link, task.state)
+  classOn(link, 'stalled', task.stalled)
+  textIn(name, task.name)
+  textIn(project, whereSaid(task, machine))
+  textIn(state, task.stalled ? 'stalled' : 'working')
+  const moved = ageSaid(task.movedAt ?? task.createdAt, view.asOf, view.frozen)
+  textIn(age, moved ?? '')
+  age.setAttribute('aria-label', moved === null ? 'never moved' : `moved ${moved} ago`)
 }
+
+/** The presses' context for an agent on `machine`: another machine's go through this door (`thereCtx`). */
+const ctxFor = (ctx, machine) =>
+  ctx === null ? null : machine === '' ? ctx : thereCtx(ctx, machine)
+
+/** Where an agent is: its project, and the machine in front where it is not this one. */
+const whereSaid = (task, machine) =>
+  machine === '' ? task.project : `${machine} · ${task.project}`

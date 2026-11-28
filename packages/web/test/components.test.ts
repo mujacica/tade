@@ -76,10 +76,4 @@ describe('the components', () => {
     )
     expect(copies).toEqual([])
   })
-
-  it('draw a count the one way, empty at nought rather than a 0', () => {
-    expect(UI).toMatch(/\.ui-count:empty\s*\{\s*display: none;/)
-    const ui = read('ui.js')
-    expect(ui).toMatch(/n === 0 \? '' : n > 99 \? '99\+' : String\(n\)/)
-  })
 })

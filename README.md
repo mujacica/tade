@@ -139,12 +139,6 @@ from the Mac.
 
 ![Projects on this Mac and on two servers, and an agent list read from the VPS](https://raw.githubusercontent.com/mujacica/tade/main/images/machines.svg)
 
-The away view puts the machines side by side — processors, memory and disk, and what Tade and its
-agents use of each — so a laptop running hot beside a quiet server is plain at a glance. One that
-closed, slept or went silent says so, with the figures it last sent.
-
-![The away view's Machines: a busy laptop beside a quiet server, with processors, memory and disk for each](https://raw.githubusercontent.com/mujacica/tade/main/images/away-machines.svg)
-
 ## Context-rich search
 
 `ctrl+k` finds agents, files and lines in every worktree, documents and actions — and what is
@@ -161,11 +155,12 @@ given the ones that concern their work.
 
 ## A remote control on your phone
 
-Pair a phone by scanning a code: an overview of every project, the work that wants you with its
-presses on the card, and Tade one tap away. Every device you pair is yours and can do whatever you
-can at the machine; **Sign out** or `tade web revoke` takes it back.
+Pair a phone by scanning a code: one overview of every machine — which are up, what is working,
+what waits on you with its answers on the card, what is queued and what finished today — and the
+conversation with Tade beside it. Tap an agent and it opens in the full view. Every device you pair
+is yours and can do whatever you can at the machine; **Sign out** or `tade web revoke` takes it back.
 
-![Tade's away view on a laptop and then a phone: the overview, an agent waiting with Allow and Deny, plans, spend and three phones](https://raw.githubusercontent.com/mujacica/tade/main/images/away-page.svg)
+![Tade's away view on a laptop and then a phone: the machines, four tiles, an agent waiting with Allow and Deny, the agents working and the conversation with Tade](https://raw.githubusercontent.com/mujacica/tade/main/images/away-page.svg)
 
 Turn the phone sideways and it is the window itself — **Full view**, drawn by the phone from the
 state the machine sends, at its own size: taps are clicks, swipes scroll, and a key row has the

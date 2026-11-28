@@ -17,6 +17,7 @@ import {
   type DuoScreen,
   type Insets,
   insetsAsVars,
+  OVERVIEW_SIZES,
 } from '../test/browser-duo-plan.ts'
 import { exitFor, type Finding, said, sayReport, worstOf } from '../test/browser-plan.ts'
 import {
@@ -32,10 +33,12 @@ import {
 import { harnessTalk } from './browser-chat.ts'
 import { DUO_SHAPE } from './browser-snippets.ts'
 
-// The away view on Amir's foldable iPhone Duo, in WebKit, at the four sizes it
-// is held at: the outer screen upright and sideways, the inner one upright and
-// sideways (`DUO` in `test/browser-plan.ts`), and the fold opened as a live
-// resize, which is how iOS hands a page the other screen.
+// The away view's overview on Amir's foldable iPhone Duo and two slab iPhones,
+// in WebKit, at the full view's sizes (`OVERVIEW_SIZES` in
+// `test/browser-duo-plan.ts`, §10 T5 of the Duo plan): the Duo's two screens
+// each way up, Split View's half, the small screen sideways in a Safari tab,
+// and the slabs each way up — and the fold opened as a live resize, which is
+// how iOS hands a page the other screen.
 //
 //   node packages/web/scripts/browser-duo.ts                  # report to stdout
 //   node packages/web/scripts/browser-duo.ts --shots <dir>    # and a picture of each
@@ -407,13 +410,6 @@ export async function pairIn(page: Page, origin: string, ticket: string): Promis
 async function open(page: Page, origin: string, look: DuoLook, path = look.path): Promise<boolean> {
   await page.goto(`${origin}${path}`, { waitUntil: 'load' })
   await page.waitForSelector(look.ready ?? 'main', { timeout: 10_000 })
-  if (look.press !== undefined) {
-    const drawn = await page.evaluate(
-      `document.querySelector(${JSON.stringify(look.press)})?.checkVisibility() === true`,
-    )
-    if (drawn !== true) return false
-    await page.click(look.press)
-  }
   if (look.focus !== undefined) await page.focus(look.focus)
   // A screen rises in; its tiles follow. Measured once it has stopped moving.
   await page.waitForTimeout(400)
@@ -540,7 +536,7 @@ async function folded(
   const page = await context.newPage()
   try {
     for (const look of DUO_LOOKS) {
-      if (look.keyboard === true || look.paired === false || look.press !== undefined) continue
+      if (look.keyboard === true || look.paired === false) continue
       await open(page, origin, look)
       for (const screen of [inner, outer]) {
         await page.setViewportSize({ width: screen.width, height: screen.height })
@@ -594,21 +590,21 @@ async function looked(engine: Engine, home: string, found: Finding[]): Promise<v
   try {
     // The pairing page first, as the phone sees it with the code just scanned.
     const pairing = DUO_LOOKS.find((one) => one.paired === false)
-    for (const screen of DUO) {
+    for (const screen of OVERVIEW_SIZES) {
       if (pairing === undefined) break
       const context = await phoneAt(engine, screen)
       const ticket = tickets.mint(`${origin}/pair`, Date.now()).value
       await lookAt(await context.newPage(), origin, screen, pairing, found, `/pair#t=${ticket}`)
       await context.close()
     }
-    const first = DUO[0]
+    const first = OVERVIEW_SIZES[0]
     if (first === undefined) return
     const context = await phoneAt(engine, first)
     const ticket = tickets.mint(`${origin}/pair`, Date.now()).value
     await pairIn(await context.newPage(), origin, ticket)
     const state = await context.storageState()
     await context.close()
-    for (const screen of DUO) await lookAll(engine, origin, screen, state, found)
+    for (const screen of OVERVIEW_SIZES) await lookAll(engine, origin, screen, state, found)
     await folded(engine, origin, state, found)
   } finally {
     await server.close()

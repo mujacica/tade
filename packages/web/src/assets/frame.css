@@ -1,9 +1,8 @@
 /*
-  The frame every screen is drawn inside: the header with the wordmark, the
-  command bar's door and the freshness clock; the bars that say how the page
-  stands to the machine; the navigation; the shape of a section; and the four
-  drawings every region has. The command bar itself is `palette.css`, and the
-  desk's dock is `dock.css`.
+  The frame the overview is drawn inside: the header with the wordmark, the
+  switch to the full view, each machine's up or down and the freshness clock;
+  the bars that say how the page stands to the machine; the shape of a
+  section; and the one region the screen scrolls in.
 
   **The freshness line and the bars are the most important thing here**, and
   this is why: when the stream drops, every row keeps its last state and the
@@ -13,19 +12,14 @@
   somebody's morning.
 
   **The four drawings every region has** (`dom.js` builds each, `away.css`
-  draws them): a skeleton
-  while it is coming, a word when it is empty, `—` plus a word when it is
-  unknown, and — when a read failed — its last good content at 60% with one line
-  saying so. The default for all four is a blank area that reads as broken,
-  which is why none of them is left to chance.
+  draws them): a skeleton while it is coming, a word when it is empty, `—`
+  plus a word when it is unknown, and — when a read failed — its last good
+  content at 60% with one line saying so.
 
-  Four breakpoints, content-driven and not device-driven: one column with a
-  tab bar whose middle raises Tade as a sheet and the work as a drawer, then
-  an icon rail with Tade docked at the foot of the work, then a menu with
-  names and categories (`rail.css`), then the desk — the menu, the work down
-  the right and Tade at the foot of the middle, as the window has them
-  (`dock.css`). `away.css` has the screens drawn inside this, and
-  each page's own sheet (`pages/<page>.css`) what only it draws.
+  **There is no navigation** (§10 T5 of the Duo plan): the page is the
+  overview, and everything else Tade shows is a panel of the window in the
+  full view. So there is no menu, no tab bar and no drawer here, and the
+  overview's own sheet (`pages/overview.css`) lays out its one column or two.
 */
 
 /* ── the frame ─────────────────────────────────────────────────────────────── */
@@ -33,11 +27,9 @@
 /*
   **The page is an application's shell, and the document never scrolls.** The
   body is the screen — `100dvh`, so iOS Safari's toolbar is room the shell
-  gives back rather than room it scrolls under — and a column of three: the
-  header, the frame, and on a phone the tab bar. Inside the frame the work's
-  screen scrolls, and so does each side's own list; nothing else does. A
-  document that scrolled carried the header, the menu, the side and Tade away
-  with it, and scrolled on past the end of the work into nothing.
+  gives back rather than room it scrolls under — and a column of two: the
+  header and the frame. Inside the frame the screen scrolls, and so does the
+  conversation's own list; nothing else does.
 
   `clip` rather than `hidden` on the body, because a hidden box is still one
   focus and `scrollIntoView` can scroll; `none` on both, so a fling at the end
@@ -61,20 +53,20 @@ body {
 /*
   **The keyboard up on a phone** (`room.js`): the body is the room above it,
   not the screen, so the header stays at the top and the box being typed in
-  sits on the keyboard with the conversation between them. The tab bar steps
-  aside — it is under the keyboard — and the home indicator's band is behind
-  the keyboard too, so nothing keeps room for it.
+  sits on the keyboard with the conversation above it. The home indicator's
+  band is behind the keyboard, so nothing keeps room for it.
 */
 .keyboard-up body {
   height: var(--room);
 }
 
-.keyboard-up .tabs {
-  display: none;
-}
-
 .keyboard-up .frame {
   padding-block-end: 0;
+}
+
+/* The room above the keys is the box's: the machines' line steps aside, the clock stays. */
+.keyboard-up .machines {
+  display: none;
 }
 
 .skip {
@@ -130,17 +122,20 @@ a.name:hover {
 }
 
 /*
-  The header: the mark, the command bar, the clock, two tools. The panel's
-  ground under a hairline, the top of the shell with the phone's own insets
-  round it, so the clock is never under the notch of an installed app.
+  The header: the mark, the switch, the machines, the clock, the tools. The
+  panel's ground under a hairline, the top of the shell with the phone's own
+  insets round it, so the clock is never under the notch of an installed app.
+  It wraps rather than cutting anything: on the small screen the machines go
+  onto a line of their own under the mark.
 */
 .top {
   position: relative;
   z-index: 6;
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--s2);
+  gap: var(--s1) var(--s2);
   min-height: var(--bar);
   margin-inline: calc(-1 * var(--s4));
   padding-inline: calc(var(--s4) + env(safe-area-inset-left))
@@ -199,56 +194,6 @@ a.name:hover {
 }
 
 /*
-  The command bar's door: a field-shaped press. At a phone's width it is the
-  icon alone and the tab bar's middle does the rest; from a tablet up it is a
-  field that says what it is for and which keys open it.
-*/
-.cmd {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--s2);
-  min-height: var(--tap);
-  min-width: var(--tap);
-  padding-inline: var(--s3);
-  border-radius: var(--r1);
-  color: var(--heading);
-  cursor: pointer;
-  transition:
-    background var(--ease),
-    border-color var(--ease);
-}
-
-.cmd .ic {
-  color: var(--amber);
-}
-
-.cmd-said,
-.cmd kbd {
-  display: none;
-}
-
-.cmd:hover {
-  color: var(--bright);
-  background: var(--panel);
-}
-
-kbd {
-  display: inline-flex;
-  align-items: center;
-  padding: 0 var(--s1);
-  min-width: 1.5rem;
-  justify-content: center;
-  border-radius: var(--r1);
-  border: var(--border);
-  background: var(--surface);
-  color: var(--heading);
-  font-family: var(--font-ui);
-  font-size: var(--step--1);
-  line-height: 1.5;
-}
-
-/*
   The clock, as a pill: a dot and the words. Pushed to the end of the header,
   and whole at every width: at a phone's it wraps rather than being cut.
 */
@@ -274,8 +219,7 @@ kbd {
 /*
   From a tablet up the clock is the header's quiet status: the dot and the
   words, pushed to the end, with a hairline pill round them so it reads as one
-  thing. The dot says how the page stands; the words say since when. Not on
-  a phone held sideways, which keeps a phone's header (the tablet's frame below).
+  thing. The dot says how the page stands; the words say since when.
 */
 @media (min-width: 768px) and (min-height: 541px), (min-width: 768px) and (pointer: fine) {
   .fresh {
@@ -314,12 +258,6 @@ kbd {
   color: var(--quiet);
 }
 
-.tools {
-  display: flex;
-  gap: var(--s1);
-  flex: 0 0 auto;
-}
-
 .icon {
   display: grid;
   place-items: center;
@@ -338,6 +276,48 @@ kbd {
   background: var(--panel);
 }
 
+/*
+  **Each machine, up or not**: a dot in its tone and its name, and what it is
+  in words where it is not up — a colour is never the only word. Drawn only
+  where there is more than one machine (`machinesIn`); one machine up is the
+  freshness line's to say. A line of its own under the mark, wrapping rather
+  than cut; sideways, where there is no height to spare, in the header's own
+  line (below).
+*/
+.machines {
+  order: 3;
+  flex: 1 0 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s3);
+  margin: 0;
+  padding: 0 0 var(--s1);
+  list-style: none;
+  font-size: var(--step--1);
+}
+
+.machine {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s1);
+  min-width: 0;
+  color: var(--bright);
+}
+
+.machine .glyph {
+  flex: 0 0 auto;
+  font-size: 0.75em;
+}
+
+.machine-said {
+  color: var(--heading);
+  overflow-wrap: anywhere;
+}
+
+.machine.is-down .machine-name {
+  color: var(--heading);
+}
+
 /* ── the bars: stale, unreachable, closed, resynced, and a read that failed ── */
 
 /*
@@ -350,8 +330,8 @@ kbd {
 .bars {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--s2);
-  padding-block: var(--s2) 0;
+  gap: 0;
+  padding: 0;
 }
 
 .bars:empty {
@@ -455,173 +435,72 @@ kbd {
   border-color: var(--heading);
 }
 
-/* ── navigation ────────────────────────────────────────────────────────────── */
+/*
+  **A strip, not a box.** Each bar is one line across the whole of the page,
+  its glyph where the screen's words start, its words, the `?`, and its press
+  at the end. Its tone is a wash of the ground and its glyph, never a coloured
+  edge round a card.
+*/
+.bars > .bar {
+  border: 0;
+  border-radius: 0;
+  border-block-end: var(--border);
+}
+
+.bars > .bar.is-stale {
+  background: color-mix(in srgb, var(--amber) 7%, var(--ground));
+}
+
+.bars > .bar.is-gone {
+  background: color-mix(in srgb, var(--red) 8%, var(--ground));
+}
+
+.bars .bar-line {
+  min-height: var(--bar);
+  padding-inline: var(--gutter);
+}
+
+.bars .bar .glyph {
+  width: auto;
+  min-width: 1rem;
+  text-align: center;
+}
+
+.bars .bar .press {
+  flex: 0 0 auto;
+}
+
+.bars .bar .under {
+  padding: 0 var(--gutter) var(--s2) calc(var(--gutter) + 1rem + var(--s2));
+}
 
 /*
   Everything between the header and the foot of the screen, from edge to edge
-  — the phone's gutter is the screen's own padding (`main`), so a strip in it
-  can reach the edges without making it scroll sideways. One row, exactly the
-  room there is, so every column in it is the height of the screen and scrolls
-  inside itself.
+  — the gutter is the screen's own padding (`main`), so a strip in it can
+  reach the edges without making it scroll sideways. A column of the bars and
+  the screen, exactly the room there is.
+
+  **The home indicator's band is kept by the frame**, so nothing rests under
+  it, where a tap is the system's swipe home; and the phone's side insets — the
+  Duo's camera column sideways, a slab's island — are the frame's too.
 */
 .frame {
   flex: 1 1 auto;
   min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   margin-inline: calc(-1 * var(--s4));
   padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
-}
-
-/*
-  **The home indicator's band is kept by whatever is at the foot.** On a
-  phone that is the tab bar; where there is none — a device not yet paired, a
-  phone held sideways, a tablet up — it is the frame, so no screen, menu or
-  dock rests under the band, where a tap is the system's swipe home.
-*/
-.frame.is-outside {
   padding-block-end: env(safe-area-inset-bottom);
-}
-
-.rail {
-  display: none;
-}
-
-/*
-  The tab bar: the foot of the shell on the terminal's ground, a hairline over it
-  and the phone's inset under it — no float, no blur, no shadow. Four presses:
-  the overview, the work (the side, as a drawer), Tade in the middle (the dock,
-  as a sheet) and More. Where you are is amber, and said to a screen reader as
-  well.
-*/
-.tabs {
-  position: relative;
-  z-index: 6;
-  flex: none;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  align-items: center;
-  margin-inline: calc(-1 * var(--s4));
-  padding-inline: calc(var(--s1) + env(safe-area-inset-left))
-    calc(var(--s1) + env(safe-area-inset-right));
-  padding-block: 0 env(safe-area-inset-bottom);
-  background: var(--ground);
-  border-block-start: var(--border);
-}
-
-.tab {
-  position: relative;
-  display: grid;
-  justify-items: center;
-  align-content: center;
-  gap: 2px;
-  min-height: var(--tap);
-  padding-block: var(--s2);
-  color: var(--tab);
-  text-decoration: none;
-  font-size: var(--step--1);
-  cursor: pointer;
-  transition: color var(--ease);
-}
-
-.tab .ic {
-  width: 1.375rem;
-  height: 1.375rem;
-}
-
-.tab .label {
-  line-height: 1.1;
-}
-
-/* Where you are, in amber, and said to a screen reader as well; a drawer that is open is where you are too. */
-.tab[aria-current="page"],
-.tab[aria-expanded="true"] {
-  color: var(--amber);
-}
-
-/* A count is a badge on the icon's shoulder, and nothing at nought. */
-.tab .count {
-  position: absolute;
-  top: 2px;
-  left: calc(50% + 4px);
-}
-
-/* Tade, in the middle: an amber disc, the one primary press on the bar. */
-.tab-ask .ask-disc {
-  display: grid;
-  place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: var(--round);
-  background: var(--amber);
-  color: var(--ink);
-}
-
-.tab-ask {
-  color: var(--amber);
-}
-
-/*
-  **A phone held sideways has width to spare and no height** — the Duo's outer
-  screen is 466px tall with the home indicator's band under that — so the tab
-  bar stands down the left edge, beside the camera's column, rather than
-  taking a fifth of the height across the foot. The same four presses, one
-  over another; the frame keeps the home indicator's band itself. Outside — a
-  device not yet paired — there is no bar, and nothing makes room for one.
-  With the keyboard up the bar steps aside as it does upright (`.keyboard-up`),
-  since four presses do not fit beside the room the keyboard leaves.
-
-  **Every phone sideways, not only the Duo's outer screen**: an iPhone held
-  sideways is 844 to 932px wide and under 430 tall, so a short touch screen is
-  a phone whatever its width, and the tablet's frame stands down for it.
-*/
-@media (max-width: 767px) and (orientation: landscape) and (max-height: 540px),
-  (orientation: landscape) and (max-height: 540px) and (pointer: coarse) {
-  :root:not(.keyboard-up):has(.frame:not(.is-outside)) body {
-    padding-inline-start: calc(var(--s4) + var(--side-tabs) + env(safe-area-inset-left));
-  }
-
-  :root:not(.keyboard-up):has(.frame:not(.is-outside)) .top {
-    padding-inline-start: var(--s4);
-  }
-
-  :root:not(.keyboard-up) .frame:not(.is-outside) {
-    padding-inline-start: 0;
-    padding-block-end: env(safe-area-inset-bottom);
-  }
-
-  .tabs {
-    position: fixed;
-    inset-block: 0;
-    inset-inline-start: 0;
-    width: calc(var(--side-tabs) + env(safe-area-inset-left));
-    grid-template-columns: minmax(0, 1fr);
-    align-content: center;
-    gap: var(--s1);
-    margin: 0;
-    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) env(safe-area-inset-left);
-    border-block-start: 0;
-    border-inline-end: var(--border);
-  }
 }
 
 /* ── sections ──────────────────────────────────────────────────────────────── */
 
 /*
-  The middle column: the page's own bars, the screen, and Tade under it. **The
-  screen is the one thing in it that scrolls**, and it scrolls itself — so the
-  bars above it and the dock below it stay where they are, and its end is the
-  end of the work rather than the start of an empty page.
+  **The screen is the one thing in the frame that scrolls**, and it scrolls
+  itself — so the bars above it stay where they are, and its end is the end of
+  the work rather than the start of an empty page.
 */
-.work {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-}
-
 main {
   flex: 1 1 auto;
   min-width: 0;
@@ -720,43 +599,11 @@ main[tabindex="-1"]:focus {
   margin-inline-start: auto;
 }
 
-.page-head {
-  display: flex;
-  align-items: center;
-  gap: var(--s3);
-  margin-block: var(--s2) var(--s5);
-}
-
-.page-head h1 {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: var(--step-2);
-  letter-spacing: var(--tight);
-  color: var(--bright);
-  overflow-wrap: anywhere;
-}
-
-.back {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s1);
-  min-height: var(--tap);
-  min-width: var(--tap);
-  color: var(--heading);
-  text-decoration: none;
-  font-size: var(--step-0);
-}
-
-.back:hover {
-  color: var(--bright);
-}
-
-/* ── tablet: an icon rail, Tade docked at the foot, and no tab bar ─────────── */
+/* ── a tablet and a desk ────────────────────────────────────────────────── */
 
 /*
-  From 768px wide, unless it is a touch screen 540px tall or less: that is a
-  phone held sideways, and it keeps the phone's frame with its tab bar down the
-  left edge (above). The same query is the tablet's in `dock.css` and `docks.js`.
+  From 768px wide, unless it is a touch screen 540px tall or less — a phone
+  held sideways, which keeps the phone's gutters (below).
 */
 @media (min-width: 768px) and (min-height: 541px), (min-width: 768px) and (pointer: fine) {
   body {
@@ -769,158 +616,36 @@ main[tabindex="-1"]:focus {
       calc(var(--s5) + env(safe-area-inset-right));
   }
 
-  /* A field, drawn as every field is: the chrome's edge on the page's own ground. */
-  .cmd {
-    flex: 0 1 22rem;
-    justify-content: flex-start;
-    margin-inline: var(--s4) auto;
-    border: 1px solid var(--chrome);
-  }
-
-  .cmd:hover {
-    border-color: var(--chrome);
-  }
-
-  .cmd-said {
-    display: inline;
-    flex: 1 1 auto;
-    text-align: start;
-  }
-
-  .cmd kbd {
-    display: inline-flex;
-  }
-
-  .fresh {
-    flex: 0 1 auto;
-  }
-
-  /*
-    The frame from here up is an application's: the menu down the left, the
-    height of the screen under the header from the top to the bottom, and the
-    work beside it with Tade docked at its foot. The frame reaches the page's
-    edges, so the menu's rule runs top to bottom with nothing past it.
-  */
   .frame {
-    grid-template-columns: var(--rail) minmax(0, 1fr);
-    gap: 0;
     margin-inline: calc(-1 * var(--s5));
-    padding-block-end: env(safe-area-inset-bottom);
   }
 
-  /* Its own scroll, so a short screen never leaves it hanging from the header. */
-  .rail {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-height: 0;
-    padding: var(--s3) var(--s2);
-    border-inline-end: var(--border);
-    overflow-y: auto;
-    overscroll-behavior: contain;
+  .bars .bar .under {
+    padding-inline: calc(var(--gutter) + 1rem + var(--s2)) var(--gutter);
   }
+}
 
-  /* An icon, centred, with its word a label beside it under the pointer. */
-  .rail-items > a {
-    position: relative;
-    display: grid;
-    place-items: center;
+/*
+  **A phone held sideways has width to spare and no height.** The Duo's outer
+  screen sideways is 594 by 368px in a Safari tab (406 with the toolbars
+  gone), the svh and lvh of WebKit's own table — not 466 tall, which is the
+  whole screen before the camera's column and the home indicator take their
+  bands — and an iPhone held sideways is 844 to 932px wide and under 430
+  tall. So a short touch screen is a phone whatever its width: the header
+  keeps to one line where it can, the frame keeps the camera's column and the
+  home indicator's band (above), and the overview is two columns of the room
+  that is left (`pages/overview.css`).
+*/
+@media (max-width: 767px) and (orientation: landscape) and (max-height: 540px),
+  (orientation: landscape) and (max-height: 540px) and (pointer: coarse) {
+  .top {
     min-height: var(--tap);
-    border-radius: var(--r1);
-    color: var(--tab);
-    text-decoration: none;
-    font-size: var(--step-0);
-    transition:
-      background var(--ease),
-      color var(--ease);
+    padding-block: env(safe-area-inset-top) 0;
   }
 
-  .rail-items .label {
-    position: absolute;
-    inset-inline-start: calc(100% + var(--s2));
-    z-index: 7;
-    padding: var(--s1) var(--s2);
-    border-radius: var(--r1);
-    background: var(--raised);
-    border: 1px solid var(--control);
-    color: var(--bright);
-    white-space: nowrap;
-    pointer-events: none;
-    opacity: 0;
-    transform: translateX(-4px);
-    transition:
-      opacity var(--ease),
-      transform var(--ease);
-  }
-
-  .rail-items > a:hover .label,
-  .rail-items > a:focus-visible .label {
-    opacity: 1;
-    transform: none;
-  }
-
-  /* A count on an icon is a small badge on its shoulder. */
-  .rail-items .count {
-    position: absolute;
-    top: 2px;
-    inset-inline-end: 2px;
-    min-width: 1rem;
-    padding-inline: 4px;
-    line-height: 1rem;
-    background: var(--raised);
-    color: var(--pressed);
-  }
-
-  .rail-items .count.is-loud {
-    background: var(--violet);
-    color: var(--ink);
-  }
-
-  .rail-items > a:hover {
-    background: var(--panel);
-    color: var(--bright);
-  }
-
-  /* Where you are: a step lighter, its icon in amber. */
-  .rail-items > a[aria-current="page"] {
-    background: var(--surface);
-    color: var(--amber);
-  }
-
-  /*
-    An icon rail has no room for words: its categories are a hairline between
-    them, and folding it is the desk's.
-  */
-  .rail-head,
-  .rail-fold {
-    display: none;
-  }
-
-  .rail-group + .rail-group {
-    margin-block-start: var(--s1);
-    padding-block-start: var(--s1);
-    border-block-start: var(--border);
-  }
-
-  .rail-items {
-    display: grid;
-    gap: 2px;
-  }
-
-  .tabs {
-    display: none;
-  }
-
-  .sheet {
-    inset-block-end: var(--s5);
-  }
-
-  /* The work: the screen, with Tade docked under it at the foot of the screen. */
-  .work {
-    grid-column: 2;
-  }
-
-  main {
-    padding: var(--s4) var(--gutter) var(--s6);
+  .machines {
+    order: 0;
+    flex: 0 1 auto;
+    padding: 0;
   }
 }

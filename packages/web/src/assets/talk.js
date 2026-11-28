@@ -1,9 +1,8 @@
 // The conversation with Tade, and the one box on this page that sends words.
 //
-// **Its own file**, because it is the one screen that is not a list of rows
-// about work: it is an exchange, read from the bottom, with a composer under
-// it, and the strip on a desk is drawn from the same module (`composerOf`), so
-// it is shared rather than a page of its own.
+// **Its own file**, because it is the one part of the overview that is not a
+// list of rows about work: it is an exchange, read from the bottom, with a
+// composer under it (`talkPart`).
 //
 // The five rules that break this screen quietly:
 //
@@ -82,7 +81,7 @@ export function draftStore() {
 /** The one draft this page keeps, which is why it is made once and not per screen. */
 const draft = draftStore()
 
-/** Every box made to say something to Tade: the screen's and the strip's. */
+/** Every box made to say something to Tade. */
 const boxes = new Set()
 
 /**
@@ -107,9 +106,24 @@ export function offerToAsk(words) {
   }
 }
 
-export function talkScreen(ctx) {
-  const node = el('div')
-  const made = section('TADE', { top: true })
+/**
+ * The conversation with Tade as a part of the overview: its lines in a region
+ * of their own, read as a chat, and the box under them.
+ *
+ * **Its own region**, never the page's: on the large screen it is a column
+ * beside the agents the height of the screen, and on the small one it sits
+ * under them with a height of its own — in both, the newest line and the box
+ * are on screen together, and reading back scrolls the conversation rather
+ * than the agents above it.
+ */
+export function talkPart(ctx) {
+  const made = section('TADE')
+  made.node.classList.add('talk')
+  made.node.setAttribute('id', 'talk')
+  const region = el('div', {
+    class: 'talk-lines',
+    attrs: { tabindex: '0', role: 'log', 'aria-label': 'The conversation with Tade' },
+  })
   const list = el('ul', { class: 'rows chat' })
   const none = empty('nothing said yet')
 
@@ -124,7 +138,7 @@ export function talkScreen(ctx) {
   // held, the lines before are read (`/api/chat`) and put above, and the view
   // stays on what the reader was reading.
   const back = readBack(
-    () => node.closest?.('main') ?? null,
+    () => region,
     async (keep) => {
       const first = kept.first()
       if (first === null) return 'none'
@@ -139,12 +153,8 @@ export function talkScreen(ctx) {
       return got.body.earlier === true ? 'read' : 'none'
     },
   )
-  into(made.body, back.node, list, none)
+  into(region, back.node, list, none)
 
-  const composer = section('SAY SOMETHING')
-  // Held at the foot of the screen as a chat's box is, over the tab bar on a
-  // phone, so the newest line and the box are on screen together.
-  composer.node.classList.add('composer-dock')
   const typing = composerOf(ctx, {
     label: 'what to say to Tade',
     placeholder: 'Ask Tade…',
@@ -153,18 +163,30 @@ export function talkScreen(ctx) {
   })
   // **Read as a chat**: opened at the newest line, kept there while it is
   // followed, let go the moment somebody scrolls up — and one press, over the
-  // box, to come back down. The region is the frame's `main`, which this
-  // screen is put into only after it is built.
-  const follow = followOf(() => node.closest?.('main') ?? null)
-  into(composer.body, ...typing.nodes)
-  composer.node.prepend(follow.press)
-  into(node, made.node, composer.node)
+  // box, to come back down.
+  const follow = followOf(() => region)
+  const composer = el('div', { class: 'composer' })
+  into(composer, follow.press, ...typing.nodes)
+  into(made.body, region, composer)
+
+  // **The keyboard up in this box makes the overview the conversation alone**
+  // (`pages/overview.css`): the screen it was scrolled down to reach the box
+  // is put back at its top, and the lines at the newest, once the room is
+  // the room above the keys.
+  const roomed = () => {
+    if (globalThis.document?.documentElement?.classList.contains('keyboard-up') !== true) return
+    if (!made.node.contains(document.activeElement)) return
+    const main = made.node.closest('main')
+    if (main !== null) main.scrollTop = 0
+    follow.drawn()
+  }
+  globalThis.addEventListener?.('tade:room', roomed)
+  made.node.addEventListener('focusin', () => globalThis.requestAnimationFrame?.(roomed))
 
   function draw() {
     if (seen === null) return
     const view = seen
     const lines = kept.all()
-    textIn(made.figure, lines.length === 0 ? '' : String(lines.length))
     none.hidden = lines.length > 0
     textIn(none, 'nothing said yet')
     keyed(
@@ -182,9 +204,9 @@ export function talkScreen(ctx) {
   }
 
   return {
-    node,
-    /** Left: `main` is the frame's and stays, so what listens to it goes. */
+    node: made.node,
     leave: () => {
+      globalThis.removeEventListener?.('tade:room', roomed)
       follow.leave()
       back.leave()
     },
@@ -203,19 +225,16 @@ export function talkScreen(ctx) {
 
 /**
  * A box, a press to send it and a press to stop the turn — **the one way this
- * page says anything to Tade**, used by this screen and by the strip at the
- * foot of a desk (`desk.js`).
+ * page says anything to Tade** (`talkPart`).
  *
- * One function for both, so there is one draft, one `afterAnswer` and one
- * three-sentence absence rather than a second copy of each that drifts: the
- * strip is a smaller box over the same ask flow, not a second door. Nothing
- * here can reach an agent but through Tade, which answers this device as
- * the person (`origin.ts`) and writes it down under its id.
+ * One draft, one `afterAnswer` and one three-sentence absence. Nothing here
+ * can reach an agent but through Tade, which answers this device as the
+ * person (`origin.ts`) and writes it down under its id.
  */
 export function composerOf(ctx, words) {
   // **The absence in a word, and its sentence one tap away** (`hintOf`): what
   // to do about a box that is not here is a sentence somebody may need once,
-  // and a paragraph under every screen's strip for everybody else.
+  // and a paragraph under the conversation for everybody else.
   const why = el('div', { class: 'why-short' })
   const whyWord = el('p', { class: 'empty' })
   const whyMore = hintOf('')
@@ -406,8 +425,7 @@ export function composerOf(ctx, words) {
  * ~/.tade/…/NAMES.md*, *Creating a task* — or its answer being written, or
  * thinking.
  *
- * Out of the conversation's own last lines, so it is what the strip shows and
- * nothing the page guessed: a tool line still going is the call in flight, and
+ * Out of the conversation's own last lines, so it is nothing the page guessed: a tool line still going is the call in flight, and
  * its `brief` (the arguments the window draws beside it) says which — whole,
  * because the status line wraps. A command of many lines is the verb alone
  * here, and the command whole under it (`doingBlock`).

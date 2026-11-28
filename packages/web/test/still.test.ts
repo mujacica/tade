@@ -36,7 +36,8 @@ describe("the still's document", () => {
         /\b(?:querySelector(?:All)?|closest|matches)\(\s*(['`])([^'`]*)\1/g,
       ))
         asked.push((found[2] ?? '').replace(/\$\{[^}]*\}/g, 'x'))
-    expect(asked.length).toBeGreaterThan(20)
+    // The page asks few of its own document now it is one screen; enough to mean the reading works.
+    expect(asked.length).toBeGreaterThan(5)
     const unread = asked.filter((one) => {
       try {
         parseSelectors(one)

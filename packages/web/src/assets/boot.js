@@ -1,5 +1,5 @@
-// The entry: it decides which of two pages this is, holds **one** stream, and
-// moves between screens without reloading anything.
+// The entry: it decides which of two pages this is — pair this device, or the
+// overview — and holds **one** stream for it.
 //
 // Three absolute rules, and they hold against script that got onto this page
 // rather than against anything a network does:
@@ -25,41 +25,20 @@
 // count. Nothing here ever draws the page empty because it could not ask.
 
 import { actsOf } from './acts.js'
-import { agentsScreen } from './agents.js'
+import { bellOf } from './bell.js'
 import { answersWith } from './conversation.js'
-import { deskParts } from './desk.js'
-import { docksOn, forgetFolds } from './docks.js'
 import { classOn, el, textIn } from './dom.js'
 import { forget, startInstall, takeUpdate } from './install.js'
 import { backoffAt, connectionOf, outsideOf, standingOf } from './live.js'
-import { navCountsOf, wantsAnywhere } from './machines.js'
+import { wantsAnywhere } from './machines.js'
 import { countsOf, forgetView, lastSeenScreen, readView, saveView } from './offline.js'
-import { accountsScreen } from './pages/accounts.js'
-import { taskScreen } from './pages/agent.js'
-import { changesScreen } from './pages/agent-changes.js'
-import { checksScreen } from './pages/checks.js'
-import { devicesScreen } from './pages/devices.js'
-import { evaluationsScreen } from './pages/evaluations.js'
-import { findingsScreen } from './pages/findings.js'
-import { inboxScreen, requestScreen } from './pages/inbox.js'
-import { machinesScreen } from './pages/machines.js'
-import { moreScreen, nowhereScreen } from './pages/more.js'
-import { notesScreen } from './pages/notes.js'
 import { nowScreen } from './pages/overview.js'
-import { projectScreen } from './pages/project.js'
-import { queueScreen } from './pages/queue.js'
-import { reviewsScreen } from './pages/reviews.js'
-import { runScreen, runsScreen } from './pages/runs.js'
-import { settingsScreen } from './pages/settings.js'
-import { spendScreen } from './pages/spend.js'
-import { workflowScreen, workflowsScreen } from './pages/workflows.js'
 import { pairScreen } from './pair.js'
-import { palette } from './palette.js'
 import { passkeys } from './passkey.js'
 import { looking, resend } from './push.js'
 import { restarter } from './restart.js'
 import { roomOn } from './room.js'
-import { movedFrom, PAGE_OF, viewOf } from './routes.js'
+import { PAGE_OF, viewOf } from './routes.js'
 import {
   barsFor,
   barsIn,
@@ -68,8 +47,8 @@ import {
   freshIn,
   heldOn,
   insideIn,
-  navCounts,
-  navOn,
+  machinesIn,
+  nowhereScreen,
   shell,
   titleFor,
 } from './shell.js'
@@ -80,14 +59,10 @@ import {
   applySnapshot,
   asOf,
   emptyStore,
-  rowsOf,
   streamPath,
   wantingIds,
 } from './store.js'
 import { offerFull, typing } from './switch.js'
-import { talkScreen } from './talk.js'
-import { everyMachine, machinePicked, reviewsOnce, thereCtx, thereOn } from './there.js'
-import { toasts } from './toasts.js'
 
 /** The ticket out of the fragment, taken out of the address bar as it is read. */
 function ticketIn() {
@@ -192,8 +167,8 @@ const ctx = {
    *
    * It is **not on the stream** — a device being let in or disconnected is not
    * a projection change — so a page that read it once at start would show a
-   * phone somebody revoked yesterday. The Devices screen asks when it opens,
-   * which is the only moment anybody is looking at it.
+   * session that ended yesterday. A passkey made or a notification turned on
+   * asks again, which is the moment it changed.
    */
   freshen: async () => {
     const mine = await ask('GET', '/api/devices')
@@ -216,16 +191,16 @@ const proving = passkeys({
 // Restarting Tade from the restart bar (`restart.js`): the person's own phone's.
 const restarting = restarter(ctx, () => paint())
 
-// The frame, with the desk's three parts in it: built once, after the context
-// they send through, and patched on every paint like a screen.
-const desk = deskParts(ctx)
-const shown = shell(desk)
-// The three docks' folds, put back as this device left them (`docks.js`).
-const docks = docksOn(shown)
-// The command bar: Tade, and everywhere else, one press away (`palette.js`).
-const bar = palette(ctx)
-// What just changed, as a toast that links to it (`toasts.js`).
-const told = toasts()
+// The frame: built once, after the context it sends through, and patched on
+// every paint like the screen.
+const shown = shell()
+// Notifications to this device, a press in the header (`bell.js`).
+const bell = bellOf(
+  ctx,
+  () => held.shell,
+  () => paint(),
+)
+shown.again.before(bell.node)
 
 let screen = null
 let where = { view: 'now' }
@@ -263,32 +238,8 @@ let keptAt = 0
 
 const SCREENS = {
   now: () => nowScreen(ctx),
-  // Another machine's presses go there (`thereCtx`), and only those its outbox takes.
-  project: (at) => projectScreen(at, at.machine === undefined ? ctx : thereCtx(ctx, at.machine)),
-  task: (at) => taskScreen(at, at.machine === undefined ? ctx : thereCtx(ctx, at.machine)),
-  changes: (at) => changesScreen(at, ctx),
-  agents: () => agentsScreen(ctx),
-  queue: () => everyMachine(queueScreen),
-  inbox: () => everyMachine(inboxScreen),
-  request: (at) => requestScreen(at, ctx),
-  runs: () => everyMachine(runsScreen),
-  run: (at) => runScreen(at),
-  workflows: () => workflowsScreen(),
-  workflow: (at) => workflowScreen(at, ctx),
-  checks: () => everyMachine(checksScreen),
-  evals: () => evaluationsScreen(ctx),
-  reviews: () => everyMachine(reviewsScreen, ctx, reviewsOnce),
-  spend: () => spendScreen(),
-  findings: () => everyMachine(findingsScreen),
-  notes: () => everyMachine(notesScreen),
-  talk: () => talkScreen(ctx),
   lastSeen: () => lastSeenScreen(held.lastView ?? {}, Date.now()),
-  devices: () => devicesScreen(ctx),
-  machines: () => machinesScreen(ctx),
-  accounts: () => accountsScreen(ctx),
-  settings: () => settingsScreen(ctx),
   pair: () => pairScreen(ctx),
-  more: () => moreScreen(),
   nowhere: () => nowhereScreen(),
 }
 
@@ -316,9 +267,6 @@ function go(path, opts = {}) {
 function draw(asked, top = 0) {
   const at = outside === null ? asked : { view: outside.view }
   where = at
-  // An old address (`/runs`) is the same screen; the bar says the new one.
-  const moved = outside === null ? movedFrom(location.pathname) : null
-  if (moved !== null) history.replaceState(history.state, '', moved)
   const make = SCREENS[at.view] ?? SCREENS.nowhere
   // **The screen being left stops whatever it was asking.** One has something
   // to stop — an agent's page asks for its screen while it is open, and the
@@ -326,8 +274,7 @@ function draw(asked, top = 0) {
   // was never told it had been left would go on asking from a region nobody
   // can see.
   screen?.leave?.()
-  // Another machine's screen is the same one, drawn out of its copy (`there.js`).
-  screen = thereOn(at, make(at))
+  screen = make(at)
   // A navigation is the one moment a screen is built fresh, so it is the one
   // moment it rises in (`motion.css`); a delta patches and never animates it.
   screen.node.classList.add('enter')
@@ -337,7 +284,6 @@ function draw(asked, top = 0) {
   shown.main.replaceChildren(screen.node)
   document.title = titleFor(at)
   badged = -1
-  navOn(shown.links, at)
   // Focus goes to the region, not to its first link: a screen reader then reads
   // the heading it arrived at, and the keyboard's next Tab is the first thing
   // on the new screen rather than the top of the page.
@@ -359,6 +305,9 @@ function wireLinks() {
     // An outbound link and an in-page anchor are both somebody else's job: the
     // first opens a new tab, the second is the browser's own scrolling.
     if (link.target === '_blank' || href.startsWith('#') || !href.startsWith('/')) return
+    // A path this page does not draw — the full view at `/draw/`, an agent
+    // opened in it — is a document of its own, which the browser goes to.
+    if (viewOf(href.replace(/[?#].*$/, '')).view === 'nowhere') return
     event.preventDefault()
     go(href)
   })
@@ -387,15 +336,8 @@ function paint() {
   // A kept view is a record and says so itself; only rows a stream drew dim.
   heldOn(document.body, outside === null ? standing : 'live')
   insideIn(shown, outside === null)
-  // The counts beside the navigation, once a paint: the rail, the tab bar
-  // and the More screen all draw these and nothing else. Each is what its
-  // page draws for the machines the chips pick (`navCountsOf`), so a badge
-  // and the page it leads to never disagree about whose work is counted.
-  // **What is waiting on somebody** for the inbox and **what is unanswered**
-  // for findings, never how many there are: a badge counting forty answered
-  // tickets is a badge nobody looks at twice.
-  const counts = held.store.had ? navCountsOf(held.store, machinePicked(held.store)) : null
-  if (counts !== null) navCounts(shown.links, counts)
+  // Each machine's up or down, in the header: this one is up while the stream is.
+  if (outside === null) machinesIn(shown, held.store, standing === 'live')
   // The page's own standing, as two classes the stylesheet draws from: a
   // shimmer where figures will be before anything was read, and a line
   // sweeping under the header while the machine is asked again.
@@ -416,7 +358,6 @@ function paint() {
     frozen: clock.frozen,
     now,
     where,
-    counts,
     // What this device may ask for, read once a paint rather than per row.
     may: {
       // **A drawing hint and never an authority.** Every paired device may
@@ -428,10 +369,6 @@ function paint() {
     },
   }
   screen?.update(view)
-  if (outside === null) {
-    desk.update(view)
-    bar.update(view)
-  }
 }
 
 /**
@@ -446,6 +383,7 @@ function offered() {
   if (outside === null) {
     said.push(...proving.bars(held.session))
     proving.ready()
+    said.push(...bell.bars())
   }
   said.push(
     ...shellBars(
@@ -625,7 +563,6 @@ function took(event, apply) {
   }
   broke = []
   announce()
-  told.update(rowsOf(held.store, 'tasks'), seen.open)
   paint()
 }
 
@@ -693,111 +630,6 @@ function wireBeat() {
     seen = { ...seen, open: false, ended: null }
     openStream()
   })
-  shown.keys.addEventListener('click', () => {
-    shown.sheet.hidden = !shown.sheet.hidden
-  })
-}
-
-/* ── the keyboard ──────────────────────────────────────────────────────────── */
-
-/**
- * `g` then a letter to go somewhere, `j`/`k` through the rows, `Enter` to open
- * one, `Escape` to go back, `?` for the list.
- *
- * `/` and `⌘K` open the command bar, which is the page's search. Nothing is
- * claimed that does nothing: a key that looks like it works and does not is
- * worse than one that was never offered.
- */
-const GOES = {
-  n: '/',
-  a: '/agents',
-  q: '/queue',
-  t: '/talk',
-  s: '/spend',
-  c: '/checks',
-  r: '/reviews',
-  f: '/findings',
-}
-
-function wireKeys() {
-  let going = false
-  let on = -1
-  // **⌘K, or Ctrl+K**, from anywhere — a field included, because the bar is
-  // where somebody goes *from* whatever they were typing in. Only with a
-  // session: the bar's every row is a screen a paired device reads.
-  document.addEventListener('keydown', (event) => {
-    if (event.key.toLowerCase() !== 'k' || !(event.metaKey || event.ctrlKey)) return
-    if (outside !== null) return
-    event.preventDefault()
-    if (bar.isOpen()) bar.shut()
-    else bar.open()
-  })
-  for (const press of shown.asks) press.addEventListener('click', () => bar.open(press))
-  document.addEventListener('keydown', (event) => {
-    const where_ = event.target
-    if (where_?.tagName === 'INPUT' || where_?.tagName === 'TEXTAREA') return
-    if (event.metaKey || event.ctrlKey || event.altKey) return
-    if (going) {
-      going = false
-      const path = GOES[event.key]
-      if (path !== undefined) {
-        event.preventDefault()
-        go(path)
-      }
-      return
-    }
-    switch (event.key) {
-      case 'g':
-        going = true
-        return
-      // The command bar, from the key every search box on the web answers to.
-      case '/':
-        if (outside !== null) return
-        event.preventDefault()
-        bar.open()
-        return
-      case '?':
-        event.preventDefault()
-        shown.sheet.hidden = !shown.sheet.hidden
-        return
-      // The three docks, each folded or opened by a key of its own: the menu
-      // on the left, the work on the right, Tade at the foot.
-      case '[':
-      case ']':
-      case '\\':
-        if (outside !== null) return
-        event.preventDefault()
-        docks.toggle(event.key === '[' ? 'menu' : event.key === ']' ? 'side' : 'tade')
-        return
-      case 'Escape':
-        if (!shown.sheet.hidden) {
-          shown.sheet.hidden = true
-          return
-        }
-        // A drawer open over the work is what Escape closes first.
-        if (docks.close()) return
-        history.back()
-        return
-      case 'j':
-      case 'k': {
-        // Rows, and the cards that stand in for rows: a piece of work that
-        // wants you and a project are each one stop, like a row.
-        const rows = [
-          ...shown.main.querySelectorAll('li > a, li > div > a, a.card-link, a.proj, a.tile'),
-        ].filter((one) => one.offsetParent !== null)
-        if (rows.length === 0) return
-        event.preventDefault()
-        on = Math.max(0, Math.min(rows.length - 1, on + (event.key === 'j' ? 1 : -1)))
-        rows[on]?.focus()
-        for (const [at, row] of rows.entries()) {
-          const item = row.closest('li')
-          if (item !== null) classOn(item, 'on', at === on)
-        }
-        return
-      }
-      default:
-    }
-  })
 }
 
 /* ── starting ──────────────────────────────────────────────────────────────── */
@@ -822,7 +654,6 @@ function tookDevices(body) {
  */
 async function signedOut() {
   held.session = null
-  forgetFolds()
   await forgetView()
   await forget()
   go('/pair', { replace: true, reload: true })
@@ -833,12 +664,8 @@ async function start() {
   // The sprite the icons are drawn from stays: it is in the shell so that no
   // module has to spell the SVG namespace (`icons.js`).
   const sprite = document.querySelector('svg.sprite')
-  document.body.replaceChildren(
-    ...[sprite, ...shown.parts, told.node, bar.node].filter((one) => one !== null),
-  )
+  document.body.replaceChildren(...[sprite, ...shown.parts].filter((one) => one !== null))
   wireLinks()
-  wireKeys()
-  addEventListener('tade:machine', () => paint())
   const mine = await ask('GET', '/api/devices')
   if (mine.status === 200 && mine.body !== null) {
     tookDevices(mine.body)
@@ -910,6 +737,7 @@ async function install() {
   if (outside === null) {
     void resend(held.shell, ask)
     looking(held.shell, ask)
+    void bell.read()
   }
 }
 

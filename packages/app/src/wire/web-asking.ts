@@ -230,19 +230,19 @@ export const FROM_AWAY: Readonly<Record<string, string>> = {
   '/new':
     'A new agent from here is asked of Tade in words: say what it should do, and where, without the /new.',
   '/stop':
-    "Stopping an agent from here is Stop on its row, on the Agents page or in the agent's ⋯.",
-  '/open': 'The Agents page here lists every agent running: press one to open it.',
+    'Stopping an agent from here is in the full view: tap it on the overview, then Stop in its menu there.',
+  '/open': 'Tap an agent on the overview here and it opens in the full view.',
   '/project': "Adding a repository is done at the machine: type /project on Tade's own line there.",
-  '/settings': 'Settings is its own page here: see and change what Tade has been told there.',
+  '/settings':
+    'Settings is a panel of the window: open Full view in the header, then ctrl+, on its key row.',
   '/login': LOG_IN_IS_HERE,
   '/away':
-    "The devices let in are the Devices page here; pairing a new one is /away on Tade's own line at the machine.",
-  '/workflows': 'Workflows is its own page here: the stored workflows, and writing one.',
-  '/evals': 'Evaluations is its own page here: what lands work, the races and the judge.',
-  '/plans': 'Plans is its own page here: every plan, and what wants you in each.',
-  '/race': 'Races are on the Evaluations page here, each with what was asked and who was picked.',
-  '/help':
-    "The window's keys are at the machine; here, type a page's name in this bar to go to it.",
+    "The devices let in are a panel of the window, in the full view; pairing a new one is /away on Tade's own line at the machine.",
+  '/workflows': 'Workflows are a panel of the window: open Full view in the header.',
+  '/evals': 'Evaluations are a panel of the window: open Full view in the header.',
+  '/plans': 'Plans are a panel of the window: open Full view in the header.',
+  '/race': 'Races are on the window’s Evaluations panel: open Full view in the header.',
+  '/help': "The window's keys are in the full view, on its key row; F1 there lists them.",
   '/quit':
     "Closing the window is done at the machine: type /quit on Tade's own line there. Agents carry on if they can.",
 }

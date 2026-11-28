@@ -227,50 +227,13 @@ export function wantingIds(store) {
   return new Set(wantsYou(store).map((task) => task.id))
 }
 
-/**
- * The projects on Tade's list. A closed one is a row only so it can be opened
- * again from its own page (`closedOf`), and is never a tab or a block.
- */
+/** The projects on Tade's list: a closed one is a row the window keeps, never one drawn. */
 export function projectsOf(store) {
   return rowsOf(store, 'projects').filter((row) => row.open !== false)
 }
 
-/** The projects that were closed and may be opened again from here, by name. */
-export function closedOf(store) {
-  return rowsOf(store, 'projects').filter((row) => row.open === false)
-}
-
-export function tasksIn(store, project) {
-  return rowsOf(store, 'tasks').filter((task) => task.project === project)
-}
-
-/**
- * Every task with an agent on it, by project and then by name.
- *
- * `agents` is the projection's own **count** of the agents attached — never a
- * pid or a session — so this filters and sorts and decides nothing: a task
- * whose agent stopped is not running, whatever state it is in, and one whose
- * agent is running is listed whatever it is doing. The side list and the
- * Agents screen read this and nothing else, so they cannot disagree.
- */
-export function agentsOf(store) {
-  return rowsOf(store, 'tasks').filter((task) => (task.agents ?? 0) > 0)
-}
-
-/**
- * The agents actually at work: mid-turn and not gone quiet, as the window
- * counts *working*. An agent idle at its prompt has a lane and is not one.
- */
-export function runningOf(store) {
-  return rowsOf(store, 'tasks').filter((task) => task.state === 'working' && !task.stalled)
-}
-
 export function taskAt(store, project, name) {
   return store.rows.tasks.get(`${project}/${name}`) ?? null
-}
-
-export function projectAt(store, name) {
-  return store.rows.projects.get(name) ?? null
 }
 
 /** Queued work, newest-written preference first and then by task id. */
@@ -280,11 +243,11 @@ export function queueIn(store, project) {
 }
 
 /**
- * This machine's queue as the page draws it. A row `there` stands for another
- * machine's queued work, read out of its journal; where the page holds that
- * machine's own copy, its real rows are drawn under its line (`everyMachine`)
- * and replace the row here (ONE-AWAY-VIEW §5 step 4). One whose machine the
- * page holds no copy of stays, since it is the only place that work is seen.
+ * This machine's queue as the overview counts it. A row `there` stands for
+ * another machine's queued work, read out of its journal; where the page holds
+ * that machine's own copy, its real rows are counted from that copy instead
+ * (ONE-AWAY-VIEW §5 step 4). One whose machine the page holds no copy of
+ * stays, since it is the only place that work is seen.
  */
 export function queuedHere(store) {
   const held = new Set(copiesOf(store).map(({ machine }) => machine))
@@ -297,7 +260,6 @@ export function queuedHere(store) {
 // without one sorts after every row with one rather than ahead of them.
 const order = (row) => (row.order === null || row.order === undefined ? 1e9 : row.order)
 
-/** Notes, newest first, which is the one collection that is read that way. */
 /**
  * The conversation's lines, oldest first.
  *
@@ -327,28 +289,6 @@ export function talkOf(store) {
   return store.you?.talk ?? null
 }
 
-export function notesOf(store) {
-  return rowsOf(store, 'notes').reverse()
-}
-
-export function findingsOf(store) {
-  return rowsOf(store, 'findings')
-}
-
-/**
- * The findings nobody has answered yet: no verdict written, whether they wait
- * on the person or on the agent first. **The one count** the menu, the More
- * screen and the findings page's own bar all draw, so none of them can say
- * `99+` while the page says nothing waits.
- */
-export function findingsUnanswered(store) {
-  return findingsOf(store).filter((row) => row.verdict === null || row.verdict === undefined)
-}
-
-export function plansOf(store) {
-  return rowsOf(store, 'plans')
-}
-
 /**
  * The requests, newest first.
  *
@@ -361,10 +301,6 @@ export function intakeOf(store, project = null) {
   return rowsOf(store, 'intake')
     .filter((row) => project === null || row.project === project)
     .sort((a, b) => byText(b.at, a.at))
-}
-
-export function intakeAt(store, item) {
-  return store.rows.intake.get(item) ?? null
 }
 
 /** The ones somebody at the machine has to answer, which is what a badge counts. */
@@ -382,125 +318,6 @@ export function intakeWaiting(store, project = null) {
  * answer* is a second state machine.
  */
 export const WAITING = ['proposed', 'held', 'failure']
-
-export function sourcesOf(store) {
-  return rowsOf(store, 'sources')
-}
-
-/** The runs, newest-looking first: the one with unfinished steps before the done ones. */
-export function runsOf(store, project = null) {
-  return rowsOf(store, 'runs')
-    .filter((row) => project === null || row.projects.includes(project))
-    .sort((a, b) => done(a) - done(b) || byText(a.run, b.run))
-}
-
-const done = (run) => (run.total > 0 && run.finished === run.total ? 1 : 0)
-
-export function runAt(store, name) {
-  return store.rows.runs.get(name) ?? null
-}
-
-export function workflowsOf(store) {
-  return rowsOf(store, 'workflows')
-}
-
-export function workflowAt(store, name) {
-  return store.rows.workflows.get(name) ?? null
-}
-
-/**
- * The money over a set of tasks, folded — and every way it could be incomplete,
- * named.
- *
- * `partial` is the one that matters: a snapshot carries at most 60 tasks of a
- * project and says how many it left out, so a sum over what arrived is a floor
- * and the page has to draw it as one. `unknown` is how many of the tasks that
- * *did* arrive reported no money at all, which is not nought either.
- */
-export function spendFold(tasks, partial = false) {
-  const out = {
-    usd: 0,
-    usdExact: 0,
-    usdEstimated: 0,
-    usdListed: 0,
-    usdOnPlan: 0,
-    tokens: 0,
-    tokensUnpriced: 0,
-    tokensOnPlanUnrated: 0,
-    hasCost: false,
-    unknown: 0,
-    partial,
-  }
-  for (const task of tasks) {
-    const spend = task.spend
-    if (spend === null || spend === undefined) {
-      out.unknown += 1
-      continue
-    }
-    out.usd += spend.usd
-    out.usdExact += spend.usdExact
-    out.usdEstimated += spend.usdEstimated
-    out.usdListed += spend.usdListed
-    out.usdOnPlan += spend.usdOnPlan
-    out.tokens += spend.tokens
-    out.tokensUnpriced += spend.tokensUnpriced
-    out.tokensOnPlanUnrated += spend.tokensOnPlanUnrated
-    out.hasCost = out.hasCost || spend.hasCost
-  }
-  return out
-}
-
-/**
- * The check rollups over a set of tasks, as **counts and never as one word**.
- *
- * A project is not green because the tasks that answered were: a check nobody
- * ran here is `unknown`, and folding three greens and an unknown into "green"
- * is the exact claim `deriveState` refuses to make. So this counts, and the
- * page draws a word only where there is nothing left to be unsure about.
- */
-export function checksFold(tasks) {
-  const out = { pass: 0, fail: 0, unknown: 0, failed: new Set(), missing: new Set(), overridden: 0 }
-  for (const task of tasks) {
-    const checks = task.checks
-    if (checks === undefined) continue
-    out[checks.state] = (out[checks.state] ?? 0) + 1
-    for (const name of checks.failed) out.failed.add(name)
-    for (const name of checks.missing) out.missing.add(name)
-    if (checks.overridden) out.overridden += 1
-  }
-  return { ...out, failed: [...out.failed].sort(byText), missing: [...out.missing].sort(byText) }
-}
-
-/**
- * The word for a folded rollup, or null for *there is nothing to say yet*.
- *
- * Red the moment anything is red; green only when every task that has an
- * answer is green **and nothing is unknown**; otherwise null, and the page says
- * how many could not be looked at.
- */
-export function checksWord(fold) {
-  if (fold.fail > 0) return 'fail'
-  if (fold.unknown > 0 || fold.pass === 0) return 'unknown'
-  return 'pass'
-}
-
-/**
- * Branches offered for merge, and the work that is finished and nobody asked
- * about.
- *
- * The second list is the one worth having: *two commits ahead and nobody asked
- * for a review* is a thing to see, and it is invisible on a page that lists
- * only what a forge knows about.
- */
-export function reviewsOf(store) {
-  const offered = []
-  const unoffered = []
-  for (const task of rowsOf(store, 'tasks')) {
-    if (task.review !== null && task.review !== undefined) offered.push(task)
-    else if ((task.ahead ?? 0) > 0) unoffered.push(task)
-  }
-  return { offered, unoffered }
-}
 
 /**
  * How many of a collection are not here, which the page says out loud.
@@ -520,15 +337,6 @@ export function omitted(store, collection) {
  * last word**, so they stop — an age counting up against a snapshot nothing can
  * refresh is the lie the freshness line exists to prevent.
  */
-/**
- * The moment every money figure in this projection is counted from, or null.
- *
- * Off the freshness rather than worked out here: the page cannot know the
- * window's folding rule and must not guess at it (`sinceSaid`).
- */
-export function spendSince(store) {
-  return store.fresh?.spendSince ?? null
-}
 
 export function asOf(store, kind, now) {
   const said = store.fresh === null ? null : Date.parse(store.fresh.at)

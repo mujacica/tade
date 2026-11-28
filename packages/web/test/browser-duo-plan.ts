@@ -1,6 +1,8 @@
 // The foldable iPhone Duo, as `scripts/browser-duo.ts` holds the away view to
-// it: its four screens, the looks at each, and how a stylesheet is answered so
-// a browser engine that knows nothing of a camera column draws one.
+// it: its screens, the looks at each, and how a stylesheet is answered so a
+// browser engine that knows nothing of a camera column draws one.
+
+import { FULL_SIZES } from './browser-full-plan.ts'
 //
 // **Pure**, like `browser-plan.ts`, so the offline suite holds the plan — that
 // all four screens are here with their insets, and that every look is a route
@@ -76,11 +78,6 @@ export interface DuoLook {
   path: string
   /** What has drawn once the page is ready to measure; `main` when not said. */
   ready?: string
-  /**
-   * A press to make first: a sheet raised, a drawer opened. Where the size
-   * draws no such press (the tab bar is a phone's), the look is not made there.
-   */
-  press?: string
   /** The field to put the caret in. */
   focus?: string
   /** Looked at with the keyboard up. */
@@ -90,53 +87,36 @@ export interface DuoLook {
 }
 
 /**
- * The pages the person asked for, each at its real path with the fixtures'
- * own names (`browser-plan.ts`'s `NAMES`). There is no documents page: what a
- * task produces is a row on its page and the notes are their own.
+ * **Where the overview is looked at: the full view's sizes** (§10 T5 of the
+ * Duo plan, `FULL_SIZES`) — the Duo's six from the plan's §1 and two slab
+ * iPhones each way up — so the page's two modes are held at the same screens.
+ * The keyboard is an estimate of iOS's with its suggestions bar, as `DUO`'s:
+ * what it holds is that the box and its last line stay in the room left.
+ */
+export const OVERVIEW_SIZES: readonly DuoScreen[] = FULL_SIZES.map((one) => ({
+  name: one.name,
+  width: one.width,
+  height: one.height,
+  insets: one.insets,
+  keyboard: Math.round(one.height * (one.width > one.height ? 0.47 : 0.42)),
+}))
+
+/**
+ * The page's two screens, each at its real path with the fixtures' own names
+ * (`browser-plan.ts`'s `NAMES`): the pairing page, and the overview — as it
+ * opens, and with the keyboard up in the box to Tade. Everything else is a
+ * panel of the window, in the full view (`browser-full.ts`).
  */
 export const DUO_LOOKS: readonly DuoLook[] = [
   { name: 'pairing', path: '/pair', ready: '#label', paired: false },
-  { name: 'overview', path: '/', ready: 'main .page-overview' },
-  { name: 'agent', path: '/t/sentry/away-projection', ready: '.screen pre' },
-  { name: 'changes', path: '/t/sentry/away-projection/changes', ready: '.ag-file' },
-  { name: 'agents', path: '/agents' },
-  { name: 'queue', path: '/queue' },
-  { name: 'project', path: '/p/sentry' },
-  { name: 'plans', path: '/plans' },
-  { name: 'plan', path: '/plans/shop-1402' },
-  { name: 'spend', path: '/spend' },
-  { name: 'findings', path: '/findings' },
-  { name: 'notes', path: '/notes' },
-  { name: 'inbox', path: '/inbox' },
-  { name: 'checks', path: '/checks' },
-  { name: 'reviews', path: '/reviews' },
-  { name: 'workflows', path: '/workflows' },
-  { name: 'talk', path: '/talk', ready: 'main textarea' },
-  { name: 'tade-sheet', path: '/', ready: 'main .page-overview', press: '.tabs .tab-ask' },
+  { name: 'overview', path: '/', ready: 'main .page-overview .ov-tile' },
   {
-    name: 'work-drawer',
+    name: 'overview-keyboard',
     path: '/',
-    ready: 'main .page-overview',
-    press: '.tabs .tab[aria-controls="side"]',
-  },
-  {
-    name: 'talk-keyboard',
-    path: '/talk',
-    ready: 'main textarea',
-    focus: 'main textarea',
+    ready: 'main .page-overview textarea',
+    focus: 'main .page-overview textarea',
     keyboard: true,
   },
-  {
-    name: 'tade-sheet-keyboard',
-    path: '/',
-    ready: 'main .page-overview',
-    press: '.tabs .tab-ask',
-    focus: '.dock textarea',
-    keyboard: true,
-  },
-  { name: 'devices', path: '/devices' },
-  { name: 'settings', path: '/settings' },
-  { name: 'more', path: '/more' },
 ]
 
 /** `env(safe-area-inset-x)` and `env(safe-area-inset-x, fallback)`, in any spacing. */

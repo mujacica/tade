@@ -1,53 +1,65 @@
 /* The overview page's own sheet: every rule scoped to it (`.page-overview`, `test/pages.test.ts`). */
 
 /*
-The landing screen, top to bottom: the board — four cells and, under them, the
-money and the plan windows, all in one panel with a hairline between each —
-then what needs you, what failed, the projects as one grid, and the agents at
-work on a phone. Composed of the shared pieces (the stat, ranked bars, the
-gauge, a ring and a segmented bar, the state box), each placed here and nowhere
-else; the marks under a cell's figure are this page's own.
+The one screen (§10 T5 of the Duo plan), top to bottom: the four tiles, the
+agents waiting on you with their answers, the agents working one line each,
+then the conversation with Tade.
 
-The hairlines inside the board are the board's own ground showing through a
-one-pixel gap between cells, so they meet exactly however the cells reflow.
+**One column on the small screen upright, two from 34rem.** The Duo's small
+screen upright is 382px in a Safari tab (466 as a Home Screen app) and a slab
+iPhone 390–440, so each is one column, the conversation under the agents with
+a height of its own. The large screen upright is 669px: two columns, the
+agents beside the conversation, each scrolling in itself — the gap §6 of the
+plan found, where nothing between 480 and 767 had a layout of its own. A phone
+held sideways (594 by 368 at the least, on the small screen in a Safari tab)
+and anything wider is two columns too.
+
+**Nothing crosses the centre.** The two columns are the same width with the
+gap between them on the middle, so in book pose on the large screen sideways
+the fold runs down the gap, never through a line of either.
 */
 
-/* ── the board ─────────────────────────────────────────────────────────────── */
-
-.page-overview .ov-board {
+.page-overview {
   display: grid;
-  gap: 1px;
-  background: var(--line);
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--stack) var(--s5);
+  padding-block-start: var(--s3);
 }
 
-/* Two by two on a phone, four across where the work has the room. */
-.page-overview .ov-cells {
-  gap: 1px;
+.page-overview .ov-work {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+}
+
+/* ── the tiles ─────────────────────────────────────────────────────────────── */
+
+/* Two by two on the small screen; four across where a column has the room. */
+.page-overview .ov-tiles {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s2);
+  margin-block-end: var(--stack);
 }
 
 /*
-A cell is the shared stat with its own box taken off: the board is the box.
-Its marks sit between the figure and the line under it, on the same row in
-every cell, so the four read across on one baseline.
+A tile is the shared stat. Its marks sit between the figure and the line under
+it, on the same row in every tile, so the four read across on one baseline.
 */
-.page-overview .ov-cell {
+.page-overview .ov-tile {
   grid-template-rows: none;
   align-content: start;
-  border: 0;
-  border-radius: 0;
 }
 
-.page-overview .ov-cell > :is(.ui-stat-under, .ui-stat-delta, .ui-spark) {
+.page-overview .ov-tile > :is(.ui-stat-under, .ui-stat-delta, .ui-spark) {
   order: 2;
 }
 
-/* What wants you, when something does: the one cell washed in its tone. */
-.page-overview .ov-cell.is-hot {
+/* Waiting on you, when something is: the one tile washed in its tone. */
+.page-overview .ov-tile.is-hot {
   background: color-mix(in srgb, var(--violet) 9%, var(--panel));
 }
 
-.page-overview a.ov-cell.is-hot:hover {
+.page-overview a.ov-tile.is-hot:hover {
   background: color-mix(in srgb, var(--violet) 15%, var(--panel));
 }
 
@@ -55,6 +67,7 @@ every cell, so the four read across on one baseline.
 .page-overview .ov-dots {
   order: 1;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--s1);
   min-height: var(--s3);
@@ -74,10 +87,6 @@ every cell, so the four read across on one baseline.
   border: 1.5px solid var(--tone);
 }
 
-.page-overview .ov-dot.tone-unknown {
-  background: repeating-linear-gradient(135deg, var(--chrome) 0 2px, var(--raised) 2px 5px);
-}
-
 .page-overview .ov-more {
   color: var(--heading);
   font-size: var(--step--1);
@@ -86,136 +95,15 @@ every cell, so the four read across on one baseline.
   line-height: 1;
 }
 
-/* ── the money and the plan windows, the board's second line ───────────────── */
-
-.page-overview .ov-budget {
-  display: grid;
-  gap: 1px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.page-overview .ov-money,
-.page-overview .ov-plan {
-  background: var(--panel);
-}
-
-/* Where most of the money went is a desk's: a phone has it under Projects. */
-.page-overview .ov-most {
-  display: none;
-  align-content: center;
-  padding: var(--s2) var(--inset) var(--inset);
-}
-
-.page-overview .ov-plan {
-  padding: var(--inset);
-}
-
-/*
-The plan's heading is a press to every window, a thumb's height, pulled up so
-its words stand level with the label of the cell beside it.
-*/
-.page-overview .ov-plan-head {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s1);
-  min-height: var(--tap);
-  margin-block-start: calc((1.25rem - var(--tap)) / 2);
-  color: var(--heading);
-  font-size: var(--step--1);
-  font-weight: var(--w-label);
-  text-decoration: none;
-}
-
-.page-overview .ov-plan-head:hover {
-  color: var(--bright);
-}
-
-.page-overview .ov-go {
-  width: 1rem;
-  height: 1rem;
-  color: var(--chrome);
-}
-
-/* A gauge per window where there is the room (below); a line per window on a phone. */
-.page-overview .ov-gauges {
-  display: none;
-  gap: var(--s3);
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 6rem), 1fr));
-  align-items: start;
-}
-
-.page-overview .ov-gauges .ui-gauge {
-  max-width: 8rem;
-}
-
-.page-overview .ov-gauges .ui-gauge-under {
-  margin-block-start: var(--s1);
-  line-height: var(--lead-tight);
-  white-space: pre-line;
-}
-
-.page-overview .ov-gauges .ui-gauge.is-unread .ui-gauge-figure {
-  color: var(--heading);
-}
-
-.page-overview .ov-meters {
-  display: grid;
-  gap: var(--s2);
-}
-
-/* The name and the share on one line, the bar under both. */
-.page-overview .ov-meter {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--s1) var(--s2);
-  align-items: baseline;
-  font-size: var(--step--1);
-}
-
-.page-overview .ov-meter-name {
-  overflow-wrap: anywhere;
-  min-width: 0;
-  color: var(--heading);
-}
-
-/* Which dash it is is never cut: *none reported* wraps rather than trails off. */
-.page-overview .ov-meter.is-unread .ov-meter-name {
-  white-space: normal;
-}
-
-.page-overview .ov-meter-name > strong {
-  margin-inline-end: var(--s1);
-  color: var(--bright);
-  font-weight: var(--w-strong);
-}
-
-.page-overview .ov-meter-value {
-  color: var(--bright);
-  font-weight: var(--w-strong);
-  font-variant-numeric: tabular-nums;
-}
-
-.page-overview .ov-meter > .ui-meter {
-  grid-column: 1 / -1;
-}
-
-/* ── what needs you, and what failed ───────────────────────────────────────── */
+/* ── waiting on you ────────────────────────────────────────────────────────── */
 
 /* A count that is somebody's to act on wears its tone, as a tag beside the heading. */
-.page-overview .section-head > .figure:is(.t-wants, .t-failed) {
+.page-overview .section-head > .figure.t-wants {
   padding-inline: 6px;
   border-radius: var(--r3);
-  font-weight: var(--w-strong);
-}
-
-.page-overview .section-head > .figure.t-wants {
   color: var(--violet);
   background: color-mix(in srgb, var(--violet) 14%, transparent);
-}
-
-.page-overview .section-head > .figure.t-failed {
-  color: var(--red);
-  background: color-mix(in srgb, var(--red) 12%, transparent);
+  font-weight: var(--w-strong);
 }
 
 .page-overview .ov-wants {
@@ -226,15 +114,10 @@ its words stand level with the label of the cell beside it.
   display: none;
 }
 
-/* Every other machine's, under this one's: the same rows, a gap between. */
-.page-overview .ov-wants:not(:empty) + .ov-elsewhere:not(:empty) {
-  margin-block-start: var(--s2);
-}
-
 /*
-A row: its mark in a square of its own tone, the name (the link, stretched over
-the row) with the project after it, how long ago at the end, why under the
-name, and the presses under that on a phone — beside it at a desk.
+A row: its mark in a square of its own tone, the name (the link to the agent
+in the full view, stretched over the row) with where it is after it, how long
+ago at the end, why under the name, and its answers under that.
 */
 .page-overview .ov-want {
   position: relative;
@@ -274,8 +157,9 @@ name, and the presses under that on a phone — beside it at a desk.
 .page-overview .ov-want-link {
   grid-area: name;
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: var(--s2);
+  gap: 0 var(--s2);
   min-width: 0;
   min-height: var(--tap);
   padding-block-start: calc((var(--tap) - 1.5rem) / 2);
@@ -297,7 +181,8 @@ name, and the presses under that on a phone — beside it at a desk.
 }
 
 .page-overview .ov-want-project {
-  flex: none;
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--heading);
   font-size: var(--step--1);
 }
@@ -328,51 +213,12 @@ name, and the presses under that on a phone — beside it at a desk.
   display: none;
 }
 
-/* The inbox's requests: a line of their own under the rows, one press to all of them. */
-.page-overview .ov-inbox {
-  display: flex;
-  align-items: center;
-  gap: var(--s3);
-  min-height: calc(var(--tap) + var(--s2));
-  padding: var(--s2) var(--inset);
-  color: var(--bright);
-  font-weight: var(--w-label);
-  text-decoration: none;
-  transition: background var(--ease);
-}
-
-.page-overview .ov-wants + .ov-inbox {
-  margin-block-start: var(--s2);
-}
-
-.page-overview .ov-inbox:hover {
-  background: var(--surface);
-}
-
-.page-overview .ov-inbox-mark {
-  display: grid;
-  place-items: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: var(--r1);
-  background: color-mix(in srgb, currentColor 14%, transparent);
-}
-
-.page-overview .ov-inbox-mark .ic {
-  width: 1rem;
-  height: 1rem;
-}
-
-.page-overview .ov-inbox-words {
-  flex: 1 1 auto;
-}
-
-/* Nothing waiting on anybody: one calm line, never a box the size of a list. */
 .page-overview .ov-clear {
   display: flex;
   align-items: center;
   gap: var(--s3);
   padding: var(--s3) var(--inset);
+  color: var(--bright);
 }
 
 .page-overview .ov-clear-mark {
@@ -385,160 +231,130 @@ name, and the presses under that on a phone — beside it at a desk.
   background: color-mix(in srgb, var(--green) 14%, transparent);
 }
 
-.page-overview .ov-clear-words {
-  display: grid;
-}
+/* ── working ───────────────────────────────────────────────────────────────── */
 
-.page-overview .ov-clear-words strong {
-  color: var(--bright);
-  font-weight: var(--w-strong);
-}
-
-.page-overview .ov-clear-line {
-  color: var(--heading);
-  font-size: var(--step--1);
-}
-
-/* ── the projects: one grid ────────────────────────────────────────────────── */
-
-/*
-On a phone a row is three lines: its name and money, the shape of its work
-across the whole width, and its counts — each with its word — with the checks
-at the end. Every count of nought steps aside there; at a desk it stays, quiet,
-because a column is read down.
-*/
-.page-overview .ov-proj-head {
+.page-overview .ov-agents:empty {
   display: none;
 }
 
-.page-overview .ov-projects > li + li {
-  border-block-start: var(--border);
-}
-
-.page-overview .ov-proj {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s2) var(--s4);
-  min-height: calc(var(--tap) + var(--s2));
-  padding: var(--s3) var(--inset);
-  color: var(--body);
+/*
+One line each: the agent's mark, its name and where it is, its state, and how
+long since it moved at the end. The line wraps where a name is long rather
+than cutting it; the age stays at the end of the first line.
+*/
+.page-overview .ov-agent > a {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto auto;
+  grid-template-areas: "mark name state age";
+  gap: 0 var(--s3);
+  align-items: baseline;
+  min-height: var(--tap);
+  padding: var(--s2) var(--inset);
+  color: var(--bright);
   text-decoration: none;
-  transition: background var(--ease);
 }
 
-.page-overview .ov-proj:hover {
+.page-overview .ov-agent > a:hover {
   background: var(--surface);
 }
 
-.page-overview .ov-proj-name {
-  overflow-wrap: anywhere;
-  flex: 1 1 0;
+.page-overview .ov-agent + .ov-agent > a {
+  border-block-start: var(--border);
+}
+
+.page-overview .ov-agent-mark {
+  grid-area: mark;
+}
+
+/* Its name, then where it is after it on the same line, wrapping under it where it is long. */
+.page-overview .ov-agent-who {
+  grid-area: name;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--s2);
   min-width: 0;
-  color: var(--bright);
+}
+
+.page-overview .ov-agent-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-weight: var(--w-strong);
 }
 
-.page-overview .ov-proj-spend {
-  order: 1;
-  color: var(--bright);
-  font-weight: var(--w-label);
-  font-variant-numeric: tabular-nums;
-  text-align: end;
-  white-space: nowrap;
-}
-
-.page-overview .ov-proj-spend.is-unknown {
+.page-overview .ov-agent-project {
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--heading);
   font-size: var(--step--1);
-  font-weight: var(--w-body);
 }
 
-.page-overview .ov-proj-bar {
-  order: 2;
-  flex: 1 0 100%;
-}
-
-.page-overview .ov-n {
-  order: 3;
+.page-overview .ov-agent-state {
+  grid-area: state;
+  color: var(--green);
   font-size: var(--step--1);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
-.page-overview .ov-n.is-zero {
-  display: none;
-}
-
-.page-overview .ov-n-value {
-  color: var(--bright);
-  font-weight: var(--w-strong);
-}
-
-.page-overview .ov-n-wants .ov-n-value {
-  color: var(--violet);
-}
-
-.page-overview .ov-n-working .ov-n-value {
+.page-overview .ov-agent > a.stalled .ov-agent-state {
   color: var(--amber);
 }
 
-.page-overview .ov-n-word {
+.page-overview .ov-agent-age {
+  grid-area: age;
   color: var(--heading);
-}
-
-.page-overview .ov-proj-checks {
-  order: 4;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s2);
-  margin-inline-start: auto;
-  color: var(--heading);
+  font-family: var(--font-mono);
   font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.page-overview .ov-proj-checks .ring {
-  width: 1rem;
-  height: 1rem;
-  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+/* ── Tade ──────────────────────────────────────────────────────────────────── */
+
+/*
+The conversation, in a region of its own: its lines scroll inside it and the
+box sits under them, so the newest line and the box are on screen together.
+On one column it is a band under the agents, most of the screen tall; on two
+it is the right column, the height of the screen.
+*/
+.page-overview .talk {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  margin-block-end: 0;
 }
 
-.page-overview .ov-closed {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s2) var(--s3);
-  margin-block-start: var(--s3);
+.page-overview .talk > div:last-child {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
 }
 
-.page-overview .ov-closed-label {
-  color: var(--heading);
-  font-size: var(--step--1);
+.page-overview .talk-lines {
+  height: min(70svh, 40rem);
+  min-height: 12rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s2) var(--s1) var(--s3);
 }
 
-.page-overview .ov-closed-list {
-  display: flex;
-  flex-wrap: wrap;
+.page-overview .talk .composer {
+  position: relative;
+  display: grid;
   gap: var(--s2);
+  padding-block: var(--s2) 0;
 }
 
-.page-overview .ov-table + .ui-state,
-.page-overview .ov-table ~ .unknown {
-  margin-block-start: var(--s3);
-}
-
-/* ── the agents at work: what a phone has instead of the side ──────────────── */
-
-/* Where it runs is the agent's own page's to say; here, its name and why. */
-.page-overview .ov-agents .runs {
-  display: none;
+/* The press back down to the newest line sits over the box, at the foot of the lines. */
+.page-overview .talk .jump-latest {
+  position: absolute;
+  inset-block-end: calc(100% + var(--s2));
+  inset-inline-start: 50%;
+  translate: -50% 0;
 }
 
 /* ── coming: a shimmer where each figure will be ───────────────────────────── */
 
-.is-loading .page-overview .ov-cell .ui-stat-value:empty,
-.is-loading .page-overview .ov-gauges:empty,
+.is-loading .page-overview .ov-tile .ui-stat-value:empty,
 .is-loading .page-overview .ov-wants:empty {
   display: block;
   border-radius: var(--r1);
@@ -546,257 +362,92 @@ because a column is read down.
   animation: shimmer 1.4s ease-in-out infinite alternate;
 }
 
-.is-loading .page-overview .ov-cell .ui-stat-value:empty {
+.is-loading .page-overview .ov-tile .ui-stat-value:empty {
   width: 3ch;
   height: 1em;
 }
 
-.is-loading .page-overview .ov-gauges:empty {
-  height: 5rem;
-}
-
 .is-loading .page-overview .ov-wants:empty {
-  height: 9rem;
+  height: 6rem;
 }
 
-/* ── where the work has the room ───────────────────────────────────────────── */
+/* ── two columns ───────────────────────────────────────────────────────────── */
 
 /*
-  The board four across and the plans as gauges from the width of the Duo's
-  inner screen upright; the money beside where it went, a row's presses beside
-  its name and the projects as a table only from 44rem, or a name breaks a
-  letter to a line.
+From 34rem — the Duo's large screen upright, any phone sideways, a tablet and
+a desk — the agents and the conversation side by side, each the height of the
+screen and scrolling in itself, so the screen around them never scrolls.
 */
-@container (min-width: 38rem) {
-  .page-overview .ov-cells {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .page-overview .ov-budget {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .page-overview .ov-most,
-  .page-overview .ov-gauges {
-    display: grid;
-  }
-
-  .page-overview .ov-meters {
-    display: none;
-  }
-}
-
-@container (min-width: 44rem) {
-  .page-overview .ov-money {
-    display: grid;
-    grid-template-columns: minmax(0, 12rem) minmax(0, 1fr);
-  }
-
-  /* The presses beside the row, level with its name; how long ago after them. */
-  .page-overview .ov-want {
-    grid-template-columns: 1.5rem minmax(0, 1fr) auto auto;
-    grid-template-areas:
-      "mark name acts age"
-      ". why acts age";
-    padding-block: var(--s2);
-  }
-
-  .page-overview .ov-want-acts {
-    flex-wrap: nowrap;
-    align-self: center;
-    margin: 0;
-  }
-
-  .page-overview .ov-want-age {
-    min-width: 3.5rem;
-    text-align: end;
-  }
-
-  /* One column template for the head and every row, so each column is one line down. */
-  .page-overview .ov-proj-head,
-  .page-overview .ov-proj {
-    display: grid;
-    grid-template-columns:
-      minmax(6rem, 1.6fr) minmax(4rem, 1.2fr) repeat(3, 4.75rem)
-      minmax(6.5rem, 1fr) 5.5rem;
-    gap: 0 var(--s4);
-    align-items: center;
-  }
-
-  .page-overview .ov-proj-head {
-    min-height: var(--s6);
-    padding-inline: var(--inset);
-    border-block-end: var(--border);
-    color: var(--heading);
-    font-size: var(--step--1);
-    font-weight: var(--w-label);
-  }
-
-  .page-overview .ov-proj-head > :is(.ov-c-n, .ov-c-spend) {
-    text-align: end;
-  }
-
-  .page-overview .ov-proj > * {
-    order: 0;
-  }
-
-  .page-overview .ov-proj-bar {
-    flex: none;
-  }
-
-  .page-overview .ov-n,
-  .page-overview .ov-n.is-zero {
-    display: block;
-    font-size: var(--step-0);
-    text-align: end;
-  }
-
-  .page-overview .ov-n.is-zero .ov-n-value {
-    color: var(--heading);
-    font-weight: var(--w-body);
-  }
-
-  /* The word is the column's head now; still read aloud, no longer drawn. */
-  .page-overview .ov-n-word {
-    position: absolute;
-    width: 1px;
-    height: 1px;
+@media (min-width: 34rem) {
+  main:has(> .page-overview) {
     overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
+    padding-block-end: 0;
   }
 
-  .page-overview .ov-proj-checks {
-    margin-inline-start: 0;
+  .page-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    height: 100%;
+    padding-block-start: 0;
+  }
+
+  .page-overview .ov-work,
+  .page-overview .talk {
+    min-height: 0;
+    height: 100%;
+  }
+
+  .page-overview .ov-work {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-block: var(--s3) var(--s5);
+  }
+
+  .page-overview .talk {
+    padding-block: var(--s3) var(--s3);
+  }
+
+  .page-overview .talk-lines {
+    height: auto;
+    min-height: 0;
   }
 }
 
 /*
-  The person's other machines: a row's own grid — its mark, its name and how
-  it stands, then how it links and, under one that is not up, what to do.
+**The keyboard up in the box to Tade** (`room.js`): the overview is the
+conversation alone, the height of the room above the keys, so what is being
+typed and the lines it answers are both in view — on the small screen the box
+would otherwise be under the keyboard at the foot of a long column, and on a
+phone held sideways there is no room for the agents beside it.
 */
-.page-overview .ov-machine {
-  display: grid;
-  grid-template-columns: 1.5rem minmax(0, 1fr) minmax(0, max-content);
-  gap: 2px var(--s3);
-  align-items: baseline;
-  min-height: calc(var(--tap) + var(--s2));
-  padding-block: var(--s2);
-  padding-inline: var(--s4);
+.keyboard-up main:has(> .page-overview .talk :focus) {
+  overflow: hidden;
+  padding-block-end: 0;
 }
 
-.page-overview .ov-machine > .aside {
-  text-align: end;
+.keyboard-up .page-overview:has(.talk :focus) {
+  grid-template-columns: minmax(0, 1fr);
+  height: 100%;
+  padding-block-start: 0;
 }
 
-/*
-  On a phone, either way up, how a machine stands goes under its name rather than beside it:
-  `lost 16:20 — no goodbye: asleep, or off the network` beside `mac-mini`
-  leaves the name a letter or two to a line.
-*/
-@media (max-width: 48rem) {
-  .page-overview .ov-machine > .aside {
-    grid-column: 2 / -1;
-    text-align: start;
-  }
-}
-
-.page-overview .ov-machine + .ov-machine {
-  border-block-start: var(--border);
-}
-
-.page-overview .ov-fix {
-  color: var(--bright);
-}
-
-/*
-  What each machine is doing: three tiles across the row — processors, memory,
-  disk — each a figure, the line that says what it is of, and a trail or a
-  meter under it; then Tade's own share in a line. Three across from the
-  narrowest phone up: a tile is a short figure over a short line, and the
-  line wraps inside its tile rather than pushing the row wider.
-*/
-.page-overview .ov-figs {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--s2);
-  margin-block-start: var(--s2);
-}
-
-.page-overview .ov-figs[hidden] {
+.keyboard-up .page-overview:has(.talk :focus) .ov-work {
   display: none;
 }
 
-.page-overview .ov-fig {
-  display: grid;
-  align-self: stretch;
-  grid-template-rows: auto auto 1fr auto;
-  gap: 2px;
-  min-width: 0;
-  padding: var(--s2) var(--s3);
-  border-radius: var(--r2);
-  background: var(--raised);
+.keyboard-up .page-overview:has(.talk :focus) .talk {
+  height: 100%;
+  min-height: 0;
+  padding-block: var(--s2);
 }
 
-.page-overview .ov-fig-label {
-  color: var(--heading);
-  font-size: var(--step--1);
-  font-weight: var(--w-label);
+.keyboard-up .page-overview:has(.talk :focus) .talk-lines {
+  height: auto;
+  min-height: 0;
 }
 
-.page-overview .ov-fig-value {
-  color: var(--bright);
-  font-size: var(--step-1);
-  font-variant-numeric: tabular-nums;
-  line-height: var(--lead-tight);
-  overflow-wrap: anywhere;
-}
-
-.page-overview .ov-fig-value.is-unknown {
-  color: var(--heading);
-}
-
-/* Amber past three quarters, red past nine tenths, and the line under it says so in words. */
-.page-overview .ov-fig-value.t-here {
-  color: var(--amber);
-}
-
-.page-overview .ov-fig-value.t-failed {
-  color: var(--red);
-}
-
-.page-overview .ov-fig-under {
-  color: var(--heading);
-  font-size: var(--step--1);
-  line-height: var(--lead-tight);
-  overflow-wrap: anywhere;
-}
-
-.page-overview .ov-fig > .ui-spark {
-  height: 1.25rem;
-  margin-block-start: var(--s1);
-}
-
-.page-overview .ov-fig > .ui-meter {
-  align-self: end;
-  margin-block-start: var(--s2);
-}
-
-.page-overview .ov-figs-line {
-  grid-column: 1 / -1;
-  color: var(--heading);
-  font-size: var(--step--1);
-}
-
-/* A machine that is not up: what it last said, quieter, with when beside it. */
-.page-overview .ov-figs.is-stale {
-  opacity: 0.6;
-}
-
-@media (min-width: 1280px) {
-  /* The agents are down the side now; the overview's own copy steps aside while it is open. */
-  .frame:not(.side-mini) .ov-agents {
-    display: none;
+/* Four tiles across where a column is wide enough for them. */
+@media (min-width: 64rem) {
+  .page-overview .ov-tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }

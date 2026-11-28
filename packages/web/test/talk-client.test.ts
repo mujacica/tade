@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { StillDocument, type StillElement } from '../scripts/still-dom.ts'
 import { answersWith } from '../src/assets/conversation.js'
-import { deskParts } from '../src/assets/desk.js'
 import { linesKept, NEAR_TOP, nearTop } from '../src/assets/earlier.js'
 import { atFoot } from '../src/assets/follow.js'
 import { toolNamed } from '../src/assets/glyphs.js'
@@ -13,7 +12,7 @@ import {
   doingOf,
   lineMark,
   offerToAsk,
-  talkScreen,
+  talkPart,
 } from '../src/assets/talk.js'
 import type { ChatIn } from '../src/input.ts'
 import { projector } from '../src/reading.ts'
@@ -132,7 +131,7 @@ const WANTED = [
   { kind: 'reply', glyph: '◆', tone: 't-working', failed: false },
 ]
 
-const view = (store: ReturnType<typeof storeOf>, where = '/talk') => ({
+const view = (store: ReturnType<typeof storeOf>, where = '/') => ({
   store,
   where,
   asOf: NOW,
@@ -151,8 +150,8 @@ describe('a line of the conversation', () => {
     expect(lineMark(line(9, { kind: 'tool', outcome: 'running' })).glyph).not.toBe('✓')
   })
 
-  it('on the conversation’s screen: news, a call that worked, one that failed, an answer', () => {
-    const screen = talkScreen(ctx)
+  it('in the overview’s conversation: news, a call that worked, one that failed, an answer', () => {
+    const screen = talkPart(ctx)
     screen.update(view(storeOf(FOUR)))
     const list = screen.node.querySelector('ul.chat') as StillElement
     expect(marksIn(list)).toEqual(WANTED)
@@ -165,28 +164,6 @@ describe('a line of the conversation', () => {
     expect(ok.querySelector('.ui-call-brief')?.textContent).toContain('tade')
     // Tade's news is not a card with a name over it, and neither is the answer.
     expect((list.children[0] as StillElement).querySelector('.aside')?.hidden).toBe(true)
-  })
-
-  it('in the dock, the same lines with the same marks — and folded, the last one’s', () => {
-    const parts = deskParts(ctx)
-    parts.update(view(storeOf(FOUR), '/'))
-    const lines = parts.dock.querySelector('ul.lines') as StillElement
-    expect(lines.classList.contains('chat')).toBe(true)
-    expect(marksIn(lines)).toEqual(WANTED)
-    const last = parts.dock.querySelector('.dock-last') as StillElement
-    expect(last.querySelector('.line-mark')?.textContent).toBe('◆')
-    expect(last.querySelector('.line-mark')?.classList.contains('t-working')).toBe(true)
-    expect(last.classList.contains('is-reply')).toBe(true)
-  })
-
-  it('folded on a call that failed, says so in red', () => {
-    const parts = deskParts(ctx)
-    parts.update(view(storeOf(FOUR.slice(0, 3)), '/'))
-    const last = parts.dock.querySelector('.dock-last') as StillElement
-    expect(last.querySelector('.line-mark')?.textContent).toBe('✗')
-    expect(last.querySelector('.line-mark')?.classList.contains('t-failed')).toBe(true)
-    expect(last.textContent).toContain('Bash')
-    expect(last.textContent).toContain('git log --oneline')
   })
 
   it('reads back to the first line said, with nothing saying it is elsewhere', async () => {
@@ -202,7 +179,7 @@ describe('a line of the conversation', () => {
       return { status: 200, body: made.chat(before) }
     })
     const main = doc.createElement('main')
-    const screen = talkScreen(ctx)
+    const screen = talkPart(ctx)
     main.append(screen.node)
     screen.update(view(store))
     // Nothing to scroll in a document with no layout: it reads on until the beginning.
@@ -250,7 +227,7 @@ describe('a line of the conversation', () => {
       }),
     ]
     expect(lines.map((one) => lineMark(one).glyph)).toEqual(['●', '●', '→', '?'])
-    const screen = talkScreen(ctx)
+    const screen = talkPart(ctx)
     screen.update(view(storeOf(lines, { mine: true })))
     const items = screen.node.querySelectorAll('ul.chat > li') as StillElement[]
     expect(
@@ -266,7 +243,7 @@ describe('a line of the conversation', () => {
   })
 
   it('puts what a suggestion offers to ask in the box, for Send to send', () => {
-    const screen = talkScreen(ctx)
+    const screen = talkPart(ctx)
     screen.update(
       view(
         storeOf([line(0, { kind: 'suggestion', text: 'Ask?', ask: 'what now?' })], { mine: true }),
@@ -291,7 +268,7 @@ describe('a line of the conversation', () => {
     ] as const) {
       const session = { device: 'dev_7f3a9c21', label: 'iPhone' }
       const asked: string[] = []
-      const screen = talkScreen({
+      const screen = talkPart({
         ...ctx,
         session: () => session,
         ask: (_method: string, to: string) => {
@@ -321,7 +298,7 @@ describe('the field, while Tade answers', () => {
       call: { input: { file_path: 'docs/NAMES.md' }, result: null as unknown as string },
     })
     const store = storeOf([...FOUR, reading], { busy: true, whose: 'device aa' })
-    const screen = talkScreen(ctx)
+    const screen = talkPart(ctx)
     screen.update(view(store))
     const field = screen.node.querySelector('.ask-field') as StillElement
     expect(field.classList.contains('is-busy')).toBe(true)
@@ -341,7 +318,7 @@ describe('the field, while Tade answers', () => {
     const began = Date.parse('2026-10-08T14:29:48.000Z')
     const store = storeOf(FOUR, { busy: true, whose: 'you', since: began })
     expect(store.you.talk.since).toBe('2026-10-08T14:29:48.000Z')
-    const screen = talkScreen(ctx)
+    const screen = talkPart(ctx)
     screen.update({ ...view(store), frozen: true })
     expect(screen.node.querySelector('.ask-took')?.textContent).toBe('12s')
     // Nothing in flight, nothing to count from.
@@ -349,7 +326,7 @@ describe('the field, while Tade answers', () => {
   })
 
   it('puts Send back, and the box, the moment the turn ends', () => {
-    const screen = talkScreen(ctx)
+    const screen = talkPart(ctx)
     screen.update(view(storeOf(FOUR, { busy: true, whose: 'you' })))
     screen.update(view(storeOf(FOUR, { busy: false, whose: '' })))
     const field = screen.node.querySelector('.ask-field') as StillElement
@@ -397,7 +374,7 @@ describe('a command of many lines, while Tade runs it', () => {
       busy: true,
       whose: 'device aa',
     })
-    const screen = talkScreen(ctx)
+    const screen = talkPart(ctx)
     screen.update(view(store))
     const live = screen.node.querySelector('.ask-live') as StillElement
     expect(live.querySelector('.ask-doing')?.textContent).toBe('Running…')

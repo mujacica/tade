@@ -1,12 +1,8 @@
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { AccountAway, AccountsAnswer, AccountsCall } from '../src/accounts.ts'
 import { Moved, NotOffered, type Outcome, type WebActing } from '../src/acting.ts'
-import { type ActivityIn, AGENT, MOMENTS } from '../src/agent.ts'
-import type { MenuItemIn } from '../src/agent-menu.ts'
 import type { ChatIn, TalkIn } from '../src/input.ts'
-import type { MachinesAnswer } from '../src/machines.ts'
 import type { Reach } from '../src/reach.ts'
 import { projector } from '../src/reading.ts'
 import { webServer } from '../src/server.ts'
@@ -26,22 +22,17 @@ import {
   WIDTHS,
   worstOf,
 } from '../test/browser-plan.ts'
-import { agentHeld, input, NOW, note, queued, settingRows, task } from '../test/fixtures.ts'
-import { accountsAt } from './browser-accounts.ts'
+import { blocked, input, NOW, task } from '../test/fixtures.ts'
 import { chatAt, harnessTalk } from './browser-chat.ts'
-import { deskAt, lanesSeen, paletteAt, paletteTappedAt, unpairedAt } from './browser-desk.ts'
 import { doingAt, type Running } from './browser-doing.ts'
-import { frameAt } from './browser-frame.ts'
-import { machinesAt } from './browser-machines.ts'
-import { momentsAt } from './browser-moments.ts'
 import { asPwa } from './browser-pwa.ts'
-import { queueAt } from './browser-queue.ts'
 import {
   AXE,
   CONTROLS,
   CUT,
   HOLD,
   HOLD_AGAIN,
+  OUTSIDE,
   RECEIVED,
   SAID_MOVED,
   SAID_SOMETHING,
@@ -49,7 +40,6 @@ import {
   STATUS,
 } from './browser-snippets.ts'
 import { until } from './browser-until.ts'
-import { WHOLE_NOTE, wholeAt } from './browser-whole.ts'
 
 // The away view, in a real browser, against the real server and the real files.
 //
@@ -76,7 +66,13 @@ import { WHOLE_NOTE, wholeAt } from './browser-whole.ts'
 //
 // With them, this answers the questions only a browser owns — does axe find
 // anything, does the page scroll sideways at 360px, is every control big enough
-// to hit, does pairing work when a person actually presses the button. Without
+// to hit, does pairing work when a person actually presses the button. **The
+// page is two screens** (§10 T5 of the Duo plan): the overview at `/` — the
+// tiles, the agents waiting on you with their quick presses, the agents
+// working, and the conversation with Tade in a region of its own — and
+// pairing at `/pair`. Everything else is a panel of the window, in the full
+// view at `/draw/`, which `browser-duo.ts` and the browser goldens look at.
+// Without
 // them every one of those is reported `unrun` **with the reason**, and the last
 // line says so: a missing browser must never read as a passing suite.
 //
@@ -128,14 +124,17 @@ async function serve() {
       keepsView: true,
     },
     acting: recording,
-    // **Talking on too, with the same stub treatment**: the third pass sends
-    // a real message with a real tap. `stop` answers `not_offered`, for the reason `note` answers
-    // `gone`: a harness where everything succeeds can never show that a
-    // refusal leaves what somebody typed where it was.
+    // **Talking on too, with the same stub treatment**: the acting pass sends
+    // a real message with a real tap. **`REFUSED` is answered `gone`**, and
+    // `stop` `not_offered`: a harness where everything succeeds can never show
+    // that a refusal leaves what somebody typed in the composer where it was.
     asking: {
       unlocked: () => true,
       ask: (call) => {
         asked.push({ verb: 'ask', task: '', said: call.said })
+        if (call.said === REFUSED) {
+          return Promise.reject(new Moved('Tade started answering somebody else', call.was))
+        }
         return Promise.resolve({ did: true, rev: call.was, said: 'Tade is answering' })
       },
       stop: () => Promise.reject(new NotOffered('this harness cannot stop a turn')),
@@ -144,71 +143,31 @@ async function serve() {
       reaches.set(reach.device, reach)
       const mine = held.get(reach.device)
       if (mine !== undefined) return mine
-      const made = projector(
-        input({ reach, talk: harnessTalk(), notes: NOTES, tasks: TASKS }),
-        NOW,
-        {
-          agent: () =>
-            agentHeld({
-              activity: LIFE.slice(0, AGENT.activity),
-              earlier: LIFE[AGENT.activity - 1]?.id ?? null,
-            }),
-          settings: () => ({ groups: settingRows(), known: [] }),
-        },
-      )
+      const made = projector(input({ reach, talk: harnessTalk(), tasks: TASKS }), NOW)
       held.set(reach.device, made)
       return made
     },
-    // **An agent's record further back than its page holds**, so its page
-    // reads back to its first turn as Tade's conversation does; Tade's own
-    // reads back through what the projection holds, which is all of it here.
+    // Tade's own conversation reads back through what the projection holds,
+    // which is all of it here; nothing on the overview asks for an agent's.
     earlier: {
       talk: async () => true,
-      agent: async () => ({
-        turns: [
-          { kind: 'sent', text: 'Start with the projection.', images: [], at: NOW - 600_000 },
-        ],
-        before: null,
-      }),
-      // **Its moments before the newest stretch**, a page at a time down to
-      // its making, so its timeline reads on to its first moment.
-      moments: async (_task, before) => {
-        const page = LIFE.filter((one) => Number(one.id) < Number(before)).slice(0, MOMENTS)
-        const first = page.length < MOMENTS || page.at(-1)?.kind === 'made'
-        return { activity: page, earlier: first ? null : (page.at(-1)?.id ?? null) }
-      },
+      agent: async () => ({ turns: [], before: null }),
+      moments: async () => ({ activity: [], earlier: null }),
       known: () => [],
       places: () => ({ work: null, tade: null, home: null }),
     },
-    // **The Machines page's half**, as the window hands it over
-    // (`machinesFrom`): the grid as it stands and a press that starts and never
-    // waits — so the page is drawn from an answer rather than the `404` of a
-    // route nobody wired.
-    // **One agent's menu, as the window builds it**: queued work's own
-    // (`queueMenuItems`, mapped by `awayMenuOf`), so the side's ⋯ on a piece
-    // opens what the window's right-click does; the route cuts it per device.
-    menus: {
-      menu: (id) => Promise.resolve(id === QUEUED.id ? { items: QUEUE_MENU } : null),
-    },
-    machines: {
-      shown: () => MACHINES,
-      press: () => true,
-      settle: () => false,
-    },
-    // **The Accounts page's half**, as the window hands it over
-    // (`AccountsHere`): this machine's accounts, or a linked machine's, by the
-    // tab a look names — a press answered with the page as it stands.
-    accounts: {
-      carry: async (call: AccountsCall) => accountsFor(call.machine ?? null),
-      signIn: async () => ({
-        state: 'idle',
-        who: null,
-        how: null,
-        rows: [],
-        link: null,
-        said: null,
-        about: null,
-      }),
+    // **The full view is there, as it is behind every real window**
+    // (`drawingDoor` in `@tade/app`'s `wire/web.ts`): the page asks `/draw/`
+    // before it offers the Overview/Full view switch (`offerFull`), and a
+    // listener with no drawing answers that ask `404` — which Chromium logs,
+    // and which no real window does. The full view itself is
+    // `browser-duo.ts`'s and the browser goldens'; here it only has to answer.
+    drawing: {
+      answer: async (_req, res) => {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+        res.end('<!doctype html><title>Full view</title>')
+        return true
+      },
     },
     tickets,
     tell: () => {},
@@ -226,12 +185,16 @@ async function serve() {
 const asked: { verb: string; task: string; said: string }[] = []
 
 /**
+ * What the acting pass types into the composer: the one message the harness's
+ * Tade refuses, `gone`, as it would were it answering somebody else.
+ */
+const REFUSED = 'the fix is in the adapter'
+
+/**
  * A window that does each verb and remembers being asked — and refuses one.
  *
- * **`note` always answers `gone`**, deliberately: the thing a browser is the
- * only place to check is that a refusal leaves what somebody typed in the box,
- * and a verb that always succeeds can never show it. The others answer, so a
- * tap and a keypress have something to prove.
+ * **`note` always answers `gone`**, as the composer's `REFUSED` does. The
+ * others answer, so a tap and a keypress have something to prove.
  */
 const recording: WebActing = {
   unlocked: () => true,
@@ -266,207 +229,45 @@ function did(verb: string, call: { task: string; was: string }): Promise<Outcome
 }
 
 /**
+ * **The agent waiting on you, able to be answered**: the fixture's blocked
+ * task with `answer` among what may be asked of it, so its card on the
+ * overview draws every quick press there is — Allow, Deny, Done, Set aside,
+ * Tell — and the command it would run, whole, above them.
+ */
+const ASKING = (() => {
+  const one = blocked()
+  return {
+    ...one,
+    can: [{ verb: 'answer', how: 'now' }, ...one.can],
+    cannot: one.cannot.filter((no) => no.verb !== 'answer'),
+  } satisfies typeof one
+})()
+
+/**
+ * **An agent waiting on you with nothing to allow**: it asked a question, so
+ * its card draws Done, Set aside and Tell and **no Allow or Deny** — a verb it
+ * says cannot be is absent, never a dead button.
+ */
+const QUESTION = task({
+  id: 'sentry/which-branch',
+  state: 'blocked',
+  reason: { kind: 'clause', said: 'asked which branch to start from' },
+  question: true,
+})
+
+/** Every task the harness's projection carries: the fixture's, with the two waiting on you. */
+const TASKS = [...input().tasks.map((one) => (one.id === ASKING.id ? ASKING : one)), QUESTION]
+
+/** What the acting pass's card is: the one waiting on you that may be answered. */
+const CARD = `li.ov-want:has(a[href*="${encodeURIComponent(ASKING.id)}"])`
+
+/**
  * Playwright, if this machine has it, and the reason if it does not.
  *
  * The specifier is a variable so this file type-checks on a machine that has
  * never installed it — which is every machine in CI, and is the state the
  * `unrun` report exists for.
  */
-/**
- * The agent's whole life as moments, newest first, down to its making: far
- * more than one answer carries, so its timeline has to read on to reach it.
- */
-/**
- * **A note of over ten thousand characters** beside the fixture's own, with no
- * summary so its card is its words: `whole` reads it back in full
- * (`browser-whole.ts`). Every beat the harness makes carries it.
- */
-const NOTES = [...input().notes, note({ text: WHOLE_NOTE, summary: '', scope: null })]
-
-/**
- * **The fixture's queued piece, with its task's row**, as the window's
- * projection carries every queued task among the tasks: a press on the
- * piece echoes that row's revision, so without it the side has nothing to
- * press. Queued, no agent, and the queue its one control.
- */
-const QUEUED = task({
-  id: queued().task,
-  state: 'queued',
-  reason: { kind: 'clause', said: 'waits on sentry/away-projection' },
-  title: 'Serve the away view behind pairing',
-  agents: 0,
-  lanes: 0,
-  lane: 'none',
-  starts: 0,
-  effort: '',
-  review: null,
-  can: [
-    { verb: 'queue', how: 'now' },
-    { verb: 'park', how: 'now' },
-    { verb: 'done', how: 'now' },
-    { verb: 'note', how: 'now' },
-    { verb: 'context', how: 'now' },
-  ],
-  cannot: [
-    { verb: 'answer', why: 'nothing is waiting on an answer' },
-    { verb: 'steer', why: 'no agent is running' },
-    { verb: 'intake', why: 'it did not come from outside this machine' },
-    { verb: 'stop', why: 'no agent is running' },
-    { verb: 'reopen', why: 'it is queued work: the queue starts it' },
-  ],
-})
-
-/** Every task the harness's projection carries: the fixture's, and the queued one's row. */
-const TASKS = [...input().tasks, QUEUED]
-
-/** Queued work's menu as the window maps it (`awayMenuOf(queueMenuItems(…))`) for waiting work. */
-const QUEUE_MENU: MenuItemIn[] = [
-  ['open', 'Open', { kind: 'page', does: 'open' }],
-  ['queue-start', 'Start now', { kind: 'verb', verb: 'queue', with: { change: 'start' } }],
-  ['queue-first', 'Do this one first', { kind: 'verb', verb: 'queue', with: { change: 'first' } }],
-  ['queue-pause', 'Pause', { kind: 'verb', verb: 'queue', with: { change: 'pause' } }],
-  ['queue-wait', 'Wait for a retry', { kind: 'verb', verb: 'queue', with: { change: 'wait' } }],
-  ['queue-after', 'Wait on…', { kind: 'here' }],
-  ['queue-retell', 'Retell…', { kind: 'here' }],
-  ['rename', 'Rename…', { kind: 'type', verb: 'rename', value: 'away-auth-server' }],
-  ['queue-remove', 'Remove', { kind: 'verb', verb: 'remove' }],
-].map(([id, label, act]) => ({
-  id: id as string,
-  label: label as string,
-  off:
-    id === 'queue-wait'
-      ? 'not held'
-      : id === 'queue-after'
-        ? 'what it waits on is changed at the machine'
-        : id === 'queue-retell'
-          ? 'what it is told is changed at the machine'
-          : null,
-  note: null,
-  danger: id === 'queue-remove',
-  divider: id === 'queue-remove',
-  act: act as MenuItemIn['act'],
-}))
-
-/**
- * What the Machines page is answered: this machine and one linked one, a
- * sign-in and a key each — a mark of every kind but one, and a key a shell
- * file sets, so the grid is drawn with something in every cell.
- */
-const MACHINES: MachinesAnswer = {
-  columns: [
-    { machine: 'mac', asOf: null, here: true, said: null },
-    { machine: 'vps', asOf: new Date(NOW - 600_000).toISOString(), here: false, said: null },
-  ],
-  rows: [
-    {
-      id: 'sign-in:claude',
-      kind: 'sign-in',
-      label: 'Claude Code',
-      cells: [
-        { mark: '✓', days: 21, where: [], said: null },
-        { mark: '?', days: null, where: [], said: null },
-      ],
-    },
-    {
-      id: 'secret:linear',
-      kind: 'secret',
-      label: 'Linear key',
-      cells: [
-        { mark: '✓', days: null, where: ['~/.zshenv:14'], said: 'only a shell sets it' },
-        { mark: '✗', days: null, where: [], said: null },
-      ],
-    },
-  ],
-  looking: false,
-  plan: null,
-  busy: false,
-  said: null,
-  file: '~/.config/tade/env',
-  agents: 'any agent on this machine can read a key written down',
-  notes: [],
-}
-
-/** One account the Accounts page is answered, signed in, with a plan and two windows. */
-const ACCOUNT: AccountAway = {
-  harness: 'claude-code',
-  title: 'Claude Code',
-  name: null,
-  ownName: null,
-  kind: 'subscription',
-  canAdd: true,
-  why: null,
-  signedIn: true,
-  who: 'person@example.com',
-  plan: 'Max 20x',
-  problem: null,
-  windows: [
-    { label: '5h', minutes: 300, used: 42 },
-    { label: '7d', minutes: 10_080, used: 9 },
-  ],
-  agents: 3,
-  forNewAgents: true,
-  projects: [],
-  canSignIn: true,
-  install: null,
-}
-
-/**
- * What the Accounts page is answered, by tab: this machine with its own
- * sign-in, an account beside it and pi; and a linked one with an account not
- * signed in that one project runs as — a press of every kind on the page.
- */
-const ACCOUNTS: Record<string, readonly AccountAway[]> = {
-  here: [
-    ACCOUNT,
-    { ...ACCOUNT, name: 'work', forNewAgents: false, agents: 0, plan: 'Team', windows: [] },
-    {
-      ...ACCOUNT,
-      harness: 'pi',
-      title: 'pi',
-      canAdd: false,
-      why: 'keeps one account',
-      windows: [],
-    },
-  ],
-  vps: [
-    { ...ACCOUNT, agents: 1 },
-    {
-      ...ACCOUNT,
-      name: 'deploy-bot',
-      signedIn: false,
-      who: null,
-      plan: null,
-      windows: [],
-      agents: 0,
-      forNewAgents: false,
-      projects: ['shop', 'sentry'],
-    },
-  ],
-}
-
-function accountsFor(machine: string | null): AccountsAnswer {
-  return {
-    machine,
-    machines: [
-      { id: null, label: 'mac' },
-      { id: 'vps', label: 'vps' },
-    ],
-    accounts: [...(ACCOUNTS[machine ?? 'here'] ?? [])],
-    said: null,
-    trouble: false,
-    keys: 'An agent runs as you, whichever sign-in it is on.',
-  }
-}
-
-const LIFE: ActivityIn[] = Array.from({ length: 240 }, (_, n) => {
-  const id = 240 - n
-  const at = NOW - (n + 1) * 60_000
-  if (id === 1) return { id: '1', at, kind: 'made', what: '', ok: null }
-  const kind = (['used', 'turn', 'checked'] as const)[id % 3] ?? 'used'
-  const what = kind === 'used' ? 'Edit' : kind === 'checked' ? 'tests' : ''
-  return { id: String(id), at, kind, what, ok: kind === 'used' ? null : true }
-})
-
 const PLAYWRIGHT = 'playwright'
 
 async function browser(): Promise<{ made: Engine | null; why: string }> {
@@ -523,6 +324,8 @@ interface Engine {
 
 interface Context {
   newPage: () => Promise<Page>
+  /** Run before the page's own scripts on every load: `OVERVIEW_KEPT`. */
+  addInitScript: (script: { content: string }) => Promise<void>
   /** Off, for the cold load in `browser-pwa.ts`. */
   setOffline: (offline: boolean) => Promise<void>
   close: () => Promise<void>
@@ -531,7 +334,21 @@ interface Context {
 /** Playwright's own event hook, typed to the two events this listens for. */
 interface Listen {
   (event: 'pageerror', hear: (problem: unknown) => void): void
-  (event: 'console', hear: (line: { type: () => string; text: () => string }) => void): void
+  (event: 'console', hear: (line: Logged) => void): void
+}
+
+/** One line the page logged, and where: a refused fetch says only its status, so its URL is the news. */
+interface Logged {
+  type: () => string
+  text: () => string
+  location: () => { url: string }
+}
+
+/** What the page logged as an error, in one line of the report, with the URL it was about. */
+function loggedOf(line: Logged): string {
+  const first = line.text().split('\n')[0] ?? ''
+  const url = line.location().url
+  return `logged: ${first}${url === '' ? '' : ` (${url.replace(/^https?:\/\/[^/]+/, '')})`}`
 }
 
 interface Page {
@@ -576,6 +393,22 @@ interface Thing {
   inputValue: () => Promise<string>
 }
 
+/**
+ * **The Overview, chosen for a screen held sideways**, as a person does by
+ * pressing it on the switch (`keepMode`, `mode.js`). Held sideways the page
+ * goes to the full view unless somebody chose otherwise, and the desk's
+ * 1440×900 is sideways — so without this every look at it would be at the
+ * full view's stand-in rather than the overview.
+ */
+const OVERVIEW_KEPT = `try { localStorage.setItem('tade.mode', 'sideways=overview') } catch {}`
+
+/** A context the harness looks through: the Overview kept, whichever way up. */
+async function contextOf(made: Engine, opts: object): Promise<Context> {
+  const context = await made.newContext(opts)
+  await context.addInitScript({ content: OVERVIEW_KEPT })
+  return context
+}
+
 async function run(axe: Awaited<ReturnType<typeof axeSource>>) {
   const { made, why } = await browser()
   if (made === null) {
@@ -586,7 +419,7 @@ async function run(axe: Awaited<ReturnType<typeof axeSource>>) {
   if (axe.source === null) found('axe', '—', 'unrun', axe.why)
   try {
     for (const width of WIDTHS) {
-      const context = await made.newContext({
+      const context = await contextOf(made, {
         viewport: { width: width.width, height: width.height },
         // The phone's own reduced-motion setting, because a page that only
         // works with its transitions is one nobody can read on a train.
@@ -603,9 +436,9 @@ async function run(axe: Awaited<ReturnType<typeof axeSource>>) {
       const noise: string[] = []
       page.on('pageerror', (problem) => noise.push(`threw: ${said(problem)}`))
       page.on('console', (line) => {
-        if (line.type() === 'error') noise.push(`logged: ${line.text().split('\n')[0] ?? ''}`)
+        if (line.type() === 'error') noise.push(loggedOf(line))
       })
-      await unpairedAt(page, origin, width, found)
+      await unpairedAt(page, origin, width)
       await pairIn(page, origin, tickets.mint(`${origin}/pair`, Date.now()).value, width.name)
       for (const look of LOOKS) {
         if (look.path === '/pair') continue
@@ -618,9 +451,6 @@ async function run(axe: Awaited<ReturnType<typeof axeSource>>) {
           found('quiet', `${look.name} @ ${width.name}`, 'pass', 'nothing thrown, nothing logged')
         }
       }
-      await deskAt(page, origin, width, found)
-      await frameAt(page, origin, width, found)
-      await paletteAt(page, origin, width, found)
       await deltaUnder(page, origin, server, held, width.name)
       await context.close()
     }
@@ -643,8 +473,8 @@ async function run(axe: Awaited<ReturnType<typeof axeSource>>) {
  * **The phone is the device the person actually holds**, and a page with real
  * figures in it is the one most likely to be wider than 360px or to draw a
  * control too small to hit — a dash fits anywhere. The desk is kept because it
- * has the most on screen. The tablet is left out: the two ends are where it
- * overflows.
+ * draws the agents and the conversation side by side, each scrolling itself.
+ * The tablet is left out: the two ends are where it overflows.
  *
  * **One device, resized**, rather than a pairing per width: the harness pairs
  * exactly five times, which is the server's limit per address in ten minutes,
@@ -662,14 +492,14 @@ async function asGranted(
   const desk = [...WIDTHS].sort((a, b) => b.width - a.width)[0]
   const phone = WIDTHS.find((one) => one.narrow === true)
   if (desk === undefined) return
-  const context = await made.newContext({
+  const context = await contextOf(made, {
     viewport: { width: desk.width, height: desk.height },
   })
   const page = await context.newPage()
   const noise: string[] = []
   page.on('pageerror', (problem: unknown) => noise.push(`threw: ${said(problem)}`))
-  page.on('console', (line: { type: () => string; text: () => string }) => {
-    if (line.type() === 'error') noise.push(`logged: ${line.text().split('\n')[0] ?? ''}`)
+  page.on('console', (line: Logged) => {
+    if (line.type() === 'error') noise.push(loggedOf(line))
   })
   const at = `${desk.name} granted`
   await pairIn(page, origin, tickets.mint(`${origin}/pair`, Date.now()).value, at)
@@ -687,17 +517,12 @@ async function asGranted(
     }
   }
   await lookAll(at)
-  await lanesSeen(page, origin, axe, shots, found)
-  await momentsAt(page, origin, at, found, LIFE.length, AGENT.activity)
-  await wholeAt(page, origin, at, found)
   await chatAt(page, origin, at, arrival(page, server, held), found, heldLines)
   await doingAt(page, origin, at, busyWith(page, server, held), arrival(page, server, held), found)
   if (phone !== undefined && phone !== desk) {
     await page.setViewportSize({ width: phone.width, height: phone.height })
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await lookAll(`${phone.name} granted`)
-    await momentsAt(page, origin, `${phone.name} granted`, found, LIFE.length, AGENT.activity)
-    await wholeAt(page, origin, `${phone.name} granted`, found)
     await chatAt(
       page,
       origin,
@@ -719,20 +544,22 @@ async function asGranted(
 }
 
 /**
- * The controls, for a paired device: every one may act.
+ * The overview's presses, for a paired device: every one may act.
  *
  * **The three things only a browser can answer**, and each is a real failure
  * somebody would otherwise find on a phone:
  *
- * - `controls` — that what the row says may be asked of it is what is drawn,
- *   and that a verb it says cannot be is **absent with its reason beside it**
- *   rather than a dead button or a hole.
+ * - `controls` — that what a card waiting on you says may be asked of it is
+ *   what is drawn, as quick presses a thumb's size, with the command Allow
+ *   would allow whole above them — and that a verb a card says cannot be is
+ *   **absent**, rather than a dead button.
  * - `touch` — that a real tap on a real target does it. A `click()` in a test
  *   runner proves a listener is bound; a pointer event at coordinates proves
  *   the thing is reachable with a thumb.
- * - `typing` — that a refusal leaves what somebody typed where it was. The
- *   `note` verb here always answers `gone`, so this is the one check that
- *   exercises the path, and it is the one failure a person cannot undo.
+ * - `typing` — that the answer to a press outlives the next frame, and that a
+ *   refusal leaves what somebody typed in the composer where it was. Tade here
+ *   answers `REFUSED` with `gone`, so this is the one check that exercises the
+ *   path, and it is the one failure a person cannot undo.
  */
 async function asActing(
   made: Engine,
@@ -743,7 +570,7 @@ async function asActing(
 ) {
   const width = [...WIDTHS].find((one) => one.narrow === true) ?? WIDTHS[0]
   if (width === undefined) return
-  const context = await made.newContext({
+  const context = await contextOf(made, {
     viewport: { width: width.width, height: width.height },
     hasTouch: true,
   })
@@ -757,44 +584,52 @@ async function asActing(
     return
   }
   try {
-    await page.goto(`${origin}/t/sentry/away-projection`, { waitUntil: READY })
-    await page.waitForSelector('main textarea', { timeout: 10_000 })
-    const shape = (await page.evaluate(CONTROLS)) as {
+    await page.goto(`${origin}/`, { waitUntil: READY })
+    await page.waitForSelector(`${CARD} .quick`, { timeout: 10_000 })
+    const shape = (await page.evaluate(CONTROLS(CARD, QUESTION_CARD))) as {
       drawn: string[]
-      reasons: string[]
+      other: string[]
+      command: string
       small: string[]
-      blank: string[]
     }
-    // Against the fixture's own two lists, so this is the page and the
-    // projection held equal rather than the page against a literal.
-    const wanted = ['park', 'steer', 'done', 'note', 'context']
-    const missing = wanted.filter((verb) => !shape.drawn.includes(verb))
-    const extra = shape.drawn.filter((verb) => !wanted.includes(verb))
-    if (missing.length > 0 || extra.length > 0) {
+    // Against the fixture's own lists, so this is the page and the projection
+    // held equal rather than the page against a literal: the card that may be
+    // answered draws every press, and the one that asked a question every
+    // press but the two that answer.
+    const wanted = ['allow', 'deny', 'done', 'park', 'tell']
+    const unanswered = wanted.filter((one) => one !== 'allow' && one !== 'deny')
+    const differs = (drawn: string[], want: string[]) =>
+      drawn.length !== want.length || want.some((one) => !drawn.includes(one))
+    if (differs(shape.drawn, wanted)) {
       found(
         'controls',
         at,
         'fail',
         `drew ${shape.drawn.join(', ') || 'nothing'}; wanted ${wanted.join(', ')}`,
       )
-    } else if (shape.reasons.length < 3) {
-      found('controls', at, 'fail', `only ${shape.reasons.length} of 3 reasons are drawn`)
+    } else if (differs(shape.other, unanswered)) {
+      found(
+        'controls',
+        at,
+        'fail',
+        `a card with nothing to allow drew ${shape.other.join(', ') || 'nothing'}; wanted ${unanswered.join(', ')}`,
+      )
+    } else if (shape.command !== ASKING.approval?.command) {
+      found('controls', at, 'fail', `Allow is drawn under "${shape.command}"`)
     } else if (shape.small.length > 0) {
       found('controls', at, 'fail', `too small to hit: ${shape.small.slice(0, 3).join('; ')}`)
-    } else if (shape.blank.length > 0) {
-      found('controls', at, 'fail', `showing an empty reason: ${shape.blank.join('; ')}`)
     } else {
       found(
         'controls',
         at,
         'pass',
-        `${shape.drawn.length} drawn, ${shape.reasons.length} explained`,
+        `${shape.drawn.length} presses under the command, ${shape.other.length} where nothing waits to be allowed`,
       )
     }
 
-    // A real tap, on the one control that takes no typing.
+    // A real tap, on the one press that takes no second tap and no typing.
     const before = asked.length
-    const press = page.locator('button', { hasText: 'Set this aside' }).first()
+    const press = page.locator(`${CARD} button`, { hasText: 'Set aside' }).first()
     await press.tap()
     await until(page, SAID_SOMETHING)
     const tapped = asked.slice(before)
@@ -804,7 +639,7 @@ async function asActing(
       found('touch', at, 'fail', `a tap asked for ${tapped.map((one) => one.verb).join(', ')}`)
     }
 
-    // The keyboard, on the same control: focused by Tab order and pressed with
+    // The keyboard, on the same press: focused by Tab order and pressed with
     // Enter, which is what a `<button>` owes and a `<div>` with a listener
     // does not.
     const was = asked.length
@@ -813,25 +648,23 @@ async function asActing(
     await page.waitForTimeout(300)
     const keyed = asked.slice(was)
     if (keyed.length === 1 && keyed[0]?.verb === 'park') {
-      found('touch', `${at} keyboard`, 'pass', 'Enter on the focused control asked for one park')
+      found('touch', `${at} keyboard`, 'pass', 'Enter on the focused press asked for one park')
     } else {
       found('touch', `${at} keyboard`, 'fail', `Enter asked for ${keyed.length} acts`)
     }
 
     // **The answer to a press outlives the next frame.** A node carrying both
     // what came of a press and a fact about the harness would have the delta
-    // two seconds later rewrite the second and take the first with it — so
-    // this is asked of `steer`, which is the control with something to say on
-    // every frame, after a wait longer than a beat.
+    // two seconds later rewrite the second and take the first with it — so a
+    // press with a new answer (Deny, after two parks), and then a delta to
+    // the very card it is on.
     const quiet = String(await page.evaluate(STATUS))
-    await page.locator('textarea[aria-label="what to tell its agent"]').first().fill('go on then')
-    await page.locator('button', { hasText: 'Send' }).first().tap()
+    await page.locator(`${CARD} button`, { hasText: 'Deny' }).first().tap()
     await until(page, `${STATUS} !== ${JSON.stringify(quiet)}`)
     const answered = String(await page.evaluate(STATUS))
     // **A real delta, pushed**, because the thing being checked is what a
     // frame does to the answer: nothing in this harness beats, so a wait alone
-    // would pass whatever the page did. The row that moves is the one the
-    // controls are on.
+    // would pass whatever the page did.
     await nudge(server, held, device)
     await until(page, RECEIVED)
     const later = String(await page.evaluate(STATUS))
@@ -841,48 +674,29 @@ async function asActing(
       found('typing', `${at} kept`, 'fail', `"${answered}" became "${later}"`)
     }
 
-    // What somebody typed, against a refusal.
-    const words = 'the fix is in the adapter'
-    const box = page.locator('textarea[aria-label="what to write down"]').first()
-    await box.fill(words)
-    await page.locator('button', { hasText: 'Write it down' }).first().tap()
+    // What somebody typed into the composer, against a refusal.
+    const box = page.locator('main .talk textarea[aria-label="what to say to Tade"]').first()
+    await box.fill(REFUSED)
+    await page.locator('main .talk button.ask-send').first().tap()
     await until(page, SAID_MOVED)
     const kept = await box.inputValue()
-    if (kept === words) {
-      found('typing', at, 'pass', 'a refusal left what was typed where it was')
+    if (kept === REFUSED) {
+      found('typing', at, 'pass', 'a refusal left what was typed in the composer where it was')
     } else {
-      found('typing', at, 'fail', `the box holds "${kept}" after a refusal`)
+      found('typing', at, 'fail', `the composer holds "${kept}" after a refusal`)
     }
   } catch (problem) {
     for (const check of ['controls', 'touch', 'typing']) found(check, at, 'fail', said(problem))
   }
-  // **The command bar, tapped**: this is the one page with a touch screen,
-  // and the keyboard's own check cannot tell a row from what covers it.
-  await paletteTappedAt(page as never, origin, at, found)
   // **The installed shell, on this same device**: pairing is rate limited per
   // address, the five tries are spent, and this is the right phone to ask
   // anyway — narrow, touch, granted (`browser-pwa.ts`).
-  // **Queued work down the side, pressed**, on this same device: it may steer,
-  // so the queue's choices are on its menu (`browser-queue.ts`).
-  await queueAt(page as never, origin, found, asked, QUEUED.id)
   await asPwa({ context, origin, found })
-  // **The Machines page, on this same device**, every paired device being the
-  // person's own, since a sixth pairing would be refused (`browser-machines.ts`).
-  await machinesAt(page as never, origin, found, {
-    machines: (MACHINES.columns ?? []).map((one) => one.machine),
-    rows: MACHINES.rows.map((one) => ({ label: one.label, cells: one.cells.length })),
-  })
-  // **The Accounts page, on the same device**: a tab per machine, each one's
-  // accounts drawn when it is pressed, and both fitting (`browser-accounts.ts`).
-  await accountsAt(page as never, origin, found, {
-    tabs: ['mac · here', 'vps'],
-    accounts: [
-      ['its own sign-in', 'work', 'its own sign-in'],
-      ['its own sign-in', 'deploy-bot'],
-    ],
-  })
   await context.close()
 }
+
+/** The card of the agent that asked a question: waiting on you, with nothing to allow. */
+const QUESTION_CARD = `li.ov-want:has(a[href*="${encodeURIComponent(QUESTION.id)}"])`
 
 /** What `deltaUnder` and `asActing` both need of the listener. */
 interface Served {
@@ -895,10 +709,11 @@ interface Served {
 /**
  * Move the projection under a page, for real, and push the delta.
  *
- * One task's `reason` changes — a field on the very row the controls are on —
- * so what arrives is a patch to a node the page already built, which is the
- * shape every delta has and the shape that would wipe a status node carrying
- * two different kinds of fact.
+ * The card waiting on you that may be answered gets a new reason — a field on
+ * the very card the presses are on — and every working agent is stalled, so
+ * each row of the agents working says something else. What arrives is a patch
+ * to nodes the page already built, which is the shape every delta has and the
+ * shape that would wipe a status node carrying two different kinds of fact.
  */
 async function nudge(
   server: Served,
@@ -908,15 +723,16 @@ async function nudge(
   const made = held.get(device)
   if (made === undefined) throw new Error('no projector for this device')
   const next = input({ talk: harnessTalk(), tasks: TASKS })
-  const first = next.tasks[0]
-  if (first === undefined) throw new Error('no task to move')
   const delta = made.beat(
     {
       ...next,
-      tasks: [
-        { ...first, reason: { kind: 'clause', said: 'moved under your hands' } },
-        ...next.tasks.slice(1),
-      ],
+      tasks: next.tasks.map((one) =>
+        one.id === ASKING.id
+          ? { ...one, reason: { kind: 'clause', said: 'moved under your hands' } }
+          : one.state === 'working'
+            ? { ...one, stalled: true }
+            : one,
+      ),
     },
     NOW + 2_000,
   )
@@ -967,7 +783,7 @@ function arrival(
       input({
         ...(reach === undefined ? {} : { reach }),
         talk: harnessNow(),
-        notes: NOTES,
+        tasks: TASKS,
       }),
       NOW + 2_000 + arrived,
     )
@@ -1011,7 +827,7 @@ function busyWith(
       input({
         ...(reach === undefined ? {} : { reach }),
         talk: { ...talking, busy: true, whose: 'device aa', lines: [...talking.lines, running] },
-        notes: NOTES,
+        tasks: TASKS,
       }),
       NOW + 2_000 + arrived,
     )
@@ -1051,6 +867,42 @@ async function pairIn(page: Page, origin: string, ticket: string, at: string) {
     found('pairing', at, 'pass', 'scanned, named, let in, and the ticket left the address bar')
   } catch (problem) {
     found('pairing', at, 'fail', said(problem))
+  }
+}
+
+/**
+ * A browser with no session, opened at the overview, before anything is paired.
+ *
+ * **It is the pairing screen and nothing else**: no machines, no presses of a
+ * page it cannot read, no *reconnecting* over a stream it never opened and no
+ * *no agent is running* — every one a claim about a machine it never asked,
+ * and together a connection that looks broken when the thing to do is scan
+ * the code.
+ */
+async function unpairedAt(page: Page, origin: string, width: { name: string }) {
+  const where = `no session @ ${width.name}`
+  try {
+    await page.goto(`${origin}/`, { waitUntil: READY })
+    // Attached, not visible: with no ticket in the address the form has
+    // nothing to pair with, so the page draws the one line that says to scan
+    // the code and keeps the field out of sight.
+    await page.waitForSelector('#label', { timeout: 10_000, state: 'attached' })
+    const shape = (await page.evaluate(OUTSIDE)) as { drawn: string[]; words: string; path: string }
+    const claims = ['reconnecting', 'no agent is running', 'not turned on'].filter((one) =>
+      shape.words.toLowerCase().includes(one),
+    )
+    if (shape.path !== '/pair') found('unpaired', where, 'fail', `left at ${shape.path}`)
+    else if (shape.drawn.length > 0) {
+      found('unpaired', where, 'fail', `drawn around the form: ${shape.drawn.join(', ')}`)
+    } else if (claims.length > 0) found('unpaired', where, 'fail', `says ${claims.join('; ')}`)
+    else if (!shape.words.includes('not paired')) found('unpaired', where, 'fail', 'never says so')
+    else found('unpaired', where, 'pass', 'the pairing screen alone, and says it is not paired')
+  } catch (problem) {
+    found('unpaired', where, 'fail', said(problem))
+  } finally {
+    // Away from `/pair`, or the pairing that follows is a fragment changing
+    // under a page that has already read it — no load, and no ticket taken.
+    await page.goto('about:blank')
   }
 }
 
@@ -1100,7 +952,10 @@ async function lookAt(
   }
 
   const shape = (await page.evaluate(SHAPE)) as Shape
-  const missing = ['header', 'nav', 'main'].filter((one) => !shape.landmarks.includes(one))
+  // **No `nav`**: the page has one screen and no navigation (`shell.js`); the
+  // Overview/Full view switch is a `nav` once the machine draws a window to
+  // share, and is not owed.
+  const missing = ['header', 'main'].filter((one) => !shape.landmarks.includes(one))
   if (missing.length > 0 || shape.mains !== 1) {
     found('landmarks', where, 'fail', `missing ${missing.join(', ')}; ${shape.mains} main`)
   } else if (!shape.skip.toLowerCase().includes('skip')) {
@@ -1110,7 +965,7 @@ async function lookAt(
     // reads the page aloud every two seconds.
     found('landmarks', where, 'fail', `${shape.live} live regions`)
   } else {
-    found('landmarks', where, 'pass', 'header, nav, one main, one live region, skip link first')
+    found('landmarks', where, 'pass', 'a header, one main, one live region, skip link first')
   }
 
   // At every width: a desk that scrolled sideways is as broken as a phone.
@@ -1192,26 +1047,26 @@ async function deltaUnder(
 ) {
   const where = `a delta @ ${at}`
   try {
-    // The agents' list, whose rows carry the reason the delta changes: the
-    // overview at a desk hands its own list to the dock and draws cards, so a
-    // list of rows to hold is on this screen at every width.
-    await page.goto(`${origin}/agents`, { waitUntil: READY })
-    await page.waitForSelector('main .rows li a', { timeout: 10_000 })
+    // The overview's agents working, one row each: the delta stalls every
+    // one, so the row being held says something else once it arrives.
+    await page.goto(`${origin}/`, { waitUntil: READY })
+    await page.waitForSelector('main .ov-agents li a', { timeout: 10_000 })
     // Focus the second row and select inside it, which is what a person
     // reading a list on a phone has actually done.
-    const before = (await page.evaluate(HOLD)) as { key: string; words: string }
+    const before = (await page.evaluate(HOLD)) as { key: string; words: string; said: string }
     if (before.key === '') throw new Error('nothing to hold on to on this page')
 
     const device = server.streams.listening()[0]
     if (device === undefined) throw new Error('no stream to push into')
-    // The projection really moves: a task's reason changes, which is a field
-    // on the very row being held.
+    // The projection really moves: the held row's agent stalls, which is what
+    // the row says, and a card's reason changes, which is what is waited on.
     await nudge(server, held, device)
     await until(page, RECEIVED)
 
     const after = (await page.evaluate(HOLD_AGAIN)) as {
       key: string
       words: string
+      said: string
       rows: number
     }
     if (after.key !== before.key) {
@@ -1220,6 +1075,10 @@ async function deltaUnder(
     }
     if (after.words !== before.words) {
       found('delta', where, 'fail', `the selection went: "${before.words}" to "${after.words}"`)
+      return
+    }
+    if (after.said === before.said) {
+      found('delta', where, 'fail', `the held row still says "${after.said}" after the delta`)
       return
     }
     found('delta', where, 'pass', `${after.rows} rows redrawn, focus and selection kept`)

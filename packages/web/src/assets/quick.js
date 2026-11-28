@@ -1,27 +1,26 @@
-// The presses on a card: what a device may ask for, a thumb's reach from the
-// overview.
+// The presses on a card: the answers to an agent waiting on you, a thumb's
+// reach from the overview.
 //
-// **The same acts as the task's own page, and nothing else.** Each press is a
-// verb out of `acts.js` — `controlsFor` decides whether it is drawn,
-// `bodyFor` what it sends, `afterAnswer` what came of it — so a card cannot
-// offer what the task's page would not, and the machine re-asks the setting,
+// **The window's acts, and nothing else.** Each press is a verb out of
+// `acts.js` — `controlsFor` decides whether it is drawn, `bodyFor` what it
+// sends, `afterAnswer` what came of it — and the machine re-asks the setting,
 // the origin, the passkey and the state at the act whatever the card said. A
-// verb this device cannot ask for is **absent**; a verb the world
-// cannot do right now is absent too, because its reason is the task's page's
-// to give in full, one tap away.
+// verb this device cannot ask for is **absent**; a verb the world cannot do
+// right now is absent too, because its reason is the window's to give in
+// full, one tap away in the full view.
 //
 // Four presses and a link: allow and deny what an agent is waiting on, mark it
 // finished (two taps, as everywhere — finishing starts whatever waited on it),
-// set it aside or pick it back up, and *Tell* — which goes to the task's page,
-// because telling an agent something is a sentence and a card is no place to
-// write one. **Allow is never blind**: above it, whole, the command it allows,
+// set it aside or pick it back up, and *Tell* — which opens the agent in the
+// full view (`agentPath`), because telling an agent something is a sentence
+// typed into its own lane and a card is no place to write one. **Allow is never blind**: above it, whole, the command it allows,
 // which the machine sends only to a device that may answer (`ANSWERING`).
 
 import { afterAnswer, bodyFor, confirms, controlsFor } from './acts.js'
 import { keyOf } from './controls.js'
 import { classOn, el, felt, into, textIn } from './dom.js'
 import { icon } from './icons.js'
-import { taskPath } from './routes.js'
+import { agentPath } from './routes.js'
 import { THERE_VERBS } from './there.js'
 import { answerIn, command, commandIn } from './ui.js'
 
@@ -43,13 +42,8 @@ export function quickWord(verb, row, asked = false) {
   }
 }
 
-/**
- * `tell: false` on the task's own page, where telling its agent is the box a
- * little further down rather than a link back to the page it is on, and
- * `command: false` where the page draws the command itself.
- */
+/** `command: false` where the page draws the command itself. */
 export function quickActs(ctx, opts = {}) {
-  const offersTell = opts.tell !== false
   const node = el('div', { class: 'quick' })
   const toRun = opts.command === false ? null : command()
   toRun?.classList.add('quick-command')
@@ -119,8 +113,8 @@ export function quickActs(ctx, opts = {}) {
       deny.hidden = !yes('answer')
       done.hidden = !yes('done')
       park.hidden = !yes('park')
-      tell.hidden = !offersTell || !yes('steer')
-      tell.setAttribute('href', taskPath(task.id))
+      tell.hidden = !yes('steer')
+      tell.setAttribute('href', agentPath(task.id, ctx.machine ?? ''))
       if (toRun !== null) commandIn(toRun, yes('answer') ? (task.approval?.command ?? null) : null)
       for (const one of presses.values()) {
         if (one.press.classList.contains('asked')) continue

@@ -266,6 +266,31 @@ export class FarFace {
   }
 
   /**
+   * An agent opened from the overview (`/draw/?agent=`, §10 T5 of the Duo
+   * plan): exactly what a tap on its row in the sidebar does — looked at here
+   * at once, and what only the machine can answer (another machine's agent, or
+   * one whose session has to be resumed) sent as that row's click. Nothing
+   * where no pane is that agent, which the page says.
+   */
+  open(task: string): FarPress {
+    const state = this.state()
+    if (state === null || !state.panes.some((one) => one.task === task)) return NOTHING
+    const target: Target = { kind: 'task', task }
+    const click = (looked: boolean): FarPress => ({
+      intents: [{ kind: 'click', target, button: 'left', at: { x: 0, y: 0, cell: 0, clicks: 1 } }],
+      looked,
+      draw: looked,
+    })
+    const moved = movedBy(state, target)
+    if (moved === null) return click(false)
+    const pane = moved.panes.find((one) => one.task === task)
+    if (pane && !pane.queued && !pane.lane && pane.state !== 'parked') {
+      return click(this.become(moved, state))
+    }
+    return { intents: [], looked: this.become(moved, state), draw: true }
+  }
+
+  /**
    * A swipe over the cell at `x`, `y`: `rows` lines through the one move
    * every surface makes (`scrollBy`), against what the region under it was
    * last drawn as. Positive is further down, as a notch of the wheel is.

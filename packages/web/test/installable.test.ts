@@ -335,7 +335,12 @@ describe('the real folder', () => {
     // chips (about 3.1 KB: `everyMachine` and the chips in `there.js`, their
     // words in `machines.js`, the side's other machines, a review two
     // machines have drawn once) took it from 478.68 at 14ebd633 to 481.76.
-    expect(wire).toBeLessThan(483 * 1024)
+    // **160 since the overview was cut down to the basics and the
+    // orchestrator** (§10 T5 of the Duo plan): every other page, its sheet,
+    // the menu, the side, the dock, the command bar and the toasts went, each
+    // a panel of the window in the full view now, which took it from 477.89
+    // at adb37d4d to 156.46. It goes up again only with an argument.
+    expect(wire).toBeLessThan(160 * 1024)
     // And the files as they sit, which is what a browser holds once it has
     // them: about a megabyte, with the comments every module carries. 768
     // until the pages were redrawn one at a time, each 40–90 KB as it sits.
@@ -403,7 +408,8 @@ describe('the real folder', () => {
     // 14ebd633, until every list page drew every machine's rows under the
     // machine chips (10 KB as it sits: one wrapper the seven list pages share
     // rather than seven, the chips, the side's other machines and
-    // `reviewsOnce`) took it to 1542.50.
-    expect(raw).toBeLessThan(1544 * 1024)
+    // `reviewsOnce`) took it to 1542.50. 450 since the overview was cut down
+    // to the basics and the orchestrator, which took it to 445.36.
+    expect(raw).toBeLessThan(450 * 1024)
   })
 })

@@ -1,6 +1,6 @@
 /*
-  The screens: tiles and charts, rows, cards, the queue's connectors, the
-  tables, the figures, somebody's own words, and the controls.
+  The screen's pieces: rows, cards, the figures, somebody's own words, and
+  the controls.
 
   Three rules, and the drawing is downstream of all three.
 
@@ -22,40 +22,6 @@
 
   `frame.css` is what this is drawn inside.
 */
-
-/* ── the project sub-navigation: scrollable, never collapsed into `+3 more` ── */
-
-/* Tabs as a desk draws them: words along a hairline, an amber line under the one you are on. */
-.tabstrip {
-  display: flex;
-  gap: var(--s5);
-  margin-block-end: var(--s5);
-  border-block-end: var(--border);
-  overflow-x: auto;
-  scroll-snap-type: x proximity;
-}
-
-.tabstrip a {
-  flex: 0 0 auto;
-  scroll-snap-align: start;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s2);
-  min-height: var(--tap);
-  padding-inline: 0;
-  color: var(--tab);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.tabstrip a[aria-current="page"] {
-  color: var(--amber);
-  box-shadow: inset 0 -2px 0 var(--amber);
-}
-
-.tabstrip a:hover {
-  color: var(--bright);
-}
 
 /* ── rows ──────────────────────────────────────────────────────────────────── */
 
@@ -267,112 +233,6 @@
 
 .t-quiet {
   color: var(--quiet);
-}
-
-/* ── the queue: a row each, and what it waits on beside it ───────────────── */
-
-/*
-  A dependency graph at 390px is unreadable and a list is not. Each piece of
-  queued work is one row — its mark, its name, and what it waits on in quiet
-  words after it (under it on a phone) — and a second thing it waits on is a
-  second quiet line, not a drawn edge.
-*/
-.queue > li {
-  display: grid;
-  grid-template-columns: auto 1rem minmax(0, 1fr) auto;
-  gap: 2px var(--s3);
-  align-items: center;
-  padding: var(--s2) var(--s4);
-  min-height: calc(var(--tap) + var(--s2));
-}
-
-.queue > li + li {
-  border-block-start: var(--border);
-}
-
-.queue .order {
-  font-variant-numeric: tabular-nums;
-  color: var(--heading);
-  font-size: var(--step--1);
-  text-align: end;
-}
-
-.queue .waits {
-  grid-column: 3 / -1;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  /* A grid item is as wide as its longest word unless told otherwise, and a
-     task id is one long word: at 360px, with the reason beside it, the row
-     pushed the page 18px wider than the screen. */
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: var(--heading);
-  font-size: var(--step--1);
-}
-
-.queue .wait {
-  display: block;
-  padding: 0;
-}
-
-/* The window's connector glyph is for a terminal; here the line itself says it. */
-.queue .waits .edge {
-  display: none;
-}
-
-/* ── tables: checks and spend, the only things allowed wider than the page ─── */
-
-.scrolls {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--step-0);
-}
-
-caption {
-  text-align: start;
-  color: var(--heading);
-  font-size: var(--step--1);
-  padding: var(--s3) var(--s4) var(--s2);
-}
-
-th,
-td {
-  text-align: start;
-  padding: var(--s3) var(--s4) var(--s3) 0;
-  border-block-end: var(--border);
-  white-space: nowrap;
-}
-
-th:first-child,
-td:first-child {
-  padding-inline-start: var(--s4);
-}
-
-tr:last-child td {
-  border-block-end: 0;
-}
-
-/* A column's name: small and quiet, ruled off from the rows. */
-th {
-  color: var(--heading);
-  font-size: var(--step--1);
-  font-weight: var(--w-label);
-}
-
-tbody tr:hover td {
-  background: var(--surface);
-}
-
-td.figure,
-th.figure {
-  text-align: end;
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
 }
 
 /* ── figures ───────────────────────────────────────────────────────────────── */
@@ -700,49 +560,6 @@ select {
   flex: 0 0 auto;
 }
 
-/* ── the key sheet, shown by `?` ───────────────────────────────────────────── */
-
-.sheet {
-  position: fixed;
-  inset: auto var(--s4) calc(var(--s7) + var(--s6) + env(safe-area-inset-bottom)) var(--s4);
-  z-index: 7;
-  max-width: 24rem;
-  margin-inline: auto;
-  padding: var(--s4);
-  border-radius: var(--r4);
-  background: var(--panel);
-  border: 1px solid var(--control);
-  box-shadow: var(--lift);
-}
-
-.sheet dl {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--s2) var(--s4);
-  margin: 0;
-}
-
-.sheet dt {
-  font-family: var(--font-mono);
-  color: var(--pressed);
-}
-
-.sheet dd {
-  margin: 0;
-  color: var(--heading);
-  font-size: var(--step--1);
-}
-
-/*
-  **Rows dim; they do not change.** An age counting up against a snapshot
-  nothing can refresh is the lie this whole mode exists to prevent, so the ages
-  freeze and gain the moment they were last true (`figures.js`), the rows go to
-  60%, and nothing becomes nought.
-*/
-.held main {
-  opacity: 0.6;
-}
-
 /* ── empty, unknown, error, loading ────────────────────────────────────────── */
 
 /* A reason, a status, a word under a control: quiet, never a blank. */
@@ -839,4 +656,130 @@ select {
 /* Last, as it outranks rules above (`noDescendingSpecificity`): a row with presses keeps its own hairline. */
 .agent-list > li.with-acts + li.with-acts > a {
   border-block-start: 0;
+}
+
+/* ── a card's presses (`quick.js`) ───────────────────────────────────────── */
+
+/* The presses on a row, above its stretched link. */
+.quick {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-block-start: var(--s1);
+  padding-inline-start: calc(1rem + var(--s3));
+}
+
+.quick-command {
+  flex: 1 0 100%;
+}
+
+.quick-said {
+  flex: 1 0 100%;
+  color: var(--body);
+  font-size: var(--step--1);
+}
+
+/* ── the last view a device kept (`offline.js`) ────────────────────────────── */
+
+.page-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-block: var(--s2) var(--s5);
+}
+
+.page-head h1 {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--step-2);
+  letter-spacing: var(--tight);
+  color: var(--bright);
+  overflow-wrap: anywhere;
+}
+
+.tiles {
+  display: grid;
+  gap: var(--s3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/*
+  A tile: its icon and word small along the top, the figure set large, and a
+  line under it saying what the figure is made of. The whole tile is the link
+  to where the rest of it is, a step lighter under the pointer.
+*/
+.tile {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: var(--s1);
+  min-height: 7rem;
+  padding: var(--s4);
+  overflow: hidden;
+}
+
+main a.tile {
+  display: grid;
+}
+
+.tile-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--heading);
+  font-size: var(--step--1);
+  font-weight: var(--w-label);
+}
+
+.tile-ic {
+  display: grid;
+  place-items: center;
+  color: var(--tab);
+}
+
+.tile-ic .ic {
+  width: 1rem;
+  height: 1rem;
+}
+
+.tile-figure {
+  margin-block-start: var(--s2);
+  font-size: var(--step-3);
+  font-weight: var(--w-strong);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tight);
+  line-height: 1.1;
+  color: var(--bright);
+}
+
+.tile-under {
+  min-width: 0;
+  color: var(--heading);
+  font-size: var(--step--1);
+  overflow-wrap: anywhere;
+}
+
+/* A figure that is somebody's to act on wears its tone: its icon and its number. */
+
+/* The screen a cold open with nothing answering draws, from what was kept. */
+.last-seen {
+  display: grid;
+  gap: var(--s4);
+  max-width: 48rem;
+}
+
+.last-seen .tile {
+  min-height: 0;
+}
+
+/*
+  The tiles go to three across and then six by the room **the work** has, not
+  the window: at a desk the dock takes a third of the width, and six tiles in
+  what is left would be six slivers. So it is a container query on `main`
+  rather than a breakpoint.
+*/
+main {
+  container-type: inline-size;
 }

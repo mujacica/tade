@@ -347,7 +347,6 @@ const ALLOWED: Record<string, number> = {
   'packages/web/src/asked.ts': 1,
   'packages/web/src/assets.ts': 1,
   'packages/web/src/assets/boot.js': 8,
-  'packages/web/src/assets/docks.js': 2,
   'packages/web/src/assets/dom.js': 1,
   // Three of these are still the finding on tade/away-pwa-shell: `reg.update()`'s
   // catch, which says nothing whatever the update failed on, and both of
@@ -359,7 +358,6 @@ const ALLOWED: Record<string, number> = {
   // `pushState` and the `registered()` it reads both turn a browser that would
   // not answer into `off`, which is not knowing drawn as an answer.
   'packages/web/src/assets/push.js': 6,
-  'packages/web/src/assets/routes.js': 2,
   'packages/web/src/assets/sw.js': 1,
   'packages/web/src/assets/switch.js': 1,
   'packages/web/src/configured.ts': 1,

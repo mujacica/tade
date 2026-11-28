@@ -7,20 +7,11 @@
 // (`seenSaid` in `@tade/core`), held equal by `test/machines-client.test.ts`.
 
 import { shortClockOf } from './figures.js'
-import {
-  agentsOf,
-  emptyStore,
-  findingsUnanswered,
-  intakeWaiting,
-  omitted,
-  queuedHere,
-  rowsOf,
-  wantsYou,
-} from './store.js'
+import { wantsYou } from './store.js'
 
 /** Every machine, the ones that are not up first, then by name. */
 export function machinesOf(store) {
-  const rows = Array.isArray(store?.machines) ? store.machines : []
+  const rows = seenIn(store)
   return [...rows].sort(
     (a, b) =>
       Number(a.state === 'up') - Number(b.state === 'up') ||
@@ -38,25 +29,6 @@ export function machineSaid(row) {
   return `lost ${at} — no goodbye: asleep, or off the network`
 }
 
-/** Which way it is linked, as a word under its name. */
-export function machineWay(row) {
-  if (row.way === 'here') return 'the one this page is talking to'
-  return row.way === 'to' ? 'this machine links to it' : 'it links to this machine'
-}
-
-/**
- * What the person does about a machine that is not up, in a few words — or
- * null for one that is. A goodbye is Tade closed there; a sleep wakes on its
- * own; a silence is a machine off or off the network, and the link comes back
- * by itself once it answers.
- */
-export function machineFix(row) {
-  if (row.state === 'closed') return 'To fix: open Tade there — tade app, or tade serve'
-  if (row.state === 'asleep') return 'To fix: wake it; its work carries on'
-  if (row.state === 'lost') return 'To fix: check it is on and online; it relinks by itself'
-  return null
-}
-
 /** The tone a state is drawn in: up is calm, a goodbye is quiet, a silence is a warning. */
 export function machineTone(row) {
   if (row.state === 'up') return 't-done'
@@ -64,278 +36,47 @@ export function machineTone(row) {
   return ''
 }
 
-/* ── what each machine is doing ────────────────────────────────────────────── */
-
-// Each machine's own figures (`host` on the snapshot for this one, on its row
-// for the others): its processors, memory and disk, what Tade uses of it, and
-// a trail for a sparkline. **What a machine cannot say is a dash, never
-// nought**, and a machine that never said any — an older Tade there — says so
-// in a line rather than three empty tiles. The words for sizes are the
-// window's own (`megabytes` and `room` in `@tade/extension-resources`).
-
-/** This machine, as the page draws it beside the others: first, and up while the page hears it. */
-export function hereOf(store) {
-  const host = store?.host
-  if (host === null || typeof host !== 'object') return null
-  return { name: 'This machine', way: 'here', state: 'up', since: null, host }
-}
-
-const isNumber = (value) => typeof value === 'number' && Number.isFinite(value)
-
-/** Bytes of memory as the window says them: `840 MB`, `22.1 GB`. */
-export function megabytesSaid(bytes) {
-  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`
-  return `${Math.round(bytes / 1024 ** 2)} MB`
-}
-
-/** Bytes of disk as the window says them: `112 GB`, `5.0 GB`, `1.2 TB`. */
-export function roomSaid(bytes) {
-  if (bytes >= 1024 ** 4) return `${(bytes / 1024 ** 4).toFixed(1)} TB`
-  if (bytes >= 10 * 1024 ** 3) return `${Math.round(bytes / 1024 ** 3)} GB`
-  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`
-  return `${Math.round(bytes / 1024 ** 2)} MB`
-}
-
-/** A share of a core or of a whole as the window says it: `91%`, `2.5%`. */
-export function percentSaid(value) {
-  return value >= 10 ? `${Math.round(value)}%` : `${value.toFixed(1)}%`
-}
-
-/** How worrying a share used is: past nine tenths tight, past three quarters warm. */
-const pressureOf = (used) => (used >= 90 ? 'tight' : used >= 75 ? 'warm' : 'fine')
-
 /**
- * A machine's figures in words, for its three tiles and its line about Tade —
- * or null where it has said none. Pure: a host in, words out.
+ * Each machine's up or down, as the header draws it: the machine this page
+ * talks to first — up while the page hears it (`live`), the one row nothing
+ * on the snapshot can say — then every other one it has seen, in
+ * `machinesOf`'s order. `{ key, name, up, said, short, tone }`: `short` is
+ * what the header has room for — `lost 16:20` — and `said` the whole sentence,
+ * which is its label.
  */
-export function figuresOf(host) {
-  if (host === null || typeof host !== 'object') return null
-  const cpu = isNumber(host.cpu) ? host.cpu : null
-  const memory =
-    host.memory && isNumber(host.memory.used) && host.memory.total > 0 ? host.memory : null
-  const disk = host.disk && isNumber(host.disk.free) && host.disk.total > 0 ? host.disk : null
-  const memoryShare = memory ? (memory.used / memory.total) * 100 : null
-  const diskUsed = disk ? 100 - (disk.free / disk.total) * 100 : null
-  // Under a tenth free is the strip's warning too (`DISK_LOW`), and said in words.
-  const diskLow = disk !== null && disk.free / disk.total < 0.1
-  const cpuUnder = [
-    isNumber(host.load) ? `load ${host.load.toFixed(2)}` : null,
-    isNumber(host.cores) ? `${host.cores} ${host.cores === 1 ? 'core' : 'cores'}` : null,
-  ].filter(Boolean)
-  const tade = host.tade
-  return {
-    cpu: {
-      label: 'CPU',
-      said: cpu === null ? '—' : `${Math.round(cpu)}%`,
-      under: cpuUnder.length > 0 ? cpuUnder.join(' · ') : 'cannot say',
-      pressure: cpu === null ? 'fine' : pressureOf(cpu),
-      trail: Array.isArray(host.trail?.cpu) ? host.trail.cpu : [],
-    },
-    memory: {
-      label: 'Memory',
-      said: memoryShare === null ? '—' : `${Math.round(memoryShare)}%`,
-      under: memory
-        ? `${megabytesSaid(memory.used)} of ${megabytesSaid(memory.total)}`
-        : 'cannot say',
-      pressure: memoryShare === null ? 'fine' : pressureOf(memoryShare),
-      trail: Array.isArray(host.trail?.memory) ? host.trail.memory : [],
-    },
-    disk: {
-      label: 'Disk',
-      said: disk ? `${roomSaid(disk.free)} free` : '—',
-      under: disk
-        ? [
-            `of ${roomSaid(disk.total)}`,
-            disk.volumes > 1 ? `fullest of ${disk.volumes}` : null,
-            diskLow ? 'running out' : null,
-          ]
-            .filter(Boolean)
-            .join(' · ')
-        : 'cannot say',
-      pressure: disk === null ? 'fine' : diskLow ? 'tight' : diskUsed >= 80 ? 'warm' : 'fine',
-      used: diskUsed,
-    },
-    tade:
-      tade && isNumber(tade.cpu) && isNumber(tade.memory)
-        ? `Tade and its agents: ${percentSaid(tade.cpu)} CPU · ${megabytesSaid(tade.memory)} · ${tade.processes} ${tade.processes === 1 ? 'process' : 'processes'}`
-        : 'Tade and its agents: —',
-    at: typeof host.at === 'string' ? host.at : null,
+export function machinesUpOf(store, live) {
+  const here = {
+    key: '',
+    name: 'This machine',
+    up: live,
+    said: live ? 'up' : 'not answering this page',
+    short: live ? 'up' : 'not answering',
+    tone: live ? 't-done' : 't-wants',
   }
-}
-
-/** What is said of a machine with no figures: why there are none. */
-export function noFiguresSaid(row) {
-  if (row.way === 'here') return 'Figures: — this machine has not looked yet'
-  return 'Figures: — it has not said any; an older Tade there says none'
-}
-
-/** Under figures that are not current — a machine not up — when they were. */
-export function figuresAsOf(row, figures) {
-  if (row.state === 'up' || figures?.at == null) return null
-  return `as of ${shortClockOf(figures.at)}, when it last said them`
-}
-
-/* ── what a machine that is not up was doing ──────────────────────────────── */
-
-// A machine that is not up is drawn as of its last word, in words read off
-// what it said of itself (`fresh.detach`), never *working* (add-away-surface).
-
-/** Its agents that were working at its last word, out of its copy. */
-export function wasWorking(copy) {
-  const tasks = copy?.rows?.tasks
-  if (!(tasks instanceof Map)) return []
-  return [...tasks.values()].filter((task) => task.mark === 'working')
-}
-
-/** What became of an agent that was working there, in words — or null where the machine is up. */
-export function wasDoingSaid(row, copy) {
-  if (row.state === 'up' || copy == null) return null
-  const at = shortClockOf(row.since)
-  const outlives = copy.fresh?.detach
-  if (outlives === false) {
-    return `stopped with the window, ${at} — reopens when ${row.name}’s window opens`
-  }
-  if (outlives === true) return `was working at ${at}; may have moved on`
-  return `was working at ${at}, as of its last word`
-}
-
-/** The card's one line about its work: `closed 14:02 · 3 agents were working` — or null where it is up. */
-export function lastWordSaid(row, copy) {
-  if (row.state === 'up' || copy == null) return null
-  const state = stateWord(row)
-  const n = wasWorking(copy).length
-  if (n === 0) return `${state} · nothing was working`
-  const agents = n === 1 ? '1 agent was working' : `${n} agents were working`
-  const outlives = copy.fresh?.detach
-  if (outlives === false) return `${state} · ${agents}; they reopen when its window opens`
-  if (outlives === true) return `${state} · ${agents}; they may have moved on`
-  return `${state} · ${agents}`
-}
-
-/* ── every other machine's agents ──────────────────────────────────────────── */
-
-/** Each other machine with an agent in its copy, by name — out of its own store, never one merged list. */
-export function agentsElsewhere(store) {
-  const seen = new Map(seenIn(store).map((row) => [row.name, row]))
-  const out = []
-  for (const [machine, copy] of copiesIn(store)) {
-    const agents = agentsOf(copy)
-    if (agents.length === 0) continue
-    const row = seen.get(machine) ?? null
-    const up = row?.state === 'up'
-    const at = typeof copy.fresh?.at === 'string' ? Date.parse(copy.fresh.at) : Number.NaN
-    out.push({
-      machine,
-      up,
-      asOf: Number.isNaN(at) ? null : at,
-      said: up
-        ? null
-        : row === null
-          ? `as of ${shortClockOf(copy.fresh?.at ?? null)}`
-          : lastWordSaid(row, copy),
-      working: up || row === null ? null : wasDoingSaid(row, copy),
-      agents,
-    })
-  }
-  return out.sort((a, b) => byName(a.machine, b.machine))
-}
-
-/** What wants the person on every other machine that is up, in its own order, by machine name. */
-export function wantsElsewhere(store) {
-  const up = new Set(
-    seenIn(store)
-      .filter((row) => row.state === 'up')
-      .map((row) => row.name),
-  )
-  return [...copiesIn(store)]
-    .filter(([machine]) => up.has(machine))
-    .sort(([a], [b]) => byName(a, b))
-    .flatMap(([machine, copy]) => wantsYou(copy).map((task) => ({ machine, task })))
-}
-
-/**
- * How many things want the person on every machine that is up, this one
- * included, whatever the chips pick: the app icon's badge. It sits outside the
- * page, so it follows no view filter, and it counts what NEEDS YOU draws under
- * All, so a home screen never reads calm while another machine is waiting.
- */
-export function wantsAnywhere(store) {
-  return wantsYou(store).length + wantsElsewhere(store).length
-}
-
-/* ── one other machine's screen ───────────────────────────────────────────── */
-
-/** What `/m/<machine>/…` is drawn from: its copy, its clock, whether it is up, and the line over it. */
-export function thereOf(store, machine, live, now) {
-  const copy = copiesIn(store).get(machine) ?? null
-  const row = seenIn(store).find((one) => one.name === machine) ?? null
-  const up = row?.state === 'up'
-  if (copy === null) {
-    const none = emptyStore()
-    none.had = store?.had === true
-    return {
-      store: none,
-      asOf: now,
-      frozen: false,
-      up,
-      line: `${machine} · nothing of it is held here — it was never heard, or this device is not sent the other machines`,
-    }
-  }
-  const said = typeof copy.fresh?.at === 'string' ? Date.parse(copy.fresh.at) : Number.NaN
-  const running = up && live
-  const asOf = running || Number.isNaN(said) ? now : said
-  const as = Number.isNaN(said) ? '' : ` · as of ${shortClockOf(copy.fresh.at)}`
-  const state = row === null ? null : stateWord(row)
-  const line = `${machine}${state === null ? '' : ` · ${state}`}${running ? '' : as}`
-  return { store: copy, asOf, frozen: !running && !Number.isNaN(said), up, line }
-}
-
-/* ── the machine chips ─────────────────────────────────────────────────────── */
-
-/** This machine, as a chip and a pick; `null` is All. */
-export const HERE = ''
-
-/** The pick as it stands: one gone from the chips is All again. */
-export function pickedIn(store, picked) {
-  if (picked === null || picked === HERE) return picked
-  return namesIn(store).includes(picked) ? picked : null
-}
-
-/** Whether `machine`'s rows are drawn under the pick (`null` is this machine). */
-export const drawsOf = (picked, machine) => picked === null || picked === (machine ?? HERE)
-
-/** All · This machine · each other by name, its state in its tone and words — none where only this one is. */
-export function chipsOf(store, picked) {
-  const names = namesIn(store)
-  if (names.length === 0) return []
-  const on = pickedIn(store, picked)
-  const chip = (key, label, row) => ({
-    key,
-    label,
-    tone: row === undefined ? '' : machineTone(row),
-    said: row === undefined ? null : row.state === 'up' ? 'up' : stateWord(row),
-    on: on === key,
-  })
   return [
-    chip(null, 'All'),
-    { ...chip(HERE, 'This machine'), tone: 't-done', said: 'up' },
-    ...names.map((name) =>
-      chip(
-        name,
-        name,
-        seenIn(store).find((row) => row.name === name),
-      ),
-    ),
+    here,
+    ...machinesOf(store).map((row) => ({
+      key: `@${row.name}`,
+      name: row.name,
+      up: row.state === 'up',
+      said: row.state === 'up' ? 'up' : machineSaid(row),
+      short: row.state === 'up' ? 'up' : `${row.state} ${shortClockOf(row.since)}`,
+      tone: machineTone(row),
+    })),
   ]
 }
 
+/* ── every machine's rows on one page ──────────────────────────────────────── */
+
+/** This machine, as a store's machine; another is its name. */
+export const HERE = ''
+
 /**
- * Each store the pick draws, this machine's first and then each other's copy
- * by name: `{ machine, store, up }`, this machine always up. A count the page
- * draws beside the pick folds over these, as its screens draw them.
+ * Each store the overview draws, this machine's first and then each other's
+ * copy by name: `{ machine, store, up }`, this machine always up. `picked`
+ * narrows it to one machine (`HERE` this one); `null` is every machine.
  */
-export function storesDrawn(store, picked) {
-  const pick = pickedIn(store, picked)
+export function storesDrawn(store, picked = null) {
   const up = new Set(
     seenIn(store)
       .filter((row) => row.state === 'up')
@@ -344,88 +85,29 @@ export function storesDrawn(store, picked) {
   const copies = copiesIn(store)
   return [
     { machine: HERE, store, up: true },
-    ...namesIn(store).map((machine) => ({
+    ...[...copies.keys()].sort(byName).map((machine) => ({
       machine,
       store: copies.get(machine),
       up: up.has(machine),
     })),
-  ].filter((one) => drawsOf(pick, one.machine))
+  ].filter((one) => picked === null || picked === one.machine)
+}
+
+/** What wants the person on every other machine that is up, in its own order, by machine name. */
+export function wantsElsewhere(store) {
+  return storesDrawn(store)
+    .filter((one) => one.machine !== HERE && one.up)
+    .flatMap((one) => wantsYou(one.store).map((task) => ({ machine: one.machine, task })))
 }
 
 /**
- * The counts beside the navigation for the machines the chips pick, each what
- * its page draws under that pick: what wants you only where a machine is up
- * (as NEEDS YOU, `wantsElsewhere`), a review two machines have once
- * (`reviewsOnce`), and workflows this machine's alone, its page being only that.
+ * How many things want the person on every machine that is up, this one
+ * included: the app icon's badge. It sits outside the page, so it counts what
+ * the overview draws under *Waiting on you*, and a home screen never reads
+ * calm while another machine is waiting.
  */
-export function navCountsOf(store, picked) {
-  const drawn = storesDrawn(store, picked)
-  const sum = (count, among = drawn) => among.reduce((n, one) => n + count(one.store), 0)
-  const once = reviewsOnce(drawn).map((one) => ({ store: one }))
-  return {
-    wantsYou: sum(
-      (one) => wantsYou(one).length,
-      drawn.filter((one) => one.up),
-    ),
-    agents: sum((one) => agentsOf(one).length),
-    queue: sum((one) => queuedHere(one).length + omitted(one, 'queue')),
-    intake: sum((one) => intakeWaiting(one).length),
-    runs: sum((one) => one.rows.runs.size + omitted(one, 'runs')),
-    workflows: store.rows.workflows.size + omitted(store, 'workflows'),
-    reviews: sum((one) => rowsOf(one, 'tasks').filter((task) => task.review !== null).length, once),
-    findings: sum((one) => findingsUnanswered(one).length),
-    notes: sum((one) => one.rows.notes.size + omitted(one, 'notes')),
-  }
-}
-
-// A machine whose copy the page does not hold has no rows to pick: its card says why.
-const namesIn = (store) => [...copiesIn(store).keys()].sort(byName)
-
-/**
- * Each machine's store, a review two of them have drawn once: by its forge
- * link, on the first machine drawn that has it, the later ones' tasks named
- * under it (`alsoOn`) and left out of theirs. A store changes only if it has to.
- */
-export function reviewsOnce(drawn) {
-  const first = new Map()
-  const out = drawn.map(() => ({ drop: new Set(), also: new Map() }))
-  drawn.forEach(({ machine, store }, at) => {
-    for (const task of store.rows.tasks.values()) {
-      const url = task.review?.url
-      if (typeof url !== 'string') continue
-      const held = first.get(url)
-      if (held === undefined) {
-        first.set(url, { at, id: task.id })
-        continue
-      }
-      // Two tasks of one machine on one review are drawn as they always were.
-      if (held.at === at) continue
-      out[at].drop.add(task.id)
-      const also = out[held.at].also
-      also.set(held.id, [
-        ...(also.get(held.id) ?? []),
-        `${machine === HERE ? 'this machine' : machine}’s ${task.id}`,
-      ])
-    }
-  })
-  return drawn.map(({ store }, at) => {
-    const { drop, also } = out[at]
-    if (drop.size === 0 && also.size === 0) return store
-    const tasks = new Map()
-    for (const [id, task] of store.rows.tasks) {
-      if (drop.has(id)) continue
-      tasks.set(id, also.has(id) ? { ...task, alsoOn: also.get(id) } : task)
-    }
-    return { ...store, rows: { ...store.rows, tasks } }
-  })
-}
-
-/** A machine's state in two or three words: `closed 14:02`. */
-function stateWord(row) {
-  const at = shortClockOf(row.since)
-  if (row.state === 'up') return `up since ${at}`
-  if (row.state === 'asleep') return `asleep since ${at}`
-  return `${row.state} ${at}`
+export function wantsAnywhere(store) {
+  return wantsYou(store).length + wantsElsewhere(store).length
 }
 
 const copiesIn = (store) => (store?.copies instanceof Map ? store.copies : new Map())
