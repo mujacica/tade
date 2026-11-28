@@ -238,7 +238,7 @@ function queueRow(item: QueueIn, budget: Budget): QueueRow {
   }
 }
 
-function findingRow(found: FindingIn, budget: Budget): FindingRow {
+function findingRow(found: FindingIn): FindingRow {
   return {
     key: found.key,
     question: found.question,
@@ -249,14 +249,7 @@ function findingRow(found: FindingIn, budget: Budget): FindingRow {
     file: found.file,
     stillThere: found.stillThere,
     accounted: found.account !== null,
-    account:
-      found.account === null
-        ? null
-        : {
-            did: found.account.did,
-            said: textOf(found.account.said, budget.text),
-            at: found.account.at,
-          },
+    account: found.account === null ? null : { did: found.account.did, at: found.account.at },
     verdict: found.verdict === null ? null : { was: found.verdict.was, at: found.verdict.at },
   }
 }
@@ -665,7 +658,7 @@ export function snapshotOf(
     queue: queuePage.rows.map((item) => queueRow(item, budget)),
     findings: [...findingPage.rows]
       .sort((a, b) => byText(a.key, b.key))
-      .map((found) => findingRow(found, budget)),
+      .map((found) => findingRow(found)),
     notes: [...notePage.rows].sort((a, b) => byText(a.id, b.id)),
     plans: planPage.rows.map((one) => planRow(one, budget)),
     // Back into the order they were said in: the budget chose from the end,

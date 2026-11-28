@@ -435,13 +435,8 @@ export const FindingRowSchema = z.strictObject({
   stillThere: z.boolean(),
   /** That the agent answered it, which is the question a phone has. */
   accounted: z.boolean(),
-  account: z
-    .strictObject({
-      did: z.enum(['fixed', 'not real']),
-      said: SaidSchema.nullable(),
-      at: z.string(),
-    })
-    .nullable(),
+  /** Which way the agent answered it. Never its sentence, like the verdict. */
+  account: z.strictObject({ did: z.enum(['fixed', 'not real']), at: z.string() }).nullable(),
   /** That somebody read it, and what they decided. Never their sentence. */
   verdict: z
     .strictObject({ was: z.enum(['confirmed', 'false positive']), at: z.string() })

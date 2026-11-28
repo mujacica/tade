@@ -480,11 +480,11 @@ export interface FindingIn {
   /** Whether the newest reading of that change still raises it. */
   stillThere: boolean
   /**
-   * What the agent said about it, while it still remembered why the code is
-   * the way it is. `said` is AUTHORED — an agent's own words — and `did` is
-   * metadata.
+   * That the agent accounted for it, and which way. **Not its sentence**: no
+   * page and no other machine's window draws it, and with every finding whole
+   * the sentences were most of a snapshot (1.4 of 3.2 MB for 3,908 findings).
    */
-  account: { did: 'fixed' | 'not real'; said: string; at: string } | null
+  account: { did: 'fixed' | 'not real'; at: string } | null
   /**
    * That somebody wrote a verdict, and what it was. **Not its sentence.**
    *

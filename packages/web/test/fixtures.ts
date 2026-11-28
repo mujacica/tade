@@ -248,11 +248,7 @@ export function finding(over: Partial<FindingIn> = {}): FindingIn {
     probability: 0.47,
     file: 'packages/web/src/snapshot.ts',
     stillThere: true,
-    account: {
-      did: 'not real',
-      said: `nothing here builds a path; the one in ${PRIVATE.root} is pre-existing`,
-      at: '2026-10-08T14:05:00.000Z',
-    },
+    account: { did: 'not real', at: '2026-10-08T14:05:00.000Z' },
     verdict: null,
     ...over,
   }

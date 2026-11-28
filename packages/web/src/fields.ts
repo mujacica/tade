@@ -71,7 +71,6 @@ export const AUTHORED: readonly string[] = [
   'tasks[].intent.words',
   'tasks[].account.words',
   'queue[].waitsOn[].why.words',
-  'findings[].account.said.words',
   'notes[].text.words',
   'notes[].summary.words',
   'plans[].account.words',

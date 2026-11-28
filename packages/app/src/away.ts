@@ -428,7 +428,7 @@ export function findingIn(one: JudgeFinding): FindingIn {
     probability: one.probability,
     file: one.file,
     stillThere: one.stillThere,
-    account: one.account && { did: one.account.did, said: one.account.said, at: one.account.at },
+    account: one.account && { did: one.account.did, at: one.account.at },
     verdict: one.verdict && { was: one.verdict.was, at: one.verdict.at },
   }
 }

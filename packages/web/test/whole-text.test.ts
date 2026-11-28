@@ -4,7 +4,6 @@ import { BUDGET } from '../src/page.ts'
 import { snapshotOf } from '../src/snapshot.ts'
 import {
   blocked,
-  finding,
   input,
   intake,
   NOW,
@@ -33,7 +32,6 @@ const TEXTS = {
   intent: long('INTENT'),
   account: long('ACCOUNT'),
   why: long('WAITS-WHY'),
-  said: long('FOUND-SAID'),
   note: long('NOTE'),
   summary: long('SUMMARY'),
   plan: long('PLAN'),
@@ -57,9 +55,6 @@ function whole() {
       { ...waiting, approval: { ...waiting.approval!, command: TEXTS.command } },
     ],
     queue: [queued({ waitsOn: [{ task: 'sentry/away-projection', why: TEXTS.why }] })],
-    findings: [
-      finding({ account: { did: 'not real', said: TEXTS.said, at: '2026-10-08T14:05:00.000Z' } }),
-    ],
     notes: [note({ text: TEXTS.note, summary: TEXTS.summary })],
     plans: [plan({ account: TEXTS.plan })],
     intake: [intake({ material: TEXTS.body })],

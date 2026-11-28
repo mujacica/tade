@@ -5,6 +5,7 @@ import {
   ableOn,
   awayCollections,
   chatLines,
+  findingIn,
   noteIn,
   nothingKnown,
   queueIn,
@@ -411,10 +412,21 @@ describe('the whole thing is what the wire accepts', () => {
       probability: 0.9,
       file: 'src/refund.ts',
       stillThere: true,
-      account: { did: 'not real' as const, said: 'covered', at: '2026-10-08T14:00:00.000Z' },
+      account: {
+        did: 'not real' as const,
+        said: 'covered by the refund test',
+        at: '2026-10-08T14:00:00.000Z',
+      },
       verdict: null,
     }
-    expect(collections({ findings: [said] }).findings).toEqual([said])
+    // Which way the agent answered crosses; its sentence does not, since
+    // nothing at the other end draws it and it was most of every snapshot.
+    const crossed = findingIn(said)
+    expect(crossed).toEqual({
+      ...said,
+      account: { did: 'not real', at: '2026-10-08T14:00:00.000Z' },
+    })
+    expect(collections({ findings: [crossed] }).findings).toEqual([crossed])
   })
 })
 
