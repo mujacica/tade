@@ -114,6 +114,18 @@ export interface Shell {
  * itself, and the browser already compares the script's bytes for exactly the
  * purpose the version serves here.
  */
+/**
+ * The full view's own files (§10 T4): the page at `/draw/` and what only it
+ * loads. **Not the shell's**: the overview never loads them, and the full view
+ * is drawn by the machine's window, so there is nothing of it to open with no
+ * machine — they are kept by the browser's own cache, each a file somebody
+ * asked for, and never counted against the overview's ceiling
+ * (`change-the-window`'s "Its size is its own").
+ */
+export function ofTheFullView(name: string): boolean {
+  return /^full(?:-[a-z]+)?\.(?:js|css)$/.test(name)
+}
+
 export function shellOf(assets: ReadonlyMap<string, Asset>, opts: { serving: boolean }): Shell {
   const files: string[] = ['/']
   const parts: string[] = []
@@ -123,7 +135,7 @@ export function shellOf(assets: ReadonlyMap<string, Asset>, opts: { serving: boo
   // `readdir` makes no promise about order, and a version that depended on it
   // would differ between two machines holding identical files.
   for (const [name, asset] of [...assets].sort(([a], [b]) => (a < b ? -1 : 1))) {
-    if (name === WORKER_FILE || name === 'index.html') continue
+    if (name === WORKER_FILE || name === 'index.html' || ofTheFullView(name)) continue
     files.push(`/assets/${name}`)
     parts.push(JSON.stringify([`/assets/${name}`, asset.etag]))
   }

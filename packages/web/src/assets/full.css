@@ -78,9 +78,8 @@ body.fv {
   margin: 0;
   font-size: var(--step--1);
   color: var(--heading);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Whole, wrapped onto a second line rather than cut: the window refits under it. */
+  overflow-wrap: anywhere;
 }
 
 .fv-tap,

@@ -1401,6 +1401,19 @@ that calls `require` is refused by name. The runtime walk is a small lexer over 
 test holds it to find exactly the files the parser does. `node packages/app/scripts/browser-goldens.ts`
 builds and draws every golden scenario **in a browser**, from the same modules, and holds each screen
 byte for byte to its `.ansi`; it says `unrun` without Playwright, like the away view's harness.
+How it reaches the domain the scenarios are built from, which the drawing alone never imports:
+
+- **each scenario file is a root of its own** (the ones `scenarios.ts` gathers), so one that comes
+  to reach Node is named with the file the build stopped at and its screens counted as not drawn,
+  rather than one file's import refusing every screen — which is how the check went unrun from the
+  day it was written;
+- **browser stand-ins are swaps beside the drawing's own**: `test/screens/colours.ts` is
+  `browser-colours.ts` (the same highlight.js's ES build), and each barrel a scenario reaches that
+  reaches Node — `@tade/core`'s, `@tade/web`'s, `@tade/mcp-core`'s, the extensions' — is a file in
+  `scripts/browser-stand-ins/` re-exporting only that package's browser-safe files, unchanged.
+  A scenario takes the domain from `@tade/core/pure` where it can; a module that reads `process`
+  as it loads, or a name a stand-in lacks, is a page error. Playwright's version is
+  `PLAYWRIGHT_AT` in `packages/web/test/browser-plan.ts`.
 
 **The page that runs it is the full view** (`/draw/`, §10 T4): `assets/full.js` imports the
 drawing through the document's map and draws `FarFace`'s rows into a grid of spans

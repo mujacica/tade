@@ -8,6 +8,7 @@ import {
   keepingOf,
   MANIFEST_FILE,
   OFF_VERSION,
+  ofTheFullView,
   preludeOf,
   servedWorker,
   shellOf,
@@ -202,8 +203,16 @@ describe('the real folder', () => {
     // Every file in the folder, the worker aside — the document counted once,
     // as `/`. The whole shell, with no second list anywhere to keep in step:
     // a file added to `assets/` is a file a phone precaches, and nobody has to
-    // remember that.
-    expect(files.length).toBe(assets.size - 1)
+    // remember that — but for the full view's own, named by their names, which
+    // only the page at `/draw/` loads (`ofTheFullView`).
+    const full = [...assets.keys()].filter(ofTheFullView)
+    expect(full).toEqual(
+      expect.arrayContaining(['full.js', 'full.css', 'full-grid.js', 'full-cells.js']),
+    )
+    for (const name of full) expect(files).not.toContain(`/assets/${name}`)
+    expect(files).toContain('/assets/mode.js')
+    expect(files).toContain('/assets/switch.js')
+    expect(files.length).toBe(assets.size - 1 - full.length)
   })
 
   it('moves when the protocol the page speaks does', async () => {
@@ -234,7 +243,9 @@ describe('the real folder', () => {
     // would mean the folder had grown something that does not belong in it.
     let wire = 0
     let raw = 0
-    for (const one of assets.values()) {
+    // What the shell keeps: the full view's own files are not it (`ofTheFullView`).
+    for (const [name, one] of assets) {
+      if (ofTheFullView(name)) continue
       raw += one.bytes.length
       wire +=
         encodingFor('br', one) === null
