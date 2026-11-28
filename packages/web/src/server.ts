@@ -60,6 +60,7 @@ import {
 } from './sessions.ts'
 import { cursorOf } from './stream.ts'
 import { type Listener, type Origin, reachOf, sameHost } from './surface.ts'
+import { carryLook, carryWindow } from './windowed.ts'
 
 // The away view's own HTTP server: `node:http`, one handler, the table in
 // `routes.ts`, and nothing else listening.
@@ -463,6 +464,13 @@ export function webServer(opts: ServerOptions): WebServer {
         return 'refusal' in said ? answer(res, said.refusal) : json(res, said.body)
       }
       default:
+        if (found.route.windows === 'look') {
+          const got = await readBody(req)
+          if (!got.read) return answer(res, got.refusal)
+          const said = carryLook(got.body, device.id, opts.window)
+          return 'refusal' in said ? answer(res, said.refusal) : json(res, said.body)
+        }
+        if (found.route.windows === 'act') return windowAct(res, device, at)
         if (OWNED_DOOR.has(found.route.name)) {
           const said = await carryOwned(found.route.name, req, device, now(), opts, res)
           return 'refusal' in said ? answer(res, said.refusal) : json(res, said.body)
@@ -571,6 +579,22 @@ export function webServer(opts: ServerOptions): WebServer {
       at,
       (body) => carryOut(route, body, { acting, ...standing(device, at, () => acting.unlocked()) }),
       ({ task, ...detail }) => ({ type: 'web_did', ...(task === '' ? {} : { task }), detail }),
+    )
+  }
+
+  /**
+   * One act from a phone drawing the window itself: `carryWindow`, through
+   * `door`, written down as a `web_did` whose tool is `window <kind>`.
+   */
+  async function windowAct(res: Res, device: Device, at: At): Promise<void> {
+    const window = opts.window
+    if (window === undefined) return answer(res, refuse('no_such'))
+    await readReceipts()
+    return door(
+      res,
+      at,
+      (body) => carryWindow(body, { window, ...standing(device, at, () => window.unlocked()) }),
+      ({ task: _task, ...detail }) => ({ type: 'web_did', detail }),
     )
   }
 

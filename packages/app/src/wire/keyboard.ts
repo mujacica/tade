@@ -28,20 +28,17 @@ import {
   spanOf,
   withSelection,
 } from '../input.ts'
+import { keyOutcome } from '../keymap.ts'
 import { appKey, forLane, normalKey, pasteKey } from '../keys.ts'
 import {
   type AppState,
   activeTerminal,
-  focusBy,
-  focusNumber,
   keyAction,
   laneThere,
   laneWithKeyboard,
   leaveLine,
-  ORCHESTRATOR_TAB,
   openLine,
   panelMoved,
-  projectNumber,
   scrollBy,
   searchKey,
   setDictation,
@@ -54,7 +51,8 @@ import { type PanelInputs, panelKey } from '../panels.ts'
 import { pasteGoes } from '../pasting.ts'
 import { hovered, type Reach, scrollable } from '../scroll.ts'
 import type { Skin } from '../skin.ts'
-import { notify, type Subject, type Wiring } from './context.ts'
+import type { Subject, Wiring } from './context.ts'
+import { doIntent, type IntentTargets } from './intents.ts'
 
 // Where a keystroke goes, and what it does when it gets there.
 //
@@ -279,55 +277,20 @@ export class Keyboard implements Subject {
     const led = this.wire.state.leading && !isKeyRelease(data)
     if (led) this.wire.put({ ...this.wire.state, leading: false })
 
+    // What the key does is the keymap's (`keymap.ts`), which a phone drawing
+    // its own copy of the window runs too; what it asks done is carried out by
+    // the one path a phone's act reaches as well (`wire/intents.ts`).
+    const outcome = keyOutcome(action, this.wire.state, this.wire.now())
+    if (outcome) {
+      if (outcome.state) this.wire.put(outcome.state)
+      if (outcome.draw) this.wire.draw()
+      if (outcome.does) doIntent(outcome.does, this.targets())
+      return { consume: true }
+    }
     switch (action.kind) {
-      case 'lead':
-        this.wire.put({ ...this.wire.state, leading: true })
-        this.wire.draw()
-        return { consume: true }
       case 'lead-through':
         this.wire.draw()
         return this.intoLane(laneWithKeyboard(this.wire.state), forLane(data), false)
-      case 'focus-next':
-        this.wire.put(focusBy(this.wire.state, 1))
-        this.wire.draw()
-        return { consume: true }
-      case 'focus-previous':
-        this.wire.put(focusBy(this.wire.state, -1))
-        this.wire.draw()
-        return { consume: true }
-      case 'talk-start':
-        // What you say goes to the orchestrator, so its tab comes to the front.
-        if (this.wire.state.bottom !== ORCHESTRATOR_TAB)
-          this.wire.put({ ...this.wire.state, bottom: ORCHESTRATOR_TAB })
-        this.deps.talkStart()
-        return { consume: true }
-      case 'talk-stop':
-        this.deps.talkStop()
-        return { consume: true }
-      case 'approve':
-        this.deps.decide(true)
-        return { consume: true }
-      case 'deny':
-        this.deps.decide(false)
-        return { consume: true }
-      case 'help':
-        notify(
-          this.wire,
-          'tab switches · ctrl+space talks · a/d answers · ctrl+c clears, then quits',
-        )
-        this.wire.draw()
-        return { consume: true }
-      case 'search':
-        this.deps.openSearch()
-        return { consume: true }
-      case 'orchestrator':
-        // Back to the line, on whatever was left on it.
-        this.wire.put({ ...openLine(this.wire.state), bottom: ORCHESTRATOR_TAB })
-        this.wire.draw()
-        return { consume: true }
-      case 'run':
-        this.deps.run(action.action)
-        return { consume: true }
       case 'complete': {
         // Tab on a command being typed finishes it, as a shell would.
         const [best] = matchActions(this.wire.state, this.wire.state.dictation ?? '')
@@ -339,17 +302,6 @@ export class Keyboard implements Subject {
         }
         return { consume: true }
       }
-      case 'agent-number':
-        this.wire.put(focusNumber(this.wire.state, action.n))
-        this.wire.draw()
-        return { consume: true }
-      case 'project-number':
-        this.wire.put(projectNumber(this.wire.state, action.n))
-        this.wire.draw()
-        return { consume: true }
-      case 'interrupt':
-        this.deps.interrupt()
-        return { consume: true }
       case 'leave-line':
         // Only ever reached with nothing on the line, so nothing is lost.
         this.anchor = null
@@ -358,9 +310,6 @@ export class Keyboard implements Subject {
         return { consume: true }
       case 'discard':
         this.discard()
-        return { consume: true }
-      case 'quit':
-        this.deps.quit()
         return { consume: true }
       default:
         break
@@ -405,6 +354,32 @@ export class Keyboard implements Subject {
     }
     this.deps.toLane(lanes, false)
     return undefined
+  }
+
+  /**
+   * Keys into the lane with the keyboard, as this face sees it: what a phone's
+   * act carries (`Intent` `type`), into the lane that phone has in front of it.
+   */
+  typeInto(data: string, pasted: boolean): void {
+    this.intoLane(laneWithKeyboard(this.wire.state), data, pasted)
+  }
+
+  /** The doors a key's intent reaches (`doIntent`): this keyboard's own. */
+  private targets(): IntentTargets {
+    const deps = this.deps
+    return {
+      run: (name) => deps.run(name),
+      decide: (allow) => deps.decide(allow),
+      interrupt: () => deps.interrupt(),
+      openSearch: () => deps.openSearch(),
+      talkStart: () => deps.talkStart(),
+      talkStop: () => deps.talkStop(),
+      quit: () => deps.quit(),
+      typeInto: (data, pasted) => this.typeInto(data, pasted),
+      act: (said) => deps.act(said),
+      say: (said) => deps.say(said),
+      applyPanel: (outcome) => deps.applyPanel(outcome),
+    }
   }
 
   /**

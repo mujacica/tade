@@ -112,6 +112,17 @@ cannot. Anything a subject's `facts()` *does* — which lane is read, where the 
 click — is done only for the face that `fronts`, or two faces at two sizes take turns undoing each
 other. A second face's frame has a performance test (`test/wire/faces.probe.test.ts`).
 
+**A phone is a face too, and its keys are the window's own** (`keymap.ts`, `wire/intents.ts`,
+`wire/far-faces.ts`, `far.ts`, `far-face.ts`; §10 T3). A key the window claims is `keyOutcome`: a new
+state for where the face looks, and an `Intent` for what the window does, carried out by `doIntent`
+— from `Keyboard.onInput` and from a phone's act alike, so **a new claimed key goes in `keyOutcome`
+and a new door in `IntentTargets`, never in the keyboard's switch**. The phone runs the keymap and the
+panels itself and sends only intents; the machine folds each phone's face (`frameOf` under `as`) and
+sends what moved (`farChange`) — never `now`, `clock`, `skin` or the machine's own line. What an act
+starts goes on as that face after its awaits (`Heart.as` carries it in an `AsyncLocalStorage`), so
+**frames are always asked for outside it** (`Heart.draw` exits it, the window's own frame is made in
+`Heart.asOwn`): a frame made in a phone's turn would draw the phone's view on the machine's screen.
+
 **The window opens before anything slow does.** The orchestrator is a model in another process; it is
 started once `App.start` has drawn, by `packages/cli/src/orchestrating.ts` — `hold` hands its tools
 to the window, `start` starts it and hands it back with `attachThinker` — which `tade serve` runs over

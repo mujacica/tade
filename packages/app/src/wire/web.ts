@@ -43,7 +43,9 @@ import {
   type WebEarlier,
   type WebReading,
   type WebServer,
+  type WindowDoor,
   webServer,
+  withoutCredentials,
 } from '@tade/web'
 import { lastUpdates } from '@tade/workbench/programs'
 import { awayCollections, chatLines } from '../away.ts'
@@ -240,6 +242,39 @@ export class Away implements Subject {
     )
   }
 
+  /**
+   * The window's state for a device with the full view open (`far-faces.ts`):
+   * to that device's streams, and nothing while the listener is down.
+   */
+  window(device: string, message: unknown): void {
+    if (this.server !== null) this.streams.window(device, message, this.wire.now())
+  }
+
+  /** Keep an agent's screen read for a device whose full view is in front of it (`web-lanes.ts`). */
+  watchLane(device: string, task: string): void {
+    this.lanes.watch(device, task, this.wire.now())
+  }
+
+  /** That agent's screen as last read for away, its keys and credentials taken out; null for none yet. */
+  laneScreen(task: string): string | null {
+    const held = this.lanes.heldFor(task)
+    if (held?.kind !== 'read') return null
+    // The rows below what the lane printed are the lane's height and nothing
+    // else: a phone draws the foot of a screen in a shorter pane, so they go.
+    return this.scrub(held.text.replace(/(?:[ \t]*\r?\n)+[ \t]*$/, ''))
+  }
+
+  /**
+   * A screen's keys and credentials taken out, as the overview's text has them
+   * taken out (`screen.ts`, kept by §10 T1): what a full view is sent of a lane.
+   */
+  scrub(text: string): string {
+    return withoutCredentials(
+      text,
+      this.lanes.keys(() => knownHere(this.wire, this.config())),
+    )
+  }
+
   /** "Nobody is here", for a turn Tade starts, or null where somebody has been (`web-presence.ts`). */
   nobodyHere(): string | null {
     return this.presences.nobodyHere()
@@ -323,6 +358,8 @@ export class Away implements Subject {
         seen: (device, word, at, host, name) => this.seen(device, word, at, host, name),
       }),
       looking: (device, at) => this.push.looking(device, at),
+      // The window itself, for a phone that draws its own copy (`far-faces.ts`).
+      ...windowFor(this.deps.window?.()),
       since: this.presences.since(),
       carrying: carryingFor(this.wire, this.deps.settings),
       // The doorbells, answered only on a public listener and only for a source with a secret.
@@ -1186,4 +1223,9 @@ export class Away implements Subject {
   private config(): Config {
     return this.wire.opts.config
   }
+}
+
+/** The window's door for the listener, where the face has one to share: absent, both routes are a `404`. */
+function windowFor(door: WindowDoor | undefined): { window?: WindowDoor } {
+  return door === undefined ? {} : { window: door }
 }

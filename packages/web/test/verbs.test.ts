@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { From, Outcome, ParkCall, WebActing } from '../src/acting.ts'
 import { BOUNDS, projectRev, taskRev } from '../src/acting.ts'
-import { ACTS, CONNECTS, OWNED, ROUTES, routeFor, routesFor } from '../src/routes.ts'
+import { ACTS, CONNECTS, OWNED, ROUTES, routeFor, routesFor, WINDOW } from '../src/routes.ts'
 import {
   ACCOUNT,
   ANSWER,
@@ -554,8 +554,16 @@ describe('the route table', () => {
     // "the route refuses", which a bug can get past — there is no route, so a
     // crafted call is the `404` of a path nobody built.
     // The owner's carry is in every table and is no acting route (`OWNED`),
-    // and nor is connecting a source, this machine's alone (`CONNECTS`).
-    expect(routesFor({ ...BASE, acting: false })).toEqual([...ROUTES, ...OWNED, ...CONNECTS])
+    // and nor is connecting a source, this machine's alone (`CONNECTS`), nor
+    // the full view's look, which asks for the window's state and does nothing
+    // (`WINDOW`, whose act is built only with acting on).
+    const look = WINDOW.filter((route) => route.windows === 'look')
+    expect(routesFor({ ...BASE, acting: false })).toEqual([
+      ...ROUTES,
+      ...look,
+      ...OWNED,
+      ...CONNECTS,
+    ])
     expect(routeFor('POST', '/api/act/park', routesFor({ ...BASE, acting: false }))).toBeNull()
     expect(routeFor('POST', '/api/act/park', routesFor({ ...BASE, acting: true }))).not.toBeNull()
   })

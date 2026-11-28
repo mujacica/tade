@@ -354,6 +354,18 @@ export class Streams {
   }
 
   /**
+   * The window's state, for the device that has the full view open
+   * (`windowed.ts`): to that device's streams and nobody else's, and never in a
+   * ring — a phone that lost one says so with its next look and is sent the
+   * window whole, which is also what follows a resync.
+   */
+  window(device: string, data: unknown, now: number): void {
+    if (this.stopping) return
+    const frame = sseFrame({ event: 'window', data })
+    for (const peer of [...this.peers]) if (peer.device === device) peer.send(frame, now)
+  }
+
+  /**
    * Every open page is told its own files changed, and goes on streaming.
    *
    * Only ever called by a listener running from the repository, when the

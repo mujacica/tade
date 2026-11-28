@@ -4,12 +4,14 @@ import { type Arming, attentionFor, closeBy, hubOf, type Unclosed } from '@tade/
 import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
+import { surfaceOf, type WindowDoor } from '@tade/web'
 import { runningVersion } from '@tade/workbench/programs'
 import { type FaceCapabilities, ON_THIS_MACHINE } from './faces.ts'
 import { Heart } from './heart.ts'
+import type { Intent } from './keymap.ts'
 import { freeViewportKeys } from './keys.ts'
 import { knownTasks } from './live.ts'
-import { type AppState, addTurn, focusTask, setQuestion } from './model.ts'
+import { type AppState, addTurn, focusTask, paneLane, setQuestion } from './model.ts'
 import { FRAME_MS } from './pace.ts'
 import { pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
 import { Router } from './wire/actions.ts'
@@ -34,6 +36,7 @@ import type { Earlier } from './wire/earlier.ts'
 import { Evaluations } from './wire/evaluations.ts'
 import { Extensions } from './wire/extensions.ts'
 import { FaceScreen } from './wire/face-screen.ts'
+import { FarFaces } from './wire/far-faces.ts'
 import { Files } from './wire/files.ts'
 import { FleetJournals } from './wire/fleet-journals.ts'
 import { FleetReload } from './wire/fleet-reload.ts'
@@ -172,6 +175,12 @@ export class App {
   private readonly subjects: readonly Subject[]
   /** The faces attached to this window's heart over other terminals (`attach`), until each goes. */
   private readonly faces = new Set<FaceScreen>()
+  /**
+   * The phones that draw their own copy of this window through the away
+   * door's full view (§10 T3): a face each on the heart, sent state and never
+   * a frame drawn, and the one act they send back carried out as that face.
+   */
+  private readonly far: FarFaces
 
   private constructor(opts: AppOptions) {
     this.opts = opts
@@ -197,6 +206,7 @@ export class App {
         // The links beat on the heart's own beat, before this.
         this.fleet.beat()
         this.updates.beat()
+        this.far.beat()
         if (moved) this.draw() // a beat that found what the last did is not news
       },
       heard: (event) => this.tui.requestNews(event.urgency === 'blocking'),
@@ -251,6 +261,8 @@ export class App {
         reloadStops: () => this.window.reloadStops(),
         // And reloads every machine, as the strip's reload does.
         reloadAll: () => this.fleet.reload(),
+        // The window itself, for a phone that draws its own copy of it.
+        window: () => this.windowDoor(),
       },
       remotes: {
         screens: () => this.screens,
@@ -551,6 +563,36 @@ export class App {
       searchOpened: () => this.search.opened(),
       lookAtWhatIsInstalled: () => void this.updates.lookAtWhatIsInstalled(),
     })
+    this.far = new FarFaces({
+      attach: (spec) => this.heart.attach(spec),
+      subjects: () => this.subjects,
+      skin: this.skin,
+      // The doors this window's own keyboard reaches (`Keyboard`'s deps above),
+      // so a phone's act is the same key pressed somewhere else.
+      targets: () => ({
+        run: (action) => void this.router.run(action),
+        decide: (allow) => void this.away.keyed(allow),
+        interrupt: () => void (this.remotes.interrupt() || this.orchestrator.interrupt()),
+        openSearch: () => this.search.open(),
+        talkStart: () => void this.voice.talkStart(),
+        talkStop: () => void this.voice.talkStop(),
+        quit: () => this.window.quit(),
+        typeInto: (data, pasted) => this.keyboard.typeInto(data, pasted),
+        act: (said) => void this.router.act(said),
+        say: (said) => this.remotes.say(said) || this.orchestrator.say(said),
+        applyPanel: (outcome) => this.router.applyPanel(outcome),
+      }),
+      send: (device, message) => this.away.window(device, message),
+      front: () => paneLane(this.state),
+      watch: (device, task) => this.away.watchLane(device, task),
+      screen: (task) => this.away.laneScreen(task),
+      scrub: (text) => this.away.scrub(text),
+      keys: () => ({
+        bindings: this.wire.opts.config.surfaces.window.keys,
+        talk: this.wire.opts.config.surfaces.voice.talk.key,
+      }),
+      now: () => this.wire.now(),
+    })
     this.closed = new Promise((resolve) => {
       this.settle = resolve
     })
@@ -653,6 +695,20 @@ export class App {
     }
   }
 
+  /**
+   * The away door's half of the full view (`windowed.ts`): a phone's look and
+   * its one act, reaching this window's phones (`FarFaces`). The listener is
+   * handed it; a test drives a phone through it the same way.
+   */
+  windowDoor(): WindowDoor {
+    return {
+      unlocked: () => surfaceOf(this.wire.opts.config.surfaces.web).acting,
+      look: (device, look) => this.far.look(device, look),
+      act: (device, intent, own) => this.far.act(device, intent as Intent, own),
+      leave: (device) => this.far.leave(device),
+    }
+  }
+
   /** Resolves when the window has been closed, with what it gave up waiting for or could not close. */
   wait(): Promise<Unclosed[]> {
     return this.closed
@@ -683,6 +739,7 @@ export class App {
     this.window.remember()
     for (const face of this.faces) face.stop()
     this.faces.clear()
+    this.far.stop()
     this.release?.()
     if (this.pointerShapes) this.terminal.write(pointerSequence('default'))
     this.tui.stop()
@@ -753,16 +810,19 @@ export class App {
 
     this.tui.addChild(
       this.mouse.component(
-        (width) => {
-          const frame = frameOf(
-            this.subjects,
-            { width, height: Math.max(6, this.terminal.rows), skin: this.skin },
-            this.state.panel,
-          )
-          // The spinner's own clock, wound by what this frame shows turning.
-          this.window.drew(frame)
-          return { state: this.state, frame }
-        },
+        // As this window's own face, always: pi-tui makes a frame a turn after
+        // it was asked for, which may be a turn a phone's act started (`asOwn`).
+        (width) =>
+          this.heart.asOwn(() => {
+            const frame = frameOf(
+              this.subjects,
+              { width, height: Math.max(6, this.terminal.rows), skin: this.skin },
+              this.state.panel,
+            )
+            // The spinner's own clock, wound by what this frame shows turning.
+            this.window.drew(frame)
+            return { state: this.state, frame }
+          }),
         () => this.now(),
       ),
     )

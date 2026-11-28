@@ -12,6 +12,11 @@
 // A namespace each, rather than one flat list: two of these modules may name a
 // helper the same, and the page should say which one it means.
 //
+// The window's state arrives as `far.ts` messages, and `FarFace` is the phone's
+// copy of the window over them: it takes them, draws, answers keys with the
+// window's own keymap (`keymap.ts`) and hands back what the machine is asked
+// to do, for the page to send through the away door's one act (§10 T3).
+//
 // What the machine does with no screen, the page says for itself before it
 // draws: which highlight.js colours code (`colourWith`, with the languages
 // `languagesNamed` lists, imported through the same map), and what its
@@ -19,8 +24,11 @@
 
 export { setCapabilities } from './browser-terminal.ts'
 export * as commands from './commands.ts'
+export * as far from './far.ts'
+export { FarFace, type FarPress } from './far-face.ts'
 export { colourWith, languagesNamed } from './highlight.ts'
 export * as hits from './hits.ts'
+export * as keymap from './keymap.ts'
 export * as keys from './keys.ts'
 export * as layout from './layout.ts'
 export * as model from './model.ts'

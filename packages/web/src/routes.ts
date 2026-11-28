@@ -114,6 +114,13 @@ export interface Route {
    */
   says?: string
   /**
+   * What this route is of the window shared with a phone that draws it
+   * (`windowed.ts`), where it is one of `WINDOW`: the `look` a full view sends
+   * as it opens and renews, or the one `act` that carries an intent back.
+   * Carried rather than read back out of the path, for the reason `verb` is.
+   */
+  windows?: 'look' | 'act'
+  /**
    * Whether it changes anything at all. Mutations carry the cross-site layers:
    * an exact `Origin`, JSON only, and the session's own token.
    */
@@ -1052,6 +1059,32 @@ export const HOOKS: readonly Route[] = HOOK_SOURCES.map((source) => ({
 }))
 
 /**
+ * **The window itself, for a phone that draws its own copy** (`windowed.ts`,
+ * §10 T3 of the Duo plan). The look is a read — it asks for the window's state
+ * on this device's streams and changes nothing about the work, like `looking`
+ * — so it is answered whatever acting says; the act is an act, asked a trusted
+ * origin like every other, and built only where acting is on.
+ */
+export const WINDOW: readonly Route[] = [
+  {
+    method: 'POST',
+    path: '/api/window/look',
+    name: 'window look',
+    needs: 'read',
+    mutates: true,
+    windows: 'look',
+  },
+  {
+    method: 'POST',
+    path: '/api/window/act',
+    name: 'window act',
+    needs: 'steer',
+    mutates: true,
+    windows: 'act',
+  },
+]
+
+/**
  * The table this listener answers from, which is a fact about the config.
  *
  * Built once, when the server is made, which is why turning any of the
@@ -1070,6 +1103,7 @@ export function routesFor(surface: Surface): readonly Route[] {
     ...(surface.drafting ? DRAFTS : []),
     ...(surface.pushing ? PUSHES : []),
     ...(surface.configuring ? SETTINGS : []),
+    ...WINDOW.filter((route) => route.windows === 'look' || surface.acting),
     ...OWNED,
     ...CONNECTS,
     ...(surface.publicName === null ? [] : HOOKS),

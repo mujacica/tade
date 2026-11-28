@@ -1,5 +1,5 @@
 import type { InboxRow } from '@tade/core'
-import type { CopyIn, WebAccounts } from '@tade/web'
+import type { CopyIn, WebAccounts, WindowDoor } from '@tade/web'
 import type { MachineActs } from './acts.ts'
 import type { FleetConversation } from './conversation.ts'
 import type { Waking } from './doorbell.ts'
@@ -164,6 +164,14 @@ export interface AwayDeps {
    * face's, as the strip's reload is. Absent, the press starts this Tade alone.
    */
   reloadAll?: () => Promise<void>
+  /**
+   * The window itself, for a phone that draws its own copy (`far-faces.ts`,
+   * §10 T3): the face's, because only a window has the subjects a frame is
+   * folded from. Absent with no screen (`tade serve`), where the full view's
+   * routes are the `404` of a path nobody wired. Asked for, because the face
+   * makes it after the heart.
+   */
+  window?: () => WindowDoor | undefined
   /**
    * Start the orchestrator again once any turn it is in is over, on what it is
    * signed in as now (`Orchestrator.moveAccount`), for `/login` on this

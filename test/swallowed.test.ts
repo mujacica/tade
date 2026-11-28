@@ -377,6 +377,10 @@ const ALLOWED: Record<string, number> = {
   'packages/web/src/reloading.ts': 1,
   'packages/web/src/request.ts': 2,
   'packages/web/src/server.ts': 2,
+  // A repeat of a key whose first call is still running, answered `unsure` if
+  // that call fails — as acted.ts and asked.ts answer it: the first call says
+  // its own failure, and this one runs nothing.
+  'packages/web/src/windowed.ts': 1,
   'packages/workbench/src/authored.ts': 3,
   'packages/workbench/src/checks.ts': 1,
   'packages/workbench/src/compact.ts': 8,

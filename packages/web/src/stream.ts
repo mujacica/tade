@@ -82,6 +82,9 @@ export const STREAM_EVENTS = [
   'machine',
   // An owner link's outbox holds something here (`Streams.wake`): collect it now.
   'outbox',
+  // The window's state, whole or what moved, for a device with the full view
+  // open (`windowed.ts`, `Streams.window`): only ever to the device that looked.
+  'window',
 ] as const
 export type StreamEvent = (typeof STREAM_EVENTS)[number]
 

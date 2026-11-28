@@ -43,6 +43,7 @@ import type { WebTaking } from './taken.ts'
 import type { Tickets } from './tickets.ts'
 import type { WebToolRead } from './tool-read.ts'
 import type { WebWatchSeen } from './watch-seen.ts'
+import type { WindowDoor } from './windowed.ts'
 
 // What the window hands the away view, and what it hands back.
 //
@@ -255,6 +256,12 @@ export interface ServerOptions {
    * is sent. Absent, the route is the `404` of a path nobody wired.
    */
   looking?: (device: string, at: number) => void
+  /**
+   * The window itself, for a phone that draws its own copy (`windowed.ts`):
+   * where it looks and the one act it sends back. Absent — a heart with no
+   * window to share — both routes are the `404` of a path nobody wired.
+   */
+  window?: WindowDoor
   /**
    * Another machine's Tade carrying its setup here, as an owner (`carried.ts`):
    * the config as written, the one write path, the files and the sign-ins.

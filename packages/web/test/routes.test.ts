@@ -12,6 +12,7 @@ import {
   routeFor,
   routesFor,
   SETTINGS,
+  WINDOW,
 } from '../src/routes.ts'
 import { OFF, type Surface } from '../src/surface.ts'
 
@@ -160,6 +161,9 @@ describe('the shape of the table', () => {
   })
 })
 
+/** The full view's look: in every table, as the owner's and the connect tables are. */
+const LOOK = WINDOW.filter((route) => route.windows === 'look')
+
 describe('the five tables a setting turns on', () => {
   it('puts nothing in the base table, so read-only stays an absence', () => {
     // Each of the four is a second table `routesFor` adds only where its own
@@ -174,14 +178,18 @@ describe('the five tables a setting turns on', () => {
   it('serves none of them with every setting off', () => {
     // The owner's table is not one of them: no setting turns it on, because
     // the SSH key it stands for already reaches everything it does. Nor is
-    // the connect table, which answers only this machine and a callback's word.
-    expect(routesFor(OFF)).toEqual([...ROUTES, ...OWNED, ...CONNECTS])
+    // the connect table, which answers only this machine and a callback's word,
+    // nor the full view's look, which asks for the window's state and does
+    // nothing — its act is acting's (`WINDOW`).
+    expect(routesFor(OFF)).toEqual([...ROUTES, ...LOOK, ...OWNED, ...CONNECTS])
   })
 
   it('serves each of them only where its own setting is on', () => {
     const on = (over: Partial<Surface>) =>
       routesFor({ ...OFF, enabled: true, ...over }).map((route) => route.path)
     expect(on({ acting: true })).toContain('/api/act/park')
+    expect(on({ acting: true })).toContain('/api/window/act')
+    expect(on({ talking: true })).not.toContain('/api/window/act')
     expect(on({ acting: true })).not.toContain('/api/draft/save')
     expect(on({ talking: true })).toContain('/api/ask/ask')
     expect(on({ talking: true })).not.toContain('/api/draft/save')
@@ -203,6 +211,7 @@ describe('the five tables a setting turns on', () => {
     expect(on({ configuring: true })).toEqual([
       ...ROUTES.map((route) => route.path),
       '/api/settings/change',
+      ...LOOK.map((route) => route.path),
       ...OWNED.map((route) => route.path),
       ...CONNECTS.map((route) => route.path),
     ])

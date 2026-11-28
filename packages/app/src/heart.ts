@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { type Arming, loadConfig, printable, type TadeEvent, titlesOf } from '@tade/core'
 import type { StatusAsk } from '@tade/status'
 import {
@@ -113,8 +114,8 @@ export type AgentsFace = Omit<AgentsDeps, 'useConfig' | 'changeQueue' | 'closesW
 export type ProjectsFace = Pick<ProjectsDeps, 'rememberWindow'>
 /** The conversation's screen: where it is scrolled, what is said aloud, the line it was typed on. */
 export type OrchestratorFace = Omit<OrchestratorDeps, 'useConfig' | 'nobodyHere'>
-/** The pairing link's `Copy`, which is a clipboard. */
-export type AwayFace = Pick<AwayDeps, 'copy' | 'reloadStops' | 'reloadAll'>
+/** The pairing link's `Copy`, which is a clipboard; a restart's two halves; the window shared with a phone. */
+export type AwayFace = Pick<AwayDeps, 'copy' | 'reloadStops' | 'reloadAll' | 'window'>
 
 /**
  * What the links to other machines borrow of a face: its screens for a flow
@@ -213,6 +214,14 @@ interface Guest {
   /** The last view made for it, kept while neither half has moved (`Heart.seen`). */
   seen: { heart: AppState; own: FaceOwn; state: AppState } | null
 }
+
+/**
+ * The face the work running now was started for (`Heart.as`): carried across
+ * every await of what an attached face's act started, so a door that writes
+ * after one writes as that face. Empty for everything the machine's own window
+ * and the beat start, which is the machine's own face.
+ */
+const carried = new AsyncLocalStorage<Guest>()
 
 /**
  * A line said in the conversation: what a face draws, and what is written
@@ -516,14 +525,21 @@ export class Heart {
     this.face = face
     this.said = said
     this.wire = wiringFor(opts, {
-      state: () => (this.serving ? this.seen(this.serving) : this.current),
-      put: (next) => (this.serving ? this.putAs(this.serving, next) : this.put(next)),
+      state: () => {
+        const guest = this.served()
+        return guest ? this.seen(guest) : this.current
+      },
+      put: (next) => {
+        const guest = this.served()
+        if (guest) this.putAs(guest, next)
+        else this.put(next)
+      },
       live: () => this.looked,
       now: () => this.now(),
       layout: () => face.layout(),
       draw: () => this.draw(),
       typed: () => face.typed(),
-      face: () => this.serving?.capabilities ?? face.capabilities,
+      face: () => this.served()?.capabilities ?? face.capabilities,
     })
     this.settings = new Settings(this.wire, {
       ...face.settings,
@@ -776,8 +792,13 @@ export class Heart {
    * rows that changed), so this costs a face what it shows and no more.
    */
   draw(): void {
-    this.face.draw()
-    for (const guest of this.guests) guest.draw()
+    // Asked for outside any face an act carried (`carried`): a frame is
+    // scheduled now and made later, and one made inside a phone's act would be
+    // made — and drawn on the machine's own screen — as that phone sees it.
+    carried.exit(() => {
+      this.face.draw()
+      for (const guest of this.guests) guest.draw()
+    })
   }
 
   /**
@@ -828,16 +849,47 @@ export class Heart {
     this.put(sharedFrom(next, this.current))
   }
 
-  /** Serve one attached face for the length of `fn`, and whichever was served before after it. */
+  /**
+   * Serve one attached face for the length of `fn`, and whichever was served
+   * before after it — and for whatever `fn` started that is still going after
+   * it returns. A phone's act (§10 T3) runs a door that awaits — a press held
+   * while its action answers, a panel a menu opens once its choice is made —
+   * and what that door writes after its await is still that phone's: carried
+   * with the work it started (`carried`), never left to land on whichever face
+   * happens to be served by then. A face that has gone by the time it lands
+   * writes as nobody's but the machine's own.
+   */
   private as<T>(guest: Guest, fn: () => T): T {
     if (!this.guests.has(guest)) throw new Error('that face has gone from this heart')
     const was = this.serving
     this.serving = guest
     try {
-      return fn()
+      return carried.run(guest, fn)
     } finally {
       this.serving = was
     }
+  }
+
+  /**
+   * Run `fn` as the machine's own face, whatever face is served or carried
+   * now: the machine's own window's frame, which may be made in a turn some
+   * phone's act scheduled, and must never be made as that phone sees it.
+   */
+  asOwn<T>(fn: () => T): T {
+    const was = this.serving
+    this.serving = null
+    try {
+      return carried.exit(fn)
+    } finally {
+      this.serving = was
+    }
+  }
+
+  /** The face being served: the one `as` is serving now, or the one the work running now was started for. */
+  private served(): Guest | null {
+    if (this.serving) return this.serving
+    const carriedFor = carried.getStore()
+    return carriedFor && this.guests.has(carriedFor) ? carriedFor : null
   }
 
   /**
